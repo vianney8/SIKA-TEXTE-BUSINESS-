@@ -91,8 +91,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/transactions', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const limit = parseInt(req.query.limit as string) || 10;
-      const transactions = await storage.getUserTransactions(userId, limit);
+      const limit = parseInt(req.query.limit as string) || 50;
+      const type = req.query.type as string;
+      const status = req.query.status as string;
+      const transactions = await storage.getUserTransactions(userId, limit, type, status);
       res.json(transactions);
     } catch (error) {
       console.error("Error fetching transactions:", error);

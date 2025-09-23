@@ -14,7 +14,16 @@ export default function Transactions() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
   const { data: transactions = [] } = useQuery({
-    queryKey: ["/api/transactions", { limit: 50 }],
+    queryKey: ["/api/transactions", filterType, filterStatus],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      params.append('limit', '50');
+      if (filterType && filterType !== 'all') params.append('type', filterType);
+      if (filterStatus && filterStatus !== 'all') params.append('status', filterStatus);
+      return fetch(`/api/transactions?${params.toString()}`, {
+        credentials: 'include'
+      }).then(res => res.json());
+    }
   });
 
   const getTransactionIcon = (type: string) => {
@@ -90,11 +99,8 @@ export default function Transactions() {
     }
   };
 
-  const filteredTransactions = (transactions as any[]).filter((transaction) => {
-    const typeMatch = filterType === "all" || transaction.type === filterType;
-    const statusMatch = filterStatus === "all" || transaction.status === filterStatus;
-    return typeMatch && statusMatch;
-  });
+  // Server-side filtering is now handled, so we just use the transactions directly
+  const filteredTransactions = transactions as any[];
 
   return (
     <div className="min-h-screen bg-background">

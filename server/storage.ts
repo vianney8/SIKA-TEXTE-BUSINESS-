@@ -9,7 +9,7 @@ import {
   type Referral,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, and } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import { randomBytes } from "crypto";
 
@@ -25,7 +25,7 @@ export interface IStorage {
   
   // Transaction operations
   createTransaction(transaction: Omit<InsertTransaction, 'id' | 'reference'>): Promise<Transaction>;
-  getUserTransactions(userId: string, limit?: number): Promise<Transaction[]>;
+  getUserTransactions(userId: string, limit?: number, type?: string, status?: string): Promise<Transaction[]>;
   updateTransactionStatus(transactionId: string, status: string): Promise<void>;
   
   // Balance operations
@@ -57,7 +57,7 @@ export class DatabaseStorage implements IStorage {
         },
       })
       .returning();
-    return result[0] as User;
+    return result[0];
   }
 
   // Authentication operations
@@ -81,7 +81,7 @@ export class DatabaseStorage implements IStorage {
           undefined,
       })
       .returning();
-    const user = result[0] as User;
+    const user = result[0];
 
     // Create referral relationship if referred
     if (userData.referralCode) {
@@ -123,11 +123,21 @@ export class DatabaseStorage implements IStorage {
     return newTransaction;
   }
 
-  async getUserTransactions(userId: string, limit = 10): Promise<Transaction[]> {
+  async getUserTransactions(userId: string, limit = 50, type?: string, status?: string): Promise<Transaction[]> {
+    const conditions = [eq(transactions.userId, userId)];
+
+    // Apply filters if provided
+    if (type && type !== 'all') {
+      conditions.push(eq(transactions.type, type));
+    }
+    if (status && status !== 'all') {
+      conditions.push(eq(transactions.status, status));
+    }
+
     return await db
       .select()
       .from(transactions)
-      .where(eq(transactions.userId, userId))
+      .where(and(...conditions))
       .orderBy(desc(transactions.createdAt))
       .limit(limit);
   }
