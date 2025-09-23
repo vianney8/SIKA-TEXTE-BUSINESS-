@@ -167,11 +167,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Transfer money
+  // Transfer money (only between SIKA TEXTE users)
   app.post('/api/transactions/transfer', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session.userId;
       const { recipientPhone, amount, message } = transferSchema.parse(req.body);
+      
+      // Check if recipient exists in SIKA TEXTE system
+      const recipient = await storage.getUserByPhone(recipientPhone);
+      if (!recipient) {
+        return res.status(400).json({ message: "Le numéro de téléphone ne correspond à aucun compte SIKA TEXTE" });
+      }
       
       // Check sender balance
       const balance = await storage.getUserBalance(userId);
@@ -179,20 +185,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Solde insuffisant" });
       }
 
-      // Create transaction
-      const transaction = await storage.createTransaction({
+      // Create sender transaction (debit)
+      const senderTransaction = await storage.createTransaction({
         userId,
         type: 'transfer',
         amount: amount.toString(),
         recipientPhone,
-        description: message,
+        description: message || `Transfert vers ${recipient.fullName || recipient.firstName + ' ' + recipient.lastName || recipientPhone}`,
         status: 'completed',
       });
 
-      // Update balance
-      await storage.updateUserBalance(userId, -amount);
+      // Create recipient transaction (credit)
+      const recipientTransaction = await storage.createTransaction({
+        userId: recipient.id,
+        type: 'transfer_received',
+        amount: amount.toString(),
+        recipientPhone: userId, // Store sender ID in recipientPhone field for received transfers
+        description: message || `Reçu de ${await storage.getUser(userId).then(u => u?.fullName || u?.firstName + ' ' + u?.lastName || 'Utilisateur')}`,
+        status: 'completed',
+      });
 
-      res.json({ message: "Transfert effectué avec succès", transaction });
+      // Update balances
+      await storage.updateUserBalance(userId, -amount); // Debit sender
+      await storage.updateUserBalance(recipient.id, amount); // Credit recipient
+
+      res.json({ 
+        message: `Transfert effectué avec succès vers ${recipient.fullName || recipient.firstName + ' ' + recipient.lastName || recipientPhone}`, 
+        transaction: senderTransaction,
+        recipient: {
+          name: recipient.fullName || recipient.firstName + ' ' + recipient.lastName,
+          phone: recipientPhone
+        }
+      });
     } catch (error: any) {
       console.error("Transfer error:", error);
       if (error.issues) {
