@@ -274,16 +274,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createReferral(referrerId: string, referredUserId: string): Promise<void> {
-    const commission = 200; // Fixed commission for now
-    
+    // Create referral record without commission - commission will be awarded on account activation
     await db.insert(referrals).values({
       referrerId,
       referredUserId,
-      commission: commission.toString(),
+      commission: '0', // Will be updated when referred user activates account
     });
-
-    // Add commission to referrer's balance
-    await this.updateUserBalance(referrerId, commission);
   }
   
   // SIKA TEXTE BUSINESS - Work operations
@@ -506,6 +502,11 @@ export class DatabaseStorage implements IStorage {
   }
   
   async activateAccount(userId: string): Promise<void> {
+    // Check if account was already active (to avoid duplicate commissions)
+    const currentStatus = await this.getAccountStatus(userId);
+    const wasAlreadyActive = currentStatus?.isActive === true;
+
+    // Activate the account
     await db
       .insert(accountStatus)
       .values({
@@ -520,6 +521,26 @@ export class DatabaseStorage implements IStorage {
           activatedAt: new Date(),
         },
       });
+
+    // Award referral commission if this is the first activation and user was referred
+    if (!wasAlreadyActive) {
+      const user = await this.getUser(userId);
+      if (user?.referredBy) {
+        // Calculate commission: 20% of 3600 FCFA activation cost = 720 FCFA
+        const activationCost = 3600;
+        const commissionRate = 0.20;
+        const commission = activationCost * commissionRate;
+
+        // Update referral record with commission
+        await db
+          .update(referrals)
+          .set({ commission: commission.toString() })
+          .where(eq(referrals.referredUserId, userId));
+
+        // Award commission to referrer
+        await this.updateUserBalance(user.referredBy, commission);
+      }
+    }
   }
   
   // Withdrawal operations
