@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Menu, Bell, Eye, Plus } from "lucide-react";
+import { Link } from "wouter";
 
 interface MobileHeaderProps {
   user: any;
@@ -31,12 +32,15 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
           </div>
         </div>
         <Button 
+          asChild
           variant="ghost" 
           size="sm"
           className="text-primary-foreground hover:bg-white/10"
           data-testid="button-notifications"
         >
-          <Bell size={20} />
+          <Link href="/transactions">
+            <Bell size={20} />
+          </Link>
         </Button>
       </div>
 
