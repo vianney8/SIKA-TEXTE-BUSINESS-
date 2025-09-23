@@ -1,7 +1,8 @@
 import { Button } from "@/components/ui/button";
-import { Menu, Bell, Eye, Plus } from "lucide-react";
+import { Menu, Bell, Eye, EyeOff, Plus } from "lucide-react";
 import { Link } from "wouter";
 import { formatFCFA } from "@/lib/utils";
+import { useState } from "react";
 
 interface MobileHeaderProps {
   user: any;
@@ -11,6 +12,8 @@ interface MobileHeaderProps {
 }
 
 export default function MobileHeader({ user, balance, onMenuToggle, onPointage }: MobileHeaderProps) {
+  const [isBalanceVisible, setIsBalanceVisible] = useState(true);
+
   return (
     <header className="gradient-bg text-primary-foreground sticky top-0 z-50">
       
@@ -25,11 +28,8 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
           <Menu size={24} />
         </Button>
         <div className="text-center">
-          <div className="text-sm opacity-90">
+          <div className="text-sm opacity-90" data-testid="text-username">
             {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.fullName || 'Utilisateur'}
-          </div>
-          <div className="text-sm opacity-75" data-testid="text-username">
-            {user?.firstName || user?.fullName?.split(' ')[0] || 'User'}
           </div>
         </div>
         <Button 
@@ -49,9 +49,17 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
       <div className="px-6 pb-6">
         <div className="text-center">
           <div className="flex items-center justify-center text-3xl font-bold mb-2">
-            <Eye className="text-lg mr-3" />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsBalanceVisible(!isBalanceVisible)}
+              className="text-primary-foreground hover:bg-white/10 p-1 mr-3"
+              data-testid="button-toggle-balance"
+            >
+              {isBalanceVisible ? <Eye className="text-lg" /> : <EyeOff className="text-lg" />}
+            </Button>
             <span data-testid="text-balance">
-              {formatFCFA(balance)}
+              {isBalanceVisible ? formatFCFA(balance) : "••••••"}
             </span>
           </div>
           <Button 
