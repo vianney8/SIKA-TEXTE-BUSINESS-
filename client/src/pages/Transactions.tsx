@@ -89,7 +89,7 @@ export default function Transactions() {
   const getTypeLabel = (type: string) => {
     switch (type) {
       case "deposit":
-        return "Pointage +";
+        return "Pointage";
       case "transfer":
         return "Transfert";
       case "recharge":
