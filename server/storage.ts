@@ -341,6 +341,106 @@ export class DatabaseStorage implements IStorage {
           text: "Nous mangons des fruit et des légume pour être en bonne santée.",
           correctedText: "Nous mangeons des fruits et des légumes pour être en bonne santé.",
           errorCount: 3
+        },
+        {
+          text: "Il fait beau aujourd'hui, nous irons nous promener dans la foret.",
+          correctedText: "Il fait beau aujourd'hui, nous irons nous promener dans la forêt.",
+          errorCount: 1
+        },
+        {
+          text: "J'ai acheté des fleures pour ma maman hier soire.",
+          correctedText: "J'ai acheté des fleurs pour ma maman hier soir.",
+          errorCount: 2
+        },
+        {
+          text: "Les oiseaux chantes dans les arbres tous les mattins.",
+          correctedText: "Les oiseaux chantent dans les arbres tous les matins.",
+          errorCount: 2
+        },
+        {
+          text: "Mon frere va a l'université pour étudier la médecinne.",
+          correctedText: "Mon frère va à l'université pour étudier la médecine.",
+          errorCount: 3
+        },
+        {
+          text: "Elle porte une robe blanche et des chaussures vertes tres jolies.",
+          correctedText: "Elle porte une robe blanche et des chaussures vertes très jolies.",
+          errorCount: 1
+        },
+        {
+          text: "Nous partons en vacance à la mer cet été avec nos amis.",
+          correctedText: "Nous partons en vacances à la mer cet été avec nos amis.",
+          errorCount: 1
+        },
+        {
+          text: "Le chien cours après le ballon dans le parc publique.",
+          correctedText: "Le chien court après le ballon dans le parc public.",
+          errorCount: 2
+        },
+        {
+          text: "Ma grand-mere cuisine des gateaux délicieux chaque dimanche.",
+          correctedText: "Ma grand-mère cuisine des gâteaux délicieux chaque dimanche.",
+          errorCount: 2
+        },
+        {
+          text: "Les étudiant travaillent dur pour réussir leurs examens finaux.",
+          correctedText: "Les étudiants travaillent dur pour réussir leurs examens finaux.",
+          errorCount: 1
+        },
+        {
+          text: "Il a acheté une voiture rouge et une moto noire hier après-middi.",
+          correctedText: "Il a acheté une voiture rouge et une moto noire hier après-midi.",
+          errorCount: 1
+        },
+        {
+          text: "Les professeur donnent des cours interessants sur l'histoire africaine.",
+          correctedText: "Les professeurs donnent des cours intéressants sur l'histoire africaine.",
+          errorCount: 2
+        },
+        {
+          text: "Nous devons faire nos devoires avant de regarder la télévision.",
+          correctedText: "Nous devons faire nos devoirs avant de regarder la télévision.",
+          errorCount: 1
+        },
+        {
+          text: "La bibliothèque est ouverte tous les jours sauf le dimenche.",
+          correctedText: "La bibliothèque est ouverte tous les jours sauf le dimanche.",
+          errorCount: 1
+        },
+        {
+          text: "Mon ami vient de France et parle tres bien le français.",
+          correctedText: "Mon ami vient de France et parle très bien le français.",
+          errorCount: 1
+        },
+        {
+          text: "Les marchés vendents des legumes frais et des fruits de saison.",
+          correctedText: "Les marchés vendent des légumes frais et des fruits de saison.",
+          errorCount: 2
+        },
+        {
+          text: "Elle écris une lettre a sa famille qui vit en Europe.",
+          correctedText: "Elle écrit une lettre à sa famille qui vit en Europe.",
+          errorCount: 2
+        },
+        {
+          text: "Nous avons visité le musée d'art moderne la semainne dernière.",
+          correctedText: "Nous avons visité le musée d'art moderne la semaine dernière.",
+          errorCount: 1
+        },
+        {
+          text: "Les enfants aiments jouer au football dans la cours de l'école.",
+          correctedText: "Les enfants aiment jouer au football dans la cour de l'école.",
+          errorCount: 2
+        },
+        {
+          text: "Il faut boire beaucoup d'eau quand il fait tres chaud dehors.",
+          correctedText: "Il faut boire beaucoup d'eau quand il fait très chaud dehors.",
+          errorCount: 1
+        },
+        {
+          text: "Ma tante viens nous rendre visite chaque année en décembre.",
+          correctedText: "Ma tante vient nous rendre visite chaque année en décembre.",
+          errorCount: 1
         }
       ];
       
