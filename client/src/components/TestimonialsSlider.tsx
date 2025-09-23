@@ -40,8 +40,8 @@ const testimonials: Testimonial[] = [
   {
     id: 3,
     name: "Fatou Traoré",
-    city: "Bamako",
-    country: "Mali",
+    city: "Cotonou",
+    country: "Bénin",
     message: "Je fais mes corrections le matin et je retire le soir, c'est super pratique.",
     photo: traditionalWoman,
     rating: 5
@@ -58,8 +58,8 @@ const testimonials: Testimonial[] = [
   {
     id: 5,
     name: "Akosua Asante",
-    city: "Accra",
-    country: "Ghana",
+    city: "Lomé",
+    country: "Togo",
     message: "J'ai testé avec seulement 3 phrases = 1 950 FCFA, et le retrait a marché directement.",
     photo: ghanaianWoman,
     rating: 5
@@ -67,8 +67,8 @@ const testimonials: Testimonial[] = [
   {
     id: 6,
     name: "Moussa Cissé",
-    city: "Conakry",
-    country: "Guinée",
+    city: "Porto-Novo",
+    country: "Bénin",
     message: "Ce qui me plaît, c'est que je n'ai pas besoin de parrainer pour gagner.",
     photo: africanBusinessman,
     rating: 5
@@ -85,8 +85,8 @@ const testimonials: Testimonial[] = [
   {
     id: 8,
     name: "Kwame Adjei",
-    city: "Kumasi",
-    country: "Ghana",
+    city: "Kara",
+    country: "Togo",
     message: "Simple, rapide et rentable. Je recommande à tous mes amis.",
     photo: youngMan,
     rating: 5
@@ -103,8 +103,8 @@ const testimonials: Testimonial[] = [
   {
     id: 10,
     name: "Seydou Keita",
-    city: "Sikasso",
-    country: "Mali",
+    city: "Parakou",
+    country: "Bénin",
     message: "C'est incroyable de voir qu'une simple correction me paie en euros.",
     photo: africanBusinessman,
     rating: 5
@@ -121,8 +121,8 @@ const testimonials: Testimonial[] = [
   {
     id: 12,
     name: "Yaw Boateng",
-    city: "Takoradi",
-    country: "Ghana",
+    city: "Sokodé",
+    country: "Togo",
     message: "J'adore la régularité des gains, c'est tous les jours pareil.",
     photo: youngMan,
     rating: 5
@@ -148,8 +148,8 @@ const testimonials: Testimonial[] = [
   {
     id: 15,
     name: "Emmanuel Asante",
-    city: "Ho",
-    country: "Ghana",
+    city: "Kpalimé",
+    country: "Togo",
     message: "Même avec un emploi du temps chargé, je trouve le temps pour corriger et encaisser.",
     photo: africanBusinessman,
     rating: 5
@@ -166,8 +166,8 @@ const testimonials: Testimonial[] = [
   {
     id: 17,
     name: "Joseph Tetteh",
-    city: "Cape Coast",
-    country: "Ghana",
+    city: "Abomey-Calavi",
+    country: "Bénin",
     message: "C'est plus rentable que beaucoup de petits boulots physiques.",
     photo: youngMan,
     rating: 5
@@ -175,8 +175,8 @@ const testimonials: Testimonial[] = [
   {
     id: 18,
     name: "Salimata Touré",
-    city: "Ségou",
-    country: "Mali",
+    city: "Atakpamé",
+    country: "Togo",
     message: "Les retraits sont directs, pas besoin d'attendre plusieurs jours.",
     photo: africanBusinesswoman,
     rating: 5
@@ -184,8 +184,8 @@ const testimonials: Testimonial[] = [
   {
     id: 19,
     name: "Kofi Ampong",
-    city: "Sunyani",
-    country: "Ghana",
+    city: "Djougou",
+    country: "Bénin",
     message: "J'aime la simplicité de la plateforme, tout est clair.",
     photo: africanBusinessman,
     rating: 5
@@ -193,8 +193,8 @@ const testimonials: Testimonial[] = [
   {
     id: 20,
     name: "Hawa Diakité",
-    city: "Gao",
-    country: "Mali",
+    city: "Bassar",
+    country: "Togo",
     message: "J'ai déjà retiré plusieurs fois via Mobile Money, ça marche parfaitement.",
     photo: traditionalWoman,
     rating: 5
@@ -202,8 +202,8 @@ const testimonials: Testimonial[] = [
   {
     id: 21,
     name: "Francis Mensah",
-    city: "Wa",
-    country: "Ghana",
+    city: "Bohicon",
+    country: "Bénin",
     message: "1 € par phrase, ça peut sembler petit, mais au final ça rapporte gros.",
     photo: youngMan,
     rating: 5
@@ -211,8 +211,8 @@ const testimonials: Testimonial[] = [
   {
     id: 22,
     name: "Rokia Cissoko",
-    city: "Kayes",
-    country: "Mali",
+    city: "Tsevie",
+    country: "Togo",
     message: "Avec SIKA TEXTE, je gagne même plus que mon salaire habituel.",
     photo: ghanaianWoman,
     rating: 5
@@ -220,8 +220,8 @@ const testimonials: Testimonial[] = [
   {
     id: 23,
     name: "Abdul Rahman",
-    city: "Bolgatanga",
-    country: "Ghana",
+    city: "Natitingou",
+    country: "Bénin",
     message: "Je peux travailler depuis mon téléphone, où que je sois.",
     photo: africanBusinessman,
     rating: 5
@@ -238,8 +238,8 @@ const testimonials: Testimonial[] = [
   {
     id: 25,
     name: "Samuel Osei",
-    city: "Techiman",
-    country: "Ghana",
+    city: "Aneho",
+    country: "Togo",
     message: "Le fait qu'il n'y ait pas de parrainage obligatoire, c'est ce qui m'a attiré.",
     photo: youngMan,
     rating: 5
@@ -247,8 +247,8 @@ const testimonials: Testimonial[] = [
   {
     id: 26,
     name: "Assata Kaba",
-    city: "Kankan",
-    country: "Guinée",
+    city: "Kandi",
+    country: "Bénin",
     message: "Corriger des phrases européennes est simple et amusant.",
     photo: traditionalWoman,
     rating: 5
@@ -256,8 +256,8 @@ const testimonials: Testimonial[] = [
   {
     id: 27,
     name: "Richmond Asiedu",
-    city: "Koforidua",
-    country: "Ghana",
+    city: "Mango",
+    country: "Togo",
     message: "Mes premiers retraits ont été très rapides. Je suis satisfait.",
     photo: africanBusinessman,
     rating: 5
@@ -274,8 +274,8 @@ const testimonials: Testimonial[] = [
   {
     id: 29,
     name: "Prince Owusu",
-    city: "Tarkwa",
-    country: "Ghana",
+    city: "Savalou",
+    country: "Bénin",
     message: "J'utilise SIKA TEXTE comme un complément de revenu.",
     photo: youngMan,
     rating: 5
@@ -292,8 +292,8 @@ const testimonials: Testimonial[] = [
   {
     id: 31,
     name: "Eric Adjabeng",
-    city: "Bawku",
-    country: "Ghana",
+    city: "Dassa-Zoumé",
+    country: "Bénin",
     message: "J'ai testé, et aujourd'hui je ne peux plus m'en passer.",
     photo: africanBusinessman,
     rating: 5
@@ -310,8 +310,8 @@ const testimonials: Testimonial[] = [
   {
     id: 33,
     name: "Daniel Appiah",
-    city: "Nkawkaw",
-    country: "Ghana",
+    city: "Dapaong",
+    country: "Togo",
     message: "La régularité des paiements me rassure.",
     photo: youngMan,
     rating: 5
@@ -328,8 +328,8 @@ const testimonials: Testimonial[] = [
   {
     id: 35,
     name: "Isaac Agyeman",
-    city: "Ejura",
-    country: "Ghana",
+    city: "Ouidah",
+    country: "Bénin",
     message: "Je gagne plus en une journée ici qu'en une semaine ailleurs.",
     photo: africanBusinessman,
     rating: 5
@@ -337,8 +337,8 @@ const testimonials: Testimonial[] = [
   {
     id: 36,
     name: "Daba Kouyaté",
-    city: "Koutiala",
-    country: "Mali",
+    city: "Nikki",
+    country: "Bénin",
     message: "La conversion euro → FCFA est vraiment intéressante.",
     photo: africanBusinesswoman,
     rating: 5
@@ -346,8 +346,8 @@ const testimonials: Testimonial[] = [
   {
     id: 37,
     name: "Benjamin Danso",
-    city: "Dormaa",
-    country: "Ghana",
+    city: "Vogan",
+    country: "Togo",
     message: "Je ne pensais pas que ce serait aussi simple de générer un revenu en ligne.",
     photo: youngMan,
     rating: 5
@@ -364,8 +364,8 @@ const testimonials: Testimonial[] = [
   {
     id: 39,
     name: "George Acheampong",
-    city: "Berekum",
-    country: "Ghana",
+    city: "Agué",
+    country: "Bénin",
     message: "En corrigeant 12 phrases, je peux couvrir mes petites dépenses quotidiennes.",
     photo: africanBusinessman,
     rating: 5
@@ -382,8 +382,8 @@ const testimonials: Testimonial[] = [
   {
     id: 41,
     name: "Patrick Okyere",
-    city: "Wenchi",
-    country: "Ghana",
+    city: "Tchaoudjo",
+    country: "Togo",
     message: "7 800 FCFA par jour, ça paraît peu, mais accumulé c'est énorme.",
     photo: youngMan,
     rating: 5
@@ -400,8 +400,8 @@ const testimonials: Testimonial[] = [
   {
     id: 43,
     name: "Michael Asante",
-    city: "Kpandae",
-    country: "Ghana",
+    city: "Lokossa",
+    country: "Bénin",
     message: "Même ma mère a commencé à corriger des phrases et elle adore.",
     photo: africanBusinessman,
     rating: 5
@@ -418,8 +418,8 @@ const testimonials: Testimonial[] = [
   {
     id: 45,
     name: "Stephen Boateng",
-    city: "Akim Oda",
-    country: "Ghana",
+    city: "Blitta",
+    country: "Togo",
     message: "Je suis content de voir que mes efforts sont directement récompensés.",
     photo: youngMan,
     rating: 5
@@ -436,8 +436,8 @@ const testimonials: Testimonial[] = [
   {
     id: 47,
     name: "Robert Amponsah",
-    city: "Prestea",
-    country: "Ghana",
+    city: "Come",
+    country: "Bénin",
     message: "J'ai déjà gagné plus de 100 000 FCFA en moins de deux semaines.",
     photo: africanBusinessman,
     rating: 5
@@ -454,8 +454,8 @@ const testimonials: Testimonial[] = [
   {
     id: 49,
     name: "Emmanuel Mensah",
-    city: "Agogo",
-    country: "Ghana",
+    city: "Notse",
+    country: "Togo",
     message: "Le fait d'être payé en euros est un gros avantage.",
     photo: youngMan,
     rating: 5
