@@ -1,0 +1,70 @@
+import { Switch, Route } from "wouter";
+import { queryClient } from "./lib/queryClient";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { useAuth } from "@/hooks/useAuth";
+import NotFound from "@/pages/not-found";
+import Landing from "@/pages/Landing";
+import Register from "@/pages/Register";
+import Dashboard from "@/pages/Dashboard";
+import Transfer from "@/pages/Transfer";
+import Recharge from "@/pages/Recharge";
+import Payment from "@/pages/Payment";
+import Bank from "@/pages/Bank";
+import Team from "@/pages/Team";
+import Profile from "@/pages/Profile";
+import Transactions from "@/pages/Transactions";
+
+function Router() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-primary to-blue-600">
+        <div className="text-center">
+          <div className="bg-gradient-to-r from-primary to-accent w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center animate-pulse">
+            <i className="fas fa-business-time text-white text-2xl"></i>
+          </div>
+          <div className="text-white text-lg font-semibold">Chargement...</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Switch>
+      {!isAuthenticated ? (
+        <>
+          <Route path="/" component={Landing} />
+          <Route path="/register" component={Register} />
+        </>
+      ) : (
+        <>
+          <Route path="/" component={Dashboard} />
+          <Route path="/transfer" component={Transfer} />
+          <Route path="/recharge" component={Recharge} />
+          <Route path="/payment" component={Payment} />
+          <Route path="/bank" component={Bank} />
+          <Route path="/team" component={Team} />
+          <Route path="/profile" component={Profile} />
+          <Route path="/transactions" component={Transactions} />
+        </>
+      )}
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Router />
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}
+
+export default App;
