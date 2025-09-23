@@ -3,9 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Users, Share2, Gift, QrCode, Copy, Check } from "lucide-react";
+import { Users, Share2, Gift, QrCode, Copy, Check, ArrowLeft } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "wouter";
 
 interface ReferralData {
   referralCode: string;
@@ -72,8 +73,20 @@ export default function TeamPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
-      <div className="max-w-md mx-auto pt-8 space-y-6">
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <div className="gradient-bg text-primary-foreground">
+        <div className="px-6 py-4 flex items-center">
+          <Button asChild variant="ghost" size="sm" className="text-primary-foreground hover:bg-white/10">
+            <Link href="/" data-testid="button-back">
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+          </Button>
+          <h1 className="ml-4 text-lg font-semibold" data-testid="page-title">Équipe</h1>
+        </div>
+      </div>
+      <div className="p-4">
+        <div className="max-w-md mx-auto pt-8 space-y-6">
         
         {/* Header */}
         <div className="text-center mb-6">
@@ -296,7 +309,7 @@ export default function TeamPage() {
             )}
           </CardContent>
         </Card>
-
+        </div>
       </div>
     </div>
   );

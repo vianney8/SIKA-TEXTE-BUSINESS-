@@ -11,11 +11,13 @@ import {
   Smartphone, 
   Shield,
   Banknote,
-  Clock
+  Clock,
+  ArrowLeft
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "wouter";
 
 interface WithdrawalData {
   balance: number;

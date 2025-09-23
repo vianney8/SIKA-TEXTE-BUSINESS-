@@ -4,10 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle, AlertCircle, Clock, TrendingUp } from "lucide-react";
+import { CheckCircle, AlertCircle, Clock, TrendingUp, ArrowLeft } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "wouter";
 
 interface Sentence {
   id: string;
@@ -93,8 +94,20 @@ export default function Work() {
 
   if (!progress?.canWorkToday) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
-        <div className="max-w-md mx-auto pt-8">
+      <div className="min-h-screen bg-background">
+        {/* Header */}
+        <div className="gradient-bg text-primary-foreground">
+          <div className="px-6 py-4 flex items-center">
+            <Button asChild variant="ghost" size="sm" className="text-primary-foreground hover:bg-white/10">
+              <Link href="/" data-testid="button-back">
+                <ArrowLeft className="w-5 h-5" />
+              </Link>
+            </Button>
+            <h1 className="ml-4 text-lg font-semibold" data-testid="page-title">Travail</h1>
+          </div>
+        </div>
+        <div className="p-4">
+          <div className="max-w-md mx-auto pt-8">
           <Card className="text-center">
             <CardHeader>
               <div className="mx-auto w-16 h-16 bg-yellow-100 dark:bg-yellow-900 rounded-full flex items-center justify-center mb-4">
@@ -121,14 +134,27 @@ export default function Work() {
               )}
             </CardContent>
           </Card>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
-      <div className="max-w-md mx-auto pt-8">
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <div className="gradient-bg text-primary-foreground">
+        <div className="px-6 py-4 flex items-center">
+          <Button asChild variant="ghost" size="sm" className="text-primary-foreground hover:bg-white/10">
+            <Link href="/" data-testid="button-back">
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+          </Button>
+          <h1 className="ml-4 text-lg font-semibold" data-testid="page-title">Travail</h1>
+        </div>
+      </div>
+      <div className="p-4">
+        <div className="max-w-md mx-auto pt-8">
         {/* Progress Card */}
         <Card className="mb-6">
           <CardHeader>
@@ -252,6 +278,7 @@ export default function Work() {
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
     </div>
   );
