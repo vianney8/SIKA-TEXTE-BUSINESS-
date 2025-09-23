@@ -67,18 +67,28 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
     },
   ];
 
+  // WhatsApp assistance function
+  const handleWhatsAppAssistance = () => {
+    const message = "Bonjour, j'ai besoin d'aide concernant SIKA TEXTE.";
+    const phoneNumber = "+2250748291503";
+    const encodedMessage = encodeURIComponent(message);
+    const whatsappUrl = `https://wa.me/${phoneNumber.replace(/[^\d]/g, '')}?text=${encodedMessage}`;
+    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+    onClose();
+  };
+
   const secondaryItems = [
     {
       icon: Wallet,
       label: "Retrait",
       href: "/withdrawal",
       testId: "button-withdrawal",
-      highlight: true,
+      highlight: false,
     },
     {
       icon: HelpCircle,
       label: "Assistance",
-      href: "/profile",
+      action: handleWhatsAppAssistance,
       testId: "button-help",
     },
   ];
@@ -152,36 +162,40 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
           {/* Secondary Items */}
           <div className="pt-2 space-y-2">
             {secondaryItems.map((item) => (
-              <Button
-                key={item.label}
-                asChild
-                variant="ghost"
-                className={`w-full justify-start p-4 rounded-lg transition-colors h-auto ${
-                  item.highlight 
-                    ? 'bg-blue-50 hover:bg-blue-100 border border-blue-200' 
-                    : 'hover:bg-slate-100'
-                }`}
-                onClick={onClose}
-                data-testid={item.testId}
-              >
-                <Link href={item.href}>
+              item.action ? (
+                <Button
+                  key={item.label}
+                  variant="ghost"
+                  className="w-full justify-start p-4 rounded-lg transition-colors h-auto hover:bg-slate-100"
+                  onClick={item.action}
+                  data-testid={item.testId}
+                >
                   <div className="flex items-center space-x-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                      item.highlight ? 'bg-blue-100' : 'bg-slate-100'
-                    }`}>
-                      <item.icon className={item.highlight ? 'text-blue-600' : 'text-slate-600'} size={18} />
+                    <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
+                      <item.icon className="text-slate-600" size={18} />
                     </div>
-                    <span className={`font-medium ${
-                      item.highlight ? 'text-blue-700' : 'text-slate-700'
-                    }`}>{item.label}</span>
-                    {item.label === "Retrait" && (
-                      <Badge className="ml-auto bg-orange-100 text-orange-800 text-xs">
-                        0
-                      </Badge>
-                    )}
+                    <span className="font-medium text-slate-700">{item.label}</span>
                   </div>
-                </Link>
-              </Button>
+                </Button>
+              ) : (
+                <Button
+                  key={item.label}
+                  asChild
+                  variant="ghost"
+                  className="w-full justify-start p-4 rounded-lg transition-colors h-auto hover:bg-slate-100"
+                  onClick={onClose}
+                  data-testid={item.testId}
+                >
+                  <Link href={item.href}>
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
+                        <item.icon className="text-slate-600" size={18} />
+                      </div>
+                      <span className="font-medium text-slate-700">{item.label}</span>
+                    </div>
+                  </Link>
+                </Button>
+              )
             ))}
           </div>
 
