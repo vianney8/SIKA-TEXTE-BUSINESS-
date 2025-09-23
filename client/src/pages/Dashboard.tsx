@@ -7,7 +7,7 @@ import BottomNavigation from "@/components/BottomNavigation";
 import TransactionCard from "@/components/TransactionCard";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Eye, ArrowUpRight, CreditCard, Wallet, Users } from "lucide-react";
+import { Eye, ArrowUpRight, Wallet, Users } from "lucide-react";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -51,22 +51,6 @@ export default function Dashboard() {
       bgColor: "bg-blue-100",
       iconColor: "text-primary",
       testId: "button-transfer",
-    },
-    {
-      icon: Plus,
-      label: "Recharge",
-      href: "/recharge",
-      bgColor: "bg-green-100",
-      iconColor: "text-green-600",
-      testId: "button-recharge",
-    },
-    {
-      icon: CreditCard,
-      label: "Paiement",
-      href: "/payment",
-      bgColor: "bg-purple-100",
-      iconColor: "text-purple-600",
-      testId: "button-payment",
     },
     {
       icon: Wallet,
