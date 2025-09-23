@@ -71,10 +71,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = simpleRegisterSchema.parse(req.body);
       
-      // Check if user already exists
-      const existingUser = await storage.getUserByEmail(validatedData.email);
-      if (existingUser) {
+      // Check if user already exists by email or phone
+      const existingUserByEmail = await storage.getUserByEmail(validatedData.email);
+      if (existingUserByEmail) {
         return res.status(400).json({ message: "Un utilisateur avec cet email existe déjà" });
+      }
+      
+      const existingUserByPhone = await storage.getUserByPhone(validatedData.phoneNumber);
+      if (existingUserByPhone) {
+        return res.status(400).json({ message: "Un utilisateur avec ce numéro de téléphone existe déjà" });
       }
 
       // Hash password
@@ -86,7 +91,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         firstName: validatedData.firstName,
         lastName: validatedData.lastName,
         fullName: `${validatedData.firstName} ${validatedData.lastName}`,
-        phone: validatedData.phone,
+        phone: validatedData.phoneNumber,
       });
 
       // Set session
@@ -105,16 +110,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Simple login endpoint
   app.post('/api/auth/login', async (req, res) => {
     try {
-      const { email, password } = simpleLoginSchema.parse(req.body);
+      const { phoneNumber, password } = simpleLoginSchema.parse(req.body);
       
-      const user = await storage.getUserByEmail(email);
+      const user = await storage.getUserByPhone(phoneNumber);
       if (!user || !user.password) {
-        return res.status(401).json({ message: "Email ou mot de passe incorrect" });
+        return res.status(401).json({ message: "Numéro de téléphone ou mot de passe incorrect" });
       }
 
       const isValidPassword = await bcrypt.compare(password, user.password);
       if (!isValidPassword) {
-        return res.status(401).json({ message: "Email ou mot de passe incorrect" });
+        return res.status(401).json({ message: "Numéro de téléphone ou mot de passe incorrect" });
       }
 
       // Set session

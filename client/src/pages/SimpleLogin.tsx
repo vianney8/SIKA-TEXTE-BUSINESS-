@@ -5,10 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-import { Lock, Mail, Eye, EyeOff } from "lucide-react";
+import { Lock, Phone, Eye, EyeOff } from "lucide-react";
 
 export default function SimpleLogin() {
-  const [email, setEmail] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -18,10 +18,10 @@ export default function SimpleLogin() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!email || !password) {
+    if (!phoneNumber || !password) {
       toast({
         title: "Erreur",
-        description: "Email et mot de passe requis",
+        description: "Numéro de téléphone et mot de passe requis",
         variant: "destructive",
       });
       return;
@@ -36,7 +36,7 @@ export default function SimpleLogin() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          email,
+          phoneNumber,
           password,
         }),
       });
@@ -55,7 +55,7 @@ export default function SimpleLogin() {
       } else {
         toast({
           title: "Erreur de connexion",
-          description: data.message || "Email ou mot de passe incorrect",
+          description: data.message || "Numéro de téléphone ou mot de passe incorrect",
           variant: "destructive",
         });
       }
@@ -84,17 +84,17 @@ export default function SimpleLogin() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="phoneNumber">Numéro de téléphone</Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Phone className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="votre@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  id="phoneNumber"
+                  type="tel"
+                  placeholder="+225 12345678"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
                   className="pl-10"
-                  data-testid="input-email"
+                  data-testid="input-phone"
                   required
                 />
               </div>

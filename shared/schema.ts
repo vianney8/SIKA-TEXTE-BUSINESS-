@@ -238,11 +238,11 @@ export const simpleRegisterSchema = z.object({
   password: z.string().min(6, "Le mot de passe doit contenir au moins 6 caractères"),
   firstName: z.string().min(1, "Le prénom est requis"),
   lastName: z.string().min(1, "Le nom de famille est requis"),
-  phone: z.string().optional(),
+  phoneNumber: z.string().min(8, "Le numéro de téléphone est requis"),
 });
 
 export const simpleLoginSchema = z.object({
-  email: z.string().email("Email invalide"),
+  phoneNumber: z.string().min(8, "Le numéro de téléphone est requis"),
   password: z.string().min(1, "Le mot de passe est requis"),
 });
 
