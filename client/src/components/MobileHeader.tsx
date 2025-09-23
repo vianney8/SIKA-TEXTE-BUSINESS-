@@ -23,9 +23,11 @@ export default function MobileHeader({ user, balance, onMenuToggle, onDeposit }:
           <Menu size={24} />
         </Button>
         <div className="text-center">
-          <div className="text-sm opacity-90">Anonymous</div>
+          <div className="text-sm opacity-90">
+            {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.fullName || 'Utilisateur'}
+          </div>
           <div className="text-sm opacity-75" data-testid="text-username">
-            {user?.fullName?.split(' ')[0] || 'User'}
+            {user?.firstName || user?.fullName?.split(' ')[0] || 'User'}
           </div>
         </div>
         <Button 
@@ -59,7 +61,7 @@ export default function MobileHeader({ user, balance, onMenuToggle, onDeposit }:
         </div>
         <div className="flex justify-between text-xs mt-2 opacity-75">
           <span data-testid="text-account-id">
-            {user?.id?.substring(0, 10) || 'CI00025033'}
+            {user?.id?.substring(0, 10) || user?.email?.split('@')[0] || 'testuser45'}
           </span>
           <span data-testid="text-last-update">
             {new Date().toLocaleDateString("fr-FR")} {new Date().toLocaleTimeString("fr-FR", { 

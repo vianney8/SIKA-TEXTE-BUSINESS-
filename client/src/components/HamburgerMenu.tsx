@@ -59,7 +59,7 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
             </div>
             <div>
               <div className="font-semibold" data-testid="text-menu-user-name">
-                {user?.fullName || "Utilisateur"}
+                {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.fullName || "Utilisateur"}
               </div>
               <div className="text-sm opacity-75" data-testid="text-menu-user-phone">
                 {user?.phone || ""}

@@ -57,7 +57,7 @@ export class DatabaseStorage implements IStorage {
         },
       })
       .returning();
-    return result[0];
+    return result[0] as User;
   }
 
   // Authentication operations
@@ -81,7 +81,7 @@ export class DatabaseStorage implements IStorage {
           undefined,
       })
       .returning();
-    const user = result[0];
+    const user = result[0] as User;
 
     // Create referral relationship if referred
     if (userData.referralCode) {
