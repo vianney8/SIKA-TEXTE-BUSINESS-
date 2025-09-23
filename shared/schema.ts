@@ -10,6 +10,7 @@ import {
   decimal,
   integer,
   boolean,
+  unique,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -64,6 +65,59 @@ export const referrals = pgTable("referrals", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Tables pour SIKA TEXTE BUSINESS
+export const sentences = pgTable("sentences", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  text: text("text").notNull(),
+  correctedText: text("corrected_text").notNull(),
+  errorCount: integer("error_count").notNull().default(1),
+  difficulty: varchar("difficulty").notNull().default('easy'), // 'easy', 'medium', 'hard'
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const workProgress = pgTable("work_progress", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  date: varchar("date").notNull(), // Format YYYY-MM-DD
+  correctionsCount: integer("corrections_count").notNull().default(0),
+  earningsToday: decimal("earnings_today", { precision: 15, scale: 2 }).default('0'),
+  lastCorrectionAt: timestamp("last_correction_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  // Unique constraint to ensure one progress record per user per day
+  userDateUnique: unique().on(table.userId, table.date),
+}));
+
+export const corrections = pgTable("corrections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  sentenceId: varchar("sentence_id").notNull().references(() => sentences.id),
+  userAnswer: text("user_answer").notNull(),
+  isCorrect: boolean("is_correct").notNull(),
+  earnedAmount: decimal("earned_amount", { precision: 15, scale: 2 }).default('0'),
+  completedAt: timestamp("completed_at").defaultNow(),
+});
+
+export const accountStatus = pgTable("account_status", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  isActive: boolean("is_active").notNull().default(false),
+  activatedAt: timestamp("activated_at"),
+  activationFee: decimal("activation_fee", { precision: 15, scale: 2 }).default('3600'),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const withdrawals = pgTable("withdrawals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  amount: decimal("amount", { precision: 15, scale: 2 }).notNull(),
+  phoneNumber: varchar("phone_number").notNull(),
+  status: varchar("status").notNull().default('pending'), // 'pending', 'completed', 'failed'
+  processedAt: timestamp("processed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many, one }) => ({
   transactions: many(transactions),
@@ -71,6 +125,42 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   referredUsers: many(referrals, { relationName: "referred" }),
   referrer: one(users, {
     fields: [users.referredBy],
+    references: [users.id],
+  }),
+  workProgress: many(workProgress),
+  corrections: many(corrections),
+  accountStatus: one(accountStatus),
+  withdrawals: many(withdrawals),
+}));
+
+export const workProgressRelations = relations(workProgress, ({ one }) => ({
+  user: one(users, {
+    fields: [workProgress.userId],
+    references: [users.id],
+  }),
+}));
+
+export const correctionsRelations = relations(corrections, ({ one }) => ({
+  user: one(users, {
+    fields: [corrections.userId],
+    references: [users.id],
+  }),
+  sentence: one(sentences, {
+    fields: [corrections.sentenceId],
+    references: [sentences.id],
+  }),
+}));
+
+export const accountStatusRelations = relations(accountStatus, ({ one }) => ({
+  user: one(users, {
+    fields: [accountStatus.userId],
+    references: [users.id],
+  }),
+}));
+
+export const withdrawalsRelations = relations(withdrawals, ({ one }) => ({
+  user: one(users, {
+    fields: [withdrawals.userId],
     references: [users.id],
   }),
 }));
@@ -159,8 +249,32 @@ export const simpleLoginSchema = z.object({
 export type SimpleRegister = z.infer<typeof simpleRegisterSchema>;
 export type SimpleLogin = z.infer<typeof simpleLoginSchema>;
 
+// Schémas pour les nouvelles fonctionnalités
+export const workSubmissionSchema = z.object({
+  sentenceId: z.string().min(1, "ID de phrase requis"),
+  answer: z.string().min(1, "Réponse requise"),
+});
+
+export const withdrawalRequestSchema = z.object({
+  amount: z.number().min(1000, "Montant minimum 1000 FCFA"),
+  phoneNumber: z.string().min(1, "Numéro de téléphone requis"),
+});
+
+export const activationSchema = z.object({
+  activationFee: z.number().min(3600, "Frais d'activation de 3600 FCFA requis"),
+});
+
+// Types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 export type Transaction = typeof transactions.$inferSelect;
 export type InsertTransaction = typeof transactions.$inferInsert;
 export type Referral = typeof referrals.$inferSelect;
+export type Sentence = typeof sentences.$inferSelect;
+export type WorkProgress = typeof workProgress.$inferSelect;
+export type Correction = typeof corrections.$inferSelect;
+export type AccountStatus = typeof accountStatus.$inferSelect;
+export type Withdrawal = typeof withdrawals.$inferSelect;
+export type WorkSubmission = z.infer<typeof workSubmissionSchema>;
+export type WithdrawalRequest = z.infer<typeof withdrawalRequestSchema>;
+export type ActivationRequest = z.infer<typeof activationSchema>;

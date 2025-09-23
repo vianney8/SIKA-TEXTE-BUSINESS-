@@ -7,7 +7,7 @@ import BottomNavigation from "@/components/BottomNavigation";
 import TransactionCard from "@/components/TransactionCard";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Eye, ArrowUpRight, CreditCard, University, Users } from "lucide-react";
+import { Plus, Eye, ArrowUpRight, CreditCard, Wallet, Users } from "lucide-react";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -65,12 +65,12 @@ export default function Dashboard() {
       testId: "button-payment",
     },
     {
-      icon: University,
-      label: "Banque",
-      href: "/bank",
+      icon: Wallet,
+      label: "Retrait",
+      href: "/withdrawal",
       bgColor: "bg-orange-100",
       iconColor: "text-accent",
-      testId: "button-bank",
+      testId: "button-withdrawal",
     },
   ];
 
@@ -232,7 +232,7 @@ export default function Dashboard() {
         </div>
       </main>
 
-      <BottomNavigation currentPage="dashboard" />
+      <BottomNavigation currentPage="home" />
     </div>
   );
 }

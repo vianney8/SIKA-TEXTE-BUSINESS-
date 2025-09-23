@@ -2,11 +2,21 @@ import {
   users,
   transactions,
   referrals,
+  sentences,
+  workProgress,
+  corrections,
+  accountStatus,
+  withdrawals,
   type User,
   type UpsertUser,
   type Transaction,
   type InsertTransaction,
   type Referral,
+  type Sentence,
+  type WorkProgress,
+  type Correction,
+  type AccountStatus,
+  type Withdrawal,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and } from "drizzle-orm";
@@ -42,12 +52,31 @@ export interface IStorage {
   getUserBalance(userId: string): Promise<number>;
   
   // Referral operations
-  getReferralStats(userId: string): Promise<{ totalReferrals: number; totalCommission: number }>;
+  getReferralStats(userId: string): Promise<{ totalReferrals: number; totalCommission: number; monthlyCommission: number }>;
   getUserReferrals(userId: string): Promise<(Referral & { referredUser: User })[]>;
   createReferral(referrerId: string, referredUserId: string): Promise<void>;
+  
+  // Work operations for SIKA TEXTE BUSINESS
+  getWorkProgress(userId: string, date: string): Promise<WorkProgress | undefined>;
+  updateWorkProgress(userId: string, date: string, correctionsCount: number, earnings: number): Promise<void>;
+  getRandomSentences(limit?: number): Promise<Sentence[]>;
+  submitCorrection(userId: string, sentenceId: string, userAnswer: string): Promise<{ correct: boolean; reward: number }>;
+  
+  // Account activation operations
+  getAccountStatus(userId: string): Promise<AccountStatus | undefined>;
+  activateAccount(userId: string): Promise<void>;
+  
+  // Withdrawal operations
+  createWithdrawal(userId: string, amount: number, phoneNumber: string): Promise<Withdrawal>;
+  getUserWithdrawals(userId: string): Promise<Withdrawal[]>;
+  updateWithdrawalStatus(withdrawalId: string, status: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
+  // Helper method to get current date string
+  private getCurrentDate(): string {
+    return new Date().toISOString().split('T')[0];
+  }
   // User operations - required for Replit Auth
   async getUser(id: string): Promise<User | undefined> {
     const result = await db.select().from(users).where(eq(users.id, id));
@@ -190,8 +219,8 @@ export class DatabaseStorage implements IStorage {
     return parseFloat(user?.balance || '0');
   }
 
-  // Referral operations
-  async getReferralStats(userId: string): Promise<{ totalReferrals: number; totalCommission: number }> {
+  // Referral operations (updated for SIKA TEXTE BUSINESS)
+  async getReferralStats(userId: string): Promise<{ totalReferrals: number; totalCommission: number; monthlyCommission: number }> {
     const [stats] = await db
       .select({
         totalReferrals: sql<number>`count(*)`,
@@ -200,9 +229,24 @@ export class DatabaseStorage implements IStorage {
       .from(referrals)
       .where(eq(referrals.referrerId, userId));
 
+    // Calculate monthly commission (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const [monthlyStats] = await db
+      .select({
+        monthlyCommission: sql<number>`coalesce(sum(${referrals.commission}), 0)`,
+      })
+      .from(referrals)
+      .where(and(
+        eq(referrals.referrerId, userId),
+        sql`${referrals.createdAt} >= ${thirtyDaysAgo.toISOString()}`
+      ));
+
     return {
       totalReferrals: Number(stats.totalReferrals),
       totalCommission: Number(stats.totalCommission),
+      monthlyCommission: Number(monthlyStats.monthlyCommission),
     };
   }
 
@@ -232,6 +276,175 @@ export class DatabaseStorage implements IStorage {
 
     // Add commission to referrer's balance
     await this.updateUserBalance(referrerId, commission);
+  }
+  
+  // SIKA TEXTE BUSINESS - Work operations
+  async getWorkProgress(userId: string, date: string): Promise<WorkProgress | undefined> {
+    const [progress] = await db
+      .select()
+      .from(workProgress)
+      .where(and(
+        eq(workProgress.userId, userId),
+        eq(workProgress.date, date)
+      ));
+    return progress;
+  }
+  
+  async updateWorkProgress(userId: string, date: string, correctionsCount: number, earnings: number): Promise<void> {
+    await db
+      .insert(workProgress)
+      .values({
+        userId,
+        date,
+        correctionsCount,
+        earningsToday: earnings.toString(),
+        lastCorrectionAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [workProgress.userId, workProgress.date],
+        set: {
+          correctionsCount,
+          earningsToday: earnings.toString(),
+          lastCorrectionAt: new Date(),
+        },
+      });
+  }
+  
+  async getRandomSentences(limit = 5): Promise<Sentence[]> {
+    // For now, create some sample sentences if none exist
+    const count = await db.select({ count: sql<number>`count(*)` }).from(sentences);
+    
+    if (Number(count[0].count) === 0) {
+      // Insert sample sentences
+      const sampleSentences = [
+        {
+          text: "Je mange une pomme rouge qui est tres délicieuse.",
+          correctedText: "Je mange une pomme rouge qui est très délicieuse.",
+          errorCount: 1
+        },
+        {
+          text: "Les enfants joues dans le jardin avec leurs ballon.",
+          correctedText: "Les enfants jouent dans le jardin avec leur ballon.",
+          errorCount: 2
+        },
+        {
+          text: "Ma soeur et moi allons a l'école chaque mattin.",
+          correctedText: "Ma sœur et moi allons à l'école chaque matin.",
+          errorCount: 3
+        },
+        {
+          text: "Le chat noir dors sur le canapé bleux.",
+          correctedText: "Le chat noir dort sur le canapé bleu.",
+          errorCount: 2
+        },
+        {
+          text: "Nous mangons des fruit et des légume pour être en bonne santée.",
+          correctedText: "Nous mangeons des fruits et des légumes pour être en bonne santé.",
+          errorCount: 3
+        }
+      ];
+      
+      await db.insert(sentences).values(sampleSentences);
+    }
+    
+    return await db
+      .select()
+      .from(sentences)
+      .where(eq(sentences.isActive, true))
+      .orderBy(sql`random()`)
+      .limit(limit);
+  }
+  
+  async submitCorrection(userId: string, sentenceId: string, userAnswer: string): Promise<{ correct: boolean; reward: number }> {
+    // Get the sentence
+    const [sentence] = await db.select().from(sentences).where(eq(sentences.id, sentenceId));
+    if (!sentence) {
+      throw new Error('Phrase non trouvée');
+    }
+    
+    // Check if answer is correct (simple text comparison)
+    const isCorrect = userAnswer.toLowerCase().trim() === sentence.correctedText.toLowerCase().trim();
+    const reward = isCorrect ? 650 : 0; // 650 FCFA per correct answer
+    
+    // Record the correction
+    await db.insert(corrections).values({
+      userId,
+      sentenceId,
+      userAnswer,
+      isCorrect,
+      earnedAmount: reward.toString(),
+    });
+    
+    // Update work progress if correct
+    if (isCorrect) {
+      const today = this.getCurrentDate();
+      const currentProgress = await this.getWorkProgress(userId, today);
+      const newCount = (currentProgress?.correctionsCount || 0) + 1;
+      const newEarnings = (parseFloat(currentProgress?.earningsToday || '0')) + reward;
+      
+      await this.updateWorkProgress(userId, today, newCount, newEarnings);
+    }
+    
+    return { correct: isCorrect, reward };
+  }
+  
+  // Account activation operations
+  async getAccountStatus(userId: string): Promise<AccountStatus | undefined> {
+    const [status] = await db
+      .select()
+      .from(accountStatus)
+      .where(eq(accountStatus.userId, userId));
+    return status;
+  }
+  
+  async activateAccount(userId: string): Promise<void> {
+    await db
+      .insert(accountStatus)
+      .values({
+        userId,
+        isActive: true,
+        activatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: accountStatus.userId,
+        set: {
+          isActive: true,
+          activatedAt: new Date(),
+        },
+      });
+  }
+  
+  // Withdrawal operations
+  async createWithdrawal(userId: string, amount: number, phoneNumber: string): Promise<Withdrawal> {
+    const [withdrawal] = await db
+      .insert(withdrawals)
+      .values({
+        userId,
+        amount: amount.toString(),
+        phoneNumber,
+        status: 'pending',
+      })
+      .returning();
+    
+    return withdrawal as Withdrawal;
+  }
+  
+  async getUserWithdrawals(userId: string): Promise<Withdrawal[]> {
+    return await db
+      .select()
+      .from(withdrawals)
+      .where(eq(withdrawals.userId, userId))
+      .orderBy(desc(withdrawals.createdAt));
+  }
+  
+  async updateWithdrawalStatus(withdrawalId: string, status: string): Promise<void> {
+    await db
+      .update(withdrawals)
+      .set({ 
+        status, 
+        processedAt: status === 'completed' ? new Date() : null 
+      })
+      .where(eq(withdrawals.id, withdrawalId));
   }
 }
 

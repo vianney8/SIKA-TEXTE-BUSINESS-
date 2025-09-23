@@ -8,7 +8,10 @@ import {
   simpleLoginSchema,
   transferSchema, 
   rechargeSchema, 
-  paymentSchema 
+  paymentSchema,
+  workSubmissionSchema,
+  withdrawalRequestSchema,
+  activationSchema
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import session from "express-session";
@@ -340,6 +343,185 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error updating profile:", error);
       res.status(500).json({ message: "Erreur lors de la mise à jour du profil" });
+    }
+  });
+
+  // SIKA TEXTE BUSINESS - Work routes
+  app.get('/api/work/progress', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const today = new Date().toISOString().split('T')[0];
+      const progress = await storage.getWorkProgress(userId, today);
+      const maxPerDay = 12;
+      const canWorkToday = !progress || progress.correctionsCount < maxPerDay;
+      
+      res.json({
+        correctedToday: progress?.correctionsCount || 0,
+        maxPerDay,
+        totalEarned: progress?.earningsToday || 0,
+        canWorkToday,
+        nextWorkTime: canWorkToday ? null : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      });
+    } catch (error) {
+      console.error('Error fetching work progress:', error);
+      res.status(500).json({ message: 'Erreur lors de la récupération du progrès' });
+    }
+  });
+
+  app.get('/api/work/sentences', requireAuth, async (req: any, res) => {
+    try {
+      const sentences = await storage.getRandomSentences(5);
+      res.json(sentences);
+    } catch (error) {
+      console.error('Error fetching sentences:', error);
+      res.status(500).json({ message: 'Erreur lors de la récupération des phrases' });
+    }
+  });
+
+  app.post('/api/work/submit', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { sentenceId, answer } = workSubmissionSchema.parse(req.body);
+      
+      const result = await storage.submitCorrection(userId, sentenceId, answer);
+      if (result.correct) {
+        await storage.updateUserBalance(userId, result.reward);
+      }
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error('Error submitting correction:', error);
+      if (error.issues) {
+        return res.status(400).json({ message: 'Données invalides', errors: error.issues });
+      }
+      res.status(500).json({ message: 'Erreur lors de la soumission' });
+    }
+  });
+
+  // Account activation routes
+  app.get('/api/withdrawal', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const accountStatus = await storage.getAccountStatus(userId);
+      const withdrawals = await storage.getUserWithdrawals(userId);
+      const balance = await storage.getUserBalance(userId);
+      
+      res.json({
+        balance,
+        isAccountActive: accountStatus?.isActive || false,
+        minimumWithdrawal: 1000,
+        withdrawalHistory: withdrawals
+      });
+    } catch (error) {
+      console.error('Error fetching withdrawal data:', error);
+      res.status(500).json({ message: 'Erreur lors de la récupération des données de retrait' });
+    }
+  });
+
+  app.post('/api/account/activate', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { activationFee } = activationSchema.parse(req.body);
+      
+      // Check if user has sufficient balance
+      const balance = await storage.getUserBalance(userId);
+      if (balance < activationFee) {
+        return res.status(400).json({ message: 'Solde insuffisant pour l\'activation' });
+      }
+
+      // Deduct activation fee and activate account
+      await storage.updateUserBalance(userId, -activationFee);
+      await storage.activateAccount(userId);
+      
+      // Create transaction record
+      await storage.createTransaction({
+        userId,
+        type: 'payment',
+        amount: activationFee.toString(),
+        description: 'Activation compte SIKA TEXTE',
+        status: 'completed'
+      });
+      
+      res.json({ message: 'Compte activé avec succès' });
+    } catch (error: any) {
+      console.error('Error activating account:', error);
+      if (error.issues) {
+        return res.status(400).json({ message: 'Données invalides', errors: error.issues });
+      }
+      res.status(500).json({ message: 'Erreur lors de l\'activation du compte' });
+    }
+  });
+
+  app.post('/api/withdrawal/request', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { amount, phoneNumber } = withdrawalRequestSchema.parse(req.body);
+      
+      // Check if account is active
+      const accountStatus = await storage.getAccountStatus(userId);
+      if (!accountStatus?.isActive) {
+        return res.status(400).json({ message: 'Compte non activé' });
+      }
+      
+      // Check balance
+      const balance = await storage.getUserBalance(userId);
+      if (balance < amount) {
+        return res.status(400).json({ message: 'Solde insuffisant' });
+      }
+      
+      // Create withdrawal request
+      const withdrawal = await storage.createWithdrawal(userId, amount, phoneNumber);
+      
+      // Deduct from balance
+      await storage.updateUserBalance(userId, -amount);
+      
+      // Create transaction record
+      await storage.createTransaction({
+        userId,
+        type: 'withdrawal',
+        amount: amount.toString(),
+        recipientPhone: phoneNumber,
+        description: 'Retrait Mobile Money',
+        status: 'pending'
+      });
+      
+      res.json({ message: 'Demande de retrait créée avec succès', withdrawal });
+    } catch (error: any) {
+      console.error('Error creating withdrawal:', error);
+      if (error.issues) {
+        return res.status(400).json({ message: 'Données invalides', errors: error.issues });
+      }
+      res.status(500).json({ message: 'Erreur lors de la création de la demande de retrait' });
+    }
+  });
+
+  // Enhanced referrals with proper data
+  app.get('/api/referrals', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const user = await storage.getUser(userId);
+      const referrals = await storage.getUserReferrals(userId);
+      const stats = await storage.getReferralStats(userId);
+      
+      const referralData = {
+        referralCode: user?.referralCode || `SIKA${userId.slice(0, 8).toUpperCase()}`,
+        totalReferrals: stats.totalReferrals,
+        activeReferrals: referrals.filter(r => r.referredUser).length,
+        totalCommission: stats.totalCommission,
+        monthlyCommission: stats.monthlyCommission,
+        referrals: referrals.map(r => ({
+          id: r.id,
+          name: r.referredUser?.fullName || 'Utilisateur',
+          joinDate: r.createdAt,
+          isActive: true, // Simplified for now
+          commissionEarned: parseFloat((r.commission || '0').toString())
+        }))
+      };
+      
+      res.json(referralData);
+    } catch (error) {
+      console.error('Error fetching referrals:', error);
+      res.status(500).json({ message: 'Erreur lors de la récupération des parrainages' });
     }
   });
 

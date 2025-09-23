@@ -13,8 +13,9 @@ import Dashboard from "@/pages/Dashboard";
 import Transfer from "@/pages/Transfer";
 import Recharge from "@/pages/Recharge";
 import Payment from "@/pages/Payment";
-import Bank from "@/pages/Bank";
-import Team from "@/pages/Team";
+import Withdrawal from "@/pages/Withdrawal";
+import TeamPage from "@/pages/TeamPage";
+import Work from "@/pages/Work";
 import Profile from "@/pages/Profile";
 import Transactions from "@/pages/Transactions";
 
@@ -49,8 +50,9 @@ function Router() {
           <Route path="/transfer" component={Transfer} />
           <Route path="/recharge" component={Recharge} />
           <Route path="/payment" component={Payment} />
-          <Route path="/bank" component={Bank} />
-          <Route path="/team" component={Team} />
+          <Route path="/withdrawal" component={Withdrawal} />
+          <Route path="/team" component={TeamPage} />
+          <Route path="/work" component={Work} />
           <Route path="/profile" component={Profile} />
           <Route path="/transactions" component={Transactions} />
         </>

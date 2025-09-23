@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Home, Users, BarChart } from "lucide-react";
+import { Home, Users, Briefcase } from "lucide-react";
 import { Link } from "wouter";
 
 interface BottomNavigationProps {
@@ -10,7 +10,7 @@ export default function BottomNavigation({ currentPage }: BottomNavigationProps)
   const navItems = [
     {
       icon: Home,
-      label: "Accueil",
+      label: "Home",
       href: "/",
       id: "home",
       testId: "nav-home",
@@ -23,11 +23,11 @@ export default function BottomNavigation({ currentPage }: BottomNavigationProps)
       testId: "nav-team",
     },
     {
-      icon: BarChart,
-      label: "Stats",
-      href: "/",
-      id: "stats",
-      testId: "nav-stats",
+      icon: Briefcase,
+      label: "Travail",
+      href: "/work",
+      id: "work",
+      testId: "nav-work",
     },
   ];
 
