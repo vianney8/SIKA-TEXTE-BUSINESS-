@@ -225,6 +225,176 @@ export default function Dashboard() {
               </div>
             )}
           </Card>
+
+          {/* Testimonials Section */}
+          <div className="mt-8">
+            <h3 className="font-semibold mb-4 text-center" data-testid="text-testimonials-title">Ce que disent nos utilisateurs</h3>
+            <div className="overflow-hidden relative">
+              <div className="flex animate-scroll-left space-x-4">
+                {/* First set of testimonials */}
+                <div className="flex-shrink-0 bg-card dark:bg-card rounded-xl p-4 shadow-sm border border-border w-80" data-testid="testimonial-1">
+                  <div className="flex items-center space-x-3 mb-3">
+                    <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+                      <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm text-foreground">Aminata Diallo</div>
+                      <div className="text-xs text-muted-foreground">Dakar, Sénégal</div>
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground">"SIKA TEXTE m'a aidée à gagner 19 500 FCFA par mois. Mes enfants peuvent maintenant aller à l'école privée. Merci !"</p>
+                  <div className="flex text-yellow-400 text-xs mt-2">
+                    ⭐⭐⭐⭐⭐
+                  </div>
+                </div>
+
+                <div className="flex-shrink-0 bg-card dark:bg-card rounded-xl p-4 shadow-sm border border-border w-80" data-testid="testimonial-2">
+                  <div className="flex items-center space-x-3 mb-3">
+                    <div className="w-10 h-10 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
+                      <Users className="w-5 h-5 text-green-600 dark:text-green-400" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm text-foreground">Koffi Mensah</div>
+                      <div className="text-xs text-muted-foreground">Abidjan, Côte d'Ivoire</div>
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground">"Excellent système ! J'ai déjà parrainé 5 amis. Les 650 FCFA par phrase corrigée changent vraiment ma vie."</p>
+                  <div className="flex text-yellow-400 text-xs mt-2">
+                    ⭐⭐⭐⭐⭐
+                  </div>
+                </div>
+
+                <div className="flex-shrink-0 bg-card dark:bg-card rounded-xl p-4 shadow-sm border border-border w-80" data-testid="testimonial-3">
+                  <div className="flex items-center space-x-3 mb-3">
+                    <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center">
+                      <Users className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm text-foreground">Fatoumata Traoré</div>
+                      <div className="text-xs text-muted-foreground">Bamako, Mali</div>
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground">"Je travaille depuis chez moi tout en m'occupant de mes enfants. SIKA TEXTE est une bénédiction pour les mamans."</p>
+                  <div className="flex text-yellow-400 text-xs mt-2">
+                    ⭐⭐⭐⭐⭐
+                  </div>
+                </div>
+
+                <div className="flex-shrink-0 bg-card dark:bg-card rounded-xl p-4 shadow-sm border border-border w-80" data-testid="testimonial-4">
+                  <div className="flex items-center space-x-3 mb-3">
+                    <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900 rounded-full flex items-center justify-center">
+                      <Users className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm text-foreground">Jean-Baptiste Kouakou</div>
+                      <div className="text-xs text-muted-foreground">Ouagadougou, Burkina Faso</div>
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground">"Paiements automatiques via Mobile Money. Pas de stress, pas de retard. L'équipe SIKA TEXTE est très professionnelle."</p>
+                  <div className="flex text-yellow-400 text-xs mt-2">
+                    ⭐⭐⭐⭐⭐
+                  </div>
+                </div>
+
+                <div className="flex-shrink-0 bg-card dark:bg-card rounded-xl p-4 shadow-sm border border-border w-80" data-testid="testimonial-5">
+                  <div className="flex items-center space-x-3 mb-3">
+                    <div className="w-10 h-10 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center">
+                      <Users className="w-5 h-5 text-red-600 dark:text-red-400" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm text-foreground">Mariama Bah</div>
+                      <div className="text-xs text-muted-foreground">Conakry, Guinée</div>
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground">"Grâce au parrainage, j'ai gagné plus de 50 000 FCFA ce mois-ci. Un grand merci à toute l'équipe !"</p>
+                  <div className="flex text-yellow-400 text-xs mt-2">
+                    ⭐⭐⭐⭐⭐
+                  </div>
+                </div>
+
+                {/* Duplicate set for seamless loop */}
+                <div className="flex-shrink-0 bg-card dark:bg-card rounded-xl p-4 shadow-sm border border-border w-80">
+                  <div className="flex items-center space-x-3 mb-3">
+                    <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+                      <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm text-foreground">Aminata Diallo</div>
+                      <div className="text-xs text-muted-foreground">Dakar, Sénégal</div>
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground">"SIKA TEXTE m'a aidée à gagner 19 500 FCFA par mois. Mes enfants peuvent maintenant aller à l'école privée. Merci !"</p>
+                  <div className="flex text-yellow-400 text-xs mt-2">
+                    ⭐⭐⭐⭐⭐
+                  </div>
+                </div>
+
+                <div className="flex-shrink-0 bg-card dark:bg-card rounded-xl p-4 shadow-sm border border-border w-80">
+                  <div className="flex items-center space-x-3 mb-3">
+                    <div className="w-10 h-10 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
+                      <Users className="w-5 h-5 text-green-600 dark:text-green-400" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm text-foreground">Koffi Mensah</div>
+                      <div className="text-xs text-muted-foreground">Abidjan, Côte d'Ivoire</div>
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground">"Excellent système ! J'ai déjà parrainé 5 amis. Les 650 FCFA par phrase corrigée changent vraiment ma vie."</p>
+                  <div className="flex text-yellow-400 text-xs mt-2">
+                    ⭐⭐⭐⭐⭐
+                  </div>
+                </div>
+
+                <div className="flex-shrink-0 bg-card dark:bg-card rounded-xl p-4 shadow-sm border border-border w-80">
+                  <div className="flex items-center space-x-3 mb-3">
+                    <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center">
+                      <Users className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm text-foreground">Fatoumata Traoré</div>
+                      <div className="text-xs text-muted-foreground">Bamako, Mali</div>
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground">"Je travaille depuis chez moi tout en m'occupant de mes enfants. SIKA TEXTE est une bénédiction pour les mamans."</p>
+                  <div className="flex text-yellow-400 text-xs mt-2">
+                    ⭐⭐⭐⭐⭐
+                  </div>
+                </div>
+
+                <div className="flex-shrink-0 bg-card dark:bg-card rounded-xl p-4 shadow-sm border border-border w-80">
+                  <div className="flex items-center space-x-3 mb-3">
+                    <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900 rounded-full flex items-center justify-center">
+                      <Users className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm text-foreground">Jean-Baptiste Kouakou</div>
+                      <div className="text-xs text-muted-foreground">Ouagadougou, Burkina Faso</div>
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground">"Paiements automatiques via Mobile Money. Pas de stress, pas de retard. L'équipe SIKA TEXTE est très professionnelle."</p>
+                  <div className="flex text-yellow-400 text-xs mt-2">
+                    ⭐⭐⭐⭐⭐
+                  </div>
+                </div>
+
+                <div className="flex-shrink-0 bg-card dark:bg-card rounded-xl p-4 shadow-sm border border-border w-80">
+                  <div className="flex items-center space-x-3 mb-3">
+                    <div className="w-10 h-10 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center">
+                      <Users className="w-5 h-5 text-red-600 dark:text-red-400" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm text-foreground">Mariama Bah</div>
+                      <div className="text-xs text-muted-foreground">Conakry, Guinée</div>
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground">"Grâce au parrainage, j'ai gagné plus de 50 000 FCFA ce mois-ci. Un grand merci à toute l'équipe !"</p>
+                  <div className="flex text-yellow-400 text-xs mt-2">
+                    ⭐⭐⭐⭐⭐
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </main>
 
