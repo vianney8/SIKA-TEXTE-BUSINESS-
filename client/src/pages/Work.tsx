@@ -196,18 +196,18 @@ export default function Work() {
           <CardContent>
             {currentSentence ? (
               <div className="space-y-4">
-                <div className="bg-slate-100 dark:bg-slate-800 p-4 rounded-lg">
-                  <p className="text-lg leading-relaxed">
+                <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-6 rounded-lg">
+                  <p className="text-xl font-medium leading-relaxed text-slate-900 dark:text-slate-100">
                     "{currentSentence.text}"
                   </p>
-                  <div className="mt-2 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                  <div className="mt-3 flex items-center gap-2 text-sm font-medium text-blue-700 dark:text-blue-300">
                     <AlertCircle className="w-4 h-4" />
                     {currentSentence.errors} erreur(s) à corriger
                   </div>
                 </div>
 
                 <div className="space-y-3">
-                  <label className="text-sm font-medium">
+                  <label className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                     Votre correction :
                   </label>
                   <Input
@@ -215,6 +215,7 @@ export default function Work() {
                     value={userAnswer}
                     onChange={(e) => setUserAnswer(e.target.value)}
                     placeholder="Tapez la phrase corrigée ici..."
+                    className="text-base font-medium"
                     disabled={showResult}
                   />
                 </div>
