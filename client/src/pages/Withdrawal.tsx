@@ -12,7 +12,9 @@ import {
   Shield,
   Banknote,
   Clock,
-  ArrowLeft
+  ArrowLeft,
+  ExternalLink,
+  MessageCircle
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -36,32 +38,9 @@ export default function Withdrawal() {
   const { toast } = useToast();
   const [amount, setAmount] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [showActivationModal, setShowActivationModal] = useState(false);
 
   const { data: withdrawalData } = useQuery<WithdrawalData>({
     queryKey: ['/api/withdrawal'],
-  });
-
-  const activateAccountMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest('POST', '/api/account/activate', { activationFee: 3600 });
-      return await res.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Compte activé ! ✅",
-        description: "Votre compte est maintenant actif. Vous pouvez effectuer des retraits.",
-      });
-      setShowActivationModal(false);
-      queryClient.invalidateQueries({ queryKey: ['/api/withdrawal'] });
-    },
-    onError: () => {
-      toast({
-        title: "Erreur d'activation",
-        description: "Impossible d'activer le compte pour le moment",
-        variant: "destructive",
-      });
-    },
   });
 
   const withdrawMutation = useMutation({
@@ -136,6 +115,16 @@ export default function Withdrawal() {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
         <div className="max-w-md mx-auto pt-8">
+          {/* Back Button */}
+          <div className="mb-4">
+            <Button asChild variant="ghost" size="sm" className="text-slate-600 hover:text-slate-800">
+              <Link href="/" data-testid="button-back">
+                <ArrowLeft className="w-4 h-4 mr-1" />
+                Retour
+              </Link>
+            </Button>
+          </div>
+          
           <Card>
             <CardHeader>
               <div className="mx-auto w-16 h-16 bg-yellow-100 dark:bg-yellow-900 rounded-full flex items-center justify-center mb-4">
@@ -184,60 +173,51 @@ export default function Withdrawal() {
                   </p>
                 </div>
 
-                <Button 
-                  data-testid="button-activate-account"
-                  onClick={() => setShowActivationModal(true)}
-                  size="lg" 
-                  className="w-full"
-                >
-                  <Shield className="w-5 h-5 mr-2" />
-                  Activer Mon Compte
-                </Button>
+                <div className="space-y-4">
+                  <Button 
+                    data-testid="button-external-payment"
+                    asChild
+                    size="lg" 
+                    className="w-full"
+                  >
+                    <a href="https://checkout.flutterwave.com/v3/hosted/pay/ae83d8a97e4a4b32b9ad" target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="w-5 h-5 mr-2" />
+                      Payer l'activation en ligne
+                    </a>
+                  </Button>
+
+                  <div className="bg-orange-50 dark:bg-orange-900 p-4 rounded-lg">
+                    <div className="flex items-center justify-center gap-2 mb-3">
+                      <MessageCircle className="w-5 h-5 text-orange-600" />
+                      <span className="font-semibold text-orange-800 dark:text-orange-200">
+                        Besoin d'aide ?
+                      </span>
+                    </div>
+                    <p className="text-sm text-orange-700 dark:text-orange-300 mb-3 text-center">
+                      Contactez notre superviseur pour assistance
+                    </p>
+                    <Button 
+                      data-testid="button-telegram-contact"
+                      asChild
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full border-orange-300 hover:bg-orange-100"
+                    >
+                      <a href="https://t.me/sikatexte_support" target="_blank" rel="noopener noreferrer">
+                        <MessageCircle className="w-4 h-4 mr-2" />
+                        Contacter sur Telegram
+                      </a>
+                    </Button>
+                  </div>
+                </div>
 
                 <p className="text-xs text-slate-500 mt-4">
-                  Une fois activé, vous pourrez retirer vos gains sur votre numéro Mobile Money configuré
+                  Après paiement, contactez le superviseur avec votre preuve de paiement pour activation immédiate
                 </p>
               </div>
             </CardContent>
           </Card>
 
-          {/* Activation Confirmation Modal */}
-          {showActivationModal && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-              <Card className="w-full max-w-sm">
-                <CardHeader>
-                  <CardTitle className="text-center">Confirmer l'activation</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Alert>
-                    <CheckCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      Vous êtes sur le point d'activer votre compte pour <strong>3 600 FCFA</strong>
-                    </AlertDescription>
-                  </Alert>
-                  
-                  <div className="flex gap-2">
-                    <Button 
-                      data-testid="button-cancel-activation"
-                      variant="outline" 
-                      onClick={() => setShowActivationModal(false)}
-                      className="flex-1"
-                    >
-                      Annuler
-                    </Button>
-                    <Button 
-                      data-testid="button-confirm-activation"
-                      onClick={() => activateAccountMutation.mutate()}
-                      disabled={activateAccountMutation.isPending}
-                      className="flex-1"
-                    >
-                      {activateAccountMutation.isPending ? "Activation..." : "Confirmer"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
         </div>
       </div>
     );
