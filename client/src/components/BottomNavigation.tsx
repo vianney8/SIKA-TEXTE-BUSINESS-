@@ -14,6 +14,8 @@ export default function BottomNavigation({ currentPage }: BottomNavigationProps)
       href: "/",
       id: "home",
       testId: "nav-home",
+      activeColor: "text-primary",
+      hoverColor: "text-muted-foreground hover:text-primary",
     },
     {
       icon: Users,
@@ -21,6 +23,8 @@ export default function BottomNavigation({ currentPage }: BottomNavigationProps)
       href: "/team",
       id: "team",
       testId: "nav-team",
+      activeColor: "text-green-600 dark:text-green-400",
+      hoverColor: "text-muted-foreground hover:text-green-600 dark:hover:text-green-400",
     },
     {
       icon: Briefcase,
@@ -28,6 +32,8 @@ export default function BottomNavigation({ currentPage }: BottomNavigationProps)
       href: "/work",
       id: "work",
       testId: "nav-work",
+      activeColor: "text-accent",
+      hoverColor: "text-muted-foreground hover:text-accent",
     },
   ];
 
@@ -41,8 +47,8 @@ export default function BottomNavigation({ currentPage }: BottomNavigationProps)
             variant="ghost"
             className={`flex flex-col items-center p-3 ${
               currentPage === item.id
-                ? "text-primary"
-                : "text-muted-foreground hover:text-primary"
+                ? item.activeColor
+                : item.hoverColor
             } transition-colors`}
             data-testid={item.testId}
           >
