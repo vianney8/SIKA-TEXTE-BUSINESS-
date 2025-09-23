@@ -159,7 +159,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const limit = parseInt(req.query.limit as string) || 50;
       const type = req.query.type as string;
       const status = req.query.status as string;
-      const transactions = await storage.getUserTransactions(userId, limit, type, status);
+      const categories = req.query.categories as string; // comma-separated list of transaction types
+      const transactions = await storage.getUserTransactions(userId, limit, type, status, categories);
       res.json(transactions);
     } catch (error) {
       console.error("Error fetching transactions:", error);

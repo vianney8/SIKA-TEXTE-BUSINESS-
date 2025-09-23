@@ -4,20 +4,34 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Filter } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArrowLeft, Filter, TrendingUp, DollarSign } from "lucide-react";
 import { Link } from "wouter";
 import { useState } from "react";
 
 export default function Transactions() {
   const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<string>("corrections");
   const [filterType, setFilterType] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
+  // Define transaction categories
+  const correctionTypes = ['deposit', 'pointage'];
+  const financialTypes = ['transfer', 'transfer_received', 'recharge', 'payment', 'withdrawal'];
+  
   const { data: transactions = [] } = useQuery({
-    queryKey: ["/api/transactions", filterType, filterStatus],
+    queryKey: ["/api/transactions", activeTab, filterType, filterStatus],
     queryFn: () => {
       const params = new URLSearchParams();
       params.append('limit', '50');
+      
+      // Apply category filtering based on active tab
+      if (activeTab === 'corrections') {
+        params.append('categories', correctionTypes.join(','));
+      } else if (activeTab === 'financial') {
+        params.append('categories', financialTypes.join(','));
+      }
+      
       if (filterType && filterType !== 'all') params.append('type', filterType);
       if (filterStatus && filterStatus !== 'all') params.append('status', filterStatus);
       return fetch(`/api/transactions?${params.toString()}`, {
@@ -102,6 +116,32 @@ export default function Transactions() {
   // Server-side filtering is now handled, so we just use the transactions directly
   const filteredTransactions = transactions as any[];
 
+  // Get available filter options based on active tab
+  const getFilterOptions = () => {
+    if (activeTab === 'corrections') {
+      return [
+        { value: "all", label: "Tous les types" },
+        { value: "deposit", label: "Pointage manuel" },
+        { value: "pointage", label: "Pointage automatique" },
+      ];
+    } else {
+      return [
+        { value: "all", label: "Tous les types" },
+        { value: "transfer", label: "Transfert envoyé" },
+        { value: "transfer_received", label: "Transfert reçu" },
+        { value: "recharge", label: "Recharge" },
+        { value: "payment", label: "Paiement" },
+        { value: "withdrawal", label: "Retrait" },
+      ];
+    }
+  };
+
+  // Reset filter type when switching tabs
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    setFilterType("all");
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -119,6 +159,38 @@ export default function Transactions() {
       </div>
 
       <div className="p-6">
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="mb-6">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="corrections" className="flex items-center gap-2" data-testid="tab-corrections">
+              <TrendingUp size={16} />
+              Corrections
+            </TabsTrigger>
+            <TabsTrigger value="financial" className="flex items-center gap-2" data-testid="tab-financial">
+              <DollarSign size={16} />
+              Financières
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="corrections" className="space-y-6">
+            {renderTransactionContent("Revenus de correction de phrases")}
+          </TabsContent>
+
+          <TabsContent value="financial" className="space-y-6">
+            {renderTransactionContent("Opérations financières")}
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  );
+
+  function renderTransactionContent(subtitle: string) {
+    return (
+      <>
+        {/* Subtitle */}
+        <div className="text-center">
+          <p className="text-sm text-muted-foreground">{subtitle}</p>
+        </div>
         {/* Filters */}
         <Card className="bg-white rounded-xl shadow-sm border border-border mb-6">
           <CardContent className="p-4">
@@ -132,11 +204,11 @@ export default function Transactions() {
                       <SelectValue placeholder="Tous les types" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Tous les types</SelectItem>
-                      <SelectItem value="deposit">Dépôt</SelectItem>
-                      <SelectItem value="transfer">Transfert</SelectItem>
-                      <SelectItem value="recharge">Recharge</SelectItem>
-                      <SelectItem value="payment">Paiement</SelectItem>
+                      {getFilterOptions().map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -238,7 +310,7 @@ export default function Transactions() {
             )}
           </CardContent>
         </Card>
-      </div>
-    </div>
-  );
+      </>
+    );
+  }
 }

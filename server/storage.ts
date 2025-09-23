@@ -19,7 +19,7 @@ import {
   type Withdrawal,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, and } from "drizzle-orm";
+import { eq, desc, sql, and, inArray } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import { randomBytes } from "crypto";
 
@@ -177,10 +177,18 @@ export class DatabaseStorage implements IStorage {
     return newTransaction;
   }
 
-  async getUserTransactions(userId: string, limit = 50, type?: string, status?: string): Promise<Transaction[]> {
+  async getUserTransactions(userId: string, limit = 50, type?: string, status?: string, categories?: string): Promise<Transaction[]> {
     const conditions = [eq(transactions.userId, userId)];
 
-    // Apply filters if provided
+    // Apply category filter (comma-separated list of transaction types)
+    if (categories) {
+      const categoryTypes = categories.split(',').map(t => t.trim());
+      if (categoryTypes.length > 0) {
+        conditions.push(inArray(transactions.type, categoryTypes));
+      }
+    }
+
+    // Apply specific type filter (overrides category filter)
     if (type && type !== 'all') {
       conditions.push(eq(transactions.type, type));
     }
