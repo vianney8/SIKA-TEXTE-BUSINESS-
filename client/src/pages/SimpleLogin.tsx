@@ -48,7 +48,10 @@ export default function SimpleLogin() {
           title: "Connexion réussie !",
           description: "Bienvenue sur SIKA TEXTE BUSINESS",
         });
-        setLocation("/");
+        // Petit délai pour que la session soit établie côté serveur
+        setTimeout(() => {
+          window.location.href = "/";
+        }, 500);
       } else {
         toast({
           title: "Erreur de connexion",

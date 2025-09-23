@@ -61,7 +61,10 @@ export default function SimpleRegister() {
           title: "Compte créé avec succès !",
           description: "Vous êtes maintenant connecté",
         });
-        setLocation("/");
+        // Petit délai pour que la session soit établie côté serveur
+        setTimeout(() => {
+          window.location.href = "/";
+        }, 500);
       } else {
         toast({
           title: "Erreur",

@@ -9,8 +9,22 @@ interface HamburgerMenuProps {
 }
 
 export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuProps) {
-  const handleLogout = () => {
-    window.location.href = "/api/logout";
+  const handleLogout = async () => {
+    try {
+      const response = await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+      
+      if (response.ok) {
+        // Rediriger vers la page d'accueil après déconnexion
+        window.location.href = "/";
+      }
+    } catch (error) {
+      console.error("Erreur lors de la déconnexion:", error);
+      // En cas d'erreur, rediriger quand même
+      window.location.href = "/";
+    }
   };
 
   const menuItems = [
