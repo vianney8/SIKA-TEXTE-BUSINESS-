@@ -5,15 +5,6 @@ import { Button } from "@/components/ui/button";
 export default function Landing() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary to-blue-600 flex flex-col">
-      {/* Mobile Status Bar Simulation */}
-      <div className="bg-primary text-primary-foreground px-6 py-2 flex justify-between items-center text-sm font-medium">
-        <span data-testid="status-time">19:49</span>
-        <div className="flex items-center space-x-1">
-          <i className="fas fa-signal text-xs"></i>
-          <i className="fas fa-wifi text-xs"></i>
-          <span className="bg-white bg-opacity-20 px-2 py-0.5 rounded-full text-xs">52</span>
-        </div>
-      </div>
 
       <div className="flex-1 flex flex-col justify-center px-6 py-12">
         <Card className="mx-auto w-full max-w-md shadow-xl">

@@ -11,21 +11,6 @@ interface MobileHeaderProps {
 export default function MobileHeader({ user, balance, onMenuToggle, onDeposit }: MobileHeaderProps) {
   return (
     <header className="gradient-bg text-primary-foreground sticky top-0 z-50">
-      <div className="px-4 py-2 flex justify-between items-center text-sm font-medium">
-        <span data-testid="status-time">
-          {new Date().toLocaleTimeString("fr-FR", { 
-            hour: "2-digit", 
-            minute: "2-digit" 
-          })}
-        </span>
-        <div className="flex items-center space-x-1">
-          <i className="fas fa-signal text-xs"></i>
-          <i className="fas fa-wifi text-xs"></i>
-          <span className="bg-white bg-opacity-20 px-2 py-0.5 rounded-full text-xs">
-            {Math.floor(Math.random() * 100)}
-          </span>
-        </div>
-      </div>
       
       <div className="px-6 py-4 flex justify-between items-center">
         <Button 

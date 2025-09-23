@@ -31,7 +31,7 @@ export default function Profile() {
 
   const profileForm = useForm<ProfileForm>({
     defaultValues: {
-      fullName: (user as any)?.fullName || "",
+      fullName: (user as any)?.fullName || ((user as any)?.firstName + " " + (user as any)?.lastName) || "",
       phone: (user as any)?.phone || "",
       email: (user as any)?.email || "",
     },
@@ -147,14 +147,27 @@ export default function Profile() {
               {/* Profile Picture */}
               <div className="text-center mb-8">
                 <div className="w-24 h-24 bg-gradient-to-r from-primary to-accent rounded-full mx-auto mb-4 flex items-center justify-center">
-                  <User className="text-white" size={36} />
+                  {(user as any)?.profileImageUrl ? (
+                    <img 
+                      src={(user as any).profileImageUrl} 
+                      alt="Photo de profil" 
+                      className="w-full h-full rounded-full object-cover"
+                    />
+                  ) : (
+                    <User className="text-white" size={36} />
+                  )}
                 </div>
                 <h3 className="text-lg font-semibold" data-testid="text-user-name">
-                  {(user as any)?.fullName || "Utilisateur"}
+                  {(user as any)?.fullName || (user as any)?.firstName + " " + (user as any)?.lastName || "Utilisateur"}
                 </h3>
-                <p className="text-muted-foreground" data-testid="text-user-phone">
-                  {(user as any)?.phone || ""}
+                <p className="text-muted-foreground" data-testid="text-user-email">
+                  {(user as any)?.email || ""}
                 </p>
+                {!(user as any)?.phone && (
+                  <div className="mt-2 p-2 bg-orange-50 text-orange-800 text-xs rounded">
+                    Veuillez compléter vos informations de profil
+                  </div>
+                )}
               </div>
 
               <Form {...profileForm}>
@@ -183,14 +196,24 @@ export default function Profile() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Numéro de téléphone</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="tel"
-                            {...field}
-                            data-testid="input-phone"
-                            className="w-full px-4 py-3 border border-input rounded-lg focus:ring-2 focus:ring-ring"
-                          />
-                        </FormControl>
+                        <div className="flex">
+                          <select className="bg-muted border border-input rounded-l-lg px-3 py-3 focus:ring-2 focus:ring-ring focus:border-transparent outline-none">
+                            <option>🇧🇯 +229</option>
+                            <option>🇨🇮 +225</option>
+                            <option>🇸🇳 +221</option>
+                            <option>🇹🇬 +228</option>
+                            <option>🇧🇫 +226</option>
+                          </select>
+                          <FormControl>
+                            <Input
+                              type="tel"
+                              placeholder="12345678"
+                              {...field}
+                              data-testid="input-phone"
+                              className="flex-1 px-4 py-3 border border-l-0 border-input rounded-r-lg focus:ring-2 focus:ring-ring"
+                            />
+                          </FormControl>
+                        </div>
                         <FormMessage />
                       </FormItem>
                     )}
