@@ -8,6 +8,7 @@ import { CheckCircle, AlertCircle, Clock, TrendingUp, ArrowLeft } from "lucide-r
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { formatFCFA } from "@/lib/utils";
 import { Link } from "wouter";
 
 interface Sentence {
@@ -121,7 +122,7 @@ export default function Work() {
               </p>
               <div className="bg-green-50 dark:bg-green-900 p-4 rounded-lg mb-6">
                 <p className="text-green-800 dark:text-green-200 font-semibold">
-                  Gains d'aujourd'hui : {(progress?.correctedToday || 0) * 650} FCFA
+                  Gains d'aujourd'hui : {formatFCFA((progress?.correctedToday || 0) * 650)}
                 </p>
               </div>
               <p className="text-sm text-slate-500">
@@ -175,7 +176,7 @@ export default function Work() {
               <div className="flex justify-between text-sm">
                 <span>Gains d'aujourd'hui</span>
                 <span className="font-semibold text-green-600">
-                  {((progress?.correctedToday || 0) * 650).toLocaleString()} FCFA
+                  {formatFCFA((progress?.correctedToday || 0) * 650)}
                 </span>
               </div>
               <Badge variant="outline" className="w-fit">
@@ -229,7 +230,7 @@ export default function Work() {
                         <>
                           <CheckCircle className="w-5 h-5 text-green-600" />
                           <span className="text-green-800 dark:text-green-200 font-semibold">
-                            Correct ! +650 FCFA
+                            Correct ! +{formatFCFA(650)}
                           </span>
                         </>
                       ) : (
@@ -267,7 +268,7 @@ export default function Work() {
 
                 <div className="text-center">
                   <p className="text-sm text-slate-500">
-                    Récompense : <span className="font-semibold text-green-600">650 FCFA</span>
+                    Récompense : <span className="font-semibold text-green-600">{formatFCFA(650)}</span>
                   </p>
                 </div>
               </div>

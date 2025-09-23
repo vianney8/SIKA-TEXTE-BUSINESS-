@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Users, Copy, Share, QrCode, User } from "lucide-react";
 import { Link } from "wouter";
+import { formatFCFA } from "@/lib/utils";
 
 export default function Team() {
   const { user } = useAuth();
@@ -155,7 +156,7 @@ export default function Team() {
                     </div>
                     <div className="text-right">
                       <div className="text-sm font-semibold text-green-600" data-testid={`text-referral-commission-${referral.id}`}>
-                        {parseFloat(referral.commission).toLocaleString()} F.CFA
+                        {formatFCFA(parseFloat(referral.commission))}
                       </div>
                       <div className="text-xs text-muted-foreground">Commission</div>
                     </div>

@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Menu, Bell, Eye, Plus } from "lucide-react";
 import { Link } from "wouter";
+import { formatFCFA } from "@/lib/utils";
 
 interface MobileHeaderProps {
   user: any;
@@ -50,9 +51,8 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
           <div className="flex items-center justify-center text-3xl font-bold mb-2">
             <Eye className="text-lg mr-3" />
             <span data-testid="text-balance">
-              {balance.toLocaleString("fr-FR")}
+              {formatFCFA(balance)}
             </span>
-            <span className="ml-2">F.CFA</span>
           </div>
           <Button 
             onClick={onPointage}

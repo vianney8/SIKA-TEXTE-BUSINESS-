@@ -9,6 +9,7 @@ import TestimonialsSlider from "@/components/TestimonialsSlider";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Eye, ArrowUpRight, Wallet, Users } from "lucide-react";
+import { formatFCFA } from "@/lib/utils";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -217,7 +218,7 @@ export default function Dashboard() {
                         {(transaction.type === "deposit" || transaction.type === "pointage") 
                           ? (parseFloat(transaction.amount) > 0 ? "+" : "-")
                           : "-"}
-                        {Math.abs(parseFloat(transaction.amount)).toLocaleString()} F.CFA
+                        {formatFCFA(Math.abs(parseFloat(transaction.amount)))}
                       </div>
                       {getStatusBadge(transaction.status)}
                     </div>

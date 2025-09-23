@@ -271,7 +271,13 @@ export default function Withdrawal() {
                 data-testid="input-withdrawal-amount"
                 type="number"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onChange={(e) => {
+                  const value = parseFloat(e.target.value);
+                  if (value > 0 || e.target.value === '') {
+                    setAmount(e.target.value);
+                  }
+                }}
+                min="1"
                 placeholder={`Min. ${withdrawalData?.minimumWithdrawal || 1000} FCFA`}
               />
             </div>

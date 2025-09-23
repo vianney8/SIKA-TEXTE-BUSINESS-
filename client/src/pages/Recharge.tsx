@@ -170,7 +170,15 @@ export default function Recharge() {
                           type="number"
                           placeholder="Montant personnalisé"
                           {...field}
-                          onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value);
+                            if (value > 0) {
+                              field.onChange(value);
+                            } else if (e.target.value === '') {
+                              field.onChange('');
+                            }
+                          }}
+                          min="1"
                           data-testid="input-amount"
                           className="w-full px-4 py-3 border border-input rounded-lg focus:ring-2 focus:ring-ring"
                         />

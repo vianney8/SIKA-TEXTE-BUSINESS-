@@ -1,3 +1,5 @@
+import { formatFCFA } from "@/lib/utils";
+
 interface TransactionCardProps {
   transaction: {
     id: string;
@@ -111,7 +113,7 @@ export default function TransactionCard({ transaction }: TransactionCardProps) {
           }`}
         >
           {transaction.type === "deposit" ? "+" : "-"}
-          {parseFloat(transaction.amount).toLocaleString()} F.CFA
+          {formatFCFA(parseFloat(transaction.amount))}
         </div>
         {getStatusBadge(transaction.status)}
       </div>

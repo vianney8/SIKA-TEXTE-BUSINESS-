@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Filter, TrendingUp, DollarSign } from "lucide-react";
 import { Link } from "wouter";
 import { useState } from "react";
+import { formatFCFA } from "@/lib/utils";
 
 export default function Transactions() {
   const { user } = useAuth();
@@ -299,7 +300,7 @@ export default function Transactions() {
                           data-testid={`transaction-amount-${transaction.id}`}
                         >
                           {transaction.type === "deposit" ? "+" : "-"}
-                          {parseFloat(transaction.amount).toLocaleString()} F.CFA
+                          {formatFCFA(parseFloat(transaction.amount))}
                         </div>
                         {getStatusBadge(transaction.status)}
                       </div>
