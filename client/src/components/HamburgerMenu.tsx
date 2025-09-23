@@ -53,12 +53,6 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
       testId: "button-new-work",
     },
     {
-      icon: History,
-      label: "Historique des corrections",
-      href: "/transactions",
-      testId: "button-work-history",
-    },
-    {
       icon: CreditCard,
       label: "Transactions",
       href: "/transactions",
