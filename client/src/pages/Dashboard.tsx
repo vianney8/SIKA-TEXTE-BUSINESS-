@@ -21,13 +21,17 @@ export default function Dashboard() {
     queryKey: ["/api/transactions"],
   });
 
-  const handleDeposit = async () => {
-    // For demo purposes, add 10000 F.CFA
+  const handlePointage = async () => {
+    // Generate random bonus between 300-800 FCFA (positive or negative)
+    const baseAmount = Math.floor(Math.random() * (800 - 300 + 1)) + 300;
+    const isNegative = Math.random() < 0.5; // 50% chance for negative
+    const amount = isNegative ? -baseAmount : baseAmount;
+    
     try {
-      const response = await fetch("/api/transactions/deposit", {
+      const response = await fetch("/api/transactions/pointage", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: 10000 }),
+        body: JSON.stringify({ amount }),
         credentials: "include",
       });
       
@@ -35,7 +39,7 @@ export default function Dashboard() {
         window.location.reload(); // Refresh to show updated balance
       }
     } catch (error) {
-      console.error("Deposit error:", error);
+      console.error("Pointage error:", error);
     }
   };
 
@@ -77,6 +81,7 @@ export default function Dashboard() {
   const getTransactionIcon = (type: string) => {
     switch (type) {
       case "deposit":
+      case "pointage":
         return "fas fa-check-circle";
       case "transfer":
         return "fas fa-exchange-alt";
@@ -92,6 +97,7 @@ export default function Dashboard() {
   const getTransactionIconBg = (type: string) => {
     switch (type) {
       case "deposit":
+      case "pointage":
         return "bg-yellow-100";
       case "transfer":
         return "bg-blue-100";
@@ -107,6 +113,7 @@ export default function Dashboard() {
   const getTransactionIconColor = (type: string) => {
     switch (type) {
       case "deposit":
+      case "pointage":
         return "text-yellow-600";
       case "transfer":
         return "text-primary";
@@ -138,7 +145,7 @@ export default function Dashboard() {
         user={user}
         balance={(balance as any)?.balance || 0}
         onMenuToggle={() => setIsMenuOpen(!isMenuOpen)}
-        onDeposit={handleDeposit}
+        onPointage={handlePointage}
       />
 
       <HamburgerMenu
@@ -196,7 +203,8 @@ export default function Dashboard() {
                       </div>
                       <div>
                         <div className="font-medium text-sm" data-testid={`text-transaction-type-${transaction.id}`}>
-                          {transaction.type === "deposit" && "Dépôt Sika"}
+                          {transaction.type === "deposit" && "Pointage"}
+                          {transaction.type === "pointage" && "Pointage"}
                           {transaction.type === "transfer" && "Transfert"}
                           {transaction.type === "recharge" && "Recharge crédit"}
                           {transaction.type === "payment" && "Paiement Marchand"}
@@ -215,12 +223,16 @@ export default function Dashboard() {
                     <div className="text-right">
                       <div 
                         className={`font-semibold ${
-                          transaction.type === "deposit" ? "text-green-600" : "text-red-600"
+                          (transaction.type === "deposit" || transaction.type === "pointage") 
+                            ? (parseFloat(transaction.amount) > 0 ? "text-green-600" : "text-red-600")
+                            : "text-red-600"
                         }`}
                         data-testid={`text-transaction-amount-${transaction.id}`}
                       >
-                        {transaction.type === "deposit" ? "+" : "-"}
-                        {parseFloat(transaction.amount).toLocaleString()} F.CFA
+                        {(transaction.type === "deposit" || transaction.type === "pointage") 
+                          ? (parseFloat(transaction.amount) > 0 ? "+" : "-")
+                          : "-"}
+                        {Math.abs(parseFloat(transaction.amount)).toLocaleString()} F.CFA
                       </div>
                       {getStatusBadge(transaction.status)}
                     </div>

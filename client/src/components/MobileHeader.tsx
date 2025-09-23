@@ -5,10 +5,10 @@ interface MobileHeaderProps {
   user: any;
   balance: number;
   onMenuToggle: () => void;
-  onDeposit: () => void;
+  onPointage: () => void;
 }
 
-export default function MobileHeader({ user, balance, onMenuToggle, onDeposit }: MobileHeaderProps) {
+export default function MobileHeader({ user, balance, onMenuToggle, onPointage }: MobileHeaderProps) {
   return (
     <header className="gradient-bg text-primary-foreground sticky top-0 z-50">
       
@@ -51,12 +51,12 @@ export default function MobileHeader({ user, balance, onMenuToggle, onDeposit }:
             <span className="ml-2">F.CFA</span>
           </div>
           <Button 
-            onClick={onDeposit}
+            onClick={onPointage}
             className="bg-accent text-accent-foreground px-8 py-2 rounded-lg font-semibold hover:bg-orange-600 transition-colors"
-            data-testid="button-deposit"
+            data-testid="button-pointage"
           >
             <Plus className="mr-2" size={16} />
-            Dépôt Sika
+            Pointage
           </Button>
         </div>
         <div className="flex justify-between text-xs mt-2 opacity-75">

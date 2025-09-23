@@ -301,6 +301,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Pointage (random bonus system)
+  app.post('/api/transactions/pointage', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { amount } = req.body;
+      
+      if (!amount) {
+        return res.status(400).json({ message: "Montant invalide" });
+      }
+
+      // Create transaction
+      const transaction = await storage.createTransaction({
+        userId,
+        type: 'pointage',
+        amount: amount.toString(),
+        status: 'completed',
+        description: amount > 0 ? 'Bonus Pointage' : 'Malus Pointage',
+      });
+
+      // Update balance
+      await storage.updateUserBalance(userId, amount);
+
+      res.json({ 
+        message: amount > 0 ? "Bonus reçu avec succès!" : "Malus appliqué", 
+        transaction,
+        amount 
+      });
+    } catch (error) {
+      console.error("Pointage error:", error);
+      res.status(500).json({ message: "Erreur lors du pointage" });
+    }
+  });
+
   // Referral stats
   app.get('/api/referrals/stats', requireAuth, async (req: any, res) => {
     try {
