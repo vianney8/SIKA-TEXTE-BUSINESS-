@@ -118,7 +118,7 @@ export class DatabaseStorage implements IStorage {
     lastName?: string;
     referralCode?: string;
   }): Promise<User> {
-    const referralCode = `STB${randomBytes(6).toString('hex').toUpperCase()}`;
+    const referralCode = randomBytes(3).toString('hex').toUpperCase();
     
     const result = await db
       .insert(users)
