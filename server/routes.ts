@@ -1,24 +1,60 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
 import { 
   registerUserSchema, 
   loginUserSchema, 
+  simpleRegisterSchema,
+  simpleLoginSchema,
   transferSchema, 
   rechargeSchema, 
   paymentSchema 
 } from "@shared/schema";
 import bcrypt from "bcrypt";
+import session from "express-session";
+import connectPg from "connect-pg-simple";
+
+// Session setup
+function setupSessions(app: Express) {
+  const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
+  const pgStore = connectPg(session);
+  const sessionStore = new pgStore({
+    conString: process.env.DATABASE_URL,
+    createTableIfMissing: false,
+    ttl: sessionTtl,
+    tableName: "sessions",
+  });
+  
+  app.use(session({
+    secret: process.env.SESSION_SECRET!,
+    store: sessionStore,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: false, // false pour development
+      maxAge: sessionTtl,
+    },
+  }));
+}
+
+// Simple auth middleware
+function requireAuth(req: any, res: any, next: any) {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  next();
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Auth middleware
-  await setupAuth(app);
+  // Setup sessions
+  setupSessions(app);
 
   // Auth routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  app.get('/api/auth/user', requireAuth, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
+      console.log("User authenticated:", userId);
       const user = await storage.getUser(userId);
       res.json(user);
     } catch (error) {
@@ -27,25 +63,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Registration endpoint
+  // Simple registration endpoint
   app.post('/api/auth/register', async (req, res) => {
     try {
-      const validatedData = registerUserSchema.parse(req.body);
+      const validatedData = simpleRegisterSchema.parse(req.body);
       
       // Check if user already exists
-      const existingUser = await storage.getUserByPhone(validatedData.phone);
+      const existingUser = await storage.getUserByEmail(validatedData.email);
       if (existingUser) {
-        return res.status(400).json({ message: "Un utilisateur avec ce numéro existe déjà" });
+        return res.status(400).json({ message: "Un utilisateur avec cet email existe déjà" });
       }
 
+      // Hash password
+      const hashedPassword = await bcrypt.hash(validatedData.password, 10);
+
       const user = await storage.createUser({
+        email: validatedData.email,
+        password: hashedPassword,
+        firstName: validatedData.firstName,
+        lastName: validatedData.lastName,
+        fullName: `${validatedData.firstName} ${validatedData.lastName}`,
         phone: validatedData.phone,
-        fullName: validatedData.fullName,
-        password: validatedData.password,
-        referralCode: req.body.referralCode,
       });
 
-      res.status(201).json({ message: "Compte créé avec succès", userId: user.id });
+      // Set session
+      (req as any).session.userId = user.id;
+
+      res.status(201).json({ message: "Compte créé avec succès", user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName } });
     } catch (error: any) {
       console.error("Registration error:", error);
       if (error.issues) {
@@ -55,17 +99,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Login endpoint
+  // Simple login endpoint
   app.post('/api/auth/login', async (req, res) => {
     try {
-      const { phone, password } = loginUserSchema.parse(req.body);
+      const { email, password } = simpleLoginSchema.parse(req.body);
       
-      const user = await storage.validateUser(phone, password);
-      if (!user) {
-        return res.status(401).json({ message: "Numéro de téléphone ou mot de passe incorrect" });
+      const user = await storage.getUserByEmail(email);
+      if (!user || !user.password) {
+        return res.status(401).json({ message: "Email ou mot de passe incorrect" });
       }
 
-      res.json({ message: "Connexion réussie", userId: user.id });
+      const isValidPassword = await bcrypt.compare(password, user.password);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: "Email ou mot de passe incorrect" });
+      }
+
+      // Set session
+      (req as any).session.userId = user.id;
+
+      res.json({ message: "Connexion réussie", user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName } });
     } catch (error: any) {
       console.error("Login error:", error);
       if (error.issues) {
@@ -75,10 +127,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Logout endpoint
+  app.post('/api/auth/logout', (req: any, res) => {
+    req.session.destroy((err: any) => {
+      if (err) {
+        return res.status(500).json({ message: "Erreur lors de la déconnexion" });
+      }
+      res.json({ message: "Déconnexion réussie" });
+    });
+  });
+
   // User balance
-  app.get('/api/user/balance', isAuthenticated, async (req: any, res) => {
+  app.get('/api/user/balance', requireAuth, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const balance = await storage.getUserBalance(userId);
       res.json({ balance });
     } catch (error) {
@@ -88,9 +150,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Transactions
-  app.get('/api/transactions', isAuthenticated, async (req: any, res) => {
+  app.get('/api/transactions', requireAuth, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const limit = parseInt(req.query.limit as string) || 50;
       const type = req.query.type as string;
       const status = req.query.status as string;
@@ -103,9 +165,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Transfer money
-  app.post('/api/transactions/transfer', isAuthenticated, async (req: any, res) => {
+  app.post('/api/transactions/transfer', requireAuth, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const { recipientPhone, amount, message } = transferSchema.parse(req.body);
       
       // Check sender balance
@@ -138,9 +200,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Recharge credit
-  app.post('/api/transactions/recharge', isAuthenticated, async (req: any, res) => {
+  app.post('/api/transactions/recharge', requireAuth, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const { operator, phone, amount } = rechargeSchema.parse(req.body);
       
       // Check balance
@@ -173,9 +235,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Merchant payment
-  app.post('/api/transactions/payment', isAuthenticated, async (req: any, res) => {
+  app.post('/api/transactions/payment', requireAuth, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const { merchantCode, amount, description } = paymentSchema.parse(req.body);
       
       // Check balance
@@ -208,9 +270,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Deposit (for demo)
-  app.post('/api/transactions/deposit', isAuthenticated, async (req: any, res) => {
+  app.post('/api/transactions/deposit', requireAuth, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const { amount } = req.body;
       
       if (!amount || amount <= 0) {
@@ -237,9 +299,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Referral stats
-  app.get('/api/referrals/stats', isAuthenticated, async (req: any, res) => {
+  app.get('/api/referrals/stats', requireAuth, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const stats = await storage.getReferralStats(userId);
       res.json(stats);
     } catch (error) {
@@ -249,9 +311,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // User referrals
-  app.get('/api/referrals', isAuthenticated, async (req: any, res) => {
+  app.get('/api/referrals', requireAuth, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const referrals = await storage.getUserReferrals(userId);
       res.json(referrals);
     } catch (error) {
@@ -261,9 +323,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update profile
-  app.put('/api/user/profile', isAuthenticated, async (req: any, res) => {
+  app.put('/api/user/profile', requireAuth, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const { fullName, phone, email } = req.body;
       
       const user = await storage.upsertUser({

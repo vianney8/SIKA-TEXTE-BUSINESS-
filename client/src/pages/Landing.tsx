@@ -26,7 +26,7 @@ export default function Landing() {
                 className="w-full bg-primary hover:bg-blue-700 text-primary-foreground py-3"
                 data-testid="button-login"
               >
-                <a href="/api/login">Se connecter</a>
+                <Link href="/simple-login">Se connecter</Link>
               </Button>
               
               <Button 
@@ -35,7 +35,7 @@ export default function Landing() {
                 className="w-full py-3"
                 data-testid="button-register"
               >
-                <Link href="/register">Créer un compte</Link>
+                <Link href="/simple-register">Créer un compte</Link>
               </Button>
             </div>
 

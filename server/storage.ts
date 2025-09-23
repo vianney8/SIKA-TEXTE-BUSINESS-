@@ -20,7 +20,16 @@ export interface IStorage {
   
   // Authentication operations
   getUserByPhone(phone: string): Promise<User | undefined>;
-  createUser(userData: { phone: string; fullName: string; password: string; referralCode?: string }): Promise<User>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  createUser(userData: { 
+    phone?: string; 
+    fullName?: string; 
+    password?: string; 
+    email?: string;
+    firstName?: string;
+    lastName?: string;
+    referralCode?: string;
+  }): Promise<User>;
   validateUser(phone: string, password: string): Promise<User | null>;
   
   // Transaction operations
@@ -66,14 +75,30 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
-  async createUser(userData: { phone: string; fullName: string; password: string; referralCode?: string }): Promise<User> {
-    const hashedPassword = await bcrypt.hash(userData.password, 10);
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.email, email));
+    return result[0];
+  }
+
+  async createUser(userData: { 
+    phone?: string; 
+    fullName?: string; 
+    password?: string; 
+    email?: string;
+    firstName?: string;
+    lastName?: string;
+    referralCode?: string;
+  }): Promise<User> {
     const referralCode = `STB${randomBytes(6).toString('hex').toUpperCase()}`;
     
     const result = await db
       .insert(users)
       .values({
         phone: userData.phone,
+        email: userData.email,
+        password: userData.password,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
         fullName: userData.fullName,
         referralCode,
         referredBy: userData.referralCode ? 

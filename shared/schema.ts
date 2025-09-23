@@ -25,10 +25,11 @@ export const sessions = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)],
 );
 
-// User storage table - required for Replit Auth
+// User storage table
 export const users: any = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").unique(),
+  password: varchar("password"), // Pour l'authentification simple
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
@@ -140,6 +141,23 @@ export const paymentSchema = z.object({
   amount: z.number().min(100, "Le montant minimum est 100 F.CFA"),
   description: z.string().optional(),
 });
+
+// Schémas pour l'authentification simple
+export const simpleRegisterSchema = z.object({
+  email: z.string().email("Email invalide"),
+  password: z.string().min(6, "Le mot de passe doit contenir au moins 6 caractères"),
+  firstName: z.string().min(1, "Le prénom est requis"),
+  lastName: z.string().min(1, "Le nom de famille est requis"),
+  phone: z.string().optional(),
+});
+
+export const simpleLoginSchema = z.object({
+  email: z.string().email("Email invalide"),
+  password: z.string().min(1, "Le mot de passe est requis"),
+});
+
+export type SimpleRegister = z.infer<typeof simpleRegisterSchema>;
+export type SimpleLogin = z.infer<typeof simpleLoginSchema>;
 
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
