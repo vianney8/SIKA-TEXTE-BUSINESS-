@@ -185,7 +185,7 @@ export default function Transactions() {
             </Link>
           </Button>
           <h1 className="ml-4 text-lg font-semibold" data-testid="page-title">
-            Historique des pointages
+            Historique des transactions
           </h1>
         </div>
       </div>

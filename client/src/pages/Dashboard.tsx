@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import MobileHeader from "@/components/MobileHeader";
@@ -10,10 +10,38 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Eye, ArrowUpRight, Wallet, Users } from "lucide-react";
 import { formatFCFA } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Dashboard() {
   const { user } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { toast } = useToast();
+
+  // Notification WhatsApp à chaque chargement
+  useEffect(() => {
+    const showWhatsAppNotification = () => {
+      toast({
+        title: "📱 Rejoignez notre groupe WhatsApp !",
+        description: (
+          <div className="space-y-2">
+            <p>Restez au courant des derniers événements</p>
+            <a 
+              href="https://chat.whatsapp.com/HtUYvCOeJArHYLhMcRCsDs?mode=ems_copy_t" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-green-600 underline font-medium"
+            >
+              Rejoindre le groupe →
+            </a>
+          </div>
+        ),
+        duration: 8000,
+      });
+    };
+
+    const timer = setTimeout(showWhatsAppNotification, 1000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   const { data: balance } = useQuery({
     queryKey: ["/api/user/balance"],
@@ -24,10 +52,22 @@ export default function Dashboard() {
   });
 
   const handlePointage = async () => {
-    // Generate random bonus between 300-800 FCFA (positive or negative)
-    const baseAmount = Math.floor(Math.random() * (800 - 300 + 1)) + 300;
-    const isNegative = Math.random() < 0.5; // 50% chance for negative
-    const amount = isNegative ? -baseAmount : baseAmount;
+    // Check if user already did pointage today
+    const userId = user?.id || 'anonymous';
+    const lastPointageDate = localStorage.getItem(`lastPointage_${userId}`);
+    const today = new Date().toDateString();
+    
+    if (lastPointageDate === today) {
+      toast({
+        title: "Pointage déjà effectué",
+        description: "Vous ne pouvez faire qu'un pointage par jour",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Generate random positive bonus between 300-800 FCFA
+    const amount = Math.floor(Math.random() * (800 - 300 + 1)) + 300;
     
     try {
       const response = await fetch("/api/transactions/pointage", {
@@ -38,7 +78,8 @@ export default function Dashboard() {
       });
       
       if (response.ok) {
-        window.location.reload(); // Refresh to show updated balance
+        localStorage.setItem(`lastPointage_${userId}`, today);
+        window.location.reload();
       }
     } catch (error) {
       console.error("Pointage error:", error);
@@ -144,22 +185,50 @@ export default function Dashboard() {
         <div className="p-6">
           {/* Action Buttons */}
           <div className="grid grid-cols-2 gap-4 mb-8">
-            {actionButtons.map((button) => (
-              <Button
-                key={button.label}
-                asChild
-                variant="ghost"
-                className="bg-white rounded-xl p-6 shadow-sm border border-border hover:shadow-md transition-shadow h-auto flex-col space-y-3"
-                data-testid={button.testId}
-              >
-                <a href={button.href}>
-                  <div className={`w-12 h-12 ${button.bgColor} rounded-full flex items-center justify-center`}>
-                    <button.icon className={`${button.iconColor} text-lg`} />
-                  </div>
-                  <div className="text-center font-medium text-sm">{button.label}</div>
-                </a>
-              </Button>
-            ))}
+            {actionButtons.map((button) => {
+              const isWithdrawal = button.label === "Retrait";
+              const currentBalance = (balance as any)?.balance || 0;
+              const canWithdraw = currentBalance >= 2000;
+              
+              if (isWithdrawal && !canWithdraw) {
+                return (
+                  <Button
+                    key={button.label}
+                    disabled
+                    variant="ghost"
+                    className="bg-gray-100 rounded-xl p-6 shadow-sm border border-border h-auto flex-col space-y-3 opacity-50"
+                    data-testid={button.testId}
+                    onClick={() => toast({
+                      title: "Retrait non disponible",
+                      description: "Minimum requis: 2000 FCFA",
+                      variant: "destructive"
+                    })}
+                  >
+                    <div className={`w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center`}>
+                      <button.icon className="text-gray-500 text-lg" />
+                    </div>
+                    <div className="text-center font-medium text-sm text-gray-500">{button.label}</div>
+                  </Button>
+                );
+              }
+              
+              return (
+                <Button
+                  key={button.label}
+                  asChild
+                  variant="ghost"
+                  className="bg-white rounded-xl p-6 shadow-sm border border-border hover:shadow-md transition-shadow h-auto flex-col space-y-3"
+                  data-testid={button.testId}
+                >
+                  <a href={button.href}>
+                    <div className={`w-12 h-12 ${button.bgColor} rounded-full flex items-center justify-center`}>
+                      <button.icon className={`${button.iconColor} text-lg`} />
+                    </div>
+                    <div className="text-center font-medium text-sm">{button.label}</div>
+                  </a>
+                </Button>
+              );
+            })}
           </div>
 
           {/* Recent Transactions */}

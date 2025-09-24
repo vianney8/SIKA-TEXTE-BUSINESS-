@@ -370,22 +370,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Montant invalide" });
       }
 
+      // Check if user already did pointage today
+      const today = new Date().toISOString().split('T')[0];
+      const existingPointage = await storage.getUserTransactions(userId, 50, 'pointage');
+      const todayPointage = existingPointage.find(t => 
+        t.createdAt && new Date(t.createdAt).toISOString().split('T')[0] === today
+      );
+      
+      if (todayPointage) {
+        return res.status(400).json({ message: "Vous ne pouvez faire qu'un pointage par jour" });
+      }
+
+      // Ensure amount is positive (300-800 FCFA)
+      const positiveAmount = Math.abs(amount);
+      const validAmount = Math.min(Math.max(positiveAmount, 300), 800);
+
       // Create transaction
       const transaction = await storage.createTransaction({
         userId,
         type: 'pointage',
-        amount: amount.toString(),
+        amount: validAmount.toString(),
         status: 'completed',
-        description: amount > 0 ? 'Bonus Pointage' : 'Malus Pointage',
+        description: 'Bonus Pointage',
       });
 
       // Update balance
-      await storage.updateUserBalance(userId, amount);
+      await storage.updateUserBalance(userId, validAmount);
 
       res.json({ 
-        message: amount > 0 ? "Bonus reçu avec succès!" : "Malus appliqué", 
+        message: "Bonus reçu avec succès!", 
         transaction,
-        amount 
+        amount: validAmount
       });
     } catch (error) {
       console.error("Pointage error:", error);
@@ -467,6 +482,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await storage.submitCorrection(userId, sentenceId, answer);
       if (result.correct) {
         await storage.updateUserBalance(userId, result.reward);
+        
+        // Create a transaction record for the correction earnings
+        await storage.createTransaction({
+          userId,
+          type: 'deposit',
+          amount: result.reward.toString(),
+          status: 'completed',
+          description: 'Gains de correction de phrase'
+        });
       }
       
       res.json(result);

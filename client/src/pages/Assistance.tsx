@@ -119,10 +119,9 @@ export default function Assistance() {
               Autres moyens de contact
             </h4>
             <div className="space-y-2 text-sm text-muted-foreground">
-              <p>• <strong>Support Général :</strong> Utilisez le widget WhatsApp en bas à droite</p>
               <p>• <strong>Support Technique :</strong> Décrivez votre problème en détail</p>
               <p>• <strong>Support Financier :</strong> Questions sur paiements et retraits</p>
-              <p>• <strong>Heures d'ouverture :</strong> Lundi - Vendredi, 8h00 - 18h00 GMT</p>
+              <p>• <strong>Heures d'ouverture :</strong> Lundi - dimanche, 24h/24</p>
             </div>
           </CardContent>
         </Card>

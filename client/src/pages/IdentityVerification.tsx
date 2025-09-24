@@ -212,8 +212,11 @@ export default function IdentityVerification() {
                 {/* Instructions */}
                 <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                   <h4 className="font-semibold text-blue-800 dark:text-blue-200 mb-2">
-                    Documents requis :
+                    Documents requis pour votre guide :
                   </h4>
+                  <p className="text-sm text-blue-700 dark:text-blue-300 mb-3">
+                    Nous aurons besoin de ces documents pour valider votre identité, quel que soit votre projet.
+                  </p>
                   <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
                     <li>• Photo recto de votre pièce d'identité (CNI, passeport)</li>
                     <li>• Photo verso de votre pièce d'identité</li>
