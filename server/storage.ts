@@ -99,6 +99,7 @@ export interface IStorage {
   getCompletedDepositsCount(): Promise<number>;
   getCompletedWithdrawalsCount(): Promise<number>;
   searchUsersByPhone(phone: string): Promise<User[]>;
+  searchUsersByPhoneOrEmail(query: string): Promise<User[]>;
   getAllUsersWithReferrals(): Promise<(User & { referralsCount: number })[]>;
   updateUserPassword(userId: string, hashedPassword: string): Promise<void>;
   blockUser(userId: string, blocked: boolean): Promise<void>;
@@ -128,6 +129,9 @@ export class DatabaseStorage implements IStorage {
         },
       })
       .returning();
+    if (!Array.isArray(result) || result.length === 0) {
+      throw new Error("Failed to create user");
+    }
     return result[0] as User;
   }
 
@@ -168,6 +172,9 @@ export class DatabaseStorage implements IStorage {
           undefined,
       })
       .returning();
+    if (!Array.isArray(result) || result.length === 0) {
+      throw new Error("Failed to create user");
+    }
     const user = result[0] as User;
 
     // Create account status (inactive by default)
@@ -841,6 +848,34 @@ export class DatabaseStorage implements IStorage {
         or(
           ilike(users.phone, `%${phone}%`),
           ilike(users.email, `%${phone}%`)
+        )
+      )
+      .limit(50);
+    return result as User[];
+  }
+
+  async searchUsersByPhoneOrEmail(query: string): Promise<(User & { isActive?: boolean })[]> {
+    const result = await db
+      .select({
+        id: users.id,
+        phone: users.phone,
+        email: users.email,
+        fullName: users.fullName,
+        balance: users.balance,
+        referralCode: users.referralCode,
+        role: users.role,
+        isBlocked: users.isBlocked,
+        createdAt: users.createdAt,
+        // Include activation status
+        isActive: accountStatus.isActive,
+        // Explicitly exclude password and other sensitive fields
+      })
+      .from(users)
+      .leftJoin(accountStatus, eq(accountStatus.userId, users.id))
+      .where(
+        or(
+          ilike(users.phone, `%${query}%`),
+          ilike(users.email, `%${query}%`)
         )
       )
       .limit(50);

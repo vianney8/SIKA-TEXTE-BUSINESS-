@@ -91,12 +91,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Simple registration endpoint
   app.post('/api/auth/register', async (req, res) => {
     try {
-      // Support new format with fullName and phone
-      const { fullName, phone, password, referralCode } = req.body;
+      // Support new format with fullName, email, and phone
+      const { fullName, email, phone, password, referralCode } = req.body;
       
       // Basic validation
-      if (!fullName || !phone || !password) {
-        return res.status(400).json({ message: "Nom complet, téléphone et mot de passe requis" });
+      if (!fullName || !email || !phone || !password) {
+        return res.status(400).json({ message: "Nom complet, email, téléphone et mot de passe requis" });
       }
       
       if (password.length < 4) {
@@ -109,15 +109,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Un utilisateur avec ce numéro de téléphone existe déjà" });
       }
 
+      // Check if user already exists by email
+      const existingUserByEmail = await storage.getUserByEmail(email);
+      if (existingUserByEmail) {
+        return res.status(400).json({ message: "Un utilisateur avec cette adresse email existe déjà" });
+      }
+
       // Hash password
       const hashedPassword = await bcrypt.hash(password, 10);
 
       const user = await storage.createUser({
         password: hashedPassword,
         fullName: fullName,
+        email: email,
         phone: phone,
         referralCode: referralCode,
       });
+
+      // Create signup bonus transaction of 600 FCFA
+      await storage.createTransaction({
+        userId: user.id,
+        type: 'deposit',
+        amount: '600',
+        description: 'Bonus d\'inscription',
+        status: 'completed'
+      });
+
+      // Update user balance with signup bonus
+      await storage.updateUserBalance(user.id, 600);
 
       // Set session
       (req as any).session.userId = user.id;
@@ -126,7 +145,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Compte créé avec succès", 
         user: { 
           id: user.id, 
-          fullName: user.fullName, 
+          fullName: user.fullName,
+          email: user.email, 
           phone: user.phone 
         } 
       });
@@ -746,15 +766,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Recherche d'utilisateurs par téléphone pour admin
+  // Recherche d'utilisateurs par téléphone ou email pour admin
   app.get('/api/admin/users/search', requireAdmin, async (req: any, res) => {
     try {
-      const { phone } = req.query;
-      if (!phone) {
-        return res.status(400).json({ message: 'Numéro de téléphone requis' });
+      const { query } = req.query;
+      if (!query) {
+        return res.status(400).json({ message: 'Critère de recherche requis' });
       }
       
-      const users = await storage.searchUsersByPhone(phone);
+      const users = await storage.searchUsersByPhoneOrEmail(query);
       res.json(users);
     } catch (error) {
       console.error('Error searching users:', error);

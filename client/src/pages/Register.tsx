@@ -28,6 +28,7 @@ const COUNTRIES = [
 // Extended register schema with country code support
 const extendedRegisterSchema = z.object({
   fullName: z.string().min(1, "Le nom complet est requis"),
+  email: z.string().email("Adresse email invalide"),
   countryCode: z.string().min(1, "Le code pays est requis"),
   phoneNumber: z.string().min(8, "Le numéro de téléphone doit contenir au moins 8 chiffres"),
   password: z.string().min(4, "Le mot de passe doit contenir au moins 4 caractères"),
@@ -55,6 +56,7 @@ export default function Register() {
     resolver: zodResolver(extendedRegisterSchema),
     defaultValues: {
       fullName: "",
+      email: "",
       countryCode: "+228", // Default to Togo
       phoneNumber: "",
       password: "",
@@ -77,6 +79,7 @@ export default function Register() {
         credentials: "include",
         body: JSON.stringify({
           fullName: data.fullName,
+          email: data.email,
           phone: fullPhone,
           password: data.password,
           referralCode: data.referralCode || undefined,
@@ -141,6 +144,26 @@ export default function Register() {
                           placeholder="Entrez votre nom complet"
                           {...field}
                           data-testid="input-fullname"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Email Address */}
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Adresse email</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="email"
+                          placeholder="votre@email.com"
+                          {...field}
+                          data-testid="input-email"
                         />
                       </FormControl>
                       <FormMessage />

@@ -296,8 +296,8 @@ export default function Dashboard() {
                       </div>
                       <div>
                         <div className="font-medium text-sm" data-testid={`text-transaction-type-${transaction.id}`}>
-                          {transaction.type === "deposit" && "Pointage"}
-                          {transaction.type === "pointage" && "Pointage"}
+                          {transaction.type === "deposit" && "Dépôt"}
+                          {transaction.type === "pointage" && "Corrections"}
                           {transaction.type === "transfer" && "Transfert"}
                           {transaction.type === "recharge" && "Recharge crédit"}
                           {transaction.type === "payment" && "Paiement Marchand"}

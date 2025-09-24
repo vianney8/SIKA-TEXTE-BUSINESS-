@@ -232,11 +232,13 @@ export const referralsRelations = relations(referrals, ({ one }) => ({
 // Schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   phone: true,
+  email: true,
   fullName: true,
 });
 
 export const registerUserSchema = z.object({
   phone: z.string().min(1, "Le numéro de téléphone est requis"),
+  email: z.string().email("Adresse email invalide"),
   fullName: z.string().min(1, "Le nom complet est requis"),
   password: z.string().min(4, "Le mot de passe doit contenir au moins 4 caractères"),
   confirmPassword: z.string(),

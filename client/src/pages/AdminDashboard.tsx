@@ -24,6 +24,7 @@ interface AdminStats {
 interface AdminUser {
   id: string;
   phone: string;
+  email: string;
   fullName: string;
   balance: string;
   referralCode: string;
@@ -36,7 +37,7 @@ interface AdminUser {
 
 export default function AdminDashboard() {
   const { toast } = useToast();
-  const [searchPhone, setSearchPhone] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<AdminUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   
@@ -64,10 +65,10 @@ export default function AdminDashboard() {
     refetchInterval: 60000, // Refresh every minute
   });
 
-  // Search users mutation
+  // Search users mutation (by phone or email)
   const searchMutation = useMutation<AdminUser[], Error, string>({
-    mutationFn: async (phone: string): Promise<AdminUser[]> => {
-      const response = await apiRequest('GET', `/api/admin/users/search?phone=${encodeURIComponent(phone)}`);
+    mutationFn: async (query: string): Promise<AdminUser[]> => {
+      const response = await apiRequest('GET', `/api/admin/users/search?query=${encodeURIComponent(query)}`);
       return response as unknown as AdminUser[];
     },
     onSuccess: (data: AdminUser[]) => {
@@ -216,22 +217,22 @@ export default function AdminDashboard() {
   });
 
   const handleSearch = () => {
-    if (searchPhone.trim()) {
-      searchMutation.mutate(searchPhone.trim());
+    if (searchQuery.trim()) {
+      searchMutation.mutate(searchQuery.trim());
     }
   };
 
   // Recherche en temps réel
   useEffect(() => {
-    if (searchPhone.trim().length > 2) {
+    if (searchQuery.trim().length > 2) {
       const debounceTimer = setTimeout(() => {
-        searchMutation.mutate(searchPhone.trim());
+        searchMutation.mutate(searchQuery.trim());
       }, 300);
       return () => clearTimeout(debounceTimer);
     } else {
       setSearchResults([]);
     }
-  }, [searchPhone]);
+  }, [searchQuery]);
 
   const handleUpdateBalance = () => {
     if (selectedUser && balanceAmount) {
@@ -356,11 +357,11 @@ export default function AdminDashboard() {
               <div className="flex-1">
                 <Label htmlFor="search-phone">Numéro de téléphone</Label>
                 <Input
-                  id="search-phone"
-                  placeholder="Ex: +22812345678"
-                  value={searchPhone}
-                  onChange={(e) => setSearchPhone(e.target.value)}
-                  data-testid="input-search-phone"
+                  id="search-query"
+                  placeholder="Ex: +22812345678 ou email@example.com"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  data-testid="input-search-query"
                 />
               </div>
               <div className="flex items-end">

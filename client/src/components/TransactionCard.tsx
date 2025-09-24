@@ -96,7 +96,7 @@ export default function TransactionCard({ transaction }: TransactionCardProps) {
       case "deposit":
         return "Dépôt Sika";
       case "pointage":
-        return "Pointage Phrases";
+        return "Corrections";
       case "transfer":
         return "Transfert Envoyé";
       case "transfer_received":
