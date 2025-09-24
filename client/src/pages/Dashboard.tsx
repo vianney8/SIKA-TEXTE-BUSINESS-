@@ -6,6 +6,7 @@ import HamburgerMenu from "@/components/HamburgerMenu";
 import BottomNavigation from "@/components/BottomNavigation";
 import TransactionCard from "@/components/TransactionCard";
 import TestimonialsSlider from "@/components/TestimonialsSlider";
+import WhatsAppNotification from "@/components/WhatsAppNotification";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Eye, ArrowUpRight, Wallet, Users } from "lucide-react";
@@ -273,7 +274,7 @@ export default function Dashboard() {
           <Card className="bg-white rounded-xl shadow-sm border border-border">
             <div className="p-0">
               <img 
-                src="/attached_assets/IMG_20250925_000517_1758755249291.jpg" 
+                src="https://i.imgur.com/9qF4m3c.jpeg" 
                 alt="Le Billet sur l'Europe" 
                 className="w-full h-auto rounded-xl"
                 data-testid="image-news-banner"
@@ -287,6 +288,7 @@ export default function Dashboard() {
       </main>
 
       <BottomNavigation currentPage="home" />
+      <WhatsAppNotification />
     </div>
   );
 }
