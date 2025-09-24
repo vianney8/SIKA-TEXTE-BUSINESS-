@@ -319,14 +319,7 @@ export default function Register() {
                       </FormControl>
                       <div className="space-y-1 leading-none">
                         <FormLabel className="text-sm">
-                          J'accepte les{" "}
-                          <span className="text-primary">
-                            conditions d'utilisation
-                          </span>{" "}
-                          et la{" "}
-                          <Link href="/privacy" className="text-primary hover:underline">
-                            politique de confidentialité
-                          </Link>
+                          J'accepte les conditions d'utilisation et la politique de confidentialité
                         </FormLabel>
                       </div>
                     </FormItem>
