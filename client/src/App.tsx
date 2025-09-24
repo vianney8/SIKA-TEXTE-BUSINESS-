@@ -24,7 +24,7 @@ import BankCard from "@/pages/BankCard";
 import AdminDashboard from "@/pages/AdminDashboard";
 
 function Router() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
 
   if (isLoading) {
     return (
@@ -49,7 +49,7 @@ function Router() {
         </>
       ) : (
         <>
-          <Route path="/" component={Dashboard} />
+          <Route path="/" component={(user as any)?.role === 'admin' ? AdminDashboard : Dashboard} />
           <Route path="/transfer" component={Transfer} />
           <Route path="/recharge" component={Recharge} />
           <Route path="/payment" component={Payment} />
@@ -63,6 +63,7 @@ function Router() {
           <Route path="/identity-verification" component={IdentityVerification} />
           <Route path="/bank-card" component={BankCard} />
           <Route path="/admin" component={AdminDashboard} />
+          <Route path="/dashboard" component={Dashboard} />
         </>
       )}
       <Route component={NotFound} />
