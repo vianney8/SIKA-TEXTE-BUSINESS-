@@ -472,7 +472,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         balance,
         isAccountActive: accountStatus?.isActive || false,
-        minimumWithdrawal: 1000,
+        minimumWithdrawal: 3500,
         withdrawalHistory: withdrawals
       });
     } catch (error) {

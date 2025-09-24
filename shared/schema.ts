@@ -118,6 +118,19 @@ export const withdrawals = pgTable("withdrawals", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const identityVerification = pgTable("identity_verification", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  frontIdPhotoUrl: varchar("front_id_photo_url"),
+  backIdPhotoUrl: varchar("back_id_photo_url"),
+  selfiePhotoUrl: varchar("selfie_photo_url"),
+  status: varchar("status").notNull().default('pending'), // 'pending', 'approved', 'rejected'
+  adminNotes: text("admin_notes"),
+  submittedAt: timestamp("submitted_at").defaultNow(),
+  reviewedAt: timestamp("reviewed_at"),
+  reviewedBy: varchar("reviewed_by"),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many, one }) => ({
   transactions: many(transactions),
@@ -131,6 +144,7 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   corrections: many(corrections),
   accountStatus: one(accountStatus),
   withdrawals: many(withdrawals),
+  identityVerification: one(identityVerification),
 }));
 
 export const workProgressRelations = relations(workProgress, ({ one }) => ({
@@ -161,6 +175,13 @@ export const accountStatusRelations = relations(accountStatus, ({ one }) => ({
 export const withdrawalsRelations = relations(withdrawals, ({ one }) => ({
   user: one(users, {
     fields: [withdrawals.userId],
+    references: [users.id],
+  }),
+}));
+
+export const identityVerificationRelations = relations(identityVerification, ({ one }) => ({
+  user: one(users, {
+    fields: [identityVerification.userId],
     references: [users.id],
   }),
 }));
@@ -256,8 +277,14 @@ export const workSubmissionSchema = z.object({
 });
 
 export const withdrawalRequestSchema = z.object({
-  amount: z.number().min(1000, "Montant minimum 1000 FCFA"),
+  amount: z.number().min(3500, "Montant minimum 3500 FCFA"),
   phoneNumber: z.string().min(1, "Numéro de téléphone requis"),
+});
+
+export const identityVerificationSchema = z.object({
+  frontIdPhoto: z.string().min(1, "Photo recto de la pièce d'identité requise"),
+  backIdPhoto: z.string().min(1, "Photo verso de la pièce d'identité requise"),
+  selfiePhoto: z.string().min(1, "Photo selfie requise"),
 });
 
 export const activationSchema = z.object({
@@ -275,6 +302,8 @@ export type WorkProgress = typeof workProgress.$inferSelect;
 export type Correction = typeof corrections.$inferSelect;
 export type AccountStatus = typeof accountStatus.$inferSelect;
 export type Withdrawal = typeof withdrawals.$inferSelect;
+export type IdentityVerification = typeof identityVerification.$inferSelect;
 export type WorkSubmission = z.infer<typeof workSubmissionSchema>;
 export type WithdrawalRequest = z.infer<typeof withdrawalRequestSchema>;
 export type ActivationRequest = z.infer<typeof activationSchema>;
+export type IdentityVerificationRequest = z.infer<typeof identityVerificationSchema>;

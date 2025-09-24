@@ -12,7 +12,8 @@ import {
   Settings, 
   Wallet, 
   HelpCircle,
-  ChevronDown 
+  ChevronDown,
+  Code2
 } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -86,6 +87,12 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
       label: "Assistance",
       action: handleAssistance,
       testId: "button-help",
+    },
+    {
+      icon: Code2,
+      label: "API Agrégateur",
+      href: "/api-agregateur",
+      testId: "button-api-agregateur",
     },
   ];
 

@@ -7,6 +7,7 @@ import {
   corrections,
   accountStatus,
   withdrawals,
+  identityVerification,
   type User,
   type UpsertUser,
   type Transaction,
@@ -17,6 +18,7 @@ import {
   type Correction,
   type AccountStatus,
   type Withdrawal,
+  type IdentityVerification,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, inArray } from "drizzle-orm";
@@ -70,6 +72,11 @@ export interface IStorage {
   createWithdrawal(userId: string, amount: number, phoneNumber: string): Promise<Withdrawal>;
   getUserWithdrawals(userId: string): Promise<Withdrawal[]>;
   updateWithdrawalStatus(withdrawalId: string, status: string): Promise<void>;
+
+  // Identity verification operations
+  createIdentityVerification(userId: string, frontIdPhoto: string, backIdPhoto: string, selfiePhoto: string): Promise<IdentityVerification>;
+  getUserIdentityVerification(userId: string): Promise<IdentityVerification | null>;
+  updateIdentityVerificationStatus(verificationId: string, status: string, adminNotes?: string, reviewedBy?: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -574,6 +581,44 @@ export class DatabaseStorage implements IStorage {
         processedAt: status === 'completed' ? new Date() : null 
       })
       .where(eq(withdrawals.id, withdrawalId));
+  }
+
+  // Identity verification operations
+  async createIdentityVerification(userId: string, frontIdPhoto: string, backIdPhoto: string, selfiePhoto: string): Promise<IdentityVerification> {
+    const [verification] = await db
+      .insert(identityVerification)
+      .values({
+        userId,
+        frontIdPhotoUrl: frontIdPhoto,
+        backIdPhotoUrl: backIdPhoto,
+        selfiePhotoUrl: selfiePhoto,
+        status: 'pending',
+      })
+      .returning();
+    
+    return verification as IdentityVerification;
+  }
+  
+  async getUserIdentityVerification(userId: string): Promise<IdentityVerification | null> {
+    const [verification] = await db
+      .select()
+      .from(identityVerification)
+      .where(eq(identityVerification.userId, userId))
+      .limit(1);
+    
+    return verification as IdentityVerification || null;
+  }
+  
+  async updateIdentityVerificationStatus(verificationId: string, status: string, adminNotes?: string, reviewedBy?: string): Promise<void> {
+    await db
+      .update(identityVerification)
+      .set({ 
+        status,
+        adminNotes,
+        reviewedBy,
+        reviewedAt: new Date()
+      })
+      .where(eq(identityVerification.id, verificationId));
   }
 }
 
