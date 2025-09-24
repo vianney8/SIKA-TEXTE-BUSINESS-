@@ -23,6 +23,7 @@ import IdentityVerification from "@/pages/IdentityVerification";
 import BankCard from "@/pages/BankCard";
 import AdminDashboard from "@/pages/AdminDashboard";
 import AdminSettings from "@/pages/AdminSettings";
+import Summary from "@/pages/Summary";
 
 function Router() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -66,6 +67,7 @@ function Router() {
           <Route path="/bank-card" component={BankCard} />
           <Route path="/admin" component={AdminDashboard} />
           <Route path="/dashboard" component={Dashboard} />
+          <Route path="/summary" component={Summary} />
           {/* Allow authenticated users to access register page for referral links */}
           <Route path="/register" component={Register} />
         </>

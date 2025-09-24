@@ -17,8 +17,8 @@ export default function Transactions() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
   // Define transaction categories
-  const correctionTypes = ['deposit']; // Only correction earnings
-  const financialTypes = ['pointage', 'transfer', 'transfer_received', 'withdrawal', 'referral']; // Pointage, Transfert, Retrait, Parrainage
+  const correctionTypes: string[] = []; // Only correction earnings (bonus moved to financial)
+  const financialTypes = ['deposit', 'pointage', 'transfer', 'transfer_received', 'withdrawal', 'referral']; // Bonus, Pointage, Transfert, Retrait, Parrainage
   
   const { data: transactions = [] } = useQuery({
     queryKey: ["/api/transactions", activeTab, filterType, filterStatus],

@@ -112,6 +112,12 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
       href: "/api-agregateur",
       testId: "button-api-agregateur",
     },
+    {
+      icon: () => <span className="text-lg font-bold">•••</span>,
+      label: "Plus",
+      href: "/summary",
+      testId: "button-summary",
+    },
   ];
 
   return (

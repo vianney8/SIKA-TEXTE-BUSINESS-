@@ -96,7 +96,7 @@ export default function TransactionCard({ transaction }: TransactionCardProps) {
       case "deposit":
         if (description?.includes("correction")) return "Corrections";
         if (description?.includes("Bonus de bienvenue")) return "Bonus de bienvenue";
-        return "Dépôt";
+        return "Bonus de bienvenue";
       case "pointage":
         return "Pointage";
       case "transfer":
