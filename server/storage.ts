@@ -490,8 +490,14 @@ export class DatabaseStorage implements IStorage {
       throw new Error('Phrase non trouvée');
     }
     
-    // Check if answer is correct (simple text comparison)
-    const isCorrect = userAnswer.toLowerCase().trim() === sentence.correctedText.toLowerCase().trim();
+    // Check if answer is correct (flexible comparison ignoring final punctuation)
+    const normalizeText = (text: string): string => {
+      return text.toLowerCase().trim().replace(/[.!?;,]+$/, '').trim();
+    };
+    
+    const userNormalized = normalizeText(userAnswer);
+    const correctNormalized = normalizeText(sentence.correctedText);
+    const isCorrect = userNormalized === correctNormalized;
     const reward = isCorrect ? 650 : 0; // 650 FCFA per correct answer
     
     // Record the correction
