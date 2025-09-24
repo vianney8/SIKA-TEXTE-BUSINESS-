@@ -269,71 +269,16 @@ export default function Dashboard() {
             })}
           </div>
 
-          {/* Recent Transactions */}
+          {/* News Banner */}
           <Card className="bg-white rounded-xl shadow-sm border border-border">
-            <div className="p-4 border-b border-border flex justify-between items-center">
-              <h3 className="font-semibold" data-testid="text-transactions-title">Dernières transactions</h3>
-              <Button asChild variant="link" className="text-accent text-sm font-medium p-0" data-testid="button-view-more">
-                <a href="/transactions">Voir plus</a>
-              </Button>
+            <div className="p-0">
+              <img 
+                src="/attached_assets/IMG_20250925_000517_1758755249291.jpg" 
+                alt="Le Billet sur l'Europe" 
+                className="w-full h-auto rounded-xl"
+                data-testid="image-news-banner"
+              />
             </div>
-
-            {(transactions as any[]).length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground" data-testid="text-no-transactions">
-                Aucune transaction pour le moment
-              </div>
-            ) : (
-              <div className="divide-y divide-border">
-                {(transactions as any[]).map((transaction: any) => (
-                  <div
-                    key={transaction.id}
-                    className="p-4 flex justify-between items-center hover:bg-gray-50 transition-colors"
-                    data-testid={`transaction-${transaction.id}`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className={`w-10 h-10 ${getTransactionIconBg(transaction.type)} rounded-full flex items-center justify-center`}>
-                        <i className={`${getTransactionIcon(transaction.type)} ${getTransactionIconColor(transaction.type)}`}></i>
-                      </div>
-                      <div>
-                        <div className="font-medium text-sm" data-testid={`text-transaction-type-${transaction.id}`}>
-                          {transaction.type === "deposit" && (transaction.description?.includes("correction") ? "Corrections" : "Dépôt")}
-                          {transaction.type === "pointage" && "Pointage"}
-                          {transaction.type === "transfer" && "Transfert"}
-                          {transaction.type === "recharge" && "Recharge crédit"}
-                          {transaction.type === "payment" && "Paiement Marchand"}
-                          {transaction.type === "referral" && "Gains de parrainage"}
-                        </div>
-                        <div className="text-xs text-muted-foreground" data-testid={`text-transaction-date-${transaction.id}`}>
-                          {new Date(transaction.createdAt).toLocaleDateString("fr-FR", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div 
-                        className={`font-semibold ${
-                          (transaction.type === "deposit" || transaction.type === "pointage") 
-                            ? (parseFloat(transaction.amount) > 0 ? "text-green-600" : "text-red-600")
-                            : "text-red-600"
-                        }`}
-                        data-testid={`text-transaction-amount-${transaction.id}`}
-                      >
-                        {(transaction.type === "deposit" || transaction.type === "pointage") 
-                          ? (parseFloat(transaction.amount) > 0 ? "+" : "-")
-                          : "-"}
-                        {formatFCFA(Math.abs(parseFloat(transaction.amount)))}
-                      </div>
-                      {getStatusBadge(transaction.status)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </Card>
 
           {/* Testimonials Section */}

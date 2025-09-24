@@ -4,34 +4,21 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Filter, TrendingUp, DollarSign } from "lucide-react";
+import { ArrowLeft, Filter } from "lucide-react";
 import { Link } from "wouter";
 import { useState } from "react";
 import { formatFCFA } from "@/lib/utils";
 
 export default function Transactions() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<string>("corrections");
   const [filterType, setFilterType] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-
-  // Define transaction categories
-  const correctionTypes: string[] = []; // Only correction earnings (bonus moved to financial)
-  const financialTypes = ['deposit', 'pointage', 'transfer', 'transfer_received', 'withdrawal', 'referral']; // Bonus, Pointage, Transfert, Retrait, Parrainage
   
   const { data: transactions = [] } = useQuery({
-    queryKey: ["/api/transactions", activeTab, filterType, filterStatus],
+    queryKey: ["/api/transactions", filterType, filterStatus],
     queryFn: () => {
       const params = new URLSearchParams();
       params.append('limit', '50');
-      
-      // Apply category filtering based on active tab
-      if (activeTab === 'corrections') {
-        params.append('categories', correctionTypes.join(','));
-      } else if (activeTab === 'financial') {
-        params.append('categories', financialTypes.join(','));
-      }
       
       if (filterType && filterType !== 'all') params.append('type', filterType);
       if (filterStatus && filterStatus !== 'all') params.append('status', filterStatus);
@@ -151,29 +138,16 @@ export default function Transactions() {
   // Server-side filtering is now handled, so we just use the transactions directly
   const filteredTransactions = transactions as any[];
 
-  // Get available filter options based on active tab
+  // Get available filter options
   const getFilterOptions = () => {
-    if (activeTab === 'corrections') {
-      return [
-        { value: "all", label: "Tous les types" },
-        { value: "deposit", label: "Gains de correction" },
-      ];
-    } else {
-      return [
-        { value: "all", label: "Tous les types" },
-        { value: "pointage", label: "Pointage" },
-        { value: "transfer", label: "Transfert envoyé" },
-        { value: "transfer_received", label: "Transfert reçu" },
-        { value: "withdrawal", label: "Retrait" },
-        { value: "referral", label: "Parrainage" },
-      ];
-    }
-  };
-
-  // Reset filter type when switching tabs
-  const handleTabChange = (value: string) => {
-    setActiveTab(value);
-    setFilterType("all");
+    return [
+      { value: "all", label: "Tous les types" },
+      { value: "deposit", label: "Bonus/Dépôt" },
+      { value: "pointage", label: "Pointage" },
+      { value: "transfer", label: "Transfert" },
+      { value: "withdrawal", label: "Retrait" },
+      { value: "referral", label: "Parrainage" },
+    ];
   };
 
   return (
@@ -193,27 +167,102 @@ export default function Transactions() {
       </div>
 
       <div className="p-6">
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="mb-6">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="corrections" className="flex items-center gap-2" data-testid="tab-corrections">
-              <TrendingUp size={16} />
-              Corrections
-            </TabsTrigger>
-            <TabsTrigger value="financial" className="flex items-center gap-2" data-testid="tab-financial">
-              <DollarSign size={16} />
-              Financières
-            </TabsTrigger>
-          </TabsList>
+        {/* Filters */}
+        <Card className="bg-white rounded-xl shadow-sm border border-border mb-6">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-4">
+              <Filter className="text-muted-foreground" size={20} />
+              <div className="flex-1 grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Type</label>
+                  <Select value={filterType} onValueChange={setFilterType}>
+                    <SelectTrigger data-testid="filter-type">
+                      <SelectValue placeholder="Tous les types" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getFilterOptions().map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Statut</label>
+                  <Select value={filterStatus} onValueChange={setFilterStatus}>
+                    <SelectTrigger data-testid="filter-status">
+                      <SelectValue placeholder="Tous les statuts" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous les statuts</SelectItem>
+                      <SelectItem value="completed">Payé</SelectItem>
+                      <SelectItem value="pending">En attente</SelectItem>
+                      <SelectItem value="failed">Échoué</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-          <TabsContent value="corrections" className="space-y-6">
-            {renderTransactionContent("Revenus de correction de phrases")}
-          </TabsContent>
-
-          <TabsContent value="financial" className="space-y-6">
-            {renderTransactionContent("Opérations financières")}
-          </TabsContent>
-        </Tabs>
+        {/* Transactions List */}
+        <Card className="bg-white rounded-xl shadow-sm border border-border">
+          <CardContent className="p-0">
+            {filteredTransactions.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground" data-testid="text-no-transactions">
+                Aucune transaction trouvée
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {filteredTransactions.map((transaction: any) => (
+                  <div
+                    key={transaction.id}
+                    className="p-4 flex justify-between items-center hover:bg-gray-50 transition-colors"
+                    data-testid={`transaction-${transaction.id}`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-10 h-10 ${getTransactionIconBg(transaction.type)} rounded-full flex items-center justify-center`}>
+                        <i className={`${getTransactionIcon(transaction.type)} ${getTransactionIconColor(transaction.type)}`}></i>
+                      </div>
+                      <div>
+                        <div className="font-medium text-sm" data-testid={`text-transaction-type-${transaction.id}`}>
+                          {getTypeLabel(transaction.type, transaction.description)}
+                        </div>
+                        <div className="text-xs text-muted-foreground" data-testid={`text-transaction-date-${transaction.id}`}>
+                          {new Date(transaction.createdAt).toLocaleDateString("fr-FR", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div 
+                        className={`font-semibold ${
+                          (transaction.type === "deposit" || transaction.type === "pointage") 
+                            ? (parseFloat(transaction.amount) > 0 ? "text-green-600" : "text-red-600")
+                            : "text-red-600"
+                        }`}
+                        data-testid={`text-transaction-amount-${transaction.id}`}
+                      >
+                        {(transaction.type === "deposit" || transaction.type === "pointage") 
+                          ? (parseFloat(transaction.amount) > 0 ? "+" : "-")
+                          : "-"}
+                        {formatFCFA(Math.abs(parseFloat(transaction.amount)))}
+                      </div>
+                      {getStatusBadge(transaction.status)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
