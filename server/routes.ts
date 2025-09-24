@@ -383,17 +383,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // User referrals
-  app.get('/api/referrals', requireAuth, async (req: any, res) => {
-    try {
-      const userId = req.session.userId;
-      const referrals = await storage.getUserReferrals(userId);
-      res.json(referrals);
-    } catch (error) {
-      console.error("Error fetching referrals:", error);
-      res.status(500).json({ message: "Erreur lors de la récupération des parrainages" });
-    }
-  });
 
   // Update profile
   app.put('/api/user/profile', requireAuth, async (req: any, res) => {
