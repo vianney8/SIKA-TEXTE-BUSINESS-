@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import MobileHeader from "@/components/MobileHeader";
 import HamburgerMenu from "@/components/HamburgerMenu";
@@ -16,6 +16,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   // Notification WhatsApp à chaque chargement
   useEffect(() => {
@@ -60,7 +61,7 @@ export default function Dashboard() {
     if (lastPointageDate === today) {
       toast({
         title: "Pointage déjà effectué",
-        description: "Vous ne pouvez faire qu'un pointage par jour",
+        description: "Revenez demain pour votre prochain pointage quotidien",
         variant: "destructive"
       });
       return;
@@ -78,8 +79,40 @@ export default function Dashboard() {
       });
       
       if (response.ok) {
-        localStorage.setItem(`lastPointage_${userId}`, today);
-        window.location.reload();
+        try {
+          const data = await response.json();
+          localStorage.setItem(`lastPointage_${userId}`, today);
+          toast({
+            title: "Pointage réussi !",
+            description: `Vous avez gagné ${data.amount} FCFA`
+          });
+          // Auto-update balance and transactions without reload
+          queryClient.invalidateQueries({ queryKey: ["/api/user/balance"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
+        } catch (error) {
+          localStorage.setItem(`lastPointage_${userId}`, today);
+          toast({
+            title: "Pointage réussi !",
+            description: `Votre bonus a été ajouté à votre solde`
+          });
+          queryClient.invalidateQueries({ queryKey: ["/api/user/balance"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
+        }
+      } else {
+        try {
+          const error = await response.json();
+          toast({
+            title: "Erreur",
+            description: error.message || "Revenez demain pour votre prochain pointage",
+            variant: "destructive"
+          });
+        } catch {
+          toast({
+            title: "Erreur",
+            description: "Revenez demain pour votre prochain pointage",
+            variant: "destructive"
+          });
+        }
       }
     } catch (error) {
       console.error("Pointage error:", error);
@@ -194,20 +227,25 @@ export default function Dashboard() {
                 return (
                   <Button
                     key={button.label}
-                    disabled
+                    asChild
                     variant="ghost"
-                    className="bg-gray-100 rounded-xl p-6 shadow-sm border border-border h-auto flex-col space-y-3 opacity-50"
+                    className="bg-white rounded-xl p-6 shadow-sm border border-border hover:shadow-md transition-shadow h-auto flex-col space-y-3"
                     data-testid={button.testId}
-                    onClick={() => toast({
-                      title: "Retrait non disponible",
-                      description: "Minimum requis: 2000 FCFA",
-                      variant: "destructive"
-                    })}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      toast({
+                        title: "Retrait non disponible",
+                        description: "Atteignez le minimum de 2000 FCFA d'abord",
+                        variant: "destructive"
+                      });
+                    }}
                   >
-                    <div className={`w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center`}>
-                      <button.icon className="text-gray-500 text-lg" />
-                    </div>
-                    <div className="text-center font-medium text-sm text-gray-500">{button.label}</div>
+                    <a href={button.href}>
+                      <div className={`w-12 h-12 ${button.bgColor} rounded-full flex items-center justify-center`}>
+                        <button.icon className={`${button.iconColor} text-lg`} />
+                      </div>
+                      <div className="text-center font-medium text-sm">{button.label}</div>
+                    </a>
                   </Button>
                 );
               }

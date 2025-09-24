@@ -137,8 +137,7 @@ export default function TeamPage() {
                     description: "Votre lien de parrainage a été copié dans le presse-papiers",
                   });
                 }}
-                variant="outline" 
-                className="w-full flex items-center gap-2"
+                className="w-full flex items-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 border-0"
                 data-testid="button-copy-referral-link"
                 disabled={!referralData?.referralCode}
               >

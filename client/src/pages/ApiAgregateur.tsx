@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Shield, Globe, Zap, CheckCircle, Code2, Database, Lock } from "lucide-react";
+import { ArrowLeft, Shield, Globe, Zap, CheckCircle, Code2, Database, Lock, Camera } from "lucide-react";
 import { Link } from "wouter";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -228,6 +228,58 @@ export default function ApiAgregateur() {
                   required
                   data-testid="textarea-message"
                 />
+              </div>
+
+              {/* Photo Upload Section */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                  <Camera className="w-5 h-5" />
+                  Documents d'identité requis
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  Nous aurons besoin de ces documents pour valider votre identité, quel que soit votre projet
+                </p>
+                
+                <div className="grid gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Carte d'identité (Recto) <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      required
+                      data-testid="input-id-front"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Carte d'identité (Verso) <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      required
+                      data-testid="input-id-back"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Photo selfie <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      required
+                      data-testid="input-selfie"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="bg-amber-50 dark:bg-amber-900 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
