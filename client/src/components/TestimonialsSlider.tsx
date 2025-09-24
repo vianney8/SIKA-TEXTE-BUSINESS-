@@ -558,6 +558,60 @@ export default function TestimonialsSlider() {
             />
           ))}
         </div>
+        
+        {/* Social Media Links */}
+        <div className="mt-6 text-center">
+          <div className="flex justify-center space-x-4 mb-4">
+            <a href="#" className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+              <i className="fab fa-facebook-f text-white text-sm"></i>
+            </a>
+            <a href="#" className="w-8 h-8 bg-sky-400 rounded-full flex items-center justify-center">
+              <i className="fab fa-twitter text-white text-sm"></i>
+            </a>
+            <a href="#" className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
+              <i className="fab fa-youtube text-white text-sm"></i>
+            </a>
+            <a href="#" className="w-8 h-8 bg-pink-500 rounded-full flex items-center justify-center">
+              <i className="fab fa-instagram text-white text-sm"></i>
+            </a>
+            <a href="#" className="w-8 h-8 bg-blue-700 rounded-full flex items-center justify-center">
+              <i className="fab fa-linkedin text-white text-sm"></i>
+            </a>
+            <a href="#" className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+              <i className="fab fa-whatsapp text-white text-sm"></i>
+            </a>
+          </div>
+          <a
+            href="https://t.me/+vPLt5Vatz2gwMTU0"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center space-x-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            <i className="fab fa-telegram text-lg"></i>
+            <span>Rejoindre le groupe Telegram</span>
+          </a>
+          
+          {/* Logout Button */}
+          <div className="mt-6">
+            <button
+              onClick={() => {
+                fetch("/api/auth/logout", {
+                  method: "POST",
+                  credentials: "include",
+                }).then(() => {
+                  window.location.href = "/";
+                }).catch(() => {
+                  window.location.href = "/";
+                });
+              }}
+              className="inline-flex items-center space-x-2 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors"
+              data-testid="button-logout-bottom"
+            >
+              <i className="fas fa-sign-out-alt text-lg"></i>
+              <span>Se déconnecter</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -214,22 +214,6 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
             </Button>
           </div>
           
-          {/* Logout */}
-          <div className="pt-4 border-t border-slate-200">
-            <Button
-              onClick={handleLogout}
-              variant="ghost"
-              className="w-full justify-start p-4 hover:bg-red-50 text-red-600 rounded-lg transition-colors h-auto"
-              data-testid="button-logout"
-            >
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
-                  <LogOut size={18} />
-                </div>
-                <span className="font-medium">Se déconnecter</span>
-              </div>
-            </Button>
-          </div>
         </nav>
       </div>
     </>

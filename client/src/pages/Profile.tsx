@@ -197,7 +197,7 @@ export default function Profile() {
                       <FormItem>
                         <FormLabel>Numéro de téléphone</FormLabel>
                         <div className="flex">
-                          <select className="bg-muted border border-input rounded-l-lg px-3 py-3 focus:ring-2 focus:ring-ring focus:border-transparent outline-none">
+                          <select disabled className="bg-muted border border-input rounded-l-lg px-3 py-3 focus:ring-2 focus:ring-ring focus:border-transparent outline-none text-muted-foreground">
                             <option>🇧🇯 +229</option>
                             <option>🇨🇮 +225</option>
                             <option>🇸🇳 +221</option>
@@ -209,8 +209,9 @@ export default function Profile() {
                               type="tel"
                               placeholder="12345678"
                               {...field}
+                              disabled
                               data-testid="input-phone"
-                              className="flex-1 px-4 py-3 border border-l-0 border-input rounded-r-lg focus:ring-2 focus:ring-ring"
+                              className="flex-1 px-4 py-3 border border-l-0 border-input rounded-r-lg focus:ring-2 focus:ring-ring bg-muted text-muted-foreground"
                             />
                           </FormControl>
                         </div>

@@ -53,7 +53,7 @@ export default function Dashboard() {
 
   const handlePointage = async () => {
     // Check if user already did pointage today
-    const userId = user?.id || 'anonymous';
+    const userId = (user as any)?.id || (user as any)?.sub || 'anonymous';
     const lastPointageDate = localStorage.getItem(`lastPointage_${userId}`);
     const today = new Date().toDateString();
     
@@ -89,7 +89,7 @@ export default function Dashboard() {
   const actionButtons = [
     {
       icon: ArrowUpRight,
-      label: "Transfert",
+      label: "Transférer de l'argent à un abonné Sika texte",
       href: "/transfer",
       bgColor: "bg-blue-100",
       iconColor: "text-primary",
