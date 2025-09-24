@@ -15,13 +15,20 @@ export default function TransactionCard({ transaction }: TransactionCardProps) {
   const getIcon = (type: string) => {
     switch (type) {
       case "deposit":
+      case "pointage":
         return "fas fa-check-circle";
       case "transfer":
         return "fas fa-exchange-alt";
+      case "transfer_received":
+        return "fas fa-arrow-down";
       case "recharge":
         return "fas fa-plus";
       case "payment":
         return "fas fa-shopping-cart";
+      case "withdrawal":
+        return "fas fa-arrow-up";
+      case "referral":
+        return "fas fa-users";
       default:
         return "fas fa-circle";
     }
@@ -30,13 +37,20 @@ export default function TransactionCard({ transaction }: TransactionCardProps) {
   const getIconBg = (type: string) => {
     switch (type) {
       case "deposit":
-        return "bg-yellow-100";
+      case "pointage":
+        return "bg-green-100";
       case "transfer":
-        return "bg-blue-100";
+        return "bg-red-100";
+      case "transfer_received":
+        return "bg-green-100";
       case "recharge":
-        return "bg-orange-100";
+        return "bg-blue-100";
       case "payment":
         return "bg-blue-100";
+      case "withdrawal":
+        return "bg-red-100";
+      case "referral":
+        return "bg-purple-100";
       default:
         return "bg-gray-100";
     }
@@ -45,13 +59,20 @@ export default function TransactionCard({ transaction }: TransactionCardProps) {
   const getIconColor = (type: string) => {
     switch (type) {
       case "deposit":
-        return "text-yellow-600";
+      case "pointage":
+        return "text-green-600";
       case "transfer":
-        return "text-primary";
+        return "text-red-600";
+      case "transfer_received":
+        return "text-green-600";
       case "recharge":
-        return "text-accent";
+        return "text-blue-600";
       case "payment":
-        return "text-primary";
+        return "text-blue-600";
+      case "withdrawal":
+        return "text-red-600";
+      case "referral":
+        return "text-purple-600";
       default:
         return "text-gray-600";
     }
@@ -74,12 +95,20 @@ export default function TransactionCard({ transaction }: TransactionCardProps) {
     switch (type) {
       case "deposit":
         return "Dépôt Sika";
+      case "pointage":
+        return "Pointage Phrases";
       case "transfer":
-        return "Transfert";
+        return "Transfert Envoyé";
+      case "transfer_received":
+        return "Transfert Reçu";
       case "recharge":
-        return "Recharge crédit";
+        return "Recharge Crédit";
       case "payment":
         return "Paiement Marchand";
+      case "withdrawal":
+        return "Retrait";
+      case "referral":
+        return "Commission Parrainage";
       default:
         return "Transaction";
     }
@@ -109,10 +138,14 @@ export default function TransactionCard({ transaction }: TransactionCardProps) {
       <div className="text-right">
         <div 
           className={`font-semibold ${
-            transaction.type === "deposit" ? "text-green-600" : "text-red-600"
+            // Transactions positives (gains/revenus) en vert
+            ["deposit", "pointage", "recharge", "payment", "transfer_received", "referral"].includes(transaction.type) 
+              ? "text-green-600" 
+              // Transactions négatives (sorties d'argent) en rouge
+              : "text-red-600"
           }`}
         >
-          {transaction.type === "deposit" ? "+" : "-"}
+          {["deposit", "pointage", "recharge", "payment", "transfer_received", "referral"].includes(transaction.type) ? "+" : "-"}
           {formatFCFA(parseFloat(transaction.amount))}
         </div>
         {getStatusBadge(transaction.status)}

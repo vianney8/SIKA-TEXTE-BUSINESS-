@@ -16,6 +16,7 @@ import {
 import bcrypt from "bcrypt";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
+import { randomBytes } from "crypto";
 
 // Session setup
 function setupSessions(app: Express) {
@@ -572,8 +573,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const referrals = await storage.getUserReferrals(userId);
       const stats = await storage.getReferralStats(userId);
       
+      // Ensure user has a referral code, generate and save one if missing
+      let referralCode = user?.referralCode;
+      if (!referralCode) {
+        referralCode = randomBytes(3).toString('hex').toUpperCase();
+        await storage.upsertUser({ id: userId, referralCode });
+      }
+      
       const referralData = {
-        referralCode: user?.referralCode || `SIKA${userId.slice(0, 8).toUpperCase()}`,
+        referralCode,
         totalReferrals: stats.totalReferrals,
         activeReferrals: referrals.filter(r => r.referredUser).length,
         totalCommission: stats.totalCommission,
