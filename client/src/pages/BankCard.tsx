@@ -28,86 +28,18 @@ interface BankCardData {
 
 // Opérateurs Mobile Money selon le pays
 const OPERATORS_BY_COUNTRY: Record<string, string[]> = {
-  // Afrique de l'Ouest
   "+228": ["Moov Togo", "T-Money Togo"], // Togo
-  "+229": ["MTN Benin", "Moov Benin"], // Bénin
-  "+221": ["Orange Money", "Free Money", "Wizall", "Expresso", "Tigo Cash"], // Sénégal
-  "+225": ["MTN Mobile Money", "Moov Money", "Orange Money", "Wave"], // Côte d'Ivoire
-  "+226": ["Orange Money", "Moov Money"], // Burkina Faso
-  "+223": ["Orange Money", "Moov Money", "Telecel"], // Mali
-  "+224": ["MTN Mobile Money", "Orange Money", "Moov Money"], // Guinée
-  "+227": ["Airtel Money", "Orange Money", "Moov Money"], // Niger
-
-  // Afrique Centrale
-  "+237": ["MTN Mobile Money", "Orange Money", "Moov Money"], // Cameroun
-  "+240": ["Airtel Money", "Moov Money"], // Guinée Équatoriale
-  "+241": ["Airtel Money", "Moov Money"], // Gabon
-  "+242": ["Airtel Money", "MTN Mobile Money"], // Congo
-  "+243": ["Airtel Money", "Orange Money", "Vodacom M-Pesa", "Tigo Cash"], // RD Congo
-  "+236": ["Orange Money", "Moov Money"], // République centrafricaine
-
-  // Afrique de l'Est
-  "+254": ["M-Pesa", "Airtel Money", "T-Kash", "Orange Money"], // Kenya
-  "+255": ["M-Pesa", "Airtel Money", "Tigo Pesa", "Halotel"], // Tanzanie
-  "+256": ["MTN Mobile Money", "Airtel Money", "Chipper Cash"], // Ouganda
-  "+257": ["Ecocash", "U-Money"], // Burundi
-  "+250": ["MTN Mobile Money", "Airtel Money", "Tigo Cash"], // Rwanda
-
-  // Afrique du Nord
-  "+212": ["Orange Money", "inwi money", "CIH Mobile"], // Maroc
-  "+213": ["Mobilis Money", "Ooredoo Money", "Djezzy Pay"], // Algérie
-  "+216": ["Orange Money", "Ooredoo Money"], // Tunisie
-
-  // Autres pays africains
-  "+233": ["MTN Mobile Money", "Vodafone Cash", "AirtelTigo Money"], // Ghana
-  "+234": ["Paga", "OPay", "PalmPay", "Kuda", "GTBank Mobile Money"], // Nigeria
-  "+260": ["MTN Mobile Money", "Airtel Money", "Zamtel Kwacha"], // Zambie
-  "+263": ["EcoCash", "OneMoney", "Telecash"], // Zimbabwe
-  "+27": ["M-Pesa", "MTN MoMo", "Cell C Pay"], // Afrique du Sud
-  "+251": ["M-Birr", "HelloCash", "CBE Birr"], // Éthiopie
-  "+252": ["Zaad", "eDahab", "Sahal"], // Somalie
+  "+229": ["Mtn", "Moov"], // Bénin
+  "+221": ["Orange Money", "Wizall-senegal", "Expresso", "Free Sénégal"], // Sénégal
+  "+225": ["Mtn", "Moov", "Orange Money", "Wave"], // Côte d'Ivoire
 };
 
 // Noms des pays par code
 const COUNTRY_NAMES: Record<string, string> = {
-  // Afrique de l'Ouest
   "+228": "Togo",
-  "+229": "Bénin", 
+  "+229": "Bénin",
   "+221": "Sénégal",
-  "+225": "Côte d'Ivoire",
-  "+226": "Burkina Faso",
-  "+223": "Mali",
-  "+224": "Guinée",
-  "+227": "Niger",
-  
-  // Afrique Centrale
-  "+237": "Cameroun",
-  "+240": "Guinée Équatoriale",
-  "+241": "Gabon",
-  "+242": "Congo",
-  "+243": "RD Congo",
-  "+236": "République centrafricaine",
-  
-  // Afrique de l'Est
-  "+254": "Kenya",
-  "+255": "Tanzanie", 
-  "+256": "Ouganda",
-  "+257": "Burundi",
-  "+250": "Rwanda",
-  
-  // Afrique du Nord
-  "+212": "Maroc",
-  "+213": "Algérie",
-  "+216": "Tunisie",
-  
-  // Autres pays africains
-  "+233": "Ghana",
-  "+234": "Nigeria", 
-  "+260": "Zambie",
-  "+263": "Zimbabwe",
-  "+27": "Afrique du Sud",
-  "+251": "Éthiopie",
-  "+252": "Somalie"
+  "+225": "Côte d'Ivoire"
 };
 
 export default function BankCard() {

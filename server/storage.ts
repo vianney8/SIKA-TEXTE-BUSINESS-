@@ -112,7 +112,7 @@ export class DatabaseStorage implements IStorage {
   // User operations - required for Replit Auth
   async getUser(id: string): Promise<User | undefined> {
     const result = await db.select().from(users).where(eq(users.id, id));
-    return result[0];
+    return result.length > 0 ? result[0] : undefined;
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
