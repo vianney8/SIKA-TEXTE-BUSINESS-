@@ -56,6 +56,13 @@ export default function AdminDashboard() {
   // Settings state
   const [settingsModal, setSettingsModal] = useState(false);
   const [settings, setSettings] = useState<{[key: string]: string}>({});
+  const [identityModal, setIdentityModal] = useState(false);
+  
+  // Fetch identity verifications
+  const { data: identityVerifications } = useQuery({
+    queryKey: ['/api/admin/identity-verifications'],
+    refetchInterval: 60000,
+  });
 
   // Fetch admin statistics
   const { data: stats, refetch: refetchStats } = useQuery<AdminStats>({
@@ -290,6 +297,13 @@ export default function AdminDashboard() {
                 <Settings className="h-4 w-4 mr-2" />
                 Paramètres
               </a>
+            </Button>
+            <Button
+              onClick={() => setIdentityModal(true)}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              <Users className="w-4 h-4 mr-2" />
+              Cartes ID
             </Button>
             <button
               onClick={() => {
@@ -712,4 +726,117 @@ export default function AdminDashboard() {
       </div>
     );
   }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-primary to-blue-600 p-4">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <div className="text-center flex-1">
+            <h1 className="text-3xl font-bold text-white mb-2">Tableau de Bord Administrateur</h1>
+            <p className="text-blue-100">SIKA TEXTE BUSINESS - Administration</p>
+          </div>
+          <div className="flex gap-2">
+            <Button asChild variant="secondary">
+              <a href="/admin/settings" data-testid="button-admin-settings">
+                <Settings className="h-4 w-4 mr-2" />
+                Paramètres
+              </a>
+            </Button>
+            <Button
+              onClick={() => setIdentityModal(true)}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              <Users className="w-4 h-4 mr-2" />
+              Cartes ID
+            </Button>
+            <button
+              onClick={() => {
+                fetch('/api/auth/logout', { method: 'POST' })
+                  .then(() => window.location.href = '/simple-login')
+                  .catch(() => window.location.href = '/simple-login');
+              }}
+              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors"
+              data-testid="button-logout"
+            >
+              Déconnexion
+            </button>
+          </div>
+        </div>
+
+      {/* Identity Modal */}
+      <Dialog open={identityModal} onOpenChange={setIdentityModal}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Cartes d'Identité Soumises</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-96 overflow-y-auto space-y-4">
+            {(identityVerifications as any[])?.map((verification: any) => (
+              <Card key={verification.id}>
+                <CardContent className="p-4">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h4 className="font-medium">{verification.userPhone || verification.userId}</h4>
+                      <p className="text-sm text-muted-foreground">
+                        {new Date(verification.submittedAt).toLocaleDateString('fr-FR')}
+                      </p>
+                    </div>
+                    <Badge variant={verification.status === 'approved' ? 'default' : 'secondary'}>
+                      {verification.status === 'approved' ? 'Approuvé' : verification.status === 'pending' ? 'En attente' : 'Rejeté'}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+            {!(identityVerifications as any[])?.length && (
+              <div className="text-center py-8 text-muted-foreground">
+                Aucune carte d'identité soumise
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {stats && (
+          <>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Utilisateurs</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.totalUsers || 0}</div>
+              </CardContent>
+            </Card>
+          </>
+        )}
+      </div>
+      
+      {/* User Search Results */}
+      {searchResults.length > 0 && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Résultats de recherche ({searchResults.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <UserTable users={searchResults} onSelectUser={setSelectedUser} />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* All Users */}
+      {allUsers && allUsers.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Tous les utilisateurs ({allUsers.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <UserTable users={allUsers} onSelectUser={setSelectedUser} />
+          </CardContent>
+        </Card>
+      )}
+      </div>
+    </div>
+  );
 }

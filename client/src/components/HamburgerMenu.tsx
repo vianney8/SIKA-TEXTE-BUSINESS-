@@ -18,6 +18,7 @@ import {
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { formatFCFA } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 interface HamburgerMenuProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ interface HamburgerMenuProps {
 }
 
 export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuProps) {
+  const { toast } = useToast();
   const { data: balance } = useQuery({
     queryKey: ["/api/user/balance"],
   });
@@ -74,11 +76,27 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
     onClose();
   };
 
+  const handleWithdrawal = () => {
+    const currentBalance = (balance as any)?.balance || 0;
+    const canWithdraw = currentBalance >= 2000;
+    
+    if (!canWithdraw) {
+      toast({
+        title: "Retrait non disponible",
+        description: "Atteignez le minimum de 2000 FCFA d'abord",
+        variant: "destructive"
+      });
+      return;
+    }
+    window.location.href = '/withdrawal';
+    onClose();
+  };
+
   const secondaryItems = [
     {
       icon: Wallet,
       label: "Retrait",
-      href: "/withdrawal",
+      action: handleWithdrawal,
       testId: "button-withdrawal",
       highlight: false,
     },

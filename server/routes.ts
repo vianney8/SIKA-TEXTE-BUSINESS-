@@ -743,6 +743,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin routes - Système administrateur complet
   
   // Statistiques du site pour admin
+  // Get identity verifications (admin only)
+  app.get('/api/admin/identity-verifications', requireAdmin, async (req: any, res) => {
+    try {
+      const verifications = await storage.getAllIdentityVerifications();
+      res.json(verifications);
+    } catch (error) {
+      console.error("Error fetching identity verifications:", error);
+      res.status(500).json({ message: "Erreur lors de la récupération des vérifications d'identité" });
+    }
+  });
+
   app.get('/api/admin/stats', requireAdmin, async (req: any, res) => {
     try {
       const totalUsers = await storage.getTotalUsersCount();

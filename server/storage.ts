@@ -682,6 +682,13 @@ export class DatabaseStorage implements IStorage {
     
     return verification as IdentityVerification || null;
   }
+
+  async getAllIdentityVerifications(): Promise<IdentityVerification[]> {
+    return await db
+      .select()
+      .from(identityVerification)
+      .orderBy(desc(identityVerification.submittedAt));
+  }
   
   async updateIdentityVerificationStatus(verificationId: string, status: string, adminNotes?: string, reviewedBy?: string): Promise<void> {
     await db
