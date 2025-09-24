@@ -112,7 +112,7 @@ export class DatabaseStorage implements IStorage {
         },
       })
       .returning();
-    return result[0] as User;
+    return result[0];
   }
 
   // Authentication operations
@@ -152,7 +152,14 @@ export class DatabaseStorage implements IStorage {
           undefined,
       })
       .returning();
-    const user = result[0] as User;
+    const user = result[0];
+
+    // Create account status (inactive by default)
+    await db.insert(accountStatus).values({
+      userId: user.id,
+      isActive: false,
+      activationFee: '3600'
+    });
 
     // Create referral relationship if referred
     if (userData.referralCode) {

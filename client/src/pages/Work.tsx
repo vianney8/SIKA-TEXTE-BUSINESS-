@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle, AlertCircle, Clock, TrendingUp, ArrowLeft } from "lucide-react";
+import { CheckCircle, AlertCircle, Clock, TrendingUp, ArrowLeft, CreditCard } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -93,7 +93,9 @@ export default function Work() {
   const progressPercentage = progress ? (progress.correctedToday / progress.maxPerDay) * 100 : 0;
   const remainingSentences = progress ? progress.maxPerDay - progress.correctedToday : 0;
 
-  if (!progress?.canWorkToday) {
+  // Afficher "Travail terminé" seulement si l'utilisateur a fait au moins une correction aujourd'hui
+  // ET qu'il ne peut plus travailler (a atteint la limite de 12 phrases)
+  if (!progress?.canWorkToday && (progress?.correctedToday || 0) > 0) {
     return (
       <div className="min-h-screen bg-background">
         {/* Header */}
