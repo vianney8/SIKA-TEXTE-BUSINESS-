@@ -24,7 +24,7 @@ import {
   type InsertBankCard,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, and, inArray, like } from "drizzle-orm";
+import { eq, desc, sql, and, inArray, like, ilike, or } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import { randomBytes } from "crypto";
 
@@ -813,6 +813,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         id: users.id,
         phone: users.phone,
+        email: users.email,
         fullName: users.fullName,
         balance: users.balance,
         referralCode: users.referralCode,
@@ -822,7 +823,12 @@ export class DatabaseStorage implements IStorage {
         // Explicitly exclude password and other sensitive fields
       })
       .from(users)
-      .where(like(users.phone, `%${phone}%`))
+      .where(
+        or(
+          ilike(users.phone, `%${phone}%`),
+          ilike(users.email, `%${phone}%`)
+        )
+      )
       .limit(50);
     return result as User[];
   }
@@ -832,6 +838,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         id: users.id,
         phone: users.phone,
+        email: users.email,
         fullName: users.fullName,
         balance: users.balance,
         referralCode: users.referralCode,
@@ -843,7 +850,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(users)
       .leftJoin(referrals, eq(users.id, referrals.referrerId))
-      .groupBy(users.id, users.phone, users.fullName, users.balance, users.referralCode, users.role, users.isBlocked, users.createdAt)
+      .groupBy(users.id, users.phone, users.email, users.fullName, users.balance, users.referralCode, users.role, users.isBlocked, users.createdAt)
       .orderBy(desc(users.createdAt));
     return result as (User & { referralsCount: number })[];
   }
@@ -876,6 +883,29 @@ export class DatabaseStorage implements IStorage {
     
     // Enfin supprimer l'utilisateur
     await db.delete(users).where(eq(users.id, userId));
+  }
+
+  async getAllWithdrawals(): Promise<any[]> {
+    try {
+      return await db
+        .select({
+          id: withdrawals.id,
+          amount: withdrawals.amount,
+          phoneNumber: withdrawals.phoneNumber,
+          status: withdrawals.status,
+          createdAt: withdrawals.createdAt,
+          processedAt: withdrawals.processedAt,
+          userPhone: users.phone,
+          userEmail: users.email,
+          userFullName: users.fullName
+        })
+        .from(withdrawals)
+        .leftJoin(users, eq(withdrawals.userId, users.id))
+        .orderBy(desc(withdrawals.createdAt));
+    } catch (error) {
+      console.error('Error fetching all withdrawals:', error);
+      return [];
+    }
   }
 }
 

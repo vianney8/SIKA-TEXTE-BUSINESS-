@@ -206,6 +206,18 @@ export default function AdminDashboard() {
     }
   };
 
+  // Recherche en temps réel
+  useEffect(() => {
+    if (searchPhone.trim().length > 2) {
+      const debounceTimer = setTimeout(() => {
+        searchMutation.mutate(searchPhone.trim());
+      }, 300);
+      return () => clearTimeout(debounceTimer);
+    } else {
+      setSearchResults([]);
+    }
+  }, [searchPhone]);
+
   const handleUpdateBalance = () => {
     if (selectedUser && balanceAmount) {
       updateBalanceMutation.mutate({

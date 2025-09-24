@@ -883,6 +883,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get all withdrawals for admin
+  app.get('/api/admin/withdrawals', requireAdmin, async (req: any, res) => {
+    try {
+      const withdrawals = await storage.getAllWithdrawals();
+      res.json(withdrawals);
+    } catch (error) {
+      console.error('Error fetching admin withdrawals:', error);
+      res.status(500).json({ message: 'Erreur lors de la récupération des retraits' });
+    }
+  });
+
+  // Update withdrawal status
+  app.post('/api/admin/withdrawals/:withdrawalId/status', requireAdmin, async (req: any, res) => {
+    try {
+      const { withdrawalId } = req.params;
+      const { status } = req.body;
+      
+      await storage.updateWithdrawalStatus(withdrawalId, status);
+      
+      res.json({ message: 'Statut du retrait mis à jour' });
+    } catch (error) {
+      console.error('Error updating withdrawal status:', error);
+      res.status(500).json({ message: 'Erreur lors de la mise à jour du statut' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
