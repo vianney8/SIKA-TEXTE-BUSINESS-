@@ -69,7 +69,7 @@ export default function Transfer() {
               <ArrowLeft className="w-5 h-5" />
             </Link>
           </Button>
-          <h1 className="ml-4 text-lg font-semibold" data-testid="page-title">Transfert d'argent</h1>
+          <h1 className="ml-4 text-lg font-semibold" data-testid="page-title">Transférer de l'argent à un abonné Sika texte</h1>
         </div>
       </div>
 

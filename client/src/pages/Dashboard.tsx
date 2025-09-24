@@ -89,7 +89,7 @@ export default function Dashboard() {
   const actionButtons = [
     {
       icon: ArrowUpRight,
-      label: "Transférer de l'argent à un abonné Sika texte",
+      label: "Transfert",
       href: "/transfer",
       bgColor: "bg-blue-100",
       iconColor: "text-primary",
