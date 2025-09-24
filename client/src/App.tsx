@@ -21,6 +21,7 @@ import Assistance from "@/pages/Assistance";
 import ApiAgregateur from "@/pages/ApiAgregateur";
 import IdentityVerification from "@/pages/IdentityVerification";
 import BankCard from "@/pages/BankCard";
+import AdminDashboard from "@/pages/AdminDashboard";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -61,6 +62,7 @@ function Router() {
           <Route path="/api-agregateur" component={ApiAgregateur} />
           <Route path="/identity-verification" component={IdentityVerification} />
           <Route path="/bank-card" component={BankCard} />
+          <Route path="/admin" component={AdminDashboard} />
         </>
       )}
       <Route component={NotFound} />

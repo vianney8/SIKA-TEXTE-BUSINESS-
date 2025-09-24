@@ -11,7 +11,11 @@ import {
   paymentSchema,
   workSubmissionSchema,
   withdrawalRequestSchema,
-  activationSchema
+  activationSchema,
+  adminUpdateBalanceSchema,
+  adminUpdatePasswordSchema,
+  adminBlockUserSchema,
+  adminCreditAccountSchema
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import session from "express-session";
@@ -48,6 +52,23 @@ function requireAuth(req: any, res: any, next: any) {
     return res.status(401).json({ message: "Unauthorized" });
   }
   next();
+}
+
+// Admin auth middleware
+async function requireAdmin(req: any, res: any, next: any) {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  
+  try {
+    const user = await storage.getUser(req.session.userId);
+    if (!user || user.role !== 'admin') {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+    next();
+  } catch (error) {
+    return res.status(500).json({ message: "Error checking admin status" });
+  }
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -670,6 +691,153 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error('Error deleting bank card:', error);
       res.status(500).json({ message: 'Erreur lors de la suppression de la carte bancaire' });
+    }
+  });
+
+  // Admin routes - Système administrateur complet
+  
+  // Statistiques du site pour admin
+  app.get('/api/admin/stats', requireAdmin, async (req: any, res) => {
+    try {
+      const totalUsers = await storage.getTotalUsersCount();
+      const totalDeposits = await storage.getTotalDepositsCount();
+      const totalWithdrawals = await storage.getTotalWithdrawalsCount();
+      const pendingWithdrawals = await storage.getPendingWithdrawalsCount();
+      const pendingDeposits = await storage.getPendingDepositsCount();
+      const completedDeposits = await storage.getCompletedDepositsCount();
+      const completedWithdrawals = await storage.getCompletedWithdrawalsCount();
+      
+      res.json({
+        totalUsers,
+        totalDeposits,
+        totalWithdrawals,
+        pendingWithdrawals,
+        pendingDeposits,
+        completedDeposits,
+        completedWithdrawals
+      });
+    } catch (error) {
+      console.error('Error fetching admin stats:', error);
+      res.status(500).json({ message: 'Erreur lors de la récupération des statistiques' });
+    }
+  });
+
+  // Recherche d'utilisateurs par téléphone pour admin
+  app.get('/api/admin/users/search', requireAdmin, async (req: any, res) => {
+    try {
+      const { phone } = req.query;
+      if (!phone) {
+        return res.status(400).json({ message: 'Numéro de téléphone requis' });
+      }
+      
+      const users = await storage.searchUsersByPhone(phone);
+      res.json(users);
+    } catch (error) {
+      console.error('Error searching users:', error);
+      res.status(500).json({ message: 'Erreur lors de la recherche des utilisateurs' });
+    }
+  });
+
+  // Obtenir tous les utilisateurs avec parrainages pour admin
+  app.get('/api/admin/users', requireAdmin, async (req: any, res) => {
+    try {
+      const users = await storage.getAllUsersWithReferrals();
+      res.json(users);
+    } catch (error) {
+      console.error('Error fetching all users:', error);
+      res.status(500).json({ message: 'Erreur lors de la récupération des utilisateurs' });
+    }
+  });
+
+  // Modifier le solde d'un utilisateur (admin seulement)
+  app.post('/api/admin/users/:userId/balance', requireAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const { amount, description } = adminUpdateBalanceSchema.parse(req.body);
+      
+      await storage.updateUserBalance(userId, amount);
+      
+      // Créer une transaction pour l'historique
+      await storage.createTransaction({
+        userId,
+        type: 'deposit',
+        amount: amount.toString(),
+        description: `ADMIN: ${description}`,
+        status: 'completed'
+      });
+      
+      res.json({ message: 'Solde mis à jour avec succès' });
+    } catch (error: any) {
+      console.error('Error updating user balance:', error);
+      if (error.issues) {
+        return res.status(400).json({ message: 'Données invalides', errors: error.issues });
+      }
+      res.status(500).json({ message: 'Erreur lors de la mise à jour du solde' });
+    }
+  });
+
+  // Modifier le mot de passe d'un utilisateur (admin seulement)
+  app.post('/api/admin/users/:userId/password', requireAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const { newPassword } = adminUpdatePasswordSchema.parse(req.body);
+      
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await storage.updateUserPassword(userId, hashedPassword);
+      
+      res.json({ message: 'Mot de passe mis à jour avec succès' });
+    } catch (error: any) {
+      console.error('Error updating user password:', error);
+      if (error.issues) {
+        return res.status(400).json({ message: 'Données invalides', errors: error.issues });
+      }
+      res.status(500).json({ message: 'Erreur lors de la mise à jour du mot de passe' });
+    }
+  });
+
+  // Bloquer/débloquer un utilisateur (admin seulement)
+  app.post('/api/admin/users/:userId/block', requireAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const { blocked } = adminBlockUserSchema.parse(req.body);
+      
+      await storage.blockUser(userId, blocked);
+      
+      res.json({ message: blocked ? 'Utilisateur bloqué avec succès' : 'Utilisateur débloqué avec succès' });
+    } catch (error: any) {
+      console.error('Error blocking/unblocking user:', error);
+      if (error.issues) {
+        return res.status(400).json({ message: 'Données invalides', errors: error.issues });
+      }
+      res.status(500).json({ message: 'Erreur lors du blocage/déblocage de l\'utilisateur' });
+    }
+  });
+
+  // Supprimer définitivement un utilisateur (admin seulement)
+  app.delete('/api/admin/users/:userId', requireAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      
+      await storage.deleteUser(userId);
+      
+      res.json({ message: 'Utilisateur supprimé définitivement' });
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      res.status(500).json({ message: 'Erreur lors de la suppression de l\'utilisateur' });
+    }
+  });
+
+  // Activer le compte d'un utilisateur (admin seulement)
+  app.post('/api/admin/users/:userId/activate', requireAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      
+      await storage.activateAccount(userId);
+      
+      res.json({ message: 'Compte activé avec succès' });
+    } catch (error) {
+      console.error('Error activating account:', error);
+      res.status(500).json({ message: 'Erreur lors de l\'activation du compte' });
     }
   });
 

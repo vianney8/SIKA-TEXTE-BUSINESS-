@@ -24,7 +24,7 @@ import {
   type InsertBankCard,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, and, inArray } from "drizzle-orm";
+import { eq, desc, sql, and, inArray, like } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import { randomBytes } from "crypto";
 
@@ -87,6 +87,20 @@ export interface IStorage {
   getBankCardById(cardId: string): Promise<BankCard | null>;
   updateBankCard(cardId: string, userId: string, firstName: string, lastName: string, cardNumber: string): Promise<BankCard | null>;
   deleteBankCard(cardId: string, userId: string): Promise<boolean>;
+
+  // Admin operations
+  getTotalUsersCount(): Promise<number>;
+  getTotalDepositsCount(): Promise<number>;
+  getTotalWithdrawalsCount(): Promise<number>;
+  getPendingWithdrawalsCount(): Promise<number>;
+  getPendingDepositsCount(): Promise<number>;
+  getCompletedDepositsCount(): Promise<number>;
+  getCompletedWithdrawalsCount(): Promise<number>;
+  searchUsersByPhone(phone: string): Promise<User[]>;
+  getAllUsersWithReferrals(): Promise<(User & { referralsCount: number })[]>;
+  updateUserPassword(userId: string, hashedPassword: string): Promise<void>;
+  blockUser(userId: string, blocked: boolean): Promise<void>;
+  deleteUser(userId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -112,7 +126,7 @@ export class DatabaseStorage implements IStorage {
         },
       })
       .returning();
-    return result[0] as User;
+    return result[0]! as User;
   }
 
   // Authentication operations
@@ -152,7 +166,7 @@ export class DatabaseStorage implements IStorage {
           undefined,
       })
       .returning();
-    const user = result[0] as User;
+    const user = result[0]! as User;
 
     // Create account status (inactive by default)
     await db.insert(accountStatus).values({
@@ -713,6 +727,144 @@ export class DatabaseStorage implements IStorage {
       .returning();
     
     return result.length > 0;
+  }
+
+  // Admin operations implementation
+  async getTotalUsersCount(): Promise<number> {
+    const [result] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(users);
+    return result.count || 0;
+  }
+
+  async getTotalDepositsCount(): Promise<number> {
+    const [result] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(transactions)
+      .where(eq(transactions.type, 'deposit'));
+    return result.count || 0;
+  }
+
+  async getTotalWithdrawalsCount(): Promise<number> {
+    const [result] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(transactions)
+      .where(eq(transactions.type, 'withdrawal'));
+    return result.count || 0;
+  }
+
+  async getPendingWithdrawalsCount(): Promise<number> {
+    const [result] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(transactions)
+      .where(and(
+        eq(transactions.type, 'withdrawal'),
+        eq(transactions.status, 'pending')
+      ));
+    return result.count || 0;
+  }
+
+  async getPendingDepositsCount(): Promise<number> {
+    const [result] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(transactions)
+      .where(and(
+        eq(transactions.type, 'deposit'),
+        eq(transactions.status, 'pending')
+      ));
+    return result.count || 0;
+  }
+
+  async getCompletedDepositsCount(): Promise<number> {
+    const [result] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(transactions)
+      .where(and(
+        eq(transactions.type, 'deposit'),
+        eq(transactions.status, 'completed')
+      ));
+    return result.count || 0;
+  }
+
+  async getCompletedWithdrawalsCount(): Promise<number> {
+    const [result] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(transactions)
+      .where(and(
+        eq(transactions.type, 'withdrawal'),
+        eq(transactions.status, 'completed')
+      ));
+    return result.count || 0;
+  }
+
+  async searchUsersByPhone(phone: string): Promise<User[]> {
+    const result = await db
+      .select({
+        id: users.id,
+        phone: users.phone,
+        fullName: users.fullName,
+        balance: users.balance,
+        referralCode: users.referralCode,
+        role: users.role,
+        isBlocked: users.isBlocked,
+        createdAt: users.createdAt,
+        // Explicitly exclude password and other sensitive fields
+      })
+      .from(users)
+      .where(like(users.phone, `%${phone}%`))
+      .limit(50);
+    return result as User[];
+  }
+
+  async getAllUsersWithReferrals(): Promise<(User & { referralsCount: number })[]> {
+    const result = await db
+      .select({
+        id: users.id,
+        phone: users.phone,
+        fullName: users.fullName,
+        balance: users.balance,
+        referralCode: users.referralCode,
+        role: users.role,
+        isBlocked: users.isBlocked,
+        createdAt: users.createdAt,
+        // Explicitly exclude password and other sensitive fields
+        referralsCount: sql<number>`coalesce(count(${referrals.id}), 0)`,
+      })
+      .from(users)
+      .leftJoin(referrals, eq(users.id, referrals.referrerId))
+      .groupBy(users.id, users.phone, users.fullName, users.balance, users.referralCode, users.role, users.isBlocked, users.createdAt)
+      .orderBy(desc(users.createdAt));
+    return result as (User & { referralsCount: number })[];
+  }
+
+  async updateUserPassword(userId: string, hashedPassword: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ password: hashedPassword })
+      .where(eq(users.id, userId));
+  }
+
+  async blockUser(userId: string, blocked: boolean): Promise<void> {
+    await db
+      .update(users)
+      .set({ isBlocked: blocked })
+      .where(eq(users.id, userId));
+  }
+
+  async deleteUser(userId: string): Promise<void> {
+    // Supprimer les références liées avant de supprimer l'utilisateur
+    await db.delete(transactions).where(eq(transactions.userId, userId));
+    await db.delete(referrals).where(eq(referrals.referrerId, userId));
+    await db.delete(referrals).where(eq(referrals.referredUserId, userId));
+    await db.delete(corrections).where(eq(corrections.userId, userId));
+    await db.delete(workProgress).where(eq(workProgress.userId, userId));
+    await db.delete(accountStatus).where(eq(accountStatus.userId, userId));
+    await db.delete(identityVerifications).where(eq(identityVerifications.userId, userId));
+    await db.delete(withdrawals).where(eq(withdrawals.userId, userId));
+    await db.delete(bankCards).where(eq(bankCards.userId, userId));
+    
+    // Enfin supprimer l'utilisateur
+    await db.delete(users).where(eq(users.id, userId));
   }
 }
 

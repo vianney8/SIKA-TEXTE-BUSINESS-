@@ -39,6 +39,8 @@ export const users: any = pgTable("users", {
   balance: decimal("balance", { precision: 15, scale: 2 }).default('0'),
   referralCode: varchar("referral_code").unique(),
   referredBy: varchar("referred_by").references((): any => users.id),
+  role: varchar("role").default('user'), // 'user' or 'admin'
+  isBlocked: boolean("is_blocked").default(false), // Pour bloquer des utilisateurs
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -319,6 +321,25 @@ export const bankCardSchema = z.object({
 
 export const activationSchema = z.object({
   activationFee: z.number().min(3600, "Frais d'activation de 3600 FCFA requis"),
+});
+
+// Schémas pour les opérations administrateur
+export const adminUpdateBalanceSchema = z.object({
+  amount: z.number().min(0, "Le montant doit être positif"),
+  description: z.string().min(1, "Une description est requise"),
+});
+
+export const adminUpdatePasswordSchema = z.object({
+  newPassword: z.string().min(4, "Le mot de passe doit contenir au moins 4 caractères"),
+});
+
+export const adminBlockUserSchema = z.object({
+  blocked: z.boolean(),
+});
+
+export const adminCreditAccountSchema = z.object({
+  amount: z.number().min(1, "Le montant doit être supérieur à 0"),
+  description: z.string().min(1, "Une description est requise"),
 });
 
 // Types

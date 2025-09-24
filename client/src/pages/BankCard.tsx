@@ -73,13 +73,35 @@ export default function BankCard() {
   // Déterminer le pays à partir du numéro de téléphone de l'utilisateur
   useEffect(() => {
     if (user?.phone) {
-      const countryCode = user.phone.substring(0, 4); // +228, +229, etc.
-      if (OPERATORS_BY_COUNTRY[countryCode]) {
+      console.log('User phone:', user.phone);
+      
+      // Extraire le code pays plus intelligemment
+      let countryCode = "";
+      
+      // Vérifier les codes pays supportés dans l'ordre de priorité
+      const supportedCodes = Object.keys(OPERATORS_BY_COUNTRY);
+      for (const code of supportedCodes) {
+        if (user.phone.startsWith(code)) {
+          countryCode = code;
+          break;
+        }
+      }
+      
+      console.log('Detected country code:', countryCode);
+      console.log('Available operators:', OPERATORS_BY_COUNTRY[countryCode]);
+      
+      if (countryCode && OPERATORS_BY_COUNTRY[countryCode]) {
         setUserCountry(countryCode);
         setAvailableOperators(OPERATORS_BY_COUNTRY[countryCode]);
         
         // Mettre à jour le formulaire avec le pays
         form.setValue('country', countryCode);
+      } else {
+        console.warn('No country code detected for phone:', user.phone);
+        // Par défaut, utiliser le Togo
+        setUserCountry("+228");
+        setAvailableOperators(OPERATORS_BY_COUNTRY["+228"]);
+        form.setValue('country', "+228");
       }
     }
   }, [user, form]);

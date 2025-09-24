@@ -20,6 +20,6 @@ export function formatFCFA(amount: number | string): string {
     numAmount = amount || 0;
   }
   
-  // Use Math.trunc to truncate toward zero (preserving correct sign for negatives)
-  return `${Math.trunc(numAmount)} FCFA`;
+  // Use Math.abs to always return positive amount (sign is handled by caller)
+  return `${Math.abs(Math.trunc(numAmount))} FCFA`;
 }
