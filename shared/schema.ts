@@ -262,19 +262,19 @@ export const insertTransactionSchema = createInsertSchema(transactions).omit({
 
 export const transferSchema = z.object({
   recipientPhone: z.string().min(1, "Le numéro du destinataire est requis"),
-  amount: z.number().min(100, "Le montant minimum est 100 F.CFA"),
+  amount: z.number().min(100, "Le montant minimum est 100 FCFA"),
   message: z.string().optional(),
 });
 
 export const rechargeSchema = z.object({
   operator: z.string().min(1, "L'opérateur est requis"),
   phone: z.string().min(1, "Le numéro de téléphone est requis"),
-  amount: z.number().min(100, "Le montant minimum est 100 F.CFA"),
+  amount: z.number().min(100, "Le montant minimum est 100 FCFA"),
 });
 
 export const paymentSchema = z.object({
   merchantCode: z.string().min(1, "Le code marchand est requis"),
-  amount: z.number().min(100, "Le montant minimum est 100 F.CFA"),
+  amount: z.number().min(100, "Le montant minimum est 100 FCFA"),
   description: z.string().optional(),
 });
 
@@ -302,7 +302,7 @@ export const workSubmissionSchema = z.object({
 });
 
 export const withdrawalRequestSchema = z.object({
-  amount: z.number().min(3500, "Montant minimum 3500 FCFA"),
+  amount: z.number().min(2000, "Montant minimum 2000 FCFA"),
   phoneNumber: z.string().min(1, "Numéro de téléphone requis"),
 });
 

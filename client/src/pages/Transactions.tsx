@@ -113,7 +113,9 @@ export default function Transactions() {
   const getTypeLabel = (type: string, description?: string) => {
     switch (type) {
       case "deposit":
-        return description?.includes("correction") ? "Corrections" : "Dépôt";
+        if (description?.includes("correction")) return "Corrections";
+        if (description?.includes("Bonus de bienvenue")) return "Bonus de bienvenue";
+        return "Dépôt";
       case "pointage":
         return "Pointage";
       case "transfer":

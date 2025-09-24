@@ -133,7 +133,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId: user.id,
         type: 'deposit',
         amount: '600',
-        description: 'Bonus d\'inscription',
+        description: 'Bonus de bienvenue',
         status: 'completed'
       });
 

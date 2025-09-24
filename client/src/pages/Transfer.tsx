@@ -28,7 +28,6 @@ export default function Transfer() {
     resolver: zodResolver(transferSchema),
     defaultValues: {
       recipientPhone: "",
-      amount: 0,
       message: "",
     },
   });
