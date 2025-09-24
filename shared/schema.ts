@@ -131,6 +131,17 @@ export const identityVerification = pgTable("identity_verification", {
   reviewedBy: varchar("reviewed_by"),
 });
 
+export const bankCards = pgTable("bank_cards", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  firstName: varchar("first_name").notNull(),
+  lastName: varchar("last_name").notNull(),
+  cardNumber: varchar("card_number").notNull(), // Numéro de retrait/carte bancaire
+  isDefault: boolean("is_default").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many, one }) => ({
   transactions: many(transactions),
@@ -145,6 +156,7 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   accountStatus: one(accountStatus),
   withdrawals: many(withdrawals),
   identityVerification: one(identityVerification),
+  bankCards: many(bankCards),
 }));
 
 export const workProgressRelations = relations(workProgress, ({ one }) => ({
@@ -182,6 +194,13 @@ export const withdrawalsRelations = relations(withdrawals, ({ one }) => ({
 export const identityVerificationRelations = relations(identityVerification, ({ one }) => ({
   user: one(users, {
     fields: [identityVerification.userId],
+    references: [users.id],
+  }),
+}));
+
+export const bankCardsRelations = relations(bankCards, ({ one }) => ({
+  user: one(users, {
+    fields: [bankCards.userId],
     references: [users.id],
   }),
 }));
@@ -287,6 +306,13 @@ export const identityVerificationSchema = z.object({
   selfiePhoto: z.string().min(1, "Photo selfie requise"),
 });
 
+export const bankCardSchema = z.object({
+  firstName: z.string().min(1, "Le prénom est requis"),
+  lastName: z.string().min(1, "Le nom de famille est requis"),
+  cardNumber: z.string().min(10, "Le numéro de retrait doit contenir au moins 10 chiffres")
+    .regex(/^[0-9]+$/, "Le numéro de retrait ne doit contenir que des chiffres"),
+});
+
 export const activationSchema = z.object({
   activationFee: z.number().min(3600, "Frais d'activation de 3600 FCFA requis"),
 });
@@ -303,7 +329,10 @@ export type Correction = typeof corrections.$inferSelect;
 export type AccountStatus = typeof accountStatus.$inferSelect;
 export type Withdrawal = typeof withdrawals.$inferSelect;
 export type IdentityVerification = typeof identityVerification.$inferSelect;
+export type BankCard = typeof bankCards.$inferSelect;
+export type InsertBankCard = typeof bankCards.$inferInsert;
 export type WorkSubmission = z.infer<typeof workSubmissionSchema>;
 export type WithdrawalRequest = z.infer<typeof withdrawalRequestSchema>;
 export type ActivationRequest = z.infer<typeof activationSchema>;
 export type IdentityVerificationRequest = z.infer<typeof identityVerificationSchema>;
+export type BankCardRequest = z.infer<typeof bankCardSchema>;

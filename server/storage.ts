@@ -8,6 +8,7 @@ import {
   accountStatus,
   withdrawals,
   identityVerification,
+  bankCards,
   type User,
   type UpsertUser,
   type Transaction,
@@ -19,6 +20,8 @@ import {
   type AccountStatus,
   type Withdrawal,
   type IdentityVerification,
+  type BankCard,
+  type InsertBankCard,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, inArray } from "drizzle-orm";
@@ -77,6 +80,13 @@ export interface IStorage {
   createIdentityVerification(userId: string, frontIdPhoto: string, backIdPhoto: string, selfiePhoto: string): Promise<IdentityVerification>;
   getUserIdentityVerification(userId: string): Promise<IdentityVerification | null>;
   updateIdentityVerificationStatus(verificationId: string, status: string, adminNotes?: string, reviewedBy?: string): Promise<void>;
+
+  // Bank card operations
+  createBankCard(userId: string, firstName: string, lastName: string, cardNumber: string): Promise<BankCard>;
+  getUserBankCard(userId: string): Promise<BankCard | null>;
+  getBankCardById(cardId: string): Promise<BankCard | null>;
+  updateBankCard(cardId: string, userId: string, firstName: string, lastName: string, cardNumber: string): Promise<BankCard | null>;
+  deleteBankCard(cardId: string, userId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -619,6 +629,73 @@ export class DatabaseStorage implements IStorage {
         reviewedAt: new Date()
       })
       .where(eq(identityVerification.id, verificationId));
+  }
+
+  // Bank card operations
+  async createBankCard(userId: string, firstName: string, lastName: string, cardNumber: string): Promise<BankCard> {
+    // First, set all existing cards as non-default
+    await db
+      .update(bankCards)
+      .set({ isDefault: false })
+      .where(eq(bankCards.userId, userId));
+
+    const [card] = await db
+      .insert(bankCards)
+      .values({
+        userId,
+        firstName,
+        lastName,
+        cardNumber,
+        isDefault: true,
+      })
+      .returning();
+    
+    return card as BankCard;
+  }
+  
+  async getUserBankCard(userId: string): Promise<BankCard | null> {
+    const [card] = await db
+      .select()
+      .from(bankCards)
+      .where(eq(bankCards.userId, userId))
+      .orderBy(desc(bankCards.createdAt))
+      .limit(1);
+    
+    return card as BankCard || null;
+  }
+  
+  async getBankCardById(cardId: string): Promise<BankCard | null> {
+    const [card] = await db
+      .select()
+      .from(bankCards)
+      .where(eq(bankCards.id, cardId))
+      .limit(1);
+    
+    return card as BankCard || null;
+  }
+  
+  async updateBankCard(cardId: string, userId: string, firstName: string, lastName: string, cardNumber: string): Promise<BankCard | null> {
+    const [card] = await db
+      .update(bankCards)
+      .set({
+        firstName,
+        lastName,
+        cardNumber,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(bankCards.id, cardId), eq(bankCards.userId, userId)))
+      .returning();
+    
+    return card as BankCard || null;
+  }
+  
+  async deleteBankCard(cardId: string, userId: string): Promise<boolean> {
+    const result = await db
+      .delete(bankCards)
+      .where(and(eq(bankCards.id, cardId), eq(bankCards.userId, userId)))
+      .returning();
+    
+    return result.length > 0;
   }
 }
 

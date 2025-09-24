@@ -525,12 +525,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/withdrawal/request', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session.userId;
-      const { amount, phoneNumber } = withdrawalRequestSchema.parse(req.body);
+      const { amount } = req.body;
+      
+      if (!amount || amount <= 0) {
+        return res.status(400).json({ message: 'Montant invalide' });
+      }
       
       // Check if account is active
       const accountStatus = await storage.getAccountStatus(userId);
       if (!accountStatus?.isActive) {
         return res.status(400).json({ message: 'Compte non activé' });
+      }
+      
+      // Check if user has a bank card
+      const bankCard = await storage.getUserBankCard(userId);
+      if (!bankCard) {
+        return res.status(400).json({ message: 'Aucune carte bancaire enregistrée. Veuillez ajouter une carte avant de faire un retrait.' });
       }
       
       // Check balance
@@ -539,8 +549,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Solde insuffisant' });
       }
       
-      // Create withdrawal request
-      const withdrawal = await storage.createWithdrawal(userId, amount, phoneNumber);
+      // Create withdrawal request using bank card
+      const withdrawal = await storage.createWithdrawal(userId, amount, `${bankCard.firstName} ${bankCard.lastName} - ****${bankCard.cardNumber.slice(-4)}`);
       
       // Deduct from balance
       await storage.updateUserBalance(userId, -amount);
@@ -550,8 +560,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId,
         type: 'withdrawal',
         amount: amount.toString(),
-        recipientPhone: phoneNumber,
-        description: 'Retrait Mobile Money',
+        recipientPhone: `${bankCard.firstName} ${bankCard.lastName} - ****${bankCard.cardNumber.slice(-4)}`,
+        description: 'Retrait sur carte bancaire',
         status: 'pending'
       });
       
@@ -592,6 +602,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching referrals:', error);
       res.status(500).json({ message: 'Erreur lors de la récupération des parrainages' });
+    }
+  });
+
+  // Bank card operations
+  app.get('/api/bank-card', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const bankCard = await storage.getUserBankCard(userId);
+      res.json(bankCard);
+    } catch (error) {
+      console.error('Error fetching bank card:', error);
+      res.status(500).json({ message: 'Erreur lors de la récupération de la carte bancaire' });
+    }
+  });
+
+  app.post('/api/bank-card', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { firstName, lastName, cardNumber } = req.body;
+
+      if (!firstName || !lastName || !cardNumber) {
+        return res.status(400).json({ message: 'Prénom, nom et numéro de retrait requis' });
+      }
+
+      if (cardNumber.length < 10 || !/^[0-9]+$/.test(cardNumber)) {
+        return res.status(400).json({ message: 'Le numéro de retrait doit contenir au moins 10 chiffres' });
+      }
+
+      const bankCard = await storage.createBankCard(userId, firstName, lastName, cardNumber);
+      res.status(201).json({ message: 'Carte bancaire enregistrée avec succès', bankCard });
+    } catch (error: any) {
+      console.error('Error creating bank card:', error);
+      res.status(500).json({ message: 'Erreur lors de l\'enregistrement de la carte bancaire' });
+    }
+  });
+
+  app.put('/api/bank-card/:cardId', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { cardId } = req.params;
+      const { firstName, lastName, cardNumber } = req.body;
+
+      if (!firstName || !lastName || !cardNumber) {
+        return res.status(400).json({ message: 'Prénom, nom et numéro de retrait requis' });
+      }
+
+      if (cardNumber.length < 10 || !/^[0-9]+$/.test(cardNumber)) {
+        return res.status(400).json({ message: 'Le numéro de retrait doit contenir au moins 10 chiffres' });
+      }
+
+      const bankCard = await storage.updateBankCard(cardId, userId, firstName, lastName, cardNumber);
+      res.json({ message: 'Carte bancaire mise à jour avec succès', bankCard });
+    } catch (error: any) {
+      console.error('Error updating bank card:', error);
+      res.status(500).json({ message: 'Erreur lors de la mise à jour de la carte bancaire' });
+    }
+  });
+
+  app.delete('/api/bank-card/:cardId', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { cardId } = req.params;
+      
+      const success = await storage.deleteBankCard(cardId, userId);
+      if (!success) {
+        return res.status(404).json({ message: 'Carte bancaire non trouvée' });
+      }
+      res.json({ message: 'Carte bancaire supprimée avec succès' });
+    } catch (error: any) {
+      console.error('Error deleting bank card:', error);
+      res.status(500).json({ message: 'Erreur lors de la suppression de la carte bancaire' });
     }
   });
 

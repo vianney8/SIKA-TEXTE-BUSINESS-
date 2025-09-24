@@ -266,10 +266,26 @@ export default function Work() {
                   )}
                 </div>
 
-                <div className="text-center">
+                <div className="text-center space-y-3">
                   <p className="text-sm text-slate-500">
                     Récompense : <span className="font-semibold text-green-600">{formatFCFA(650)}</span>
                   </p>
+                  
+                  {/* Bank Card Option */}
+                  <div className="border-t pt-3">
+                    <Button 
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      data-testid="button-bank-card-work"
+                    >
+                      <Link href="/bank-card">
+                        <CreditCard className="w-4 h-4 mr-2" />
+                        Gérer ma carte bancaire
+                      </Link>
+                    </Button>
+                  </div>
                 </div>
               </div>
             ) : (
