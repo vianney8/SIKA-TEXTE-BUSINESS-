@@ -311,51 +311,6 @@ export default function TeamPage() {
           </Button>
         </div>
 
-        {/* Referrals List */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Mes Parrainés</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {referralData?.referrals && referralData.referrals.length > 0 ? (
-              <div className="space-y-3">
-                {referralData.referrals.map((referral) => (
-                  <div key={referral.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="w-8 h-8">
-                        <AvatarFallback className="text-xs">
-                          {referral.name.split(' ').map(n => n[0]).join('')}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium text-sm">{referral.name}</p>
-                        <p className="text-xs text-slate-500">
-                          {new Date(referral.joinDate).toLocaleDateString('fr-FR')}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <Badge variant={referral.isActive ? "default" : "secondary"} className="text-xs">
-                        {referral.isActive ? 'Actif' : 'Inactif'}
-                      </Badge>
-                      <p className="text-xs text-green-600 mt-1">
-                        +{referral.commissionEarned} FCFA
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-6">
-                <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                <p className="text-slate-500">Aucun parrainage pour le moment</p>
-                <p className="text-xs text-slate-400 mt-1">
-                  Partagez votre code pour commencer !
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
         </div>
       </div>
     </div>
