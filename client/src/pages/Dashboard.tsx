@@ -273,12 +273,10 @@ export default function Dashboard() {
           {/* News Banner */}
           <Card className="bg-white rounded-xl shadow-sm border border-border">
             <div className="p-0">
-              <img 
-                src="https://i.ibb.co/kq8vR5s/IMG-20250925-000517-1758755249291.jpg"
-                alt="Le Billet sur l'Europe" 
-                className="w-full h-auto rounded-xl"
-                data-testid="image-news-banner"
-              />
+              <div className="text-center py-8">
+                <h2 className="text-3xl font-bold text-primary mb-2">SIKA TEXTE</h2>
+                <p className="text-lg text-muted-foreground">Plateforme Européenne</p>
+              </div>
             </div>
           </Card>
 
@@ -288,7 +286,6 @@ export default function Dashboard() {
       </main>
 
       <BottomNavigation currentPage="home" />
-      <WhatsAppNotification />
     </div>
   );
 }

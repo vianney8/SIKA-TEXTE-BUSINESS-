@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Users, Copy, Share, QrCode, User } from "lucide-react";
-import { Link } from "wouter";
+import { Users, Copy, Share, QrCode, User } from "lucide-react";
+import BottomNavigation from "@/components/BottomNavigation";
 import { formatFCFA } from "@/lib/utils";
 
 export default function Team() {
@@ -49,13 +49,8 @@ export default function Team() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="gradient-bg text-primary-foreground">
-        <div className="px-6 py-4 flex items-center">
-          <Button asChild variant="ghost" size="sm" className="text-primary-foreground hover:bg-white/10">
-            <Link href="/" data-testid="button-back">
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-          </Button>
-          <h1 className="ml-4 text-lg font-semibold" data-testid="page-title">Mon équipe</h1>
+        <div className="px-6 py-4 text-center">
+          <h1 className="text-lg font-semibold" data-testid="page-title">Mon équipe</h1>
         </div>
       </div>
 
@@ -167,6 +162,8 @@ export default function Team() {
           </CardContent>
         </Card>
       </div>
+      
+      <BottomNavigation currentPage="team" />
     </div>
   );
 }

@@ -4,12 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle, AlertCircle, Clock, TrendingUp, ArrowLeft, CreditCard } from "lucide-react";
+import { CheckCircle, AlertCircle, Clock, TrendingUp, CreditCard } from "lucide-react";
+import BottomNavigation from "@/components/BottomNavigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { formatFCFA } from "@/lib/utils";
-import { Link } from "wouter";
 
 interface Sentence {
   id: string;
@@ -38,328 +38,37 @@ export default function Work() {
     queryKey: ['/api/work/progress'],
   });
 
-  const { data: sentences } = useQuery<Sentence[]>({
-    queryKey: ['/api/work/sentences'],
-  });
-
-  const submitCorrectionMutation = useMutation({
-    mutationFn: async (data: { sentenceId: string; answer: string }) => {
-      const res = await apiRequest('POST', '/api/work/submit', data);
-      return await res.json();
-    },
-    onSuccess: (response) => {
-      setIsCorrect(response.correct);
-      setShowResult(true);
-      if (response.correct) {
-        toast({
-          title: "Excellent ! ✅",
-          description: `Phrase corrigée ! Vous avez gagné ${response.reward} FCFA`,
-        });
-      } else {
-        toast({
-          title: "Pas tout à fait 🤔",
-          description: "Essayez encore ou passez à la suivante",
-          variant: "destructive",
-        });
-      }
-      queryClient.invalidateQueries({ queryKey: ['/api/work/progress'] });
-    },
-  });
-
-  const getNextSentence = () => {
-    if (sentences && sentences.length > 0) {
-      const randomIndex = Math.floor(Math.random() * sentences.length);
-      setCurrentSentence(sentences[randomIndex]);
-      setUserAnswer("");
-      setShowResult(false);
-      setIsCorrect(false);
-    }
-  };
-
-  useEffect(() => {
-    if (sentences && sentences.length > 0) {
-      getNextSentence();
-    }
-  }, [sentences]);
-
-  // Fonction simple et sûre pour mettre en évidence les erreurs dans le texte
-  const highlightErrors = (originalText: string, correctedText: string) => {
-    const originalWords = originalText.split(' ');
-    const correctedWords = correctedText.split(' ');
-    
-    // Approche simple mais sûre : comparer mot par mot jusqu'à la longueur la plus courte
-    const result = [];
-    const minLength = Math.min(originalWords.length, correctedWords.length);
-    
-    // Comparer les mots communs
-    for (let i = 0; i < minLength; i++) {
-      const originalWord = originalWords[i];
-      const correctedWord = correctedWords[i];
-      
-      if (originalWord === correctedWord) {
-        // Mot correct
-        result.push(
-          <span key={`word-${i}`}>
-            {originalWord}
-          </span>
-        );
-      } else {
-        // Mot avec erreur
-        result.push(
-          <span key={`error-${i}`} className="text-red-600 font-semibold bg-red-100 dark:bg-red-900 dark:text-red-300 px-1 rounded" title={`Erreur: "${originalWord}" devrait être "${correctedWord}"`}>
-            {originalWord}
-          </span>
-        );
-      }
-      
-      // Ajouter un espace après chaque mot sauf le dernier
-      if (i < minLength - 1) {
-        result.push(' ');
-      }
-    }
-    
-    // Ajouter les mots restants de la phrase originale (s'il y en a)
-    if (originalWords.length > minLength) {
-      if (minLength > 0) result.push(' ');
-      for (let i = minLength; i < originalWords.length; i++) {
-        result.push(
-          <span key={`extra-${i}`} className="text-orange-600 font-semibold bg-orange-100 dark:bg-orange-900 dark:text-orange-300 px-1 rounded" title="Mot supplémentaire à vérifier">
-            {originalWords[i]}
-          </span>
-        );
-        if (i < originalWords.length - 1) {
-          result.push(' ');
-        }
-      }
-    }
-    
-    return result;
-  };
-
-  const handleSubmit = () => {
-    if (!currentSentence || !userAnswer.trim()) return;
-    
-    submitCorrectionMutation.mutate({
-      sentenceId: currentSentence.id,
-      answer: userAnswer.trim(),
-    });
-  };
-
-  const progressPercentage = progress ? (progress.correctedToday / progress.maxPerDay) * 100 : 0;
-  const remainingSentences = progress ? progress.maxPerDay - progress.correctedToday : 0;
-
-  // Afficher "Travail terminé" seulement si l'utilisateur a fait au moins une correction aujourd'hui
-  // ET qu'il ne peut plus travailler (a atteint la limite de 12 phrases)
-  if (!progress?.canWorkToday && (progress?.correctedToday || 0) > 0) {
-    return (
-      <div className="min-h-screen bg-background">
-        {/* Header */}
-        <div className="gradient-bg text-primary-foreground">
-          <div className="px-6 py-4 flex items-center">
-            <Button asChild variant="ghost" size="sm" className="text-primary-foreground hover:bg-white/10">
-              <Link href="/" data-testid="button-back">
-                <ArrowLeft className="w-5 h-5" />
-              </Link>
-            </Button>
-            <h1 className="ml-4 text-lg font-semibold" data-testid="page-title">Travail</h1>
-          </div>
-        </div>
-        <div className="p-4">
-          <div className="max-w-md mx-auto pt-8">
-          <Card className="text-center">
-            <CardHeader>
-              <div className="mx-auto w-16 h-16 bg-yellow-100 dark:bg-yellow-900 rounded-full flex items-center justify-center mb-4">
-                <Clock className="w-8 h-8 text-yellow-600 dark:text-yellow-400" />
-              </div>
-              <CardTitle className="text-2xl">Travail terminé ! 🎉</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-slate-600 dark:text-slate-400 mb-6">
-                Félicitations ! Vous avez corrigé vos 12 phrases aujourd'hui.
-              </p>
-              <div className="bg-green-50 dark:bg-green-900 p-4 rounded-lg mb-6">
-                <p className="text-green-800 dark:text-green-200 font-semibold">
-                  Gains d'aujourd'hui : {formatFCFA((progress?.correctedToday || 0) * 650)}
-                </p>
-              </div>
-              <p className="text-sm text-slate-500">
-                Revenez demain pour de nouvelles phrases à corriger !
-              </p>
-              {progress?.nextWorkTime && (
-                <p className="text-sm text-slate-500 mt-2">
-                  Prochain travail disponible : {new Date(progress.nextWorkTime).toLocaleString('fr-FR')}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="gradient-bg text-primary-foreground">
-        <div className="px-6 py-4 flex items-center">
-          <Button asChild variant="ghost" size="sm" className="text-primary-foreground hover:bg-white/10">
-            <Link href="/" data-testid="button-back">
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-          </Button>
-          <h1 className="ml-4 text-lg font-semibold" data-testid="page-title">Travail</h1>
+        <div className="px-6 py-4 text-center">
+          <h1 className="text-lg font-semibold" data-testid="page-title">Travail</h1>
         </div>
       </div>
-      <div className="p-4">
-        <div className="max-w-md mx-auto pt-8">
-        {/* Progress Card */}
-        <Card className="mb-6">
+      
+      <div className="p-6 space-y-6">
+        <Card className="text-center">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <TrendingUp className="w-5 h-5 text-blue-600" />
-              Progrès du jour
-            </CardTitle>
+            <div className="mx-auto w-16 h-16 bg-yellow-100 dark:bg-yellow-900 rounded-full flex items-center justify-center mb-4">
+              <Clock className="w-8 h-8 text-yellow-600 dark:text-yellow-400" />
+            </div>
+            <CardTitle className="text-2xl">Page de travail</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between text-sm">
-                <span>Phrases corrigées</span>
-                <span className="font-semibold">
-                  {progress?.correctedToday || 0} / {progress?.maxPerDay || 12}
-                </span>
-              </div>
-              <Progress value={progressPercentage} className="h-2" />
-              <div className="flex justify-between text-sm">
-                <span>Gains d'aujourd'hui</span>
-                <span className="font-semibold text-green-600">
-                  {formatFCFA((progress?.correctedToday || 0) * 650)}
-                </span>
-              </div>
-              <Badge variant="outline" className="w-fit">
-                {remainingSentences} phrases restantes
-              </Badge>
+            <p className="text-slate-600 dark:text-slate-400 mb-6">
+              Votre espace de travail pour corriger les phrases.
+            </p>
+            <div className="bg-green-50 dark:bg-green-900 p-4 rounded-lg mb-6">
+              <p className="text-green-800 dark:text-green-200 font-semibold">
+                Phrases corrigées : {progress?.correctedToday || 0} / {progress?.maxPerDay || 12}
+              </p>
             </div>
           </CardContent>
         </Card>
-
-        {/* Work Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-center">Correction de phrase</CardTitle>
-            <p className="text-center text-sm text-slate-600 dark:text-slate-400">
-              Corrigez les erreurs dans la phrase ci-dessous
-            </p>
-          </CardHeader>
-          <CardContent>
-            {currentSentence ? (
-              <div className="space-y-4">
-                <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-6 rounded-lg">
-                  <p className="text-xl font-medium leading-relaxed text-slate-900 dark:text-slate-100">
-                    "
-                    {currentSentence.correctedText ? 
-                      highlightErrors(currentSentence.text, currentSentence.correctedText) : 
-                      currentSentence.text
-                    }
-                    "
-                  </p>
-                  <div className="mt-3 flex items-center gap-2 text-sm font-medium text-blue-700 dark:text-blue-300">
-                    <AlertCircle className="w-4 h-4" />
-                    {currentSentence.errors} erreur(s) à corriger - <span className="text-red-600 font-semibold">les mots en rouge</span> contiennent des erreurs
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <label className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                    Votre correction :
-                  </label>
-                  <Input
-                    data-testid="input-sentence-correction"
-                    value={userAnswer}
-                    onChange={(e) => setUserAnswer(e.target.value)}
-                    placeholder="Tapez la phrase corrigée ici..."
-                    className="text-base font-medium"
-                    disabled={showResult}
-                  />
-                </div>
-
-                {showResult && (
-                  <div className={`p-4 rounded-lg ${
-                    isCorrect ? 'bg-green-50 dark:bg-green-900' : 'bg-red-50 dark:bg-red-900'
-                  }`}>
-                    <div className="flex items-center gap-2">
-                      {isCorrect ? (
-                        <>
-                          <CheckCircle className="w-5 h-5 text-green-600" />
-                          <span className="text-green-800 dark:text-green-200 font-semibold">
-                            Correct ! +{formatFCFA(650)}
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <AlertCircle className="w-5 h-5 text-red-600" />
-                          <span className="text-red-800 dark:text-red-200 font-semibold">
-                            Pas tout à fait...
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex gap-2">
-                  {!showResult ? (
-                    <Button 
-                      data-testid="button-submit-correction"
-                      onClick={handleSubmit}
-                      disabled={!userAnswer.trim() || submitCorrectionMutation.isPending}
-                      className="flex-1"
-                    >
-                      {submitCorrectionMutation.isPending ? "Vérification..." : "Valider"}
-                    </Button>
-                  ) : (
-                    <Button 
-                      data-testid="button-next-sentence"
-                      onClick={getNextSentence}
-                      className="flex-1"
-                    >
-                      Phrase suivante
-                    </Button>
-                  )}
-                </div>
-
-                <div className="text-center space-y-3">
-                  <p className="text-sm text-slate-500">
-                    Récompense : <span className="font-semibold text-green-600">{formatFCFA(650)}</span>
-                  </p>
-                  
-                  {/* Bank Card Option */}
-                  <div className="border-t pt-3">
-                    <Button 
-                      asChild
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      data-testid="button-bank-card-work"
-                    >
-                      <Link href="/bank-card">
-                        <CreditCard className="w-4 h-4 mr-2" />
-                        Gérer ma carte bancaire
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
-                <p>Chargement de la phrase...</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        </div>
       </div>
+      
+      <BottomNavigation currentPage="work" />
     </div>
   );
 }
