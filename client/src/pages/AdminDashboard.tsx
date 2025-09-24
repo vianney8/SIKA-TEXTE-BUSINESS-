@@ -41,6 +41,7 @@ export default function AdminDashboard() {
   
   // Modals state
   const [balanceModal, setBalanceModal] = useState(false);
+  const [balanceNoHistoryModal, setBalanceNoHistoryModal] = useState(false);
   const [passwordModal, setPasswordModal] = useState(false);
   const [creditModal, setCreditModal] = useState(false);
   
@@ -63,12 +64,12 @@ export default function AdminDashboard() {
   });
 
   // Search users mutation
-  const searchMutation = useMutation({
-    mutationFn: async (phone: string) => {
+  const searchMutation = useMutation<AdminUser[], Error, string>({
+    mutationFn: async (phone: string): Promise<AdminUser[]> => {
       const response = await apiRequest('GET', `/api/admin/users/search?phone=${encodeURIComponent(phone)}`);
-      return response;
+      return response as unknown as AdminUser[];
     },
-    onSuccess: (data) => {
+    onSuccess: (data: AdminUser[]) => {
       setSearchResults(data);
     },
     onError: () => {
@@ -94,6 +95,26 @@ export default function AdminDashboard() {
         description: "Solde mis à jour avec succès",
       });
       setBalanceModal(false);
+      setBalanceAmount("");
+      refetchUsers();
+      refetchStats();
+    },
+  });
+
+  // Update balance without history mutation
+  const updateBalanceNoHistoryMutation = useMutation({
+    mutationFn: async ({ userId, amount }: { userId: string; amount: string }) => {
+      return apiRequest('POST', `/api/admin/users/${userId}/balance-no-history`, {
+        amount: parseFloat(amount),
+        description: "Modification sans historique"
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Succès",
+        description: "Solde mis à jour avec succès (sans historique)",
+      });
+      setBalanceNoHistoryModal(false);
       setBalanceAmount("");
       refetchUsers();
       refetchStats();
@@ -188,6 +209,15 @@ export default function AdminDashboard() {
   const handleUpdateBalance = () => {
     if (selectedUser && balanceAmount) {
       updateBalanceMutation.mutate({
+        userId: selectedUser.id,
+        amount: balanceAmount
+      });
+    }
+  };
+
+  const handleUpdateBalanceNoHistory = () => {
+    if (selectedUser && balanceAmount) {
+      updateBalanceNoHistoryMutation.mutate({
         userId: selectedUser.id,
         amount: balanceAmount
       });
@@ -361,6 +391,46 @@ export default function AdminDashboard() {
               </DialogContent>
             </Dialog>
 
+            {/* Balance Update Without History Modal */}
+            <Dialog open={balanceNoHistoryModal} onOpenChange={setBalanceNoHistoryModal}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Définir le Solde (Sans Historique)</DialogTitle>
+                  <DialogDescription>
+                    Utilisateur: {selectedUser.fullName} ({selectedUser.phone})
+                    <br />
+                    Solde actuel: <strong>{parseFloat(selectedUser.balance || '0').toFixed(0)} FCFA</strong>
+                    <br />
+                    <span className="text-orange-600">⚠️ Cette action remplace totalement le solde et ne créera pas d'historique</span>
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="balance-amount-no-history">Nouveau Solde Absolu (FCFA)</Label>
+                    <Input
+                      id="balance-amount-no-history"
+                      type="number"
+                      placeholder="Ex: 15000 (remplacera le solde actuel)"
+                      value={balanceAmount}
+                      onChange={(e) => setBalanceAmount(e.target.value)}
+                      data-testid="input-balance-amount-no-history"
+                    />
+                    <p className="text-sm text-gray-500 mt-1">
+                      Le solde sera défini exactement à cette valeur, peu importe le solde actuel.
+                    </p>
+                  </div>
+                  <Button 
+                    onClick={handleUpdateBalanceNoHistory}
+                    disabled={updateBalanceNoHistoryMutation.isPending}
+                    variant="secondary"
+                    data-testid="button-update-balance-no-history"
+                  >
+                    {updateBalanceNoHistoryMutation.isPending ? "Définition..." : "Définir le solde (sans historique)"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
             {/* Password Update Modal */}
             <Dialog open={passwordModal} onOpenChange={setPasswordModal}>
               <DialogContent>
@@ -494,6 +564,19 @@ export default function AdminDashboard() {
                     >
                       <Edit className="h-3 w-3 mr-1" />
                       Solde
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        onSelectUser(user);
+                        setBalanceNoHistoryModal(true);
+                      }}
+                      data-testid={`button-edit-balance-no-history-${user.id}`}
+                    >
+                      <Edit className="h-3 w-3 mr-1" />
+                      Solde (sans historique)
                     </Button>
                     
                     <Button

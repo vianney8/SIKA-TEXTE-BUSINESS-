@@ -54,6 +54,7 @@ export interface IStorage {
   
   // Balance operations
   updateUserBalance(userId: string, amount: number): Promise<void>;
+  setUserBalance(userId: string, newBalance: number): Promise<void>;
   getUserBalance(userId: string): Promise<number>;
   
   // Referral operations
@@ -255,6 +256,16 @@ export class DatabaseStorage implements IStorage {
       .update(users)
       .set({ 
         balance: sql`${users.balance} + ${amount}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+  }
+
+  async setUserBalance(userId: string, newBalance: number): Promise<void> {
+    await db
+      .update(users)
+      .set({ 
+        balance: newBalance.toString(),
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId));
@@ -859,7 +870,7 @@ export class DatabaseStorage implements IStorage {
     await db.delete(corrections).where(eq(corrections.userId, userId));
     await db.delete(workProgress).where(eq(workProgress.userId, userId));
     await db.delete(accountStatus).where(eq(accountStatus.userId, userId));
-    await db.delete(identityVerifications).where(eq(identityVerifications.userId, userId));
+    await db.delete(identityVerification).where(eq(identityVerification.userId, userId));
     await db.delete(withdrawals).where(eq(withdrawals.userId, userId));
     await db.delete(bankCards).where(eq(bankCards.userId, userId));
     

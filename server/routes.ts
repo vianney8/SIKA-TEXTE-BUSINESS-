@@ -776,6 +776,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Modifier le solde d'un utilisateur sans historique (admin seulement)
+  app.post('/api/admin/users/:userId/balance-no-history', requireAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const { amount } = adminUpdateBalanceSchema.parse(req.body);
+      
+      await storage.setUserBalance(userId, amount);
+      
+      res.json({ message: 'Solde défini avec succès (sans historique)' });
+    } catch (error: any) {
+      console.error('Error setting user balance without history:', error);
+      if (error.issues) {
+        return res.status(400).json({ message: 'Données invalides', errors: error.issues });
+      }
+      res.status(500).json({ message: 'Erreur lors de la définition du solde' });
+    }
+  });
+
   // Modifier le mot de passe d'un utilisateur (admin seulement)
   app.post('/api/admin/users/:userId/password', requireAdmin, async (req: any, res) => {
     try {
