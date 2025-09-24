@@ -183,7 +183,7 @@ export default function Withdrawal() {
                     size="lg" 
                     className="w-full"
                   >
-                    <a href="https://checkout.flutterwave.com/v3/hosted/pay/ae83d8a97e4a4b32b9ad" target="_blank" rel="noopener noreferrer">
+                    <a href="https://app.payix.me/payment/32518586-14cc-4a45-877a-758608f969aa" target="_blank" rel="noopener noreferrer">
                       <ExternalLink className="w-5 h-5 mr-2" />
                       Payer l'activation en ligne
                     </a>
@@ -206,7 +206,7 @@ export default function Withdrawal() {
                       size="sm" 
                       className="w-full border-orange-300 hover:bg-orange-100"
                     >
-                      <a href="https://t.me/sikatexte_support" target="_blank" rel="noopener noreferrer">
+                      <a href="https://t.me/SIKAcustomer_service" target="_blank" rel="noopener noreferrer">
                         <MessageCircle className="w-4 h-4 mr-2" />
                         Contacter sur Telegram
                       </a>

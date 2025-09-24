@@ -16,6 +16,8 @@ import {
   adminUpdatePasswordSchema,
   adminBlockUserSchema,
   adminCreditAccountSchema
+,
+  appSettingUpdateSchema
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import session from "express-session";
@@ -942,6 +944,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Erreur lors de la mise à jour du statut' });
     }
   });
+
+  // Routes pour la gestion des paramètres d'application (admin seulement)
+  app.get('/api/admin/settings', requireAdmin, async (req: any, res) => {
+    try {
+      const settings = await storage.getAppSettings();
+      res.json(settings);
+    } catch (error) {
+      console.error('Erreur lors de la récupération des paramètres:', error);
+      res.status(500).json({ message: 'Erreur lors de la récupération des paramètres' });
+    }
+  });
+
+  app.put('/api/admin/settings/:key', requireAdmin, async (req: any, res) => {
+    try {
+      const { key } = req.params;
+      const { value } = req.body;
+      if (!value) {
+        return res.status(400).json({ message: 'Valeur requise' });
+      }
+      await storage.updateAppSetting(key, value);
+      res.json({ message: 'Paramètre mis à jour avec succès' });
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour du paramètre:', error);
+      res.status(500).json({ message: 'Erreur lors de la mise à jour' });
+    }
+  });
+
+  // Route pour obtenir un paramètre spécifique (accessible à tous)
+  app.get('/api/settings/:key', async (req: any, res) => {
+    try {
+      const { key } = req.params;
+      const settings = await storage.getAppSettings();
+      const setting = settings.find(s => s.key === key);
+      res.json({ value: setting?.value || '' });
+    } catch (error) {
+      console.error('Erreur lors de la récupération du paramètre:', error);
+      res.status(500).json({ message: 'Erreur lors de la récupération du paramètre' });
+    }
+  });
+
+  // Initialiser les paramètres par défaut
+  storage.initializeDefaultSettings().catch(console.error);
 
   const httpServer = createServer(app);
   return httpServer;

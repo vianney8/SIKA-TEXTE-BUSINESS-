@@ -27,7 +27,7 @@ export default function Dashboard() {
           <div className="space-y-2">
             <p>Restez au courant des derniers événements</p>
             <a 
-              href="https://chat.whatsapp.com/HtUYvCOeJArHYLhMcRCsDs?mode=ems_copy_t" 
+              href="https://chat.whatsapp.com/HtUYvCOeJArHYLhMcRCsDs" 
               target="_blank" 
               rel="noopener noreferrer"
               className="text-green-600 underline font-medium"

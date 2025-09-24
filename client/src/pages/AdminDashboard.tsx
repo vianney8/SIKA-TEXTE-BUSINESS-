@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle } from "lucide-react";
+import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 
@@ -52,6 +52,10 @@ export default function AdminDashboard() {
   const [newPassword, setNewPassword] = useState("");
   const [creditAmount, setCreditAmount] = useState("");
   const [creditDescription, setCreditDescription] = useState("");
+  
+  // Settings state
+  const [settingsModal, setSettingsModal] = useState(false);
+  const [settings, setSettings] = useState<{[key: string]: string}>({});
 
   // Fetch admin statistics
   const { data: stats, refetch: refetchStats } = useQuery<AdminStats>({
@@ -280,17 +284,25 @@ export default function AdminDashboard() {
             <h1 className="text-3xl font-bold text-white mb-2">Tableau de Bord Administrateur</h1>
             <p className="text-blue-100">SIKA TEXTE BUSINESS - Administration</p>
           </div>
-          <button
-            onClick={() => {
-              fetch('/api/auth/logout', { method: 'POST' })
-                .then(() => window.location.href = '/simple-login')
-                .catch(() => window.location.href = '/simple-login');
-            }}
-            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors"
-            data-testid="button-logout"
-          >
-            Déconnexion
-          </button>
+          <div className="flex gap-2">
+            <Button asChild variant="secondary">
+              <a href="/admin/settings" data-testid="button-admin-settings">
+                <Settings className="h-4 w-4 mr-2" />
+                Paramètres
+              </a>
+            </Button>
+            <button
+              onClick={() => {
+                fetch('/api/auth/logout', { method: 'POST' })
+                  .then(() => window.location.href = '/simple-login')
+                  .catch(() => window.location.href = '/simple-login');
+              }}
+              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors"
+              data-testid="button-logout"
+            >
+              Déconnexion
+            </button>
+          </div>
         </div>
 
         {/* Statistics Cards */}

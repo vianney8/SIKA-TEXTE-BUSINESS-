@@ -358,6 +358,23 @@ export type Withdrawal = typeof withdrawals.$inferSelect;
 export type IdentityVerification = typeof identityVerification.$inferSelect;
 export type BankCard = typeof bankCards.$inferSelect;
 export type InsertBankCard = typeof bankCards.$inferInsert;
+// Table pour les liens configurables par l'admin
+export const appSettings = pgTable("app_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  key: varchar("key").unique().notNull(),
+  value: text("value").notNull(),
+  label: varchar("label").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
+export const appSettingsInsertSchema = createInsertSchema(appSettings);
+export const appSettingUpdateSchema = z.object({
+  value: z.string().min(1, "La valeur est requise")
+});
+
+export type AppSetting = typeof appSettings.$inferSelect;
+export type InsertAppSetting = typeof appSettings.$inferInsert;
+
 export type WorkSubmission = z.infer<typeof workSubmissionSchema>;
 export type WithdrawalRequest = z.infer<typeof withdrawalRequestSchema>;
 export type ActivationRequest = z.infer<typeof activationSchema>;

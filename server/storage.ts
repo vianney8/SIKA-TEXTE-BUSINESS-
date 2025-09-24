@@ -9,6 +9,7 @@ import {
   withdrawals,
   identityVerification,
   bankCards,
+  appSettings,
   type User,
   type UpsertUser,
   type Transaction,
@@ -22,6 +23,8 @@ import {
   type IdentityVerification,
   type BankCard,
   type InsertBankCard,
+  type AppSetting,
+  type InsertAppSetting,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, inArray, like, ilike, or } from "drizzle-orm";
@@ -104,6 +107,11 @@ export interface IStorage {
   updateUserPassword(userId: string, hashedPassword: string): Promise<void>;
   blockUser(userId: string, blocked: boolean): Promise<void>;
   deleteUser(userId: string): Promise<void>;
+  
+  // App settings
+  getAppSettings(): Promise<AppSetting[]>;
+  updateAppSetting(key: string, value: string): Promise<void>;
+  initializeDefaultSettings(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -957,6 +965,36 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error('Error fetching all withdrawals:', error);
       return [];
+    }
+  }
+
+  // App settings implementation
+  async getAppSettings(): Promise<AppSetting[]> {
+    const result = await db.select().from(appSettings).orderBy(appSettings.key);
+    return result;
+  }
+
+  async updateAppSetting(key: string, value: string): Promise<void> {
+    await db.insert(appSettings)
+      .values({ key, value, label: key })
+      .onConflictDoUpdate({
+        target: appSettings.key,
+        set: { value, updatedAt: new Date() }
+      });
+  }
+
+  async initializeDefaultSettings(): Promise<void> {
+    const defaultSettings = [
+      { key: 'activation_link', value: 'https://app.payix.me/payment/32518586-14cc-4a45-877a-758608f969aa', label: 'Lien activation en ligne' },
+      { key: 'whatsapp_group', value: 'https://chat.whatsapp.com/HtUYvCOeJArHYLhMcRCsDs', label: 'Groupe WhatsApp' },
+      { key: 'telegram_supervisor', value: '@SIKAcustomer_service', label: 'Superviseur Telegram' },
+      { key: 'telegram_group', value: 'https://t.me/sikatexte_group', label: 'Groupe Telegram' }
+    ];
+
+    for (const setting of defaultSettings) {
+      await db.insert(appSettings)
+        .values(setting)
+        .onConflictDoNothing();
     }
   }
 }

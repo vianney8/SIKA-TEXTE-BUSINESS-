@@ -22,6 +22,7 @@ import ApiAgregateur from "@/pages/ApiAgregateur";
 import IdentityVerification from "@/pages/IdentityVerification";
 import BankCard from "@/pages/BankCard";
 import AdminDashboard from "@/pages/AdminDashboard";
+import AdminSettings from "@/pages/AdminSettings";
 
 function Router() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -60,6 +61,7 @@ function Router() {
           <Route path="/transactions" component={Transactions} />
           <Route path="/assistance" component={Assistance} />
           <Route path="/api-agregateur" component={ApiAgregateur} />
+          <Route path="/admin/settings" component={AdminSettings} />
           <Route path="/identity-verification" component={IdentityVerification} />
           <Route path="/bank-card" component={BankCard} />
           <Route path="/admin" component={AdminDashboard} />
