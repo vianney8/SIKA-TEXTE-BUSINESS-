@@ -297,9 +297,9 @@ export default function Register() {
                       <div className="space-y-1 leading-none">
                         <FormLabel className="text-sm">
                           J'accepte les{" "}
-                          <Link href="/terms" className="text-primary hover:underline">
+                          <span className="text-primary">
                             conditions d'utilisation
-                          </Link>{" "}
+                          </span>{" "}
                           et la{" "}
                           <Link href="/privacy" className="text-primary hover:underline">
                             politique de confidentialité

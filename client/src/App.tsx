@@ -45,6 +45,7 @@ function Router() {
         <>
           <Route path="/" component={Landing} />
           <Route path="/register" component={Register} />
+          <Route path="/register/:ref" component={Register} />
           <Route path="/simple-login" component={SimpleLogin} />
         </>
       ) : (
