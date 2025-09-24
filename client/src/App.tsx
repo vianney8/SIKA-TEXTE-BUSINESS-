@@ -19,6 +19,7 @@ import TeamPage from "@/pages/TeamPage";
 import Work from "@/pages/Work";
 import Profile from "@/pages/Profile";
 import Transactions from "@/pages/Transactions";
+import Assistance from "@/pages/Assistance";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -56,6 +57,7 @@ function Router() {
           <Route path="/work" component={Work} />
           <Route path="/profile" component={Profile} />
           <Route path="/transactions" component={Transactions} />
+          <Route path="/assistance" component={Assistance} />
         </>
       )}
       <Route component={NotFound} />

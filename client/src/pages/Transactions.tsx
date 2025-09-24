@@ -17,8 +17,8 @@ export default function Transactions() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
   // Define transaction categories
-  const correctionTypes = ['deposit', 'pointage'];
-  const financialTypes = ['transfer', 'transfer_received', 'recharge', 'payment', 'withdrawal'];
+  const correctionTypes = ['deposit']; // Only correction earnings
+  const financialTypes = ['pointage', 'transfer', 'transfer_received', 'withdrawal', 'referral']; // Pointage, Transfert, Retrait, Parrainage
   
   const { data: transactions = [] } = useQuery({
     queryKey: ["/api/transactions", activeTab, filterType, filterStatus],
@@ -45,12 +45,20 @@ export default function Transactions() {
     switch (type) {
       case "deposit":
         return "fas fa-check-circle";
+      case "pointage":
+        return "fas fa-clock";
       case "transfer":
         return "fas fa-exchange-alt";
+      case "transfer_received":
+        return "fas fa-arrow-down";
       case "recharge":
         return "fas fa-plus";
       case "payment":
         return "fas fa-shopping-cart";
+      case "withdrawal":
+        return "fas fa-arrow-up";
+      case "referral":
+        return "fas fa-users";
       default:
         return "fas fa-circle";
     }
@@ -60,12 +68,20 @@ export default function Transactions() {
     switch (type) {
       case "deposit":
         return "bg-yellow-100";
+      case "pointage":
+        return "bg-green-100";
       case "transfer":
         return "bg-blue-100";
+      case "transfer_received":
+        return "bg-green-100";
       case "recharge":
         return "bg-orange-100";
       case "payment":
         return "bg-blue-100";
+      case "withdrawal":
+        return "bg-red-100";
+      case "referral":
+        return "bg-purple-100";
       default:
         return "bg-gray-100";
     }
@@ -75,12 +91,20 @@ export default function Transactions() {
     switch (type) {
       case "deposit":
         return "text-yellow-600";
+      case "pointage":
+        return "text-green-600";
       case "transfer":
         return "text-primary";
+      case "transfer_received":
+        return "text-green-600";
       case "recharge":
         return "text-accent";
       case "payment":
         return "text-primary";
+      case "withdrawal":
+        return "text-red-600";
+      case "referral":
+        return "text-purple-600";
       default:
         return "text-gray-600";
     }
@@ -90,14 +114,22 @@ export default function Transactions() {
     switch (type) {
       case "deposit":
         return "Pointage";
+      case "pointage":
+        return "Pointage";
       case "transfer":
         return "Transfert";
+      case "transfer_received":
+        return "Transfert reçu";
       case "recharge":
         return "Recharge crédit";
       case "payment":
         return "Paiement Marchand";
+      case "withdrawal":
+        return "Retrait";
+      case "referral":
+        return "Parrainage";
       default:
-        return "Transaction";
+        return "Pointage";
     }
   };
 
@@ -122,17 +154,16 @@ export default function Transactions() {
     if (activeTab === 'corrections') {
       return [
         { value: "all", label: "Tous les types" },
-        { value: "deposit", label: "Pointage manuel" },
-        { value: "pointage", label: "Pointage automatique" },
+        { value: "deposit", label: "Gains de correction" },
       ];
     } else {
       return [
         { value: "all", label: "Tous les types" },
+        { value: "pointage", label: "Pointage" },
         { value: "transfer", label: "Transfert envoyé" },
         { value: "transfer_received", label: "Transfert reçu" },
-        { value: "recharge", label: "Recharge" },
-        { value: "payment", label: "Paiement" },
         { value: "withdrawal", label: "Retrait" },
+        { value: "referral", label: "Parrainage" },
       ];
     }
   };
@@ -154,7 +185,7 @@ export default function Transactions() {
             </Link>
           </Button>
           <h1 className="ml-4 text-lg font-semibold" data-testid="page-title">
-            Historique des transactions
+            Historique des pointages
           </h1>
         </div>
       </div>
@@ -237,7 +268,7 @@ export default function Transactions() {
           <CardContent className="p-0">
             {filteredTransactions.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground" data-testid="text-no-transactions">
-                Aucune transaction trouvée
+                Aucun pointage trouvé
               </div>
             ) : (
               <div className="divide-y divide-border">
@@ -295,11 +326,11 @@ export default function Transactions() {
                       <div className="text-right">
                         <div 
                           className={`font-semibold text-sm mb-1 ${
-                            transaction.type === "deposit" ? "text-green-600" : "text-red-600"
+                            ["deposit", "pointage", "transfer_received", "referral"].includes(transaction.type) ? "text-green-600" : "text-red-600"
                           }`}
                           data-testid={`transaction-amount-${transaction.id}`}
                         >
-                          {transaction.type === "deposit" ? "+" : "-"}
+                          {["deposit", "pointage", "transfer_received", "referral"].includes(transaction.type) ? "+" : "-"}
                           {formatFCFA(parseFloat(transaction.amount))}
                         </div>
                         {getStatusBadge(transaction.status)}

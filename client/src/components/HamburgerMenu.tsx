@@ -67,13 +67,9 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
     },
   ];
 
-  // WhatsApp assistance function
-  const handleWhatsAppAssistance = () => {
-    const message = "Bonjour, j'ai besoin d'aide concernant SIKA TEXTE.";
-    const phoneNumber = "+2250748291503";
-    const encodedMessage = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/${phoneNumber.replace(/[^\d]/g, '')}?text=${encodedMessage}`;
-    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+  // Navigate to assistance page
+  const handleAssistance = () => {
+    window.location.href = '/assistance';
     onClose();
   };
 
@@ -88,7 +84,7 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
     {
       icon: HelpCircle,
       label: "Assistance",
-      action: handleWhatsAppAssistance,
+      action: handleAssistance,
       testId: "button-help",
     },
   ];
