@@ -27,9 +27,7 @@ export default function WhatsAppNotification() {
           </h3>
           
           <p className="text-sm text-gray-600 leading-relaxed">
-            Suivez dès maintenant la chaîne officielle{" "}
-            <span className="font-semibold text-green-600">ViralDigboost</span>{" "}
-            sur WhatsApp pour recevoir toutes les actualités, mises à jour, promos et bien plus encore.
+            Rejoignez notre groupe de discussion WhatsApp pour être au courant de nos dernières mises à jour.
           </p>
           
           <div className="space-y-3 pt-2">

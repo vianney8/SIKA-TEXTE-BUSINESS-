@@ -274,7 +274,7 @@ export default function Dashboard() {
           <Card className="bg-white rounded-xl shadow-sm border border-border">
             <div className="p-0">
               <img 
-                src="https://i.imgur.com/9qF4m3c.jpeg" 
+                src="https://i.ibb.co/kq8vR5s/IMG-20250925-000517-1758755249291.jpg"
                 alt="Le Billet sur l'Europe" 
                 className="w-full h-auto rounded-xl"
                 data-testid="image-news-banner"
