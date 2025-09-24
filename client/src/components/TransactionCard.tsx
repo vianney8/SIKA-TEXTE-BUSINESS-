@@ -91,12 +91,12 @@ export default function TransactionCard({ transaction }: TransactionCardProps) {
     }
   };
 
-  const getTypeLabel = (type: string) => {
+  const getTypeLabel = (type: string, description?: string) => {
     switch (type) {
       case "deposit":
-        return "Dépôt Sika";
+        return description?.includes("correction") ? "Corrections" : "Dépôt";
       case "pointage":
-        return "Corrections";
+        return "Pointage";
       case "transfer":
         return "Transfert Envoyé";
       case "transfer_received":
@@ -108,7 +108,7 @@ export default function TransactionCard({ transaction }: TransactionCardProps) {
       case "withdrawal":
         return "Retrait";
       case "referral":
-        return "Commission Parrainage";
+        return "Gains de parrainage";
       default:
         return "Transaction";
     }
@@ -122,7 +122,7 @@ export default function TransactionCard({ transaction }: TransactionCardProps) {
         </div>
         <div>
           <div className="font-medium text-sm">
-            {getTypeLabel(transaction.type)}
+            {getTypeLabel(transaction.type, transaction.description)}
           </div>
           <div className="text-xs text-muted-foreground">
             {new Date(transaction.createdAt).toLocaleDateString("fr-FR", {

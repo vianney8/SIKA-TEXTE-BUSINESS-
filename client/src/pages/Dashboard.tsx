@@ -296,11 +296,12 @@ export default function Dashboard() {
                       </div>
                       <div>
                         <div className="font-medium text-sm" data-testid={`text-transaction-type-${transaction.id}`}>
-                          {transaction.type === "deposit" && "Dépôt"}
-                          {transaction.type === "pointage" && "Corrections"}
+                          {transaction.type === "deposit" && (transaction.description?.includes("correction") ? "Corrections" : "Dépôt")}
+                          {transaction.type === "pointage" && "Pointage"}
                           {transaction.type === "transfer" && "Transfert"}
                           {transaction.type === "recharge" && "Recharge crédit"}
                           {transaction.type === "payment" && "Paiement Marchand"}
+                          {transaction.type === "referral" && "Gains de parrainage"}
                         </div>
                         <div className="text-xs text-muted-foreground" data-testid={`text-transaction-date-${transaction.id}`}>
                           {new Date(transaction.createdAt).toLocaleDateString("fr-FR", {

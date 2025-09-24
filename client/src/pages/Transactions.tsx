@@ -110,12 +110,12 @@ export default function Transactions() {
     }
   };
 
-  const getTypeLabel = (type: string) => {
+  const getTypeLabel = (type: string, description?: string) => {
     switch (type) {
       case "deposit":
-        return "Dépôt";
+        return description?.includes("correction") ? "Corrections" : "Dépôt";
       case "pointage":
-        return "Corrections";
+        return "Pointage";
       case "transfer":
         return "Transfert";
       case "transfer_received":
@@ -127,9 +127,9 @@ export default function Transactions() {
       case "withdrawal":
         return "Retrait";
       case "referral":
-        return "Parrainage";
+        return "Gains de parrainage";
       default:
-        return "Pointage";
+        return "Transaction";
     }
   };
 
@@ -285,7 +285,7 @@ export default function Transactions() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-sm mb-1" data-testid={`transaction-type-${transaction.id}`}>
-                            {getTypeLabel(transaction.type)}
+                            {getTypeLabel(transaction.type, transaction.description)}
                           </div>
                           <div className="text-xs text-muted-foreground mb-2" data-testid={`transaction-date-${transaction.id}`}>
                             {new Date(transaction.createdAt).toLocaleDateString("fr-FR", {
