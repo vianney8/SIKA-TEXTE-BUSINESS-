@@ -14,6 +14,7 @@ import { Link } from "wouter";
 interface Sentence {
   id: string;
   text: string;
+  correctedText: string;
   errors: number;
   reward: number;
 }
@@ -80,6 +81,60 @@ export default function Work() {
       getNextSentence();
     }
   }, [sentences]);
+
+  // Fonction simple et sûre pour mettre en évidence les erreurs dans le texte
+  const highlightErrors = (originalText: string, correctedText: string) => {
+    const originalWords = originalText.split(' ');
+    const correctedWords = correctedText.split(' ');
+    
+    // Approche simple mais sûre : comparer mot par mot jusqu'à la longueur la plus courte
+    const result = [];
+    const minLength = Math.min(originalWords.length, correctedWords.length);
+    
+    // Comparer les mots communs
+    for (let i = 0; i < minLength; i++) {
+      const originalWord = originalWords[i];
+      const correctedWord = correctedWords[i];
+      
+      if (originalWord === correctedWord) {
+        // Mot correct
+        result.push(
+          <span key={`word-${i}`}>
+            {originalWord}
+          </span>
+        );
+      } else {
+        // Mot avec erreur
+        result.push(
+          <span key={`error-${i}`} className="text-red-600 font-semibold bg-red-100 dark:bg-red-900 dark:text-red-300 px-1 rounded" title={`Erreur: "${originalWord}" devrait être "${correctedWord}"`}>
+            {originalWord}
+          </span>
+        );
+      }
+      
+      // Ajouter un espace après chaque mot sauf le dernier
+      if (i < minLength - 1) {
+        result.push(' ');
+      }
+    }
+    
+    // Ajouter les mots restants de la phrase originale (s'il y en a)
+    if (originalWords.length > minLength) {
+      if (minLength > 0) result.push(' ');
+      for (let i = minLength; i < originalWords.length; i++) {
+        result.push(
+          <span key={`extra-${i}`} className="text-orange-600 font-semibold bg-orange-100 dark:bg-orange-900 dark:text-orange-300 px-1 rounded" title="Mot supplémentaire à vérifier">
+            {originalWords[i]}
+          </span>
+        );
+        if (i < originalWords.length - 1) {
+          result.push(' ');
+        }
+      }
+    }
+    
+    return result;
+  };
 
   const handleSubmit = () => {
     if (!currentSentence || !userAnswer.trim()) return;
@@ -201,11 +256,16 @@ export default function Work() {
               <div className="space-y-4">
                 <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-6 rounded-lg">
                   <p className="text-xl font-medium leading-relaxed text-slate-900 dark:text-slate-100">
-                    "{currentSentence.text}"
+                    "
+                    {currentSentence.correctedText ? 
+                      highlightErrors(currentSentence.text, currentSentence.correctedText) : 
+                      currentSentence.text
+                    }
+                    "
                   </p>
                   <div className="mt-3 flex items-center gap-2 text-sm font-medium text-blue-700 dark:text-blue-300">
                     <AlertCircle className="w-4 h-4" />
-                    {currentSentence.errors} erreur(s) à corriger
+                    {currentSentence.errors} erreur(s) à corriger - <span className="text-red-600 font-semibold">les mots en rouge</span> contiennent des erreurs
                   </div>
                 </div>
 

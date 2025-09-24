@@ -609,17 +609,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/bank-card', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session.userId;
-      const { firstName, lastName, cardNumber } = req.body;
+      const { firstName, lastName, cardNumber, operator, country } = req.body;
 
-      if (!firstName || !lastName || !cardNumber) {
-        return res.status(400).json({ message: 'Prénom, nom et numéro de retrait requis' });
+      if (!firstName || !lastName || !cardNumber || !operator || !country) {
+        return res.status(400).json({ message: 'Prénom, nom, numéro de retrait, opérateur et pays requis' });
       }
 
-      if (cardNumber.length < 10 || !/^[0-9]+$/.test(cardNumber)) {
-        return res.status(400).json({ message: 'Le numéro de retrait doit contenir au moins 10 chiffres' });
+      if (!/^\+[0-9]{3}[0-9]{8,}$/.test(cardNumber)) {
+        return res.status(400).json({ message: 'Le numéro doit commencer par l\'indicatif (+228, +229, etc.)' });
       }
 
-      const bankCard = await storage.createBankCard(userId, firstName, lastName, cardNumber);
+      const bankCard = await storage.createBankCard(userId, firstName, lastName, cardNumber, operator, country);
       res.status(201).json({ message: 'Carte bancaire enregistrée avec succès', bankCard });
     } catch (error: any) {
       console.error('Error creating bank card:', error);
@@ -631,17 +631,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.session.userId;
       const { cardId } = req.params;
-      const { firstName, lastName, cardNumber } = req.body;
+      const { firstName, lastName, cardNumber, operator, country } = req.body;
 
-      if (!firstName || !lastName || !cardNumber) {
-        return res.status(400).json({ message: 'Prénom, nom et numéro de retrait requis' });
+      if (!firstName || !lastName || !cardNumber || !operator || !country) {
+        return res.status(400).json({ message: 'Prénom, nom, numéro de retrait, opérateur et pays requis' });
       }
 
-      if (cardNumber.length < 10 || !/^[0-9]+$/.test(cardNumber)) {
-        return res.status(400).json({ message: 'Le numéro de retrait doit contenir au moins 10 chiffres' });
+      if (!/^\+[0-9]{3}[0-9]{8,}$/.test(cardNumber)) {
+        return res.status(400).json({ message: 'Le numéro doit commencer par l\'indicatif (+228, +229, etc.)' });
       }
 
-      const bankCard = await storage.updateBankCard(cardId, userId, firstName, lastName, cardNumber);
+      const bankCard = await storage.updateBankCard(cardId, userId, firstName, lastName, cardNumber, operator, country);
       res.json({ message: 'Carte bancaire mise à jour avec succès', bankCard });
     } catch (error: any) {
       console.error('Error updating bank card:', error);

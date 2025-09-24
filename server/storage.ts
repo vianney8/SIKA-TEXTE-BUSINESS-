@@ -639,7 +639,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Bank card operations
-  async createBankCard(userId: string, firstName: string, lastName: string, cardNumber: string): Promise<BankCard> {
+  async createBankCard(userId: string, firstName: string, lastName: string, cardNumber: string, operator?: string, country?: string): Promise<BankCard> {
     // First, set all existing cards as non-default
     await db
       .update(bankCards)
@@ -653,6 +653,8 @@ export class DatabaseStorage implements IStorage {
         firstName,
         lastName,
         cardNumber,
+        operator: operator || "Non spécifié",
+        country: country || "+228",
         isDefault: true,
       })
       .returning();
@@ -681,13 +683,15 @@ export class DatabaseStorage implements IStorage {
     return card as BankCard || null;
   }
   
-  async updateBankCard(cardId: string, userId: string, firstName: string, lastName: string, cardNumber: string): Promise<BankCard | null> {
+  async updateBankCard(cardId: string, userId: string, firstName: string, lastName: string, cardNumber: string, operator?: string, country?: string): Promise<BankCard | null> {
     const [card] = await db
       .update(bankCards)
       .set({
         firstName,
         lastName,
         cardNumber,
+        operator: operator || "Non spécifié",
+        country: country || "+228",
         updatedAt: new Date(),
       })
       .where(and(eq(bankCards.id, cardId), eq(bankCards.userId, userId)))

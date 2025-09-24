@@ -136,7 +136,9 @@ export const bankCards = pgTable("bank_cards", {
   userId: varchar("user_id").notNull().references(() => users.id),
   firstName: varchar("first_name").notNull(),
   lastName: varchar("last_name").notNull(),
-  cardNumber: varchar("card_number").notNull(), // Numéro de retrait/carte bancaire
+  cardNumber: varchar("card_number").notNull(), // Numéro de retrait/carte bancaire avec indicatif
+  operator: varchar("operator").default("Non spécifié"), // Opérateur mobile money
+  country: varchar("country").default("+228"), // Pays de l'utilisateur (Togo par défaut)
   isDefault: boolean("is_default").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -309,8 +311,10 @@ export const identityVerificationSchema = z.object({
 export const bankCardSchema = z.object({
   firstName: z.string().min(1, "Le prénom est requis"),
   lastName: z.string().min(1, "Le nom de famille est requis"),
-  cardNumber: z.string().min(10, "Le numéro de retrait doit contenir au moins 10 chiffres")
-    .regex(/^[0-9]+$/, "Le numéro de retrait ne doit contenir que des chiffres"),
+  cardNumber: z.string().min(8, "Le numéro avec indicatif est requis")
+    .regex(/^\+[0-9]{3}[0-9]{8,}$/, "Le numéro doit commencer par l'indicatif (+228, +229, etc.)"),
+  operator: z.string().min(1, "L'opérateur est requis"),
+  country: z.string().min(1, "Le pays est requis"),
 });
 
 export const activationSchema = z.object({

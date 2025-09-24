@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, CreditCard, Edit3, Save, Trash2, Plus } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -18,14 +19,41 @@ interface BankCardData {
   firstName: string;
   lastName: string;
   cardNumber: string;
+  operator: string;
+  country: string;
   isDefault: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
 
+// Opérateurs selon le pays
+const OPERATORS_BY_COUNTRY: Record<string, string[]> = {
+  "+228": ["Moov Togo", "T-Money Togo"],
+  "+229": ["MTN", "Moov"],
+  "+221": ["Orange Money", "Wizall-senegal", "Expresso", "Free Sénégal"],
+  "+225": ["MTN", "Moov", "Orange Money", "Wave"],
+  "+226": ["Orange Money", "Moov"] // Burkina Faso
+};
+
+// Noms des pays par code
+const COUNTRY_NAMES: Record<string, string> = {
+  "+228": "Togo",
+  "+229": "Bénin",
+  "+221": "Sénégal",
+  "+225": "Côte d'Ivoire",
+  "+226": "Burkina Faso"
+};
+
 export default function BankCard() {
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
+  const [userCountry, setUserCountry] = useState<string>("");
+  const [availableOperators, setAvailableOperators] = useState<string[]>([]);
+
+  // Récupérer les infos utilisateur pour déterminer le pays
+  const { data: user } = useQuery<{id: string, phone: string, fullName: string}>({
+    queryKey: ['/api/auth/user'],
+  });
 
   const { data: bankCard, isLoading } = useQuery<BankCardData | null>({
     queryKey: ['/api/bank-card'],
@@ -37,8 +65,24 @@ export default function BankCard() {
       firstName: bankCard?.firstName || "",
       lastName: bankCard?.lastName || "",
       cardNumber: bankCard?.cardNumber || "",
+      operator: bankCard?.operator || "",
+      country: bankCard?.country || "",
     },
   });
+
+  // Déterminer le pays à partir du numéro de téléphone de l'utilisateur
+  useEffect(() => {
+    if (user?.phone) {
+      const countryCode = user.phone.substring(0, 4); // +228, +229, etc.
+      if (OPERATORS_BY_COUNTRY[countryCode]) {
+        setUserCountry(countryCode);
+        setAvailableOperators(OPERATORS_BY_COUNTRY[countryCode]);
+        
+        // Mettre à jour le formulaire avec le pays
+        form.setValue('country', countryCode);
+      }
+    }
+  }, [user, form]);
 
   // Reset form when bank card data changes
   useEffect(() => {
@@ -47,6 +91,8 @@ export default function BankCard() {
         firstName: bankCard.firstName,
         lastName: bankCard.lastName,
         cardNumber: bankCard.cardNumber,
+        operator: bankCard.operator,
+        country: bankCard.country,
       });
     }
   }, [bankCard, form]);
@@ -136,6 +182,8 @@ export default function BankCard() {
         firstName: bankCard.firstName,
         lastName: bankCard.lastName,
         cardNumber: bankCard.cardNumber,
+        operator: bankCard.operator,
+        country: bankCard.country,
       });
     }
   };
@@ -201,6 +249,13 @@ export default function BankCard() {
                   <p className="text-sm opacity-75">Numéro de retrait</p>
                   <p className="text-xl font-mono tracking-wider" data-testid="text-card-number">
                     {maskCardNumber(bankCard.cardNumber)}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-sm opacity-75">Opérateur</p>
+                  <p className="font-semibold" data-testid="text-card-operator">
+                    {bankCard.operator}
                   </p>
                 </div>
 
@@ -282,22 +337,51 @@ export default function BankCard() {
                     />
                   </div>
 
+                  {/* Opérateur */}
+                  <FormField
+                    control={form.control}
+                    name="operator"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Opérateur Mobile Money</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-operator">
+                              <SelectValue placeholder="Sélectionnez votre opérateur" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {availableOperators.map((operator) => (
+                              <SelectItem key={operator} value={operator}>
+                                {operator}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
                   {/* Card Number */}
                   <FormField
                     control={form.control}
                     name="cardNumber"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Numéro de retrait</FormLabel>
+                        <FormLabel>Numéro de retrait (avec indicatif)</FormLabel>
                         <FormControl>
                           <Input
                             type="tel"
-                            placeholder="1234567890123456"
+                            placeholder={userCountry ? `${userCountry}XXXXXXXX` : "+228XXXXXXXX"}
                             {...field}
                             data-testid="input-card-number"
                           />
                         </FormControl>
                         <FormMessage />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Exemple: {userCountry || "+228"}87654321
+                        </p>
                       </FormItem>
                     )}
                   />
@@ -330,6 +414,23 @@ export default function BankCard() {
                 </form>
               </Form>
 
+              {/* Info sur le pays */}
+              {userCountry && (
+                <div className="mt-4 bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <CreditCard className="w-5 h-5 text-blue-600 mt-1" />
+                    <div>
+                      <h4 className="font-semibold text-sm mb-2">Opérateurs disponibles en {COUNTRY_NAMES[userCountry]}</h4>
+                      <div className="text-xs text-muted-foreground space-y-1">
+                        {availableOperators.map(op => (
+                          <p key={op}>• {op}</p>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Security Notice */}
               <div className="mt-6 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-4">
                 <div className="flex items-start gap-3">
@@ -339,7 +440,8 @@ export default function BankCard() {
                     <div className="text-xs text-muted-foreground space-y-1">
                       <p>• Vos informations bancaires sont stockées de manière sécurisée</p>
                       <p>• Seuls les 4 derniers chiffres sont affichés</p>
-                      <p>• Utilisé uniquement pour vos retraits</p>
+                      <p>• Utilisé uniquement pour vos retraits Mobile Money</p>
+                      <p>• Le numéro doit inclure l'indicatif de votre pays</p>
                     </div>
                   </div>
                 </div>
