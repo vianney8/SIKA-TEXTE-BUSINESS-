@@ -178,7 +178,7 @@ export default function Register() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Pays</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} defaultValue={field.value || ""}>
                         <FormControl>
                           <SelectTrigger data-testid="select-country">
                             <SelectValue placeholder="Sélectionnez votre pays" />
