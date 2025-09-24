@@ -31,6 +31,7 @@ interface AdminUser {
   isBlocked: boolean;
   createdAt: string;
   referralsCount: number;
+  isActive?: boolean;
 }
 
 export default function AdminDashboard() {
@@ -174,6 +175,20 @@ export default function AdminDashboard() {
       toast({
         title: "Succès",
         description: "Compte activé avec succès",
+      });
+      refetchUsers();
+    },
+  });
+
+  // Deactivate account mutation
+  const deactivateAccountMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return apiRequest('POST', `/api/admin/users/${userId}/deactivate`);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Succès",
+        description: "Compte désactivé avec succès",
       });
       refetchUsers();
     },
@@ -640,15 +655,27 @@ export default function AdminDashboard() {
                       {user.isBlocked ? 'Débloquer' : 'Bloquer'}
                     </Button>
                     
-                    <Button
-                      size="sm"
-                      variant="default"
-                      onClick={() => activateAccountMutation.mutate(user.id)}
-                      data-testid={`button-activate-${user.id}`}
-                    >
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                      Activer
-                    </Button>
+                    {user.isActive ? (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => deactivateAccountMutation.mutate(user.id)}
+                        data-testid={`button-deactivate-${user.id}`}
+                      >
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Rendre inactif
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={() => activateAccountMutation.mutate(user.id)}
+                        data-testid={`button-activate-${user.id}`}
+                      >
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Activer
+                      </Button>
+                    )}
                     
                     <Button
                       size="sm"

@@ -71,6 +71,7 @@ export interface IStorage {
   // Account activation operations
   getAccountStatus(userId: string): Promise<AccountStatus | undefined>;
   activateAccount(userId: string): Promise<void>;
+  deactivateAccount(userId: string): Promise<void>;
   
   // Withdrawal operations
   createWithdrawal(userId: string, amount: number, phoneNumber: string): Promise<Withdrawal>;
@@ -597,6 +598,16 @@ export class DatabaseStorage implements IStorage {
       }
     }
   }
+
+  async deactivateAccount(userId: string): Promise<void> {
+    await db
+      .update(accountStatus)
+      .set({
+        isActive: false,
+        activatedAt: null,
+      })
+      .where(eq(accountStatus.userId, userId));
+  }
   
   // Withdrawal operations
   async createWithdrawal(userId: string, amount: number, phoneNumber: string): Promise<Withdrawal> {
@@ -808,7 +819,7 @@ export class DatabaseStorage implements IStorage {
     return result.count || 0;
   }
 
-  async searchUsersByPhone(phone: string): Promise<User[]> {
+  async searchUsersByPhone(phone: string): Promise<(User & { isActive?: boolean })[]> {
     const result = await db
       .select({
         id: users.id,
@@ -820,9 +831,12 @@ export class DatabaseStorage implements IStorage {
         role: users.role,
         isBlocked: users.isBlocked,
         createdAt: users.createdAt,
+        // Include activation status
+        isActive: accountStatus.isActive,
         // Explicitly exclude password and other sensitive fields
       })
       .from(users)
+      .leftJoin(accountStatus, eq(accountStatus.userId, users.id))
       .where(
         or(
           ilike(users.phone, `%${phone}%`),
@@ -833,7 +847,7 @@ export class DatabaseStorage implements IStorage {
     return result as User[];
   }
 
-  async getAllUsersWithReferrals(): Promise<(User & { referralsCount: number })[]> {
+  async getAllUsersWithReferrals(): Promise<(User & { referralsCount: number; isActive?: boolean })[]> {
     const result = await db
       .select({
         id: users.id,
@@ -845,12 +859,15 @@ export class DatabaseStorage implements IStorage {
         role: users.role,
         isBlocked: users.isBlocked,
         createdAt: users.createdAt,
+        // Include activation status
+        isActive: accountStatus.isActive,
         // Explicitly exclude password and other sensitive fields
         referralsCount: sql<number>`coalesce(count(${referrals.id}), 0)`,
       })
       .from(users)
       .leftJoin(referrals, eq(users.id, referrals.referrerId))
-      .groupBy(users.id, users.phone, users.email, users.fullName, users.balance, users.referralCode, users.role, users.isBlocked, users.createdAt)
+      .leftJoin(accountStatus, eq(accountStatus.userId, users.id))
+      .groupBy(users.id, users.phone, users.email, users.fullName, users.balance, users.referralCode, users.role, users.isBlocked, users.createdAt, accountStatus.isActive)
       .orderBy(desc(users.createdAt));
     return result as (User & { referralsCount: number })[];
   }

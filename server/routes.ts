@@ -883,6 +883,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Désactiver le compte d'un utilisateur (admin seulement)
+  app.post('/api/admin/users/:userId/deactivate', requireAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      
+      await storage.deactivateAccount(userId);
+      
+      res.json({ message: 'Compte désactivé avec succès' });
+    } catch (error) {
+      console.error('Error deactivating account:', error);
+      res.status(500).json({ message: 'Erreur lors de la désactivation du compte' });
+    }
+  });
+
   // Get all withdrawals for admin
   app.get('/api/admin/withdrawals', requireAdmin, async (req: any, res) => {
     try {
