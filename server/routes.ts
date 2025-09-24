@@ -754,6 +754,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get pending withdrawals for admin
+  app.get('/api/admin/withdrawals/pending', requireAdmin, async (req: any, res) => {
+    try {
+      const withdrawals = await storage.getPendingWithdrawalsList();
+      res.json(withdrawals);
+    } catch (error) {
+      console.error("Error fetching pending withdrawals:", error);
+      res.status(500).json({ message: "Erreur lors de la récupération des retraits" });
+    }
+  });
+
+  // Approve withdrawal
+  app.post('/api/admin/withdrawals/:id/approve', requireAdmin, async (req: any, res) => {
+    try {
+      await storage.updateWithdrawalStatus(req.params.id, 'completed');
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error approving withdrawal:", error);
+      res.status(500).json({ message: "Erreur lors de l'approbation" });
+    }
+  });
+
+  // Reject withdrawal
+  app.post('/api/admin/withdrawals/:id/reject', requireAdmin, async (req: any, res) => {
+    try {
+      await storage.updateWithdrawalStatus(req.params.id, 'failed');
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error rejecting withdrawal:", error);
+      res.status(500).json({ message: "Erreur lors du rejet" });
+    }
+  });
+
   app.get('/api/admin/stats', requireAdmin, async (req: any, res) => {
     try {
       const totalUsers = await storage.getTotalUsersCount();

@@ -689,6 +689,23 @@ export class DatabaseStorage implements IStorage {
       .from(identityVerification)
       .orderBy(desc(identityVerification.submittedAt));
   }
+
+  async getPendingWithdrawalsList(): Promise<any[]> {
+    return await db
+      .select({
+        id: withdrawals.id,
+        userId: withdrawals.userId,
+        amount: withdrawals.amount,
+        status: withdrawals.status,
+        createdAt: withdrawals.createdAt,
+        userPhone: users.phone,
+        userFullName: users.fullName
+      })
+      .from(withdrawals)
+      .leftJoin(users, eq(withdrawals.userId, users.id))
+      .where(eq(withdrawals.status, 'pending'))
+      .orderBy(desc(withdrawals.createdAt));
+  }
   
   async updateIdentityVerificationStatus(verificationId: string, status: string, adminNotes?: string, reviewedBy?: string): Promise<void> {
     await db

@@ -57,11 +57,45 @@ export default function AdminDashboard() {
   const [settingsModal, setSettingsModal] = useState(false);
   const [settings, setSettings] = useState<{[key: string]: string}>({});
   const [identityModal, setIdentityModal] = useState(false);
+  const [withdrawalsModal, setWithdrawalsModal] = useState(false);
   
   // Fetch identity verifications
   const { data: identityVerifications } = useQuery({
     queryKey: ['/api/admin/identity-verifications'],
     refetchInterval: 60000,
+  });
+
+  // Fetch pending withdrawals
+  const { data: pendingWithdrawals = [] } = useQuery({
+    queryKey: ['/api/admin/withdrawals/pending'],
+    refetchInterval: 30000,
+  });
+
+  // Withdrawal approval mutations
+  const approveWithdrawalMutation = useMutation({
+    mutationFn: async (withdrawalId: string) => {
+      return fetch(`/api/admin/withdrawals/${withdrawalId}/approve`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/withdrawals/pending'] });
+      toast({ title: "Retrait approuvé avec succès" });
+    }
+  });
+
+  const rejectWithdrawalMutation = useMutation({
+    mutationFn: async (withdrawalId: string) => {
+      return fetch(`/api/admin/withdrawals/${withdrawalId}/reject`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/withdrawals/pending'] });
+      toast({ title: "Retrait rejeté" });
+    }
   });
 
   // Fetch admin statistics
