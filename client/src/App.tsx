@@ -45,7 +45,6 @@ function Router() {
         <>
           <Route path="/" component={Landing} />
           <Route path="/register" component={Register} />
-          <Route path="/register/:ref" component={Register} />
           <Route path="/simple-login" component={SimpleLogin} />
         </>
       ) : (
@@ -65,6 +64,8 @@ function Router() {
           <Route path="/bank-card" component={BankCard} />
           <Route path="/admin" component={AdminDashboard} />
           <Route path="/dashboard" component={Dashboard} />
+          {/* Allow authenticated users to access register page for referral links */}
+          <Route path="/register" component={Register} />
         </>
       )}
       <Route component={NotFound} />
