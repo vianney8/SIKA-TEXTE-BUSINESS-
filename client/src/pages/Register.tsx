@@ -17,13 +17,46 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Link } from "wouter";
 import { Eye, EyeOff, Phone } from "lucide-react";
 
-// Country codes for supported countries
+// Country codes for supported African countries
 const COUNTRIES = [
+  // Afrique de l'Ouest
   { code: "+228", name: "Togo", flag: "🇹🇬" },
   { code: "+229", name: "Bénin", flag: "🇧🇯" },
-  { code: "+226", name: "Burkina Faso", flag: "🇧🇫" },
-  { code: "+225", name: "Côte d'Ivoire", flag: "🇨🇮" },
   { code: "+221", name: "Sénégal", flag: "🇸🇳" },
+  { code: "+225", name: "Côte d'Ivoire", flag: "🇨🇮" },
+  { code: "+226", name: "Burkina Faso", flag: "🇧🇫" },
+  { code: "+223", name: "Mali", flag: "🇲🇱" },
+  { code: "+224", name: "Guinée", flag: "🇬🇳" },
+  { code: "+227", name: "Niger", flag: "🇳🇪" },
+  
+  // Afrique Centrale
+  { code: "+237", name: "Cameroun", flag: "🇨🇲" },
+  { code: "+240", name: "Guinée Équatoriale", flag: "🇬🇶" },
+  { code: "+241", name: "Gabon", flag: "🇬🇦" },
+  { code: "+242", name: "Congo", flag: "🇨🇬" },
+  { code: "+243", name: "RD Congo", flag: "🇨🇩" },
+  { code: "+236", name: "République centrafricaine", flag: "🇨🇫" },
+  
+  // Afrique de l'Est
+  { code: "+254", name: "Kenya", flag: "🇰🇪" },
+  { code: "+255", name: "Tanzanie", flag: "🇹🇿" },
+  { code: "+256", name: "Ouganda", flag: "🇺🇬" },
+  { code: "+257", name: "Burundi", flag: "🇧🇮" },
+  { code: "+250", name: "Rwanda", flag: "🇷🇼" },
+  
+  // Afrique du Nord
+  { code: "+212", name: "Maroc", flag: "🇲🇦" },
+  { code: "+213", name: "Algérie", flag: "🇩🇿" },
+  { code: "+216", name: "Tunisie", flag: "🇹🇳" },
+  
+  // Autres pays africains
+  { code: "+233", name: "Ghana", flag: "🇬🇭" },
+  { code: "+234", name: "Nigeria", flag: "🇳🇬" },
+  { code: "+260", name: "Zambie", flag: "🇿🇲" },
+  { code: "+263", name: "Zimbabwe", flag: "🇿🇼" },
+  { code: "+27", name: "Afrique du Sud", flag: "🇿🇦" },
+  { code: "+251", name: "Éthiopie", flag: "🇪🇹" },
+  { code: "+252", name: "Somalie", flag: "🇸🇴" },
 ];
 
 // Extended register schema with country code support

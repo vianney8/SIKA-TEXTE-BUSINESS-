@@ -127,18 +127,18 @@ export class DatabaseStorage implements IStorage {
         },
       })
       .returning();
-    return result[0]! as User;
+    return result[0] as User;
   }
 
   // Authentication operations
   async getUserByPhone(phone: string): Promise<User | undefined> {
     const result = await db.select().from(users).where(eq(users.phone, phone));
-    return result[0];
+    return result.length > 0 ? result[0] : undefined;
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
     const result = await db.select().from(users).where(eq(users.email, email));
-    return result[0];
+    return result.length > 0 ? result[0] : undefined;
   }
 
   async createUser(userData: { 
@@ -167,7 +167,7 @@ export class DatabaseStorage implements IStorage {
           undefined,
       })
       .returning();
-    const user = result[0]! as User;
+    const user = result[0] as User;
 
     // Create account status (inactive by default)
     await db.insert(accountStatus).values({
