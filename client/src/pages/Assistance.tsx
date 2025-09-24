@@ -3,17 +3,26 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, MessageCircle, Users, Headphones } from "lucide-react";
 import { Link } from "wouter";
 import { FaWhatsapp, FaTelegram } from "react-icons/fa";
+import { useAppSetting } from "@/hooks/useAppSettings";
 
 export default function Assistance() {
+  const { data: whatsappGroup } = useAppSetting('whatsapp_group');
+  const { data: telegramSupervisor } = useAppSetting('telegram_supervisor');
+
   const handleWhatsAppGroup = () => {
     // WhatsApp group join link
-    const whatsappGroupUrl = "https://chat.whatsapp.com/CXhYz9x8KJ6AabcdXefGHi"; // Replace with actual group link
+    const whatsappGroupUrl = whatsappGroup || "https://chat.whatsapp.com/CXhYz9x8KJ6AabcdXefGHi";
     window.open(whatsappGroupUrl, '_blank', 'noopener,noreferrer');
   };
 
   const handleTelegramContact = () => {
-    // Telegram contact for provider
-    const telegramUrl = "https://t.me/sikatexte_support";
+    // Telegram contact for provider - convert @handle to https://t.me/handle
+    const telegramHandle = telegramSupervisor || "@sikatexte_support";
+    const telegramUrl = telegramHandle.startsWith('@') 
+      ? `https://t.me/${telegramHandle.slice(1)}` 
+      : telegramHandle.startsWith('https://') 
+        ? telegramHandle 
+        : `https://t.me/${telegramHandle}`;
     window.open(telegramUrl, '_blank', 'noopener,noreferrer');
   };
 
