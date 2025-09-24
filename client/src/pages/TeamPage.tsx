@@ -115,7 +115,7 @@ export default function TeamPage() {
                 <p className="text-xs text-slate-500 mb-2">Lien de parrainage :</p>
                 <p className="text-sm font-mono break-all">
                   {referralData?.referralCode 
-                    ? `https://sikatexte.site/simple-register?ref=${referralData.referralCode}`
+                    ? `https://sikatexte.site/register?ref=${referralData.referralCode}`
                     : "Chargement du lien..."
                   }
                 </p>
@@ -130,7 +130,7 @@ export default function TeamPage() {
                     });
                     return;
                   }
-                  const referralLink = `https://sikatexte.site/simple-register?ref=${referralData.referralCode}`;
+                  const referralLink = `https://sikatexte.site/register?ref=${referralData.referralCode}`;
                   navigator.clipboard.writeText(referralLink);
                   toast({
                     title: "Lien copié ! 📋",

@@ -3,11 +3,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { Lock, Phone, Eye, EyeOff } from "lucide-react";
 
+// Country codes for supported countries
+const COUNTRIES = [
+  { code: "+228", name: "Togo", flag: "🇹🇬" },
+  { code: "+229", name: "Bénin", flag: "🇧🇯" },
+  { code: "+226", name: "Burkina Faso", flag: "🇧🇫" },
+  { code: "+225", name: "Côte d'Ivoire", flag: "🇨🇮" },
+  { code: "+221", name: "Sénégal", flag: "🇸🇳" },
+];
+
 export default function SimpleLogin() {
+  const [countryCode, setCountryCode] = useState("+228"); // Default to Togo
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -18,10 +29,10 @@ export default function SimpleLogin() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!phoneNumber || !password) {
+    if (!countryCode || !phoneNumber || !password) {
       toast({
         title: "Erreur",
-        description: "Numéro de téléphone et mot de passe requis",
+        description: "Pays, numéro de téléphone et mot de passe requis",
         variant: "destructive",
       });
       return;
@@ -30,13 +41,17 @@ export default function SimpleLogin() {
     setIsLoading(true);
 
     try {
+      // Combine country code and phone number
+      const fullPhone = countryCode + phoneNumber;
+
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "include",
         body: JSON.stringify({
-          phoneNumber,
+          phoneNumber: fullPhone,
           password,
         }),
       });
@@ -83,6 +98,24 @@ export default function SimpleLogin() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Country Selector */}
+            <div className="space-y-2">
+              <Label>Pays</Label>
+              <Select value={countryCode} onValueChange={setCountryCode}>
+                <SelectTrigger data-testid="select-country">
+                  <SelectValue placeholder="Sélectionnez votre pays" />
+                </SelectTrigger>
+                <SelectContent>
+                  {COUNTRIES.map((country) => (
+                    <SelectItem key={country.code} value={country.code}>
+                      {country.flag} {country.name} ({country.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Phone Number */}
             <div className="space-y-2">
               <Label htmlFor="phoneNumber">Numéro de téléphone</Label>
               <div className="relative">
@@ -90,7 +123,7 @@ export default function SimpleLogin() {
                 <Input
                   id="phoneNumber"
                   type="tel"
-                  placeholder="+225 12345678"
+                  placeholder="12345678"
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
                   className="pl-10"
@@ -138,7 +171,7 @@ export default function SimpleLogin() {
           <div className="mt-6 text-center text-sm">
             <span className="text-gray-600">Pas encore de compte ? </span>
             <button
-              onClick={() => setLocation("/simple-register")}
+              onClick={() => setLocation("/register")}
               className="text-blue-600 hover:underline font-medium"
               data-testid="link-register"
             >

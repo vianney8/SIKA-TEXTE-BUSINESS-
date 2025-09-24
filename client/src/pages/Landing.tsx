@@ -35,7 +35,7 @@ export default function Landing() {
                 className="w-full py-3"
                 data-testid="button-register"
               >
-                <Link href="/simple-register">Créer un compte</Link>
+                <Link href="/register">Créer un compte</Link>
               </Button>
             </div>
 

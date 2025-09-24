@@ -69,40 +69,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Simple registration endpoint
   app.post('/api/auth/register', async (req, res) => {
     try {
-      const validatedData = simpleRegisterSchema.parse(req.body);
+      // Support new format with fullName and phone
+      const { fullName, phone, password, referralCode } = req.body;
       
-      // Check if user already exists by email or phone
-      const existingUserByEmail = await storage.getUserByEmail(validatedData.email);
-      if (existingUserByEmail) {
-        return res.status(400).json({ message: "Un utilisateur avec cet email existe déjà" });
+      // Basic validation
+      if (!fullName || !phone || !password) {
+        return res.status(400).json({ message: "Nom complet, téléphone et mot de passe requis" });
       }
       
-      const existingUserByPhone = await storage.getUserByPhone(validatedData.phoneNumber);
+      if (password.length < 4) {
+        return res.status(400).json({ message: "Le mot de passe doit contenir au moins 4 caractères" });
+      }
+      
+      // Check if user already exists by phone
+      const existingUserByPhone = await storage.getUserByPhone(phone);
       if (existingUserByPhone) {
         return res.status(400).json({ message: "Un utilisateur avec ce numéro de téléphone existe déjà" });
       }
 
       // Hash password
-      const hashedPassword = await bcrypt.hash(validatedData.password, 10);
+      const hashedPassword = await bcrypt.hash(password, 10);
 
       const user = await storage.createUser({
-        email: validatedData.email,
         password: hashedPassword,
-        firstName: validatedData.firstName,
-        lastName: validatedData.lastName,
-        fullName: `${validatedData.firstName} ${validatedData.lastName}`,
-        phone: validatedData.phoneNumber,
+        fullName: fullName,
+        phone: phone,
+        referralCode: referralCode,
       });
 
       // Set session
       (req as any).session.userId = user.id;
 
-      res.status(201).json({ message: "Compte créé avec succès", user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName } });
+      res.status(201).json({ 
+        message: "Compte créé avec succès", 
+        user: { 
+          id: user.id, 
+          fullName: user.fullName, 
+          phone: user.phone 
+        } 
+      });
     } catch (error: any) {
       console.error("Registration error:", error);
-      if (error.issues) {
-        return res.status(400).json({ message: "Données invalides", errors: error.issues });
-      }
       res.status(500).json({ message: "Erreur lors de la création du compte" });
     }
   });

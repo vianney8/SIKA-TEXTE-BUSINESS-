@@ -8,7 +8,6 @@ import { useAuth } from "@/hooks/useAuth";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/Landing";
 import Register from "@/pages/Register";
-import SimpleRegister from "@/pages/SimpleRegister";
 import SimpleLogin from "@/pages/SimpleLogin";
 import Dashboard from "@/pages/Dashboard";
 import Transfer from "@/pages/Transfer";
@@ -45,7 +44,6 @@ function Router() {
         <>
           <Route path="/" component={Landing} />
           <Route path="/register" component={Register} />
-          <Route path="/simple-register" component={SimpleRegister} />
           <Route path="/simple-login" component={SimpleLogin} />
         </>
       ) : (
@@ -61,6 +59,7 @@ function Router() {
           <Route path="/transactions" component={Transactions} />
           <Route path="/assistance" component={Assistance} />
           <Route path="/api-agregateur" component={ApiAgregateur} />
+          <Route path="/identity-verification" component={IdentityVerification} />
         </>
       )}
       <Route component={NotFound} />
