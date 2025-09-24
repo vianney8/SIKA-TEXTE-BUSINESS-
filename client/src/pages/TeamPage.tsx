@@ -101,6 +101,54 @@ export default function TeamPage() {
           </p>
         </div>
 
+        {/* Referral Link Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Share2 className="w-5 h-5 text-blue-600" />
+              Mon Lien de Parrainage
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-lg">
+                <p className="text-xs text-slate-500 mb-2">Lien de parrainage :</p>
+                <p className="text-sm font-mono break-all">
+                  {referralData?.referralCode 
+                    ? `${window.location.origin}/simple-register?ref=${referralData.referralCode}`
+                    : "Chargement du lien..."
+                  }
+                </p>
+              </div>
+              <Button 
+                onClick={() => {
+                  if (!referralData?.referralCode) {
+                    toast({
+                      title: "Erreur",
+                      description: "Code de parrainage non disponible",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  const referralLink = `${window.location.origin}/simple-register?ref=${referralData.referralCode}`;
+                  navigator.clipboard.writeText(referralLink);
+                  toast({
+                    title: "Lien copié ! 📋",
+                    description: "Votre lien de parrainage a été copié dans le presse-papiers",
+                  });
+                }}
+                variant="outline" 
+                className="w-full flex items-center gap-2"
+                data-testid="button-copy-referral-link"
+                disabled={!referralData?.referralCode}
+              >
+                <Copy className="w-4 h-4" />
+                Copier le lien
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Stats Cards */}
         <div className="grid grid-cols-2 gap-4">
           <Card>
