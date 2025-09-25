@@ -65,7 +65,7 @@ export default function SimpleLogin() {
         });
         // Petit délai pour que la session soit établie côté serveur
         setTimeout(() => {
-          setLocation("/");
+          window.location.href = "/";
         }, 500);
       } else {
         toast({
