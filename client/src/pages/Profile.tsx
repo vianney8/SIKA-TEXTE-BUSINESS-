@@ -198,10 +198,9 @@ export default function Profile() {
                         <FormLabel>Numéro de téléphone</FormLabel>
                         <div className="flex">
                           <select disabled className="bg-muted border border-input rounded-l-lg px-3 py-3 focus:ring-2 focus:ring-ring focus:border-transparent outline-none text-muted-foreground">
-                            <option>🇧🇯 +229</option>
+                            <option>🇹🇬 +228</option>
                             <option>🇨🇮 +225</option>
                             <option>🇸🇳 +221</option>
-                            <option>🇹🇬 +228</option>
                             <option>🇧🇫 +226</option>
                           </select>
                           <FormControl>
