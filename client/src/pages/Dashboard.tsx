@@ -252,13 +252,9 @@ export default function Dashboard() {
             <div className="p-6 text-center relative">
               <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
               <div className="relative z-10">
-                <div className="text-4xl mb-3 animate-bounce">💰</div>
-                <h2 className="text-2xl font-bold mb-2 animate-pulse">GAGNEZ EN CORRIGEANT</h2>
-                <p className="text-blue-100 text-lg mb-3 animate-fade-in">Des phrases, des gains !</p>
-                <div className="bg-white/20 rounded-lg p-3 backdrop-blur-sm">
-                  <p className="text-sm font-medium">💰 Gagnez 650 FCFA par phrase corrigée</p>
-                  <p className="text-xs text-blue-100 mt-1">12 phrases par jour • Paiement automatique</p>
-                </div>
+                <div className="text-4xl mb-3">🎉</div>
+                <h2 className="text-2xl font-bold mb-2">SIKA TEXTE BUSINESS</h2>
+                <p className="text-blue-100 text-lg">Plateforme Européenne</p>
               </div>
             </div>
           </Card>

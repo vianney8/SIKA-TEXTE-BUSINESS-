@@ -50,7 +50,7 @@ export default function Work() {
   }, [sentences, currentSentence]);
 
   const submitCorrectionMutation = useMutation({
-    mutationFn: async (data: { sentenceId: string; userAnswer: string }) => {
+    mutationFn: async (data: { sentenceId: string; answer: string }) => {
       const response = await apiRequest("POST", "/api/work/submit", data);
       return response.json();
     },
@@ -76,9 +76,10 @@ export default function Work() {
 
   const handleSubmit = () => {
     if (currentSentence && userAnswer.trim()) {
+      console.log("Submitting:", { sentenceId: currentSentence.id, userAnswer: userAnswer.trim() });
       submitCorrectionMutation.mutate({
         sentenceId: currentSentence.id,
-        userAnswer: userAnswer.trim(),
+        answer: userAnswer.trim(),
       });
     }
   };
@@ -282,22 +283,21 @@ export default function Work() {
                   <p className="text-sm text-slate-500">
                     Récompense : <span className="font-semibold text-green-600">{formatFCFA(650)}</span>
                   </p>
-                  
-                  {/* Bank Card Option */}
-                  <div className="border-t pt-3">
-                    <Button 
-                      asChild
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      data-testid="button-bank-card-work"
-                    >
-                      <Link href="/bank-card">
-                        <CreditCard className="w-4 h-4 mr-2" />
-                        Gérer ma carte bancaire
-                      </Link>
-                    </Button>
-                  </div>
+                </div>
+                
+                {/* Bank Card Option - Moved up for visibility */}
+                <div className="mt-4 pt-4 border-t">
+                  <Button 
+                    asChild
+                    variant="default"
+                    className="w-full bg-purple-600 hover:bg-purple-700"
+                    data-testid="button-bank-card-work"
+                  >
+                    <Link href="/bank-card">
+                      <CreditCard className="w-4 h-4 mr-2" />
+                      Gérer ma carte bancaire
+                    </Link>
+                  </Button>
                 </div>
               </div>
             ) : (

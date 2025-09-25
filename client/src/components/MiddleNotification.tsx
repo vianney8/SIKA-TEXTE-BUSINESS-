@@ -29,43 +29,35 @@ export default function MiddleNotification() {
             <X className="w-5 h-5" />
           </button>
           
-          <div className="text-5xl mb-3 animate-bounce">🎯</div>
+          <div className="text-4xl mb-3">📱</div>
           
-          <h3 className="text-xl font-bold text-white">
-            Commencez à gagner maintenant !
+          <h3 className="text-lg font-semibold text-white">
+            Rejoignez notre groupe WhatsApp !
           </h3>
           
           <p className="text-blue-100 text-sm leading-relaxed">
-            Corrigez des phrases et gagnez 650 FCFA chacune. 
-            Jusqu'à 12 phrases par jour = 7800 FCFA !
+            Rejoignez notre groupe de dissolution WhatsApp pour être au courant de nos dernières mises à jour.
           </p>
-          
-          <div className="bg-white/20 rounded-lg p-3 backdrop-blur-sm">
-            <div className="flex items-center justify-center gap-2 text-yellow-300">
-              <Gift className="w-4 h-4" />
-              <span className="text-sm font-semibold">Paiement automatique</span>
-            </div>
-          </div>
           
           <div className="space-y-3 pt-2">
             <Button
               onClick={() => {
-                window.location.href = "/work";
+                window.open("https://chat.whatsapp.com/HtUYvCOeJArHYLhMcRCsDs", "_blank");
                 setIsVisible(false);
               }}
-              className="w-full bg-white text-blue-600 hover:bg-blue-50 py-3 rounded-lg font-bold"
-              data-testid="button-start-working"
+              className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-medium"
+              data-testid="button-join-whatsapp"
             >
-              Commencer maintenant ! 🚀
+              Rejoindre
             </Button>
             
             <Button
               onClick={() => setIsVisible(false)}
               variant="outline"
               className="w-full border-white/30 text-white hover:bg-white/10 py-2 rounded-lg"
-              data-testid="button-later-notification"
+              data-testid="button-ok-notification"
             >
-              Plus tard
+              Ok
             </Button>
           </div>
         </div>
