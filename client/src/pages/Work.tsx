@@ -10,6 +10,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { formatFCFA } from "@/lib/utils";
+import { Link } from "wouter";
 
 interface Sentence {
   id: string;
@@ -50,10 +51,7 @@ export default function Work() {
 
   const submitCorrectionMutation = useMutation({
     mutationFn: async (data: { sentenceId: string; userAnswer: string }) => {
-      const response = await apiRequest("/api/work/submit", {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
+      const response = await apiRequest("POST", "/api/work/submit", data);
       return response.json();
     },
     onSuccess: (data: any) => {
@@ -94,6 +92,27 @@ export default function Work() {
       setShowResult(false);
       setIsCorrect(false);
     }
+  };
+
+  const highlightErrors = (originalText: string, correctedText: string) => {
+    if (!correctedText) return originalText;
+    
+    const original = originalText.split(' ');
+    const corrected = correctedText.split(' ');
+    
+    return original.map((word, index) => {
+      const correctedWord = corrected[index] || '';
+      const isError = word.toLowerCase() !== correctedWord.toLowerCase();
+      
+      return (
+        <span key={index}>
+          <span className={isError ? "text-red-600 font-bold bg-red-100 px-1 rounded" : ""}>
+            {word}
+          </span>
+          {index < original.length - 1 && ' '}
+        </span>
+      );
+    });
   };
 
   if ((progress?.correctedToday || 0) >= (progress?.maxPerDay || 12)) {
@@ -192,7 +211,7 @@ export default function Work() {
               <div className="space-y-4">
                 <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-6 rounded-lg">
                   <p className="text-xl font-medium leading-relaxed text-slate-900 dark:text-slate-100">
-                    "{currentSentence.text}"
+                    "{highlightErrors(currentSentence.text, currentSentence.correctedText)}"
                   </p>
                   <div className="mt-3 flex items-center gap-2 text-sm font-medium text-blue-700 dark:text-blue-300">
                     <AlertCircle className="w-4 h-4" />
@@ -263,6 +282,22 @@ export default function Work() {
                   <p className="text-sm text-slate-500">
                     Récompense : <span className="font-semibold text-green-600">{formatFCFA(650)}</span>
                   </p>
+                  
+                  {/* Bank Card Option */}
+                  <div className="border-t pt-3">
+                    <Button 
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      data-testid="button-bank-card-work"
+                    >
+                      <Link href="/bank-card">
+                        <CreditCard className="w-4 h-4 mr-2" />
+                        Gérer ma carte bancaire
+                      </Link>
+                    </Button>
+                  </div>
                 </div>
               </div>
             ) : (
