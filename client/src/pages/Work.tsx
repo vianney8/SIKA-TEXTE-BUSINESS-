@@ -146,6 +146,21 @@ export default function Work() {
               <p className="text-sm text-slate-500">
                 Revenez demain pour de nouvelles phrases à corriger !
               </p>
+              
+              {/* Bank Card Button - Always visible */}
+              <div className="mt-6 pt-4 border-t">
+                <Button 
+                  asChild
+                  variant="default"
+                  className="w-full bg-purple-600 hover:bg-purple-700"
+                  data-testid="button-bank-card-completed"
+                >
+                  <Link href="/bank-card">
+                    <CreditCard className="w-4 h-4 mr-2" />
+                    Gérer ma carte bancaire
+                  </Link>
+                </Button>
+              </div>
             </CardContent>
           </Card>
           </div>
