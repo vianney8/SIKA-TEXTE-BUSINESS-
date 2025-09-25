@@ -8,6 +8,7 @@ interface TransactionCardProps {
     status: string;
     createdAt: string;
     description?: string;
+    reference?: string;
   };
 }
 
@@ -94,9 +95,10 @@ export default function TransactionCard({ transaction }: TransactionCardProps) {
   const getTypeLabel = (type: string, description?: string) => {
     switch (type) {
       case "deposit":
+        if (description?.includes("ADMIN:")) return description.replace("ADMIN: ", "");
         if (description?.includes("correction")) return "Corrections";
         if (description?.includes("Bonus de bienvenue")) return "Bonus de bienvenue";
-        return "Bonus de bienvenue";
+        return description || "Dépôt";
       case "pointage":
         return "Pointage";
       case "transfer":
@@ -134,6 +136,9 @@ export default function TransactionCard({ transaction }: TransactionCardProps) {
               hour: "2-digit",
               minute: "2-digit",
             })}
+            {transaction.reference && (
+              <div className="text-xs text-gray-500 mt-1">ID: {transaction.reference}</div>
+            )}
           </div>
         </div>
       </div>
