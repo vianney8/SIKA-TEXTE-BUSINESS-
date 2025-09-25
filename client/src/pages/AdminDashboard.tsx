@@ -807,17 +807,92 @@ export default function AdminDashboard() {
           <div className="max-h-96 overflow-y-auto space-y-4">
             {(identityVerifications as any[])?.map((verification: any) => (
               <Card key={verification.id}>
-                <CardContent className="p-4">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h4 className="font-medium">{verification.userPhone || verification.userId}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(verification.submittedAt).toLocaleDateString('fr-FR')}
-                      </p>
+                <CardContent className="p-6">
+                  <div className="space-y-4">
+                    {/* User Info Header */}
+                    <div className="flex justify-between items-center border-b pb-3">
+                      <div>
+                        <h4 className="font-medium text-lg">ID: {verification.userId}</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Soumis le: {new Date(verification.submittedAt).toLocaleDateString('fr-FR', {
+                            day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                          })}
+                        </p>
+                      </div>
+                      <Badge variant={verification.status === 'approved' ? 'default' : verification.status === 'pending' ? 'secondary' : 'destructive'}>
+                        {verification.status === 'approved' ? '✅ Approuvé' : verification.status === 'pending' ? '⏳ En attente' : '❌ Rejeté'}
+                      </Badge>
                     </div>
-                    <Badge variant={verification.status === 'approved' ? 'default' : 'secondary'}>
-                      {verification.status === 'approved' ? 'Approuvé' : verification.status === 'pending' ? 'En attente' : 'Rejeté'}
-                    </Badge>
+
+                    {/* Photos Grid */}
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="text-center">
+                        <p className="text-sm font-medium mb-2">Recto de la pièce</p>
+                        {verification.frontIdPhotoUrl ? (
+                          <img 
+                            src={verification.frontIdPhotoUrl} 
+                            alt="Recto ID" 
+                            className="w-full h-24 object-cover rounded-lg border cursor-pointer hover:opacity-80"
+                            onClick={() => window.open(verification.frontIdPhotoUrl, '_blank')}
+                          />
+                        ) : (
+                          <div className="w-full h-24 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">
+                            Non fourni
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="text-center">
+                        <p className="text-sm font-medium mb-2">Verso de la pièce</p>
+                        {verification.backIdPhotoUrl ? (
+                          <img 
+                            src={verification.backIdPhotoUrl} 
+                            alt="Verso ID" 
+                            className="w-full h-24 object-cover rounded-lg border cursor-pointer hover:opacity-80"
+                            onClick={() => window.open(verification.backIdPhotoUrl, '_blank')}
+                          />
+                        ) : (
+                          <div className="w-full h-24 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">
+                            Non fourni
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="text-center">
+                        <p className="text-sm font-medium mb-2">Photo Selfie</p>
+                        {verification.selfiePhotoUrl ? (
+                          <img 
+                            src={verification.selfiePhotoUrl} 
+                            alt="Selfie" 
+                            className="w-full h-24 object-cover rounded-lg border cursor-pointer hover:opacity-80"
+                            onClick={() => window.open(verification.selfiePhotoUrl, '_blank')}
+                          />
+                        ) : (
+                          <div className="w-full h-24 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">
+                            Non fourni
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* API Info */}
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <h5 className="font-medium text-sm mb-2">Informations API</h5>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div><strong>Verification ID:</strong> {verification.id}</div>
+                        <div><strong>User ID:</strong> {verification.userId}</div>
+                        <div><strong>Status:</strong> {verification.status}</div>
+                        <div><strong>Date création:</strong> {new Date(verification.submittedAt).toISOString()}</div>
+                        {verification.reviewedAt && <div><strong>Date révision:</strong> {new Date(verification.reviewedAt).toISOString()}</div>}
+                        {verification.reviewedBy && <div><strong>Révisé par:</strong> {verification.reviewedBy}</div>}
+                      </div>
+                      {verification.adminNotes && (
+                        <div className="mt-2">
+                          <strong className="text-xs">Notes admin:</strong>
+                          <p className="text-xs text-gray-600 mt-1">{verification.adminNotes}</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
