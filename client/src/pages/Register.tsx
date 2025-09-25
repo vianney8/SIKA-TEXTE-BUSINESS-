@@ -96,9 +96,13 @@ export default function Register() {
     onSuccess: () => {
       toast({
         title: "Compte créé avec succès !",
-        description: "Connectez-vous maintenant avec vos identifiants",
+        description: "Bienvenue sur SIKA TEXTE BUSINESS",
       });
-      setLocation("/simple-login");
+      // User is automatically authenticated after registration
+      // Redirect to dashboard instead of login page
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 1000);
     },
     onError: (error: any) => {
       toast({
