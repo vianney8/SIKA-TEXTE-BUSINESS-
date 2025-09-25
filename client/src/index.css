@@ -123,3 +123,18 @@
 .animate-scroll-left {
   animation: scroll-left 30s linear infinite;
 }
+
+@keyframes scale-in {
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s ease-out;
+}

@@ -6,6 +6,7 @@ import HamburgerMenu from "@/components/HamburgerMenu";
 import BottomNavigation from "@/components/BottomNavigation";
 import TransactionCard from "@/components/TransactionCard";
 import TestimonialsSlider from "@/components/TestimonialsSlider";
+import MiddleNotification from "@/components/MiddleNotification";
 import WhatsAppNotification from "@/components/WhatsAppNotification";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -251,9 +252,9 @@ export default function Dashboard() {
             <div className="p-6 text-center relative">
               <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
               <div className="relative z-10">
-                <div className="text-4xl mb-3">🎉</div>
-                <h2 className="text-2xl font-bold mb-2">SIKA TEXTE BUSINESS</h2>
-                <p className="text-blue-100 text-lg mb-3">Plateforme Européenne</p>
+                <div className="text-4xl mb-3 animate-bounce">💰</div>
+                <h2 className="text-2xl font-bold mb-2 animate-pulse">GAGNEZ EN CORRIGEANT</h2>
+                <p className="text-blue-100 text-lg mb-3 animate-fade-in">Des phrases, des gains !</p>
                 <div className="bg-white/20 rounded-lg p-3 backdrop-blur-sm">
                   <p className="text-sm font-medium">💰 Gagnez 650 FCFA par phrase corrigée</p>
                   <p className="text-xs text-blue-100 mt-1">12 phrases par jour • Paiement automatique</p>
@@ -268,6 +269,7 @@ export default function Dashboard() {
       </main>
 
       <BottomNavigation currentPage="home" />
+      <MiddleNotification />
     </div>
   );
 }
