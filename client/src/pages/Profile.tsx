@@ -32,7 +32,7 @@ export default function Profile() {
   const profileForm = useForm<ProfileForm>({
     defaultValues: {
       fullName: (user as any)?.fullName || ((user as any)?.firstName + " " + (user as any)?.lastName) || "",
-      phone: (user as any)?.phone || "",
+      phone: (user as any)?.phone ? (user as any).phone.replace(/^\+\d{3}/, "") : "",
       email: (user as any)?.email || "",
     },
   });
