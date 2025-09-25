@@ -26,12 +26,12 @@ interface BankCardData {
   updatedAt?: string;
 }
 
-// Opérateurs Mobile Money selon le pays
+// Opérateurs Mobile Money pour tous les pays
 const OPERATORS_BY_COUNTRY: Record<string, string[]> = {
-  "+228": ["Moov Togo", "T-Money Togo"], // Togo
-  "+229": ["Mtn", "Moov"], // Bénin
-  "+221": ["Orange Money", "Wizall-senegal", "Expresso", "Free Sénégal"], // Sénégal
-  "+225": ["Mtn", "Moov", "Orange Money", "Wave"], // Côte d'Ivoire
+  "+228": ["T-Money", "Wizall-senegal", "Expresso", "Free Sénégal", "Mtn", "Moov", "Orange Money", "Wave"], // Togo
+  "+229": ["T-Money", "Wizall-senegal", "Expresso", "Free Sénégal", "Mtn", "Moov", "Orange Money", "Wave"], // Bénin
+  "+221": ["T-Money", "Wizall-senegal", "Expresso", "Free Sénégal", "Mtn", "Moov", "Orange Money", "Wave"], // Sénégal
+  "+225": ["T-Money", "Wizall-senegal", "Expresso", "Free Sénégal", "Mtn", "Moov", "Orange Money", "Wave"], // Côte d'Ivoire
 };
 
 // Noms des pays par code
@@ -434,22 +434,6 @@ export default function BankCard() {
                 </form>
               </Form>
 
-              {/* Info sur le pays */}
-              {userCountry && (
-                <div className="mt-4 bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <CreditCard className="w-5 h-5 text-blue-600 mt-1" />
-                    <div>
-                      <h4 className="font-semibold text-sm mb-2">Opérateurs disponibles en {COUNTRY_NAMES[userCountry]}</h4>
-                      <div className="text-xs text-muted-foreground space-y-1">
-                        {availableOperators.map(op => (
-                          <p key={op}>• {op}</p>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* Security Notice */}
               <div className="mt-6 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-4">
