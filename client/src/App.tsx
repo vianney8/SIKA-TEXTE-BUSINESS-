@@ -4,6 +4,9 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
+import { useLocation } from "wouter";
+import { useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/Landing";
 import Register from "@/pages/Register";
@@ -24,6 +27,63 @@ import BankCard from "@/pages/BankCard";
 import AdminDashboard from "@/pages/AdminDashboard";
 import AdminSettings from "@/pages/AdminSettings";
 import Summary from "@/pages/Summary";
+
+// Wrapper component to handle authenticated user redirects for register page
+function RegisterWithRedirect() {
+  const { isAuthenticated, user } = useAuth();
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const referralCodeParam = urlParams.get('ref');
+      
+      if (referralCodeParam) {
+        toast({
+          title: "Déjà connecté",
+          description: `Vous êtes déjà connecté ! Code de parrainage: ${referralCodeParam}`,
+        });
+      }
+      
+      if ((user as any)?.role === 'admin') {
+        setLocation('/admin');
+      } else {
+        setLocation('/dashboard');
+      }
+      return;
+    }
+  }, [isAuthenticated, user, setLocation, toast]);
+
+  if (isAuthenticated) {
+    return null; // Don't render anything while redirecting
+  }
+
+  return <Register />;
+}
+
+// Wrapper component to handle authenticated user redirects for login page
+function SimpleLoginWithRedirect() {
+  const { isAuthenticated, user } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      if ((user as any)?.role === 'admin') {
+        setLocation('/admin');
+      } else {
+        setLocation('/dashboard');
+      }
+      return;
+    }
+  }, [isAuthenticated, user, setLocation]);
+
+  if (isAuthenticated) {
+    return null; // Don't render anything while redirecting
+  }
+
+  return <SimpleLogin />;
+}
 
 function Router() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -46,8 +106,8 @@ function Router() {
       {!isAuthenticated ? (
         <>
           <Route path="/" component={Landing} />
-          <Route path="/register" component={Register} />
-          <Route path="/simple-login" component={SimpleLogin} />
+          <Route path="/register" component={RegisterWithRedirect} />
+          <Route path="/simple-login" component={SimpleLoginWithRedirect} />
         </>
       ) : (
         <>
@@ -68,8 +128,10 @@ function Router() {
           <Route path="/admin" component={AdminDashboard} />
           <Route path="/dashboard" component={Dashboard} />
           <Route path="/summary" component={Summary} />
+          {/* Allow authenticated users to access login page (redirects to dashboard) */}
+          <Route path="/simple-login" component={SimpleLoginWithRedirect} />
           {/* Allow authenticated users to access register page for referral links */}
-          <Route path="/register" component={Register} />
+          <Route path="/register" component={RegisterWithRedirect} />
         </>
       )}
       <Route component={NotFound} />
