@@ -488,11 +488,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/work/sentences', requireAuth, async (req: any, res) => {
     try {
-      const sentences = await storage.getRandomSentences(5);
+      const userId = req.session.userId;
+      const sentences = await storage.getDailySentences(userId, 12);
       res.json(sentences);
     } catch (error) {
-      console.error('Error fetching sentences:', error);
-      res.status(500).json({ message: 'Erreur lors de la récupération des phrases' });
+      console.error('Error fetching daily sentences:', error);
+      res.status(500).json({ message: 'Erreur lors de la récupération des phrases quotidiennes' });
     }
   });
 

@@ -5,6 +5,7 @@ import {
   sentences,
   workProgress,
   corrections,
+  userSentenceAssignments,
   accountStatus,
   withdrawals,
   identityVerification,
@@ -18,6 +19,8 @@ import {
   type Sentence,
   type WorkProgress,
   type Correction,
+  type UserSentenceAssignment,
+  type InsertUserSentenceAssignment,
   type AccountStatus,
   type Withdrawal,
   type IdentityVerification,
@@ -27,7 +30,7 @@ import {
   type InsertAppSetting,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, and, inArray, like, ilike, or } from "drizzle-orm";
+import { eq, desc, sql, and, inArray, like, ilike, or, notInArray } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import { randomBytes } from "crypto";
 
@@ -69,6 +72,7 @@ export interface IStorage {
   getWorkProgress(userId: string, date: string): Promise<WorkProgress | undefined>;
   updateWorkProgress(userId: string, date: string, correctionsCount: number, earnings: number): Promise<void>;
   getRandomSentences(limit?: number): Promise<Sentence[]>;
+  getDailySentences(userId: string, limit?: number): Promise<(Sentence & { assignedDate: string })[]>;
   submitCorrection(userId: string, sentenceId: string, userAnswer: string): Promise<{ correct: boolean; reward: number }>;
   
   // Account activation operations
@@ -522,6 +526,185 @@ export class DatabaseStorage implements IStorage {
       .where(eq(sentences.isActive, true))
       .orderBy(sql`random()`)
       .limit(limit);
+  }
+
+  async getDailySentences(userId: string, limit = 12): Promise<(Sentence & { assignedDate: string })[]> {
+    const today = this.getCurrentDate();
+    
+    // First, get existing assignments for today
+    const existingAssignments = await db
+      .select({
+        sentence: sentences,
+        assignedDate: userSentenceAssignments.assignedDate
+      })
+      .from(userSentenceAssignments)
+      .innerJoin(sentences, eq(userSentenceAssignments.sentenceId, sentences.id))
+      .where(
+        and(
+          eq(userSentenceAssignments.userId, userId),
+          eq(userSentenceAssignments.assignedDate, today)
+        )
+      )
+      .limit(limit);
+
+    // If we already have enough assignments for today, return them
+    if (existingAssignments.length >= limit) {
+      return existingAssignments.map(a => ({ ...a.sentence, assignedDate: a.assignedDate }));
+    }
+
+    // We need more sentences - find new ones not seen by this user before
+    // Get ALL sentence IDs already assigned to this user (ever)
+    const alreadyAssignedIds = await db
+      .select({ sentenceId: userSentenceAssignments.sentenceId })
+      .from(userSentenceAssignments)
+      .where(eq(userSentenceAssignments.userId, userId));
+
+    const excludedIds = alreadyAssignedIds.map(a => a.sentenceId);
+    
+    // Find new sentences not in excluded list
+    const neededCount = limit - existingAssignments.length;
+    let candidateSentences: Sentence[];
+    
+    if (excludedIds.length > 0) {
+      candidateSentences = await db
+        .select()
+        .from(sentences)
+        .where(
+          and(
+            eq(sentences.isActive, true),
+            notInArray(sentences.id, excludedIds)
+          )
+        )
+        .limit(neededCount);
+    } else {
+      candidateSentences = await db
+        .select()
+        .from(sentences)
+        .where(eq(sentences.isActive, true))
+        .limit(neededCount);
+    }
+
+    // If we don't have enough new sentences, user has seen all available sentences
+    // Fall back to least recently assigned sentences (oldest first)
+    if (candidateSentences.length < neededCount) {
+      // Ensure we have enough sentences in the database
+      await this.ensureSufficientSentences();
+      
+      // Get least recently assigned sentences for this user (oldest assignments first)
+      const oldestAssignments = await db
+        .select({ 
+          sentence: sentences,
+          assignedDate: userSentenceAssignments.assignedDate 
+        })
+        .from(userSentenceAssignments)
+        .innerJoin(sentences, eq(userSentenceAssignments.sentenceId, sentences.id))
+        .where(
+          and(
+            eq(userSentenceAssignments.userId, userId),
+            eq(sentences.isActive, true)
+          )
+        )
+        .orderBy(userSentenceAssignments.assignedDate) // oldest assignments first
+        .limit(neededCount);
+      
+      candidateSentences = oldestAssignments.map(a => a.sentence);
+    }
+
+    // Create assignments for new sentences
+    if (candidateSentences.length > 0) {
+      const newAssignments = candidateSentences.map(sentence => ({
+        userId,
+        sentenceId: sentence.id,
+        assignedDate: today,
+      }));
+
+      await db.insert(userSentenceAssignments).values(newAssignments);
+    }
+
+    // Return all sentences for today
+    const allTodayAssignments = await db
+      .select({ 
+        sentence: sentences,
+        assignedDate: userSentenceAssignments.assignedDate
+      })
+      .from(userSentenceAssignments)
+      .innerJoin(sentences, eq(userSentenceAssignments.sentenceId, sentences.id))
+      .where(
+        and(
+          eq(userSentenceAssignments.userId, userId),
+          eq(userSentenceAssignments.assignedDate, today)
+        )
+      )
+      .limit(limit);
+
+    return allTodayAssignments.map(a => ({ ...a.sentence, assignedDate: a.assignedDate }));
+  }
+
+  private async ensureSufficientSentences(): Promise<void> {
+    // Check if we have enough sentences in the database
+    const count = await db.select({ count: sql<number>`count(*)` }).from(sentences);
+    
+    if (Number(count[0].count) < 50) { // Ensure we have at least 50 sentences for rotation
+      await this.createAdditionalSentences();
+    }
+  }
+
+  private async createAdditionalSentences(): Promise<void> {
+    // Add more sentences to ensure sufficient variety for daily assignments
+    const additionalSentences = [
+      {
+        text: "Le soleil brilles dans le ciel bleu sans nuage aujourd'hui.",
+        correctedText: "Le soleil brille dans le ciel bleu sans nuage aujourd'hui.",
+        errorCount: 1
+      },
+      {
+        text: "Mes parents travaille dur pour nous offrir une meilleure vie.",
+        correctedText: "Mes parents travaillent dur pour nous offrir une meilleure vie.",
+        errorCount: 1
+      },
+      {
+        text: "La musique africaine tradition est très riche et variée.",
+        correctedText: "La musique africaine traditionnelle est très riche et variée.",
+        errorCount: 1
+      },
+      {
+        text: "Les fermiers cultivent le mais, le mil et l'arachide.",
+        correctedText: "Les fermiers cultivent le maïs, le mil et l'arachide.",
+        errorCount: 1
+      },
+      {
+        text: "Notre village organize une fête culturelle chaque année.",
+        correctedText: "Notre village organise une fête culturelle chaque année.",
+        errorCount: 1
+      },
+      {
+        text: "Les technologies moderne transforment notre façon de vivre.",
+        correctedText: "Les technologies modernes transforment notre façon de vivre.",
+        errorCount: 1
+      },
+      {
+        text: "L'éducation est la clé du développement économiques durable.",
+        correctedText: "L'éducation est la clé du développement économique durable.",
+        errorCount: 1
+      },
+      {
+        text: "Les jeunes entrepreneurs créent des entreprise innovantes.",
+        correctedText: "Les jeunes entrepreneurs créent des entreprises innovantes.",
+        errorCount: 1
+      },
+      {
+        text: "Il faut protéger l'environnement pour les générations futures.",
+        correctedText: "Il faut protéger l'environnement pour les générations futures.",
+        errorCount: 0
+      },
+      {
+        text: "La culture africaine influence la mode et l'art mondial.",
+        correctedText: "La culture africaine influence la mode et l'art mondial.",
+        errorCount: 0
+      }
+    ];
+
+    await db.insert(sentences).values(additionalSentences);
   }
   
   async submitCorrection(userId: string, sentenceId: string, userAnswer: string): Promise<{ correct: boolean; reward: number }> {

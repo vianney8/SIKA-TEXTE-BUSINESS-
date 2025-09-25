@@ -101,6 +101,18 @@ export const corrections = pgTable("corrections", {
   completedAt: timestamp("completed_at").defaultNow(),
 });
 
+export const userSentenceAssignments = pgTable("user_sentence_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  sentenceId: varchar("sentence_id").notNull().references(() => sentences.id),
+  assignedDate: varchar("assigned_date").notNull(), // Format YYYY-MM-DD
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  // Unique constraint to ensure one assignment per user per sentence per day
+  userSentenceDateUnique: unique().on(table.userId, table.sentenceId, table.assignedDate),
+}));
+
 export const accountStatus = pgTable("account_status", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),
@@ -157,6 +169,7 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   }),
   workProgress: many(workProgress),
   corrections: many(corrections),
+  sentenceAssignments: many(userSentenceAssignments),
   accountStatus: one(accountStatus),
   withdrawals: many(withdrawals),
   identityVerification: one(identityVerification),
@@ -177,6 +190,17 @@ export const correctionsRelations = relations(corrections, ({ one }) => ({
   }),
   sentence: one(sentences, {
     fields: [corrections.sentenceId],
+    references: [sentences.id],
+  }),
+}));
+
+export const userSentenceAssignmentsRelations = relations(userSentenceAssignments, ({ one }) => ({
+  user: one(users, {
+    fields: [userSentenceAssignments.userId],
+    references: [users.id],
+  }),
+  sentence: one(sentences, {
+    fields: [userSentenceAssignments.sentenceId],
     references: [sentences.id],
   }),
 }));
@@ -353,6 +377,8 @@ export type Referral = typeof referrals.$inferSelect;
 export type Sentence = typeof sentences.$inferSelect;
 export type WorkProgress = typeof workProgress.$inferSelect;
 export type Correction = typeof corrections.$inferSelect;
+export type UserSentenceAssignment = typeof userSentenceAssignments.$inferSelect;
+export type InsertUserSentenceAssignment = typeof userSentenceAssignments.$inferInsert;
 export type AccountStatus = typeof accountStatus.$inferSelect;
 export type Withdrawal = typeof withdrawals.$inferSelect;
 export type IdentityVerification = typeof identityVerification.$inferSelect;
