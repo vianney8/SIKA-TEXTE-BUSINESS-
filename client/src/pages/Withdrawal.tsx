@@ -22,6 +22,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
+import { useAppSetting } from "@/hooks/useAppSettings";
 
 interface WithdrawalData {
   balance: number;
@@ -47,6 +48,10 @@ interface BankCardData {
 export default function Withdrawal() {
   const { toast } = useToast();
   const [amount, setAmount] = useState("");
+  
+  // Récupérer les liens dynamiques depuis les paramètres admin
+  const { data: activationLink } = useAppSetting('activation_link');
+  const { data: telegramSupervisor } = useAppSetting('telegram_supervisor');
 
   const { data: withdrawalData } = useQuery<WithdrawalData>({
     queryKey: ['/api/withdrawal'],
@@ -183,7 +188,11 @@ export default function Withdrawal() {
                     size="lg" 
                     className="w-full"
                   >
-                    <a href="https://app.payix.me/payment/32518586-14cc-4a45-877a-758608f969aa" target="_blank" rel="noopener noreferrer">
+                    <a 
+                      href={activationLink || "https://app.payix.me/payment/32518586-14cc-4a45-877a-758608f969aa"} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                    >
                       <ExternalLink className="w-5 h-5 mr-2" />
                       Payer l'activation en ligne
                     </a>
@@ -206,7 +215,17 @@ export default function Withdrawal() {
                       size="sm" 
                       className="w-full border-orange-300 hover:bg-orange-100"
                     >
-                      <a href="https://t.me/SIKAcustomer_service" target="_blank" rel="noopener noreferrer">
+                      <a 
+                        href={
+                          telegramSupervisor?.startsWith('@') 
+                            ? `https://t.me/${telegramSupervisor.slice(1)}` 
+                            : telegramSupervisor?.startsWith('https://') 
+                              ? telegramSupervisor 
+                              : `https://t.me/${telegramSupervisor || 'SIKAcustomer_service'}`
+                        } 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                      >
                         <MessageCircle className="w-4 h-4 mr-2" />
                         Contacter sur Telegram
                       </a>

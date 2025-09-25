@@ -9,7 +9,8 @@ export function useAppSetting(key: string) {
       const data = await response.json();
       return data.value || '';
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 0, // Pas de cache - toujours récupérer la valeur fraîche
+    refetchOnWindowFocus: true, // Recharger quand on revient sur l'onglet
   });
 }
 
