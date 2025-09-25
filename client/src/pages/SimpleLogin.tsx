@@ -63,10 +63,10 @@ export default function SimpleLogin() {
           title: "Connexion réussie !",
           description: "Bienvenue sur SIKA TEXTE BUSINESS",
         });
-        // Petit délai pour que la session soit établie côté serveur
+        // Force un rafraîchissement complet pour les téléphones mobiles
         setTimeout(() => {
-          window.location.href = "/";
-        }, 500);
+          window.location.replace("/");
+        }, 800);
       } else {
         toast({
           title: "Erreur de connexion",
