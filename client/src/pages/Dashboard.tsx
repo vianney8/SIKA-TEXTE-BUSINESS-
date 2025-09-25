@@ -20,30 +20,6 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
 
   // Notification WhatsApp à chaque chargement
-  useEffect(() => {
-    const showWhatsAppNotification = () => {
-      toast({
-        title: "📱 Rejoignez notre groupe WhatsApp !",
-        description: (
-          <div className="space-y-2">
-            <p>Restez au courant des derniers événements</p>
-            <a 
-              href="https://chat.whatsapp.com/HtUYvCOeJArHYLhMcRCsDs" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-green-600 underline font-medium"
-            >
-              Rejoindre le groupe →
-            </a>
-          </div>
-        ),
-        duration: 8000,
-      });
-    };
-
-    const timer = setTimeout(showWhatsAppNotification, 1000);
-    return () => clearTimeout(timer);
-  }, [toast]);
 
   const { data: balance } = useQuery({
     queryKey: ["/api/user/balance"],
@@ -270,12 +246,18 @@ export default function Dashboard() {
             })}
           </div>
 
-          {/* News Banner */}
-          <Card className="bg-white rounded-xl shadow-sm border border-border">
-            <div className="p-0">
-              <div className="text-center py-8">
-                <h2 className="text-3xl font-bold text-primary mb-2">SIKA TEXTE</h2>
-                <p className="text-lg text-muted-foreground">Plateforme Européenne</p>
+          {/* Central Notification Banner */}
+          <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl shadow-lg border-0 overflow-hidden">
+            <div className="p-6 text-center relative">
+              <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
+              <div className="relative z-10">
+                <div className="text-4xl mb-3">🎉</div>
+                <h2 className="text-2xl font-bold mb-2">SIKA TEXTE BUSINESS</h2>
+                <p className="text-blue-100 text-lg mb-3">Plateforme Européenne</p>
+                <div className="bg-white/20 rounded-lg p-3 backdrop-blur-sm">
+                  <p className="text-sm font-medium">💰 Gagnez 650 FCFA par phrase corrigée</p>
+                  <p className="text-xs text-blue-100 mt-1">12 phrases par jour • Paiement automatique</p>
+                </div>
               </div>
             </div>
           </Card>
