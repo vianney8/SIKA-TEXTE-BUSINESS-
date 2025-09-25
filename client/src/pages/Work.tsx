@@ -125,7 +125,7 @@ export default function Work() {
             <h1 className="text-lg font-semibold" data-testid="page-title">Travail</h1>
           </div>
         </div>
-        <div className="p-4">
+        <div className="p-4 pb-24">
           <div className="max-w-md mx-auto pt-8">
           <Card className="text-center">
             <CardHeader>
@@ -167,7 +167,7 @@ export default function Work() {
           <h1 className="text-lg font-semibold" data-testid="page-title">Travail</h1>
         </div>
       </div>
-      <div className="p-4">
+      <div className="p-4 pb-24">
         <div className="max-w-md mx-auto pt-8">
         {/* Progress Card */}
         <Card className="mb-6">

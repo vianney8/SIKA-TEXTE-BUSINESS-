@@ -34,7 +34,7 @@ export default function MiddleNotification() {
           </h3>
           
           <p className="text-blue-100 text-sm leading-relaxed">
-            Rejoignez notre groupe de dissolution WhatsApp pour être au courant de nos dernières mises à jour.
+            Rejoignez notre groupe de discussion WhatsApp pour être au courant de nos dernières mises à jour.
           </p>
           
           <div className="space-y-3 pt-2">
