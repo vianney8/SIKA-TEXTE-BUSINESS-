@@ -2,9 +2,11 @@ import { useState, useEffect } from "react";
 import { X, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useAppSetting } from "@/hooks/useAppSettings";
 
 export default function MiddleNotification() {
   const [isVisible, setIsVisible] = useState(false);
+  const { data: whatsappGroup } = useAppSetting('whatsapp_group');
 
   useEffect(() => {
     // Show notification after 2 seconds
@@ -40,7 +42,8 @@ export default function MiddleNotification() {
           <div className="space-y-3 pt-2">
             <Button
               onClick={() => {
-                window.open("https://chat.whatsapp.com/HtUYvCOeJArHYLhMcRCsDs", "_blank");
+                const whatsappGroupUrl = whatsappGroup || "https://chat.whatsapp.com/HtUYvCOeJArHYLhMcRCsDs";
+                window.open(whatsappGroupUrl, "_blank");
                 setIsVisible(false);
               }}
               className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-medium"

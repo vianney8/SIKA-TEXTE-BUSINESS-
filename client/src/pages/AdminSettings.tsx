@@ -48,7 +48,13 @@ export default function AdminSettings() {
         title: "Paramètres sauvegardés",
         description: "Les liens ont été mis à jour avec succès"
       });
+      // Invalider toutes les requêtes de paramètres
       queryClient.invalidateQueries({ queryKey: ['/api/admin/settings'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
+      // Invalider spécifiquement chaque paramètre
+      Object.keys(settings).forEach(key => {
+        queryClient.invalidateQueries({ queryKey: [`/api/settings/${key}`] });
+      });
     },
     onError: (error: any) => {
       toast({
