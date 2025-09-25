@@ -252,7 +252,6 @@ export default function Dashboard() {
             <div className="p-6 text-center relative">
               <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
               <div className="relative z-10">
-                <div className="text-4xl mb-3">🎉</div>
                 <h2 className="text-2xl font-bold mb-2">SIKA TEXTE BUSINESS</h2>
                 <p className="text-blue-100 text-lg">Plateforme Européenne</p>
               </div>

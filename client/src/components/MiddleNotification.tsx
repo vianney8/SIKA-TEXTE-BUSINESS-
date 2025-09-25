@@ -29,10 +29,8 @@ export default function MiddleNotification() {
             <X className="w-5 h-5" />
           </button>
           
-          <div className="text-4xl mb-3">📱</div>
-          
           <h3 className="text-lg font-semibold text-white">
-            Rejoignez notre groupe WhatsApp !
+            Rejoignez notre groupe WhatsApp
           </h3>
           
           <p className="text-blue-100 text-sm leading-relaxed">
