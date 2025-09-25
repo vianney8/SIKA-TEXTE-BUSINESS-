@@ -49,11 +49,22 @@ function setupSessions(app: Express) {
 }
 
 // Simple auth middleware
-function requireAuth(req: any, res: any, next: any) {
+async function requireAuth(req: any, res: any, next: any) {
   if (!req.session || !req.session.userId) {
     return res.status(401).json({ message: "Unauthorized" });
   }
-  next();
+  
+  try {
+    const user = await storage.getUser(req.session.userId);
+    if (!user || user.isBlocked) {
+      // Destroy session if user is blocked
+      req.session.destroy();
+      return res.status(403).json({ message: "Account blocked" });
+    }
+    next();
+  } catch (error) {
+    return res.status(500).json({ message: "Error checking user status" });
+  }
 }
 
 // Admin auth middleware
