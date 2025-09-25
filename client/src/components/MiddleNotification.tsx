@@ -52,7 +52,7 @@ export default function MiddleNotification() {
             <Button
               onClick={() => setIsVisible(false)}
               variant="outline"
-              className="w-full border-white/30 text-white hover:bg-white/10 py-2 rounded-lg"
+              className="w-full border-white text-white bg-white/20 hover:bg-white/30 py-2 rounded-lg font-medium"
               data-testid="button-ok-notification"
             >
               Ok
