@@ -101,8 +101,8 @@ export default function Transactions() {
     switch (type) {
       case "deposit":
         if (description?.includes("correction")) return "Corrections";
-        if (description?.includes("Bonus de bienvenue")) return "Bonus de bienvenue";
-        return "Bonus de bienvenue";
+        if (description?.includes("Bonus de bienvenue")) return "Récompenses";
+        return "Récompenses";
       case "pointage":
         return "Pointage";
       case "transfer":

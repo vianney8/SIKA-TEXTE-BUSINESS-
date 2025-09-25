@@ -97,8 +97,8 @@ export default function TransactionCard({ transaction }: TransactionCardProps) {
       case "deposit":
         if (description?.includes("ADMIN:")) return description.replace("ADMIN: ", "");
         if (description?.includes("correction")) return "Corrections";
-        if (description?.includes("Bonus de bienvenue")) return "Bonus de bienvenue";
-        return description || "Dépôt";
+        if (description?.includes("Bonus de bienvenue")) return "Récompenses";
+        return description || "Récompenses";
       case "pointage":
         return "Pointage";
       case "transfer":

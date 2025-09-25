@@ -589,7 +589,7 @@ export default function AdminDashboard() {
                     <Label htmlFor="credit-description">Description (visible par l'utilisateur)</Label>
                     <Textarea
                       id="credit-description"
-                      placeholder="Ex: Pointage pour retrait"
+                      placeholder="Ex: Récompenses"
                       value={creditDescription}
                       onChange={(e) => setCreditDescription(e.target.value)}
                       data-testid="input-credit-description"
