@@ -71,6 +71,10 @@ export default function Register() {
       // Combine country code and phone number
       const fullPhone = data.countryCode + data.phoneNumber;
 
+      // Add timeout controller
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds
+
       const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: {
@@ -84,7 +88,10 @@ export default function Register() {
           password: data.password,
           referralCode: data.referralCode || undefined,
         }),
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const error = await response.json();

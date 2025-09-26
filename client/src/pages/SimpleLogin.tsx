@@ -44,6 +44,10 @@ export default function SimpleLogin() {
       // Combine country code and phone number
       const fullPhone = countryCode + phoneNumber;
 
+      // Add timeout controller
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds
+
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: {
@@ -54,7 +58,10 @@ export default function SimpleLogin() {
           phoneNumber: fullPhone,
           password,
         }),
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
 
       const data = await response.json();
 
@@ -74,12 +81,21 @@ export default function SimpleLogin() {
           variant: "destructive",
         });
       }
-    } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "Erreur de connexion au serveur",
-        variant: "destructive",
-      });
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        toast({
+          title: "Timeout",
+          description: "La connexion prend trop de temps. Vérifiez votre connexion internet.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Erreur",
+          description: "Erreur de connexion au serveur",
+          variant: "destructive",
+        });
+      }
+      console.error("Login error:", error);
     } finally {
       setIsLoading(false);
     }
