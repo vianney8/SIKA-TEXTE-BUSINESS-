@@ -21,8 +21,9 @@ import { Eye, EyeOff, Phone } from "lucide-react";
 const COUNTRIES = [
   { code: "+228", name: "Togo", flag: "🇹🇬" },
   { code: "+229", name: "Bénin", flag: "🇧🇯" },
-  { code: "+221", name: "Sénégal", flag: "🇸🇳" },
+  { code: "+226", name: "Burkina Faso", flag: "🇧🇫" },
   { code: "+225", name: "Côte d'Ivoire", flag: "🇨🇮" },
+  { code: "+221", name: "Sénégal", flag: "🇸🇳" },
 ];
 
 // Extended register schema with country code support
