@@ -1053,8 +1053,8 @@ export class DatabaseStorage implements IStorage {
         role: users.role,
         isBlocked: users.isBlocked,
         createdAt: users.createdAt,
-        // Include activation status
-        isActive: accountStatus.isActive,
+        // Include activation status (default to true if no status record exists)
+        isActive: sql<boolean>`coalesce(${accountStatus.isActive}, true)`,
         // Explicitly exclude password and other sensitive fields
       })
       .from(users)
@@ -1081,8 +1081,8 @@ export class DatabaseStorage implements IStorage {
         role: users.role,
         isBlocked: users.isBlocked,
         createdAt: users.createdAt,
-        // Include activation status
-        isActive: accountStatus.isActive,
+        // Include activation status (default to true if no status record exists)
+        isActive: sql<boolean>`coalesce(${accountStatus.isActive}, true)`,
         // Explicitly exclude password and other sensitive fields
       })
       .from(users)
@@ -1109,8 +1109,8 @@ export class DatabaseStorage implements IStorage {
         role: users.role,
         isBlocked: users.isBlocked,
         createdAt: users.createdAt,
-        // Include activation status
-        isActive: accountStatus.isActive,
+        // Include activation status (default to true if no status record exists)
+        isActive: sql<boolean>`coalesce(${accountStatus.isActive}, true)`,
         // Explicitly exclude password and other sensitive fields
         referralsCount: sql<number>`coalesce(count(${referrals.id}), 0)`,
       })
