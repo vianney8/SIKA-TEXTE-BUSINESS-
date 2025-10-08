@@ -62,13 +62,11 @@ export default function AdminDashboard() {
   // Fetch identity verifications
   const { data: identityVerifications } = useQuery({
     queryKey: ['/api/admin/identity-verifications'],
-    refetchInterval: 60000,
   });
 
   // Fetch pending withdrawals
   const { data: pendingWithdrawals = [] } = useQuery({
     queryKey: ['/api/admin/withdrawals/pending'],
-    refetchInterval: 30000,
   });
 
   // Withdrawal approval mutations
@@ -101,20 +99,18 @@ export default function AdminDashboard() {
   // Fetch admin statistics
   const { data: stats, refetch: refetchStats } = useQuery<AdminStats>({
     queryKey: ['/api/admin/stats'],
-    refetchInterval: 30000, // Refresh every 30 seconds
   });
 
   // Fetch all users with referrals
   const { data: allUsers, refetch: refetchUsers } = useQuery<AdminUser[]>({
     queryKey: ['/api/admin/users'],
-    refetchInterval: 60000, // Refresh every minute
   });
 
   // Search users mutation (by phone or email)
   const searchMutation = useMutation<AdminUser[], Error, string>({
     mutationFn: async (query: string): Promise<AdminUser[]> => {
       const response = await apiRequest('GET', `/api/admin/users/search?query=${encodeURIComponent(query)}`);
-      return response as unknown as AdminUser[];
+      return await response.json();
     },
     onSuccess: (data: AdminUser[]) => {
       setSearchResults(data);
