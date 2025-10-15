@@ -331,7 +331,18 @@ export default function AdminDashboard() {
                     <div className="text-sm text-gray-500">Code: {user.referralCode}</div>
                   </div>
                 </td>
-                <td className="border border-gray-300 px-4 py-2">{user.phone}</td>
+                <td className="border border-gray-300 px-4 py-2">
+                  {user.phone && (
+                    <div className="flex items-center gap-1">
+                      {user.phone.startsWith('+228') && <span>🇹🇬 +228</span>}
+                      {user.phone.startsWith('+229') && <span>🇧🇯 +229</span>}
+                      {user.phone.startsWith('+226') && <span>🇧🇫 +226</span>}
+                      {user.phone.startsWith('+221') && <span>🇸🇳 +221</span>}
+                      {user.phone.startsWith('+225') && <span>🇨🇮 +225</span>}
+                      <span>{user.phone.replace(/^\+22[5689156]/, '')}</span>
+                    </div>
+                  )}
+                </td>
                 <td className="border border-gray-300 px-4 py-2">
                   <span className="font-mono">{parseFloat(user.balance || '0').toFixed(0)} FCFA</span>
                 </td>
