@@ -661,6 +661,67 @@ export default function AdminDashboard() {
           </Card>
         </div>
 
+        {/* Pending Withdrawals Section */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingDown className="h-5 w-5 text-red-600" />
+              Retraits en Attente
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {pendingWithdrawals && pendingWithdrawals.length > 0 ? (
+              <div className="space-y-3">
+                {pendingWithdrawals.map((withdrawal: any) => (
+                  <div key={withdrawal.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <div className="flex-1">
+                      <p className="font-semibold text-lg">{parseFloat(withdrawal.amount || '0').toFixed(0)} FCFA</p>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        Utilisateur: {withdrawal.userFullName || withdrawal.userId}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Téléphone: {withdrawal.phoneNumber}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {new Date(withdrawal.createdAt).toLocaleString('fr-FR')}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700"
+                        onClick={() => approveWithdrawalMutation.mutate(withdrawal.id)}
+                        disabled={approveWithdrawalMutation.isPending}
+                        data-testid={`button-approve-withdrawal-${withdrawal.id}`}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        Valider
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => {
+                          if (confirm("Rejeter ce retrait ?")) {
+                            rejectWithdrawalMutation.mutate(withdrawal.id);
+                          }
+                        }}
+                        disabled={rejectWithdrawalMutation.isPending}
+                        data-testid={`button-reject-withdrawal-${withdrawal.id}`}
+                      >
+                        ✖ Rejeter
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-slate-500">
+                Aucun retrait en attente
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Users Section with Real-time Search */}
         <Card>
           <CardHeader>
