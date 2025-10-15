@@ -245,53 +245,6 @@ export default function Withdrawal() {
     );
   }
 
-  // Check if user needs to add bank card first
-  if (!isBankCardLoading && !bankCard) {
-    return (
-      <div className="min-h-screen bg-background">
-        {/* Header */}
-        <div className="gradient-bg text-primary-foreground">
-          <div className="px-6 py-4 flex items-center">
-            <Button asChild variant="ghost" size="sm" className="text-primary-foreground hover:bg-white/10">
-              <Link href="/" data-testid="button-back">
-                <ArrowLeft className="w-5 h-5" />
-              </Link>
-            </Button>
-            <h1 className="ml-4 text-lg font-semibold">Retrait</h1>
-          </div>
-        </div>
-
-        <div className="p-6">
-          <Card className="border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950">
-            <CardContent className="p-6">
-              <div className="text-center">
-                <div className="bg-orange-100 dark:bg-orange-900 p-4 rounded-full mx-auto w-20 h-20 flex items-center justify-center mb-4">
-                  <CreditCard className="w-10 h-10 text-orange-600 dark:text-orange-400" />
-                </div>
-                <h3 className="text-xl font-semibold text-orange-800 dark:text-orange-200 mb-2">
-                  Carte bancaire requise
-                </h3>
-                <p className="text-orange-700 dark:text-orange-300 mb-6">
-                  Pour effectuer des retraits, vous devez d'abord enregistrer votre carte bancaire.
-                </p>
-                
-                <Button 
-                  asChild
-                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                  data-testid="button-add-bank-card"
-                >
-                  <Link href="/bank-card">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Ajouter ma carte bancaire
-                  </Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
