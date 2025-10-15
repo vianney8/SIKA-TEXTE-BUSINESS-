@@ -51,9 +51,6 @@ export default function MiddleNotification() {
             >
               Rejoindre
             </Button>
-            <p className="text-xs text-green-100">
-              https://whatsapp.com/channel/0029VbBFjJI1iUxJy9fOQg0f
-            </p>
             
             <Button
               onClick={() => setIsVisible(false)}
