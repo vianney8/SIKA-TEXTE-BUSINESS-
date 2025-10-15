@@ -21,7 +21,7 @@ export default function MiddleNotification() {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl shadow-2xl max-w-sm w-full mx-4 relative animate-scale-in">
+      <Card className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-xl shadow-2xl max-w-sm w-full mx-4 relative animate-scale-in">
         <div className="p-6 text-center space-y-4">
           <button
             onClick={() => setIsVisible(false)}
@@ -32,25 +32,28 @@ export default function MiddleNotification() {
           </button>
           
           <h3 className="text-lg font-semibold text-white">
-            Rejoignez notre groupe WhatsApp
+            Rejoignez notre groupe Telegram
           </h3>
           
-          <p className="text-blue-100 text-sm leading-relaxed">
-            Rejoignez notre groupe de discussion WhatsApp pour être au courant de nos dernières mises à jour.
+          <p className="text-purple-100 text-sm leading-relaxed">
+            Rejoignez notre groupe de discussion Telegram pour être au courant de nos dernières mises à jour.
           </p>
           
           <div className="space-y-3 pt-2">
             <Button
               onClick={() => {
-                const whatsappGroupUrl = whatsappGroup || "https://chat.whatsapp.com/HtUYvCOeJArHYLhMcRCsDs";
-                window.open(whatsappGroupUrl, "_blank");
+                const telegramGroupUrl = whatsappGroup || "https://t.me/sikatexte";
+                window.open(telegramGroupUrl, "_blank");
                 setIsVisible(false);
               }}
-              className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-medium"
-              data-testid="button-join-whatsapp"
+              className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg font-medium"
+              data-testid="button-join-telegram"
             >
               Rejoindre
             </Button>
+            <p className="text-xs text-purple-200">
+              https://t.me/sikatexte
+            </p>
             
             <Button
               onClick={() => setIsVisible(false)}
