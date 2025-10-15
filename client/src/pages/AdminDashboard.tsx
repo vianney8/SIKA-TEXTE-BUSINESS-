@@ -257,20 +257,15 @@ export default function AdminDashboard() {
     },
   });
 
-  const handleSearch = () => {
-    if (searchQuery.trim()) {
-      searchMutation.mutate(searchQuery.trim());
-    }
-  };
-
-  // Recherche en temps réel
+  // Recherche en temps réel avec debounce optimisé
   useEffect(() => {
-    if (searchQuery.trim().length > 2) {
+    if (searchQuery.trim().length >= 3) {
       const debounceTimer = setTimeout(() => {
         searchMutation.mutate(searchQuery.trim());
-      }, 300);
+      }, 400);
       return () => clearTimeout(debounceTimer);
-    } else {
+    } else if (searchQuery.trim().length === 0) {
+      // Si le champ est vide, réinitialiser les résultats
       setSearchResults([]);
     }
   }, [searchQuery]);
@@ -658,56 +653,73 @@ export default function AdminDashboard() {
           </Card>
         </div>
 
-        {/* Search Section */}
-        <Card className="mb-8">
+        {/* Users Section with Real-time Search */}
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Search className="h-5 w-5" />
-              Recherche d'Utilisateurs
+              <Users className="h-5 w-5" />
+              Gestion des Utilisateurs
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <Label htmlFor="search-phone">Numéro de téléphone</Label>
+            {/* Search Input */}
+            <div className="mb-6">
+              <Label htmlFor="search-query">Recherche par téléphone ou email</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
                   id="search-query"
-                  placeholder="Ex: +22812345678 ou email@example.com"
+                  className="pl-10"
+                  placeholder="Tapez au moins 3 caractères pour filtrer..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   data-testid="input-search-query"
                 />
               </div>
-              <div className="flex items-end">
-                <Button 
-                  onClick={handleSearch}
-                  disabled={searchMutation.isPending}
-                  data-testid="button-search"
-                >
-                  {searchMutation.isPending ? "Recherche..." : "Rechercher"}
-                </Button>
-              </div>
+              {searchQuery.trim().length > 0 && searchQuery.trim().length < 3 && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Tapez au moins 3 caractères pour rechercher
+                </p>
+              )}
+              {searchMutation.isPending && (
+                <p className="text-sm text-primary mt-1">Recherche en cours...</p>
+              )}
             </div>
             
-            {/* Search Results */}
-            {searchResults.length > 0 && (
-              <div className="mt-6">
-                <h3 className="text-lg font-semibold mb-4">Résultats de recherche</h3>
-                <UserTable users={searchResults} onSelectUser={setSelectedUser} />
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* All Users Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Tous les Utilisateurs</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {allUsers && allUsers.length > 0 && (
-              <UserTable users={allUsers} onSelectUser={setSelectedUser} />
-            )}
+            {/* Users List - Show filtered results or all users */}
+            <div>
+              {searchQuery.trim().length >= 3 ? (
+                // Show search results
+                searchResults.length > 0 ? (
+                  <>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {searchResults.length} résultat(s) trouvé(s)
+                    </p>
+                    <UserTable users={searchResults} onSelectUser={setSelectedUser} />
+                  </>
+                ) : (
+                  !searchMutation.isPending && (
+                    <p className="text-center py-8 text-muted-foreground">
+                      Aucun utilisateur trouvé pour "{searchQuery}"
+                    </p>
+                  )
+                )
+              ) : (
+                // Show all users when no search
+                allUsers && allUsers.length > 0 ? (
+                  <>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {allUsers.length} utilisateur(s) au total
+                    </p>
+                    <UserTable users={allUsers} onSelectUser={setSelectedUser} />
+                  </>
+                ) : (
+                  <p className="text-center py-8 text-muted-foreground">
+                    Aucun utilisateur
+                  </p>
+                )
+              )}
+            </div>
           </CardContent>
         </Card>
 
