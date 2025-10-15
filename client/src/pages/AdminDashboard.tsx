@@ -412,27 +412,24 @@ export default function AdminDashboard() {
                       {user.isBlocked ? 'Débloquer' : 'Bloquer'}
                     </Button>
                     
-                    {user.isActive ? (
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => deactivateAccountMutation.mutate(user.id)}
-                        data-testid={`button-deactivate-${user.id}`}
-                      >
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        Rendre inactif
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="default"
-                        onClick={() => activateAccountMutation.mutate(user.id)}
-                        data-testid={`button-activate-${user.id}`}
-                      >
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        Activer
-                      </Button>
-                    )}
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={user.isActive || false}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            activateAccountMutation.mutate(user.id);
+                          } else {
+                            deactivateAccountMutation.mutate(user.id);
+                          }
+                        }}
+                        className="w-5 h-5 cursor-pointer"
+                        data-testid={`checkbox-activate-${user.id}`}
+                      />
+                      <span className="text-sm font-medium">
+                        {user.isActive ? '✅ Activé' : '❌ Inactif'}
+                      </span>
+                    </label>
                     
                     <Button
                       size="sm"
