@@ -125,6 +125,20 @@ export default function AdminSettings() {
             </div>
 
             <div>
+              <Label htmlFor="whatsapp_supervisor">Superviseur WhatsApp</Label>
+              <Input
+                id="whatsapp_supervisor"
+                value={settings.whatsapp_supervisor || ''}
+                onChange={(e) => handleInputChange('whatsapp_supervisor', e.target.value)}
+                placeholder="639072914078"
+                data-testid="input-whatsapp-supervisor"
+              />
+              <p className="text-sm text-muted-foreground mt-1">
+                Numéro WhatsApp du superviseur (format: 639072914078)
+              </p>
+            </div>
+
+            <div>
               <Label htmlFor="telegram_supervisor">Superviseur Telegram</Label>
               <Input
                 id="telegram_supervisor"

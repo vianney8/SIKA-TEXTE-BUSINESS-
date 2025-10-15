@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { 
   CreditCard, 
   AlertTriangle, 
@@ -23,6 +24,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import { useAppSetting } from "@/hooks/useAppSettings";
+import { FaWhatsapp, FaTelegram } from "react-icons/fa";
 
 interface WithdrawalData {
   balance: number;
@@ -48,10 +50,12 @@ interface BankCardData {
 export default function Withdrawal() {
   const { toast } = useToast();
   const [amount, setAmount] = useState("");
+  const [showSupervisorDialog, setShowSupervisorDialog] = useState(false);
   
   // Récupérer les liens dynamiques depuis les paramètres admin
   const { data: activationLink } = useAppSetting('activation_link');
   const { data: telegramSupervisor } = useAppSetting('telegram_supervisor');
+  const { data: whatsappSupervisor } = useAppSetting('whatsapp_supervisor');
 
   const { data: withdrawalData } = useQuery<WithdrawalData>({
     queryKey: ['/api/withdrawal'],
@@ -121,6 +125,7 @@ export default function Withdrawal() {
 
   if (!withdrawalData?.isAccountActive) {
     return (
+      <>
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
         <div className="max-w-md mx-auto pt-8">
           {/* Back Button */}
@@ -209,39 +214,69 @@ export default function Withdrawal() {
                       Contactez notre superviseur pour assistance
                     </p>
                     <Button 
-                      data-testid="button-telegram-contact"
-                      asChild
+                      data-testid="button-supervisor-contact"
+                      onClick={() => setShowSupervisorDialog(true)}
                       variant="outline" 
                       size="sm" 
                       className="w-full border-orange-300 hover:bg-orange-100"
                     >
-                      <a 
-                        href={
-                          telegramSupervisor?.startsWith('@') 
-                            ? `https://t.me/${telegramSupervisor.slice(1)}` 
-                            : telegramSupervisor?.startsWith('https://') 
-                              ? telegramSupervisor 
-                              : `https://t.me/${telegramSupervisor || 'SIKAcustomer_service'}`
-                        } 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                      >
-                        <MessageCircle className="w-4 h-4 mr-2" />
-                        Contacter sur Telegram
-                      </a>
+                      <MessageCircle className="w-4 h-4 mr-2" />
+                      Contacter un superviseur
                     </Button>
                   </div>
                 </div>
-
-                <p className="text-xs text-slate-500 mt-4">
-                  Après paiement, contactez le superviseur avec votre preuve de paiement pour activation immédiate
-                </p>
               </div>
             </CardContent>
           </Card>
 
         </div>
       </div>
+
+      {/* Supervisor Contact Dialog */}
+      <Dialog open={showSupervisorDialog} onOpenChange={setShowSupervisorDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Contacter un superviseur</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Button
+              asChild
+              className="w-full bg-green-600 hover:bg-green-700"
+              data-testid="button-whatsapp-supervisor"
+            >
+              <a
+                href={`https://wa.me/${whatsappSupervisor || '639072914078'}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <FaWhatsapp className="w-5 h-5 mr-2" />
+                Superviseur WhatsApp
+              </a>
+            </Button>
+            <Button
+              asChild
+              className="w-full bg-blue-500 hover:bg-blue-600"
+              data-testid="button-telegram-supervisor"
+            >
+              <a
+                href={
+                  telegramSupervisor?.startsWith('@')
+                    ? `https://t.me/${telegramSupervisor.slice(1)}`
+                    : telegramSupervisor?.startsWith('https://')
+                      ? telegramSupervisor
+                      : `https://t.me/${telegramSupervisor || 'SIKAcustomer_service'}`
+                }
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <FaTelegram className="w-5 h-5 mr-2" />
+                Superviseur Telegram
+              </a>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      </>
     );
   }
 
