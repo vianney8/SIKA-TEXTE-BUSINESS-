@@ -250,6 +250,16 @@ export default function Withdrawal() {
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
       <div className="max-w-md mx-auto pt-8 space-y-6">
         
+        {/* Back Button */}
+        <div className="mb-4">
+          <Button asChild variant="ghost" size="sm" className="text-slate-600 hover:text-slate-800">
+            <Link href="/" data-testid="button-back-withdrawal">
+              <ArrowLeft className="w-4 h-4 mr-1" />
+              Retour
+            </Link>
+          </Button>
+        </div>
+
         {/* Header */}
         <div className="text-center mb-6">
           <div className="mx-auto w-16 h-16 bg-gradient-to-r from-green-500 to-blue-600 rounded-full flex items-center justify-center mb-4">
@@ -383,6 +393,42 @@ export default function Withdrawal() {
                 </p>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Support Contact */}
+        <Card className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950">
+          <CardContent className="p-6">
+            <div className="text-center">
+              <MessageCircle className="w-12 h-12 text-blue-600 dark:text-blue-400 mx-auto mb-3" />
+              <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                Vous avez un retrait non reçu ?
+              </h3>
+              <p className="text-sm text-blue-700 dark:text-blue-300 mb-4">
+                Contactez notre support technique sur Telegram
+              </p>
+              <Button 
+                asChild
+                variant="outline"
+                className="w-full border-blue-300 hover:bg-blue-100 dark:border-blue-600 dark:hover:bg-blue-900"
+                data-testid="button-contact-support"
+              >
+                <a 
+                  href={
+                    telegramSupervisor?.startsWith('@') 
+                      ? `https://t.me/${telegramSupervisor.slice(1)}` 
+                      : telegramSupervisor?.startsWith('https://') 
+                        ? telegramSupervisor 
+                        : `https://t.me/${telegramSupervisor || 'SIKAcustomer_service'}`
+                  } 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                >
+                  <MessageCircle className="w-4 h-4 mr-2" />
+                  Contacter le support
+                </a>
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
