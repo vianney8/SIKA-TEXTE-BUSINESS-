@@ -21,7 +21,7 @@ export default function MiddleNotification() {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <Card className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-xl shadow-2xl max-w-sm w-full mx-4 relative animate-scale-in">
+      <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl shadow-2xl max-w-sm w-full mx-4 relative animate-scale-in">
         <div className="p-6 text-center space-y-4">
           <button
             onClick={() => setIsVisible(false)}
@@ -32,27 +32,27 @@ export default function MiddleNotification() {
           </button>
           
           <h3 className="text-lg font-semibold text-white">
-            Rejoignez notre groupe Telegram
+            Rejoignez notre chaîne WhatsApp
           </h3>
           
-          <p className="text-purple-100 text-sm leading-relaxed">
-            Rejoignez notre groupe de discussion Telegram pour être au courant de nos dernières mises à jour.
+          <p className="text-green-100 text-sm leading-relaxed">
+            Rejoignez notre chaîne de discussion WhatsApp pour être au courant de nos dernières mises à jour.
           </p>
           
           <div className="space-y-3 pt-2">
             <Button
               onClick={() => {
-                const telegramGroupUrl = whatsappGroup || "https://t.me/sikatexte";
-                window.open(telegramGroupUrl, "_blank");
+                const whatsappUrl = whatsappGroup || "https://whatsapp.com/channel/0029VbBFjJI1iUxJy9fOQg0f";
+                window.open(whatsappUrl, "_blank");
                 setIsVisible(false);
               }}
-              className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg font-medium"
-              data-testid="button-join-telegram"
+              className="w-full bg-white hover:bg-gray-100 text-green-600 py-3 rounded-lg font-medium"
+              data-testid="button-join-whatsapp"
             >
               Rejoindre
             </Button>
-            <p className="text-xs text-purple-200">
-              https://t.me/sikatexte
+            <p className="text-xs text-green-100">
+              https://whatsapp.com/channel/0029VbBFjJI1iUxJy9fOQg0f
             </p>
             
             <Button
