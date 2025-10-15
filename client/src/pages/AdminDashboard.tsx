@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -413,22 +412,24 @@ export default function AdminDashboard() {
                       {user.isBlocked ? 'Débloquer' : 'Bloquer'}
                     </Button>
                     
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        checked={user.isActive || false}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            activateAccountMutation.mutate(user.id);
-                          } else {
+                    <Button
+                      size="sm"
+                      variant={user.isActive ? "default" : "outline"}
+                      className={user.isActive ? "bg-green-600 hover:bg-green-700" : ""}
+                      onClick={() => {
+                        if (user.isActive) {
+                          if (confirm("Désactiver ce compte ? L'utilisateur ne pourra plus faire de retraits.")) {
                             deactivateAccountMutation.mutate(user.id);
                           }
-                        }}
-                        data-testid={`switch-activate-${user.id}`}
-                      />
-                      <span className="text-sm font-medium whitespace-nowrap">
-                        {user.isActive ? '✅ Activé' : '❌ Inactif'}
-                      </span>
-                    </div>
+                        } else {
+                          activateAccountMutation.mutate(user.id);
+                        }
+                      }}
+                      disabled={activateAccountMutation.isPending || deactivateAccountMutation.isPending}
+                      data-testid={`button-activate-${user.id}`}
+                    >
+                      {user.isActive ? '✅ Activé' : '❌ Activer'}
+                    </Button>
                     
                     <Button
                       size="sm"
