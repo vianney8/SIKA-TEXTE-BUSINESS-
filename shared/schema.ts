@@ -115,7 +115,7 @@ export const userSentenceAssignments = pgTable("user_sentence_assignments", {
 
 export const accountStatus = pgTable("account_status", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id),
+  userId: varchar("user_id").notNull().unique().references(() => users.id),
   isActive: boolean("is_active").notNull().default(false),
   activatedAt: timestamp("activated_at"),
   activationFee: decimal("activation_fee", { precision: 15, scale: 2 }).default('3600'),
