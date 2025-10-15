@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -97,12 +98,12 @@ export default function AdminDashboard() {
   });
 
   // Fetch admin statistics
-  const { data: stats, refetch: refetchStats } = useQuery<AdminStats>({
+  const { data: stats } = useQuery<AdminStats>({
     queryKey: ['/api/admin/stats'],
   });
 
   // Fetch all users with referrals
-  const { data: allUsers, refetch: refetchUsers } = useQuery<AdminUser[]>({
+  const { data: allUsers } = useQuery<AdminUser[]>({
     queryKey: ['/api/admin/users'],
   });
 
@@ -139,8 +140,8 @@ export default function AdminDashboard() {
       });
       setBalanceModal(false);
       setBalanceAmount("");
-      refetchUsers();
-      refetchStats();
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
     },
   });
 
@@ -159,8 +160,8 @@ export default function AdminDashboard() {
       });
       setBalanceNoHistoryModal(false);
       setBalanceAmount("");
-      refetchUsers();
-      refetchStats();
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
     },
   });
 
@@ -189,7 +190,7 @@ export default function AdminDashboard() {
         title: "Succès",
         description: variables.blocked ? "Utilisateur bloqué" : "Utilisateur débloqué",
       });
-      refetchUsers();
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
     },
   });
 
@@ -203,8 +204,8 @@ export default function AdminDashboard() {
         title: "Succès",
         description: "Utilisateur supprimé définitivement",
       });
-      refetchUsers();
-      refetchStats();
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
     },
   });
 
@@ -218,7 +219,7 @@ export default function AdminDashboard() {
         title: "Succès",
         description: "Compte activé avec succès",
       });
-      refetchUsers();
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
     },
   });
 
@@ -232,7 +233,7 @@ export default function AdminDashboard() {
         title: "Succès",
         description: "Compte désactivé avec succès",
       });
-      refetchUsers();
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
     },
   });
 
@@ -252,8 +253,8 @@ export default function AdminDashboard() {
       setCreditModal(false);
       setCreditAmount("");
       setCreditDescription("");
-      refetchUsers();
-      refetchStats();
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
     },
   });
 
@@ -412,24 +413,22 @@ export default function AdminDashboard() {
                       {user.isBlocked ? 'Débloquer' : 'Bloquer'}
                     </Button>
                     
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
+                    <div className="flex items-center gap-2">
+                      <Switch
                         checked={user.isActive || false}
-                        onChange={(e) => {
-                          if (e.target.checked) {
+                        onCheckedChange={(checked) => {
+                          if (checked) {
                             activateAccountMutation.mutate(user.id);
                           } else {
                             deactivateAccountMutation.mutate(user.id);
                           }
                         }}
-                        className="w-5 h-5 cursor-pointer"
-                        data-testid={`checkbox-activate-${user.id}`}
+                        data-testid={`switch-activate-${user.id}`}
                       />
-                      <span className="text-sm font-medium">
+                      <span className="text-sm font-medium whitespace-nowrap">
                         {user.isActive ? '✅ Activé' : '❌ Inactif'}
                       </span>
-                    </label>
+                    </div>
                     
                     <Button
                       size="sm"
