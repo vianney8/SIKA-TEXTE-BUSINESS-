@@ -128,8 +128,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Un utilisateur avec cette adresse email existe déjà" });
       }
 
-      // Hash password
-      const hashedPassword = await bcrypt.hash(password, 10);
+      // Hash password (trim whitespace first)
+      const trimmedPassword = password.trim();
+      const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
 
       const user = await storage.createUser({
         password: hashedPassword,
@@ -174,18 +175,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { phoneNumber, password } = simpleLoginSchema.parse(req.body);
       
+      console.log(`[LOGIN ATTEMPT] Phone: ${phoneNumber}, Password length: ${password.length}`);
+      
       const user = await storage.getUserByPhone(phoneNumber);
       if (!user || !user.password) {
+        console.log(`[LOGIN FAILED] User not found or no password set for phone: ${phoneNumber}`);
         return res.status(401).json({ message: "Numéro de téléphone ou mot de passe incorrect" });
       }
 
-      const isValidPassword = await bcrypt.compare(password, user.password);
+      // Trim whitespace from password before comparison
+      const trimmedPassword = password.trim();
+      console.log(`[LOGIN] Trimmed password length: ${trimmedPassword.length}`);
+      
+      const isValidPassword = await bcrypt.compare(trimmedPassword, user.password);
+      console.log(`[LOGIN] Password validation result: ${isValidPassword}`);
+      
       if (!isValidPassword) {
+        console.log(`[LOGIN FAILED] Invalid password for user: ${phoneNumber}`);
         return res.status(401).json({ message: "Numéro de téléphone ou mot de passe incorrect" });
       }
 
       // Set session
       (req as any).session.userId = user.id;
+      
+      console.log(`[LOGIN SUCCESS] User ${phoneNumber} logged in successfully`);
 
       res.json({ message: "Connexion réussie", user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName } });
     } catch (error: any) {
@@ -923,8 +936,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { userId } = req.params;
       const { newPassword } = adminUpdatePasswordSchema.parse(req.body);
       
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      // Trim whitespace from password to avoid login issues
+      const trimmedPassword = newPassword.trim();
+      
+      console.log(`[ADMIN PASSWORD UPDATE] User ID: ${userId}, Password length: ${trimmedPassword.length}`);
+      
+      const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
       await storage.updateUserPassword(userId, hashedPassword);
+      
+      console.log(`[ADMIN PASSWORD UPDATE] Password successfully hashed and updated for user ${userId}`);
       
       res.json({ message: 'Mot de passe mis à jour avec succès' });
     } catch (error: any) {
