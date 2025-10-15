@@ -804,7 +804,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Reject withdrawal
   app.post('/api/admin/withdrawals/:id/reject', requireAdmin, async (req: any, res) => {
     try {
+      const withdrawal = await storage.getWithdrawalById(req.params.id);
+      if (!withdrawal) {
+        return res.status(404).json({ message: "Retrait non trouvé" });
+      }
+      
+      // Refund the amount to user's balance
+      await storage.updateUserBalance(withdrawal.userId, parseFloat(withdrawal.amount));
+      
+      // Update withdrawal status to failed
       await storage.updateWithdrawalStatus(req.params.id, 'failed');
+      
       res.json({ success: true });
     } catch (error) {
       console.error("Error rejecting withdrawal:", error);

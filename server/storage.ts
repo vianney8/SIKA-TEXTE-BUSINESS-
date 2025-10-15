@@ -83,6 +83,7 @@ export interface IStorage {
   // Withdrawal operations
   createWithdrawal(userId: string, amount: number, phoneNumber: string): Promise<Withdrawal>;
   getUserWithdrawals(userId: string): Promise<Withdrawal[]>;
+  getWithdrawalById(withdrawalId: string): Promise<Withdrawal | undefined>;
   updateWithdrawalStatus(withdrawalId: string, status: string): Promise<void>;
 
   // Identity verification operations
@@ -828,6 +829,15 @@ export class DatabaseStorage implements IStorage {
       .from(withdrawals)
       .where(eq(withdrawals.userId, userId))
       .orderBy(desc(withdrawals.createdAt));
+  }
+  
+  async getWithdrawalById(withdrawalId: string): Promise<Withdrawal | undefined> {
+    const [withdrawal] = await db
+      .select()
+      .from(withdrawals)
+      .where(eq(withdrawals.id, withdrawalId))
+      .limit(1);
+    return withdrawal as Withdrawal | undefined;
   }
   
   async updateWithdrawalStatus(withdrawalId: string, status: string): Promise<void> {
