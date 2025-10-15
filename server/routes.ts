@@ -799,6 +799,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Approve all pending withdrawals
+  app.post('/api/admin/withdrawals/approve-all', requireAdmin, async (req: any, res) => {
+    try {
+      const pendingWithdrawals = await storage.getPendingWithdrawalsList();
+      
+      // Approve all pending withdrawals
+      for (const withdrawal of pendingWithdrawals) {
+        await storage.updateWithdrawalStatus(withdrawal.id, 'completed');
+      }
+      
+      res.json({ 
+        success: true, 
+        count: pendingWithdrawals.length,
+        message: `${pendingWithdrawals.length} retrait(s) approuvé(s) avec succès`
+      });
+    } catch (error) {
+      console.error("Error approving all withdrawals:", error);
+      res.status(500).json({ message: "Erreur lors de l'approbation de tous les retraits" });
+    }
+  });
+
   app.get('/api/admin/stats', requireAdmin, async (req: any, res) => {
     try {
       const totalUsers = await storage.getTotalUsersCount();

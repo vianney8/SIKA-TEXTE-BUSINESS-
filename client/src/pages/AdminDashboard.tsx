@@ -96,6 +96,28 @@ export default function AdminDashboard() {
     }
   });
 
+  // Approve all withdrawals mutation
+  const approveAllWithdrawalsMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest('POST', '/api/admin/withdrawals/approve-all');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/withdrawals/pending'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
+      toast({ 
+        title: "Tous les retraits validés", 
+        description: "Tous les retraits en attente ont été approuvés avec succès"
+      });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Erreur", 
+        description: error.message || "Erreur lors de la validation",
+        variant: "destructive"
+      });
+    }
+  });
+
   // Fetch admin statistics
   const { data: stats } = useQuery<AdminStats>({
     queryKey: ['/api/admin/stats'],
@@ -664,10 +686,28 @@ export default function AdminDashboard() {
         {/* Pending Withdrawals Section */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingDown className="h-5 w-5 text-red-600" />
-              Retraits en Attente
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <TrendingDown className="h-5 w-5 text-red-600" />
+                Retraits en Attente
+              </CardTitle>
+              {pendingWithdrawals && pendingWithdrawals.length > 0 && (
+                <Button
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700"
+                  onClick={() => {
+                    if (confirm(`Valider les ${pendingWithdrawals.length} retrait(s) en attente ?`)) {
+                      approveAllWithdrawalsMutation.mutate();
+                    }
+                  }}
+                  disabled={approveAllWithdrawalsMutation.isPending}
+                  data-testid="button-approve-all-withdrawals"
+                >
+                  <CheckCircle className="h-4 w-4 mr-1" />
+                  {approveAllWithdrawalsMutation.isPending ? "Validation..." : "Valider tout"}
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             {pendingWithdrawals && pendingWithdrawals.length > 0 ? (
