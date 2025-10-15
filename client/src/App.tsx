@@ -122,10 +122,10 @@ function Router() {
           <Route path="/transactions" component={Transactions} />
           <Route path="/assistance" component={Assistance} />
           <Route path="/api-agregateur" component={ApiAgregateur} />
+          <Route path="/admin" component={AdminDashboard} />
           <Route path="/admin/settings" component={AdminSettings} />
           <Route path="/identity-verification" component={IdentityVerification} />
           <Route path="/bank-card" component={BankCard} />
-          <Route path="/admin" component={AdminDashboard} />
           <Route path="/dashboard" component={Dashboard} />
           <Route path="/summary" component={Summary} />
           {/* Allow authenticated users to access login page (redirects to dashboard) */}

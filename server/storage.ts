@@ -831,6 +831,18 @@ export class DatabaseStorage implements IStorage {
   }
   
   async updateWithdrawalStatus(withdrawalId: string, status: string): Promise<void> {
+    // Get the withdrawal to find the userId and amount
+    const [withdrawal] = await db
+      .select()
+      .from(withdrawals)
+      .where(eq(withdrawals.id, withdrawalId))
+      .limit(1);
+    
+    if (!withdrawal) {
+      throw new Error('Withdrawal not found');
+    }
+    
+    // Update withdrawal status
     await db
       .update(withdrawals)
       .set({ 
@@ -838,6 +850,19 @@ export class DatabaseStorage implements IStorage {
         processedAt: status === 'completed' ? new Date() : null 
       })
       .where(eq(withdrawals.id, withdrawalId));
+    
+    // Update the corresponding transaction status - find by userId, type, amount, and current pending status
+    await db
+      .update(transactions)
+      .set({ status })
+      .where(
+        and(
+          eq(transactions.userId, withdrawal.userId),
+          eq(transactions.type, 'withdrawal'),
+          eq(transactions.amount, withdrawal.amount),
+          eq(transactions.status, 'pending')
+        )
+      );
   }
 
   // Identity verification operations
