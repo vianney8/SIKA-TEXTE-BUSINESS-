@@ -65,7 +65,7 @@ export default function AdminDashboard() {
   });
 
   // Fetch pending withdrawals
-  const { data: pendingWithdrawals = [] } = useQuery({
+  const { data: pendingWithdrawals = [] } = useQuery<any[]>({
     queryKey: ['/api/admin/withdrawals/pending'],
   });
 
