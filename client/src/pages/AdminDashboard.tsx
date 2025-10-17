@@ -46,12 +46,17 @@ export default function AdminDashboard() {
   const [balanceNoHistoryModal, setBalanceNoHistoryModal] = useState(false);
   const [passwordModal, setPasswordModal] = useState(false);
   const [creditModal, setCreditModal] = useState(false);
+  const [editBankCardModal, setEditBankCardModal] = useState(false);
   
   // Form state
   const [balanceAmount, setBalanceAmount] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [creditAmount, setCreditAmount] = useState("");
   const [creditDescription, setCreditDescription] = useState("");
+  const [editingBankCard, setEditingBankCard] = useState<any>(null);
+  const [cardFirstName, setCardFirstName] = useState("");
+  const [cardLastName, setCardLastName] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
   
   // Settings state
   const [settingsModal, setSettingsModal] = useState(false);
@@ -93,6 +98,31 @@ export default function AdminDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/withdrawals/pending'] });
       toast({ title: "Retrait rejeté" });
+    }
+  });
+
+  // Bank card update mutation
+  const updateBankCardMutation = useMutation({
+    mutationFn: async (data: { cardId: string; firstName: string; lastName: string; cardNumber: string }) => {
+      return apiRequest('PUT', `/api/admin/bank-card/${data.cardId}`, {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        cardNumber: data.cardNumber
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/withdrawals/pending'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/bank-card'] });
+      setEditBankCardModal(false);
+      setEditingBankCard(null);
+      toast({ title: "Carte bancaire mise à jour avec succès" });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Erreur", 
+        description: error.message || "Erreur lors de la mise à jour",
+        variant: "destructive"
+      });
     }
   });
 
@@ -713,44 +743,86 @@ export default function AdminDashboard() {
             {pendingWithdrawals && pendingWithdrawals.length > 0 ? (
               <div className="space-y-3">
                 {pendingWithdrawals.map((withdrawal: any) => (
-                  <div key={withdrawal.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
-                    <div className="flex-1">
-                      <p className="font-semibold text-lg">{parseFloat(withdrawal.amount || '0').toFixed(0)} FCFA</p>
-                      <p className="text-sm text-slate-600 dark:text-slate-400">
-                        Utilisateur: {withdrawal.userFullName || withdrawal.userId}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        Téléphone: {withdrawal.phoneNumber}
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        {new Date(withdrawal.createdAt).toLocaleString('fr-FR')}
-                      </p>
+                  <div key={withdrawal.id} className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <p className="font-semibold text-lg">{parseFloat(withdrawal.amount || '0').toFixed(0)} FCFA</p>
+                        <p className="text-sm text-slate-600 dark:text-slate-400">
+                          Utilisateur: {withdrawal.userFullName || withdrawal.userId}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          Téléphone: {withdrawal.userPhone}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          {new Date(withdrawal.createdAt).toLocaleString('fr-FR')}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700"
+                          onClick={() => approveWithdrawalMutation.mutate(withdrawal.id)}
+                          disabled={approveWithdrawalMutation.isPending}
+                          data-testid={`button-approve-withdrawal-${withdrawal.id}`}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          Valider
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => {
+                            if (confirm("Rejeter ce retrait ?")) {
+                              rejectWithdrawalMutation.mutate(withdrawal.id);
+                            }
+                          }}
+                          disabled={rejectWithdrawalMutation.isPending}
+                          data-testid={`button-reject-withdrawal-${withdrawal.id}`}
+                        >
+                          ✖ Rejeter
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        className="bg-green-600 hover:bg-green-700"
-                        onClick={() => approveWithdrawalMutation.mutate(withdrawal.id)}
-                        disabled={approveWithdrawalMutation.isPending}
-                        data-testid={`button-approve-withdrawal-${withdrawal.id}`}
-                      >
-                        <CheckCircle className="h-4 w-4 mr-1" />
-                        Valider
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => {
-                          if (confirm("Rejeter ce retrait ?")) {
-                            rejectWithdrawalMutation.mutate(withdrawal.id);
-                          }
-                        }}
-                        disabled={rejectWithdrawalMutation.isPending}
-                        data-testid={`button-reject-withdrawal-${withdrawal.id}`}
-                      >
-                        ✖ Rejeter
-                      </Button>
-                    </div>
+                    
+                    {/* Bank Card Info */}
+                    {withdrawal.bankCardId && (
+                      <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-200 dark:border-blue-800">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <p className="text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">💳 Carte bancaire</p>
+                            <p className="text-sm font-medium text-blue-900 dark:text-blue-200">
+                              {withdrawal.bankCardFirstName} {withdrawal.bankCardLastName}
+                            </p>
+                            <p className="text-xs text-blue-700 dark:text-blue-400">
+                              {withdrawal.bankCardNumber}
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingBankCard({
+                                id: withdrawal.bankCardId,
+                                firstName: withdrawal.bankCardFirstName,
+                                lastName: withdrawal.bankCardLastName,
+                                cardNumber: withdrawal.bankCardNumber,
+                                userId: withdrawal.userId
+                              });
+                              setCardFirstName(withdrawal.bankCardFirstName || '');
+                              setCardLastName(withdrawal.bankCardLastName || '');
+                              setCardNumber(withdrawal.bankCardNumber || '');
+                              setEditBankCardModal(true);
+                            }}
+                            data-testid={`button-edit-bank-card-${withdrawal.id}`}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    {!withdrawal.bankCardId && (
+                      <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">⚠️ Aucune carte bancaire enregistrée</p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -983,6 +1055,66 @@ export default function AdminDashboard() {
           </>
         )}
       </div>
+
+      {/* Edit Bank Card Modal */}
+      <Dialog open={editBankCardModal} onOpenChange={setEditBankCardModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Modifier la Carte Bancaire</DialogTitle>
+            <DialogDescription>
+              Modification pour l'utilisateur
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-card-first-name">Prénom</Label>
+              <Input
+                id="edit-card-first-name"
+                placeholder="Prénom"
+                value={cardFirstName}
+                onChange={(e) => setCardFirstName(e.target.value)}
+                data-testid="input-edit-card-first-name"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-card-last-name">Nom</Label>
+              <Input
+                id="edit-card-last-name"
+                placeholder="Nom"
+                value={cardLastName}
+                onChange={(e) => setCardLastName(e.target.value)}
+                data-testid="input-edit-card-last-name"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-card-number">Numéro de carte</Label>
+              <Input
+                id="edit-card-number"
+                placeholder="+22812345678"
+                value={cardNumber}
+                onChange={(e) => setCardNumber(e.target.value)}
+                data-testid="input-edit-card-number"
+              />
+            </div>
+            <Button 
+              onClick={() => {
+                if (editingBankCard) {
+                  updateBankCardMutation.mutate({
+                    cardId: editingBankCard.id,
+                    firstName: cardFirstName,
+                    lastName: cardLastName,
+                    cardNumber: cardNumber
+                  });
+                }
+              }}
+              disabled={updateBankCardMutation.isPending}
+              data-testid="button-save-bank-card"
+            >
+              {updateBankCardMutation.isPending ? "Mise à jour..." : "Enregistrer"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
