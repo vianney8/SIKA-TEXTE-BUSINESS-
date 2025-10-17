@@ -100,16 +100,6 @@ export default function Withdrawal() {
       return;
     }
 
-
-    if (withdrawalAmount < (withdrawalData?.minimumWithdrawal || 1000)) {
-      toast({
-        title: "Montant trop faible",
-        description: `Le retrait minimum est de ${withdrawalData?.minimumWithdrawal || 1000} FCFA`,
-        variant: "destructive",
-      });
-      return;
-    }
-
     if (withdrawalAmount > (withdrawalData?.balance || 0)) {
       toast({
         title: "Solde insuffisant",
@@ -367,7 +357,7 @@ export default function Withdrawal() {
                   }
                 }}
                 min="1"
-                placeholder={`Min. ${withdrawalData?.minimumWithdrawal || 1000} FCFA`}
+                placeholder="Entrez le montant"
               />
             </div>
 

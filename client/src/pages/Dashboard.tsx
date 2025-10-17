@@ -196,55 +196,22 @@ export default function Dashboard() {
         <div className="p-6">
           {/* Action Buttons */}
           <div className="grid grid-cols-2 gap-4 mb-8">
-            {actionButtons.map((button) => {
-              const isWithdrawal = button.label === "Retrait";
-              const currentBalance = (balance as any)?.balance || 0;
-              const canWithdraw = currentBalance >= 2000;
-              
-              if (isWithdrawal && !canWithdraw) {
-                return (
-                  <Button
-                    key={button.label}
-                    asChild
-                    variant="ghost"
-                    className="bg-white rounded-xl p-6 shadow-sm border border-border hover:shadow-md transition-shadow h-auto flex-col space-y-3"
-                    data-testid={button.testId}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      toast({
-                        title: "Retrait non disponible",
-                        description: "Atteignez le minimum de 2000 FCFA d'abord",
-                        variant: "destructive"
-                      });
-                    }}
-                  >
-                    <a href={button.href}>
-                      <div className={`w-12 h-12 ${button.bgColor} rounded-full flex items-center justify-center`}>
-                        <button.icon className={`${button.iconColor} text-lg`} />
-                      </div>
-                      <div className="text-center font-medium text-sm">{button.label}</div>
-                    </a>
-                  </Button>
-                );
-              }
-              
-              return (
-                <Button
-                  key={button.label}
-                  asChild
-                  variant="ghost"
-                  className="bg-white rounded-xl p-6 shadow-sm border border-border hover:shadow-md transition-shadow h-auto flex-col space-y-3"
-                  data-testid={button.testId}
-                >
-                  <a href={button.href}>
-                    <div className={`w-12 h-12 ${button.bgColor} rounded-full flex items-center justify-center`}>
-                      <button.icon className={`${button.iconColor} text-lg`} />
-                    </div>
-                    <div className="text-center font-medium text-sm">{button.label}</div>
-                  </a>
-                </Button>
-              );
-            })}
+            {actionButtons.map((button) => (
+              <Button
+                key={button.label}
+                asChild
+                variant="ghost"
+                className="bg-white rounded-xl p-6 shadow-sm border border-border hover:shadow-md transition-shadow h-auto flex-col space-y-3"
+                data-testid={button.testId}
+              >
+                <a href={button.href}>
+                  <div className={`w-12 h-12 ${button.bgColor} rounded-full flex items-center justify-center`}>
+                    <button.icon className={`${button.iconColor} text-lg`} />
+                  </div>
+                  <div className="text-center font-medium text-sm">{button.label}</div>
+                </a>
+              </Button>
+            ))}
           </div>
 
           {/* Central Notification Banner */}
