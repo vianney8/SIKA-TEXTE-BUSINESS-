@@ -497,7 +497,7 @@ export default function AdminDashboard() {
     if (selectedUser && newPassword) {
       updatePasswordMutation.mutate({
         userId: selectedUser.id,
-        newPassword
+        newPassword: newPassword.trim()
       });
     }
   };

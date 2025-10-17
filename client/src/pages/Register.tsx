@@ -86,7 +86,7 @@ export default function Register() {
           fullName: data.fullName,
           email: data.email,
           phone: fullPhone,
-          password: data.password,
+          password: data.password.trim(),
           referralCode: data.referralCode || undefined,
         }),
         signal: controller.signal,

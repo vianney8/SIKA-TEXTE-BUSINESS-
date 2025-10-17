@@ -64,7 +64,7 @@ export default function SimpleLogin() {
         credentials: "include",
         body: JSON.stringify({
           phoneNumber: fullPhone,
-          password,
+          password: password.trim(),
         }),
         signal: controller.signal,
       });
