@@ -74,7 +74,7 @@ export default function AdminDashboard() {
     queryKey: ['/api/admin/withdrawals/pending'],
   });
 
-  // Withdrawal approval mutations
+  // Withdrawal approval mutations with optimistic updates
   const approveWithdrawalMutation = useMutation({
     mutationFn: async (withdrawalId: string) => {
       return fetch(`/api/admin/withdrawals/${withdrawalId}/approve`, {
@@ -82,9 +82,23 @@ export default function AdminDashboard() {
         credentials: 'include'
       });
     },
-    onSuccess: () => {
+    onMutate: async (withdrawalId) => {
+      await queryClient.cancelQueries({ queryKey: ['/api/admin/withdrawals/pending'] });
+      const previous = queryClient.getQueryData(['/api/admin/withdrawals/pending']);
+      
+      queryClient.setQueryData(['/api/admin/withdrawals/pending'], (old: any) => 
+        old?.filter((w: any) => w.id !== withdrawalId) || []
+      );
+      
+      toast({ title: "✓ Retrait approuvé" });
+      return { previous };
+    },
+    onError: (_err, _id, context) => {
+      queryClient.setQueryData(['/api/admin/withdrawals/pending'], context?.previous);
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/withdrawals/pending'] });
-      toast({ title: "Retrait approuvé avec succès" });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
     }
   });
 
@@ -95,13 +109,27 @@ export default function AdminDashboard() {
         credentials: 'include'
       });
     },
-    onSuccess: () => {
+    onMutate: async (withdrawalId) => {
+      await queryClient.cancelQueries({ queryKey: ['/api/admin/withdrawals/pending'] });
+      const previous = queryClient.getQueryData(['/api/admin/withdrawals/pending']);
+      
+      queryClient.setQueryData(['/api/admin/withdrawals/pending'], (old: any) => 
+        old?.filter((w: any) => w.id !== withdrawalId) || []
+      );
+      
+      toast({ title: "✓ Retrait rejeté" });
+      return { previous };
+    },
+    onError: (_err, _id, context) => {
+      queryClient.setQueryData(['/api/admin/withdrawals/pending'], context?.previous);
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/withdrawals/pending'] });
-      toast({ title: "Retrait rejeté" });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
     }
   });
 
-  // Bank card update mutation
+  // Bank card update mutation with optimistic update
   const updateBankCardMutation = useMutation({
     mutationFn: async (data: { cardId: string; firstName: string; lastName: string; cardNumber: string }) => {
       return apiRequest('PUT', `/api/admin/bank-card/${data.cardId}`, {
@@ -110,19 +138,35 @@ export default function AdminDashboard() {
         cardNumber: data.cardNumber
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/withdrawals/pending'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/bank-card'] });
+    onMutate: async (data) => {
+      await queryClient.cancelQueries({ queryKey: ['/api/admin/withdrawals/pending'] });
+      const previousWithdrawals = queryClient.getQueryData(['/api/admin/withdrawals/pending']);
+      
+      queryClient.setQueryData(['/api/admin/withdrawals/pending'], (old: any) => {
+        if (!old) return old;
+        return old.map((w: any) => 
+          w.bankCardId === data.cardId 
+            ? { ...w, bankCardFirstName: data.firstName, bankCardLastName: data.lastName, bankCardNumber: data.cardNumber }
+            : w
+        );
+      });
+      
       setEditBankCardModal(false);
       setEditingBankCard(null);
-      toast({ title: "Carte bancaire mise à jour avec succès" });
+      toast({ title: "✓ Carte mise à jour" });
+      
+      return { previousWithdrawals };
     },
-    onError: (error: any) => {
+    onError: (error: any, _data, context) => {
+      queryClient.setQueryData(['/api/admin/withdrawals/pending'], context?.previousWithdrawals);
       toast({ 
         title: "Erreur", 
         description: error.message || "Erreur lors de la mise à jour",
         variant: "destructive"
       });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/withdrawals/pending'] });
     }
   });
 
@@ -176,7 +220,7 @@ export default function AdminDashboard() {
     },
   });
 
-  // Update balance mutation
+  // Update balance mutation with optimistic update
   const updateBalanceMutation = useMutation({
     mutationFn: async ({ userId, amount }: { userId: string; amount: string }) => {
       return apiRequest('POST', `/api/admin/users/${userId}/balance`, {
@@ -184,13 +228,28 @@ export default function AdminDashboard() {
         description: "Modification administrateur"
       });
     },
-    onSuccess: () => {
-      toast({
-        title: "Succès",
-        description: "Solde mis à jour avec succès",
-      });
+    onMutate: async ({ userId, amount }) => {
+      await queryClient.cancelQueries({ queryKey: ['/api/admin/users'] });
+      const previous = queryClient.getQueryData(['/api/admin/users']);
+      
+      queryClient.setQueryData(['/api/admin/users'], (old: any) => 
+        old?.map((u: any) => 
+          u.id === userId 
+            ? { ...u, balance: (parseFloat(u.balance || '0') + parseFloat(amount)).toString() }
+            : u
+        ) || []
+      );
+      
       setBalanceModal(false);
       setBalanceAmount("");
+      toast({ title: "✓ Solde mis à jour" });
+      
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      queryClient.setQueryData(['/api/admin/users'], context?.previous);
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
     },
@@ -216,31 +275,45 @@ export default function AdminDashboard() {
     },
   });
 
-  // Update password mutation
+  // Update password mutation with instant feedback
   const updatePasswordMutation = useMutation({
     mutationFn: async ({ userId, newPassword }: { userId: string; newPassword: string }) => {
       return apiRequest('POST', `/api/admin/users/${userId}/password`, { newPassword });
     },
-    onSuccess: () => {
-      toast({
-        title: "Succès",
-        description: "Mot de passe mis à jour avec succès",
-      });
+    onMutate: () => {
       setPasswordModal(false);
       setNewPassword("");
+      toast({ title: "✓ Mot de passe mis à jour" });
     },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Erreur lors de la mise à jour du mot de passe",
+        variant: "destructive"
+      });
+    }
   });
 
-  // Block/Unblock user mutation
+  // Block/Unblock user mutation with optimistic update
   const blockUserMutation = useMutation({
     mutationFn: async ({ userId, blocked }: { userId: string; blocked: boolean }) => {
       return apiRequest('POST', `/api/admin/users/${userId}/block`, { blocked });
     },
-    onSuccess: (_, variables) => {
-      toast({
-        title: "Succès",
-        description: variables.blocked ? "Utilisateur bloqué" : "Utilisateur débloqué",
-      });
+    onMutate: async ({ userId, blocked }) => {
+      await queryClient.cancelQueries({ queryKey: ['/api/admin/users'] });
+      const previous = queryClient.getQueryData(['/api/admin/users']);
+      
+      queryClient.setQueryData(['/api/admin/users'], (old: any) => 
+        old?.map((u: any) => u.id === userId ? { ...u, isBlocked: blocked } : u) || []
+      );
+      
+      toast({ title: blocked ? "✓ Utilisateur bloqué" : "✓ Utilisateur débloqué" });
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      queryClient.setQueryData(['/api/admin/users'], context?.previous);
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
     },
   });
@@ -288,7 +361,7 @@ export default function AdminDashboard() {
     },
   });
 
-  // Credit account mutation
+  // Credit account mutation with optimistic update
   const creditAccountMutation = useMutation({
     mutationFn: async ({ userId, amount, description }: { userId: string; amount: string; description: string }) => {
       return apiRequest('POST', `/api/admin/users/${userId}/balance`, {
@@ -296,14 +369,29 @@ export default function AdminDashboard() {
         description
       });
     },
-    onSuccess: () => {
-      toast({
-        title: "Succès",
-        description: "Compte crédité avec succès",
-      });
+    onMutate: async ({ userId, amount }) => {
+      await queryClient.cancelQueries({ queryKey: ['/api/admin/users'] });
+      const previous = queryClient.getQueryData(['/api/admin/users']);
+      
+      queryClient.setQueryData(['/api/admin/users'], (old: any) => 
+        old?.map((u: any) => 
+          u.id === userId 
+            ? { ...u, balance: (parseFloat(u.balance || '0') + parseFloat(amount)).toString() }
+            : u
+        ) || []
+      );
+      
       setCreditModal(false);
       setCreditAmount("");
       setCreditDescription("");
+      toast({ title: "✓ Compte crédité" });
+      
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      queryClient.setQueryData(['/api/admin/users'], context?.previous);
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
     },
