@@ -1188,6 +1188,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteUser(userId: string): Promise<void> {
     // Supprimer toutes les références liées avant de supprimer l'utilisateur
+    await db.delete(userSentenceAssignments).where(eq(userSentenceAssignments.userId, userId));
     await db.delete(transactions).where(eq(transactions.userId, userId));
     await db.delete(referrals).where(eq(referrals.referrerId, userId));
     await db.delete(referrals).where(eq(referrals.referredUserId, userId));
@@ -1197,9 +1198,7 @@ export class DatabaseStorage implements IStorage {
     await db.delete(identityVerification).where(eq(identityVerification.userId, userId));
     await db.delete(withdrawals).where(eq(withdrawals.userId, userId));
     await db.delete(bankCards).where(eq(bankCards.userId, userId));
-    
-    // Supprimer les sessions liées (si l'utilisateur a des sessions actives)
-    await db.delete(sessions).where(sql`sess::text LIKE '%${userId}%'`);
+    await db.delete(sessions).where(sql`(sess->>'userId')::text = ${userId}`);
     
     // Enfin supprimer l'utilisateur
     await db.delete(users).where(eq(users.id, userId));
