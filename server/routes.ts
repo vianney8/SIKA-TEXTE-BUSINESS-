@@ -185,6 +185,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Numéro de téléphone ou mot de passe incorrect" });
       }
 
+      // Check if account is blocked
+      if (user.isBlocked) {
+        console.log(`[LOGIN FAILED] Account blocked for user: ${phoneNumber}`);
+        return res.status(403).json({ message: "ACCOUNT_BLOCKED", blocked: true });
+      }
+
       const isValidPassword = await bcrypt.compare(password.trim(), user.password);
       console.log(`[LOGIN] Password validation result: ${isValidPassword}`);
       
