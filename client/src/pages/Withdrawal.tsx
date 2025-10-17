@@ -36,6 +36,7 @@ interface WithdrawalData {
     date: string;
     status: 'pending' | 'completed' | 'failed';
     phoneNumber: string;
+    cardNumber?: string;
   }>;
 }
 
@@ -406,6 +407,11 @@ export default function Withdrawal() {
                       <p className="text-xs text-slate-400">
                         {new Date(withdrawal.date).toLocaleDateString('fr-FR')}
                       </p>
+                      {withdrawal.cardNumber && (
+                        <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-1">
+                          💳 {withdrawal.cardNumber}
+                        </p>
+                      )}
                     </div>
                     <Badge 
                       variant={

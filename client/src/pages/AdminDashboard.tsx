@@ -167,6 +167,7 @@ export default function AdminDashboard() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/withdrawals/pending'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/withdrawal'] });
     }
   });
 

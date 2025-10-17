@@ -823,10 +823,19 @@ export class DatabaseStorage implements IStorage {
     return withdrawal as Withdrawal;
   }
   
-  async getUserWithdrawals(userId: string): Promise<Withdrawal[]> {
+  async getUserWithdrawals(userId: string): Promise<any[]> {
     return await db
-      .select()
+      .select({
+        id: withdrawals.id,
+        userId: withdrawals.userId,
+        amount: withdrawals.amount,
+        phoneNumber: withdrawals.phoneNumber,
+        status: withdrawals.status,
+        date: withdrawals.createdAt,
+        cardNumber: bankCards.cardNumber
+      })
       .from(withdrawals)
+      .leftJoin(bankCards, and(eq(bankCards.userId, withdrawals.userId), eq(bankCards.isDefault, true)))
       .where(eq(withdrawals.userId, userId))
       .orderBy(desc(withdrawals.createdAt));
   }
