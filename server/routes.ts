@@ -131,8 +131,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Un utilisateur avec cette adresse email existe déjà" });
       }
 
-      // Hash password
-      const hashedPassword = await bcrypt.hash(password, 10);
+      // Hash password (trim to avoid accidental spaces)
+      const hashedPassword = await bcrypt.hash(password.trim(), 10);
 
       const user = await storage.createUser({
         password: hashedPassword,
@@ -185,7 +185,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Numéro de téléphone ou mot de passe incorrect" });
       }
 
-      const isValidPassword = await bcrypt.compare(password, user.password);
+      const isValidPassword = await bcrypt.compare(password.trim(), user.password);
       console.log(`[LOGIN] Password validation result: ${isValidPassword}`);
       
       if (!isValidPassword) {
@@ -979,7 +979,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`[ADMIN PASSWORD UPDATE] User ID: ${userId}, Password length: ${newPassword.length}`);
       
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      const hashedPassword = await bcrypt.hash(newPassword.trim(), 10);
       await storage.updateUserPassword(userId, hashedPassword);
       
       console.log(`[ADMIN PASSWORD UPDATE] Password successfully hashed and updated for user ${userId}`);
