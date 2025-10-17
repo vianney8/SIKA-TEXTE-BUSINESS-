@@ -343,11 +343,26 @@ export default function AdminDashboard() {
     mutationFn: async (userId: string) => {
       return apiRequest('DELETE', `/api/admin/users/${userId}`);
     },
-    onSuccess: () => {
+    onMutate: async (userId) => {
+      await queryClient.cancelQueries({ queryKey: ['/api/admin/users'] });
+      const previous = queryClient.getQueryData(['/api/admin/users']);
+      
+      queryClient.setQueryData(['/api/admin/users'], (old: any) => 
+        old?.filter((u: any) => u.id !== userId) || []
+      );
+      
+      toast({ title: "✓ Utilisateur supprimé" });
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      queryClient.setQueryData(['/api/admin/users'], context?.previous);
       toast({
-        title: "Succès",
-        description: "Utilisateur supprimé définitivement",
+        title: "Erreur",
+        description: "Erreur lors de la suppression",
+        variant: "destructive"
       });
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
     },
