@@ -39,6 +39,7 @@ export default function AdminDashboard() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<AdminUser[]>([]);
+  const [userFilter, setUserFilter] = useState<"all" | "blocked" | "active">("all");
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   
   // Modals state
@@ -932,6 +933,34 @@ export default function AdminDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
+            {/* Filter Buttons */}
+            <div className="flex gap-2 mb-6">
+              <Button
+                variant={userFilter === "all" ? "default" : "outline"}
+                onClick={() => setUserFilter("all")}
+                data-testid="filter-all-users"
+              >
+                Tous ({allUsers?.length || 0})
+              </Button>
+              <Button
+                variant={userFilter === "blocked" ? "destructive" : "outline"}
+                onClick={() => setUserFilter("blocked")}
+                data-testid="filter-blocked-users"
+              >
+                <Lock className="h-4 w-4 mr-1" />
+                Bloqués ({allUsers?.filter(u => u.isBlocked).length || 0})
+              </Button>
+              <Button
+                variant={userFilter === "active" ? "default" : "outline"}
+                onClick={() => setUserFilter("active")}
+                className={userFilter === "active" ? "bg-green-600 hover:bg-green-700" : ""}
+                data-testid="filter-active-users"
+              >
+                <CheckCircle className="h-4 w-4 mr-1" />
+                Actifs ({allUsers?.filter(u => u.isActive).length || 0})
+              </Button>
+            </div>
+
             {/* Search Input */}
             <div className="mb-6">
               <Label htmlFor="search-query">Recherche par téléphone ou email</Label>
@@ -975,19 +1004,27 @@ export default function AdminDashboard() {
                   )
                 )
               ) : (
-                // Show all users when no search
-                allUsers && allUsers.length > 0 ? (
-                  <>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      {allUsers.length} utilisateur(s) au total
+                // Show filtered users when no search
+                (() => {
+                  const filteredUsers = allUsers?.filter(u => {
+                    if (userFilter === "blocked") return u.isBlocked;
+                    if (userFilter === "active") return u.isActive;
+                    return true;
+                  }) || [];
+                  
+                  return filteredUsers.length > 0 ? (
+                    <>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        {filteredUsers.length} utilisateur(s)
+                      </p>
+                      <UserTable users={filteredUsers} onSelectUser={setSelectedUser} />
+                    </>
+                  ) : (
+                    <p className="text-center py-8 text-muted-foreground">
+                      Aucun utilisateur {userFilter === "blocked" ? "bloqué" : userFilter === "active" ? "actif" : ""}
                     </p>
-                    <UserTable users={allUsers} onSelectUser={setSelectedUser} />
-                  </>
-                ) : (
-                  <p className="text-center py-8 text-muted-foreground">
-                    Aucun utilisateur
-                  </p>
-                )
+                  );
+                })()
               )}
             </div>
           </CardContent>
