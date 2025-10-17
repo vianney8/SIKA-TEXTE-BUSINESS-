@@ -822,6 +822,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin update user bank card
+  app.put('/api/admin/bank-card/:cardId', requireAdmin, async (req: any, res) => {
+    try {
+      const { cardId } = req.params;
+      const { firstName, lastName, cardNumber } = req.body;
+
+      if (!firstName || !lastName || !cardNumber) {
+        return res.status(400).json({ message: 'Prénom, nom et numéro de carte requis' });
+      }
+
+      // For admin, we bypass userId check and update directly
+      const [card] = await db
+        .update(bankCards)
+        .set({
+          firstName,
+          lastName,
+          cardNumber,
+          updatedAt: new Date(),
+        })
+        .where(eq(bankCards.id, cardId))
+        .returning();
+
+      if (!card) {
+        return res.status(404).json({ message: 'Carte bancaire non trouvée' });
+      }
+
+      res.json({ message: 'Carte bancaire mise à jour avec succès', bankCard: card });
+    } catch (error: any) {
+      console.error('Error updating bank card:', error);
+      res.status(500).json({ message: 'Erreur lors de la mise à jour de la carte bancaire' });
+    }
+  });
+
   // Approve all pending withdrawals
   app.post('/api/admin/withdrawals/approve-all', requireAdmin, async (req: any, res) => {
     try {

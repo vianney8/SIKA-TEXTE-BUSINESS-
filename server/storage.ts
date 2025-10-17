@@ -917,10 +917,15 @@ export class DatabaseStorage implements IStorage {
         status: withdrawals.status,
         createdAt: withdrawals.createdAt,
         userPhone: users.phone,
-        userFullName: users.fullName
+        userFullName: users.fullName,
+        bankCardId: bankCards.id,
+        bankCardFirstName: bankCards.firstName,
+        bankCardLastName: bankCards.lastName,
+        bankCardNumber: bankCards.cardNumber
       })
       .from(withdrawals)
       .leftJoin(users, eq(withdrawals.userId, users.id))
+      .leftJoin(bankCards, and(eq(bankCards.userId, withdrawals.userId), eq(bankCards.isDefault, true)))
       .where(eq(withdrawals.status, 'pending'))
       .orderBy(desc(withdrawals.createdAt));
   }
