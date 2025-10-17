@@ -131,9 +131,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Un utilisateur avec cette adresse email existe déjà" });
       }
 
-      // Hash password (trim whitespace first)
-      const trimmedPassword = password.trim();
-      const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 10);
 
       const user = await storage.createUser({
         password: hashedPassword,
@@ -186,11 +185,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Numéro de téléphone ou mot de passe incorrect" });
       }
 
-      // Trim whitespace from password before comparison
-      const trimmedPassword = password.trim();
-      console.log(`[LOGIN] Trimmed password length: ${trimmedPassword.length}`);
-      
-      const isValidPassword = await bcrypt.compare(trimmedPassword, user.password);
+      const isValidPassword = await bcrypt.compare(password, user.password);
       console.log(`[LOGIN] Password validation result: ${isValidPassword}`);
       
       if (!isValidPassword) {
@@ -982,12 +977,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { userId } = req.params;
       const { newPassword } = adminUpdatePasswordSchema.parse(req.body);
       
-      // Trim whitespace from password to avoid login issues
-      const trimmedPassword = newPassword.trim();
+      console.log(`[ADMIN PASSWORD UPDATE] User ID: ${userId}, Password length: ${newPassword.length}`);
       
-      console.log(`[ADMIN PASSWORD UPDATE] User ID: ${userId}, Password length: ${trimmedPassword.length}`);
-      
-      const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
       await storage.updateUserPassword(userId, hashedPassword);
       
       console.log(`[ADMIN PASSWORD UPDATE] Password successfully hashed and updated for user ${userId}`);

@@ -244,14 +244,14 @@ export default function Transactions() {
                     <div className="text-right">
                       <div 
                         className={`font-semibold ${
-                          (transaction.type === "deposit" || transaction.type === "pointage") 
-                            ? (parseFloat(transaction.amount) > 0 ? "text-green-600" : "text-red-600")
+                          ["deposit", "pointage", "transfer_received", "referral"].includes(transaction.type)
+                            ? "text-green-600"
                             : "text-red-600"
                         }`}
                         data-testid={`text-transaction-amount-${transaction.id}`}
                       >
-                        {(transaction.type === "deposit" || transaction.type === "pointage") 
-                          ? (parseFloat(transaction.amount) > 0 ? "+" : "-")
+                        {["deposit", "pointage", "transfer_received", "referral"].includes(transaction.type)
+                          ? "+"
                           : "-"}
                         {formatFCFA(Math.abs(parseFloat(transaction.amount)))}
                       </div>
