@@ -17,10 +17,13 @@ import {
   adminBlockUserSchema,
   adminCreditAccountSchema
 ,
-  appSettingUpdateSchema
+  appSettingUpdateSchema,
+  bankCards
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import session from "express-session";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 import connectPg from "connect-pg-simple";
 import { randomBytes } from "crypto";
 
