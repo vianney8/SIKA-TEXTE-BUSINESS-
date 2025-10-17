@@ -265,13 +265,31 @@ export default function AdminDashboard() {
         description: "Modification sans historique"
       });
     },
-    onSuccess: () => {
-      toast({
-        title: "Succès",
-        description: "Solde mis à jour avec succès (sans historique)",
-      });
+    onMutate: async ({ userId, amount }) => {
+      await queryClient.cancelQueries({ queryKey: ['/api/admin/users'] });
+      const previous = queryClient.getQueryData(['/api/admin/users']);
+      
+      queryClient.setQueryData(['/api/admin/users'], (old: any) => 
+        old?.map((u: any) => 
+          u.id === userId ? { ...u, balance: amount } : u
+        ) || []
+      );
+      
       setBalanceNoHistoryModal(false);
       setBalanceAmount("");
+      toast({ title: "✓ Solde défini" });
+      
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      queryClient.setQueryData(['/api/admin/users'], context?.previous);
+      toast({
+        title: "Erreur",
+        description: "Erreur lors de la mise à jour",
+        variant: "destructive"
+      });
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
     },
@@ -340,11 +358,26 @@ export default function AdminDashboard() {
     mutationFn: async (userId: string) => {
       return apiRequest('POST', `/api/admin/users/${userId}/activate`);
     },
-    onSuccess: () => {
+    onMutate: async (userId) => {
+      await queryClient.cancelQueries({ queryKey: ['/api/admin/users'] });
+      const previous = queryClient.getQueryData(['/api/admin/users']);
+      
+      queryClient.setQueryData(['/api/admin/users'], (old: any) => 
+        old?.map((u: any) => u.id === userId ? { ...u, isActive: true } : u) || []
+      );
+      
+      toast({ title: "✓ Compte activé" });
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      queryClient.setQueryData(['/api/admin/users'], context?.previous);
       toast({
-        title: "Succès",
-        description: "Compte activé avec succès",
+        title: "Erreur",
+        description: "Erreur lors de l'activation",
+        variant: "destructive"
       });
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
     },
   });
@@ -354,11 +387,26 @@ export default function AdminDashboard() {
     mutationFn: async (userId: string) => {
       return apiRequest('POST', `/api/admin/users/${userId}/deactivate`);
     },
-    onSuccess: () => {
+    onMutate: async (userId) => {
+      await queryClient.cancelQueries({ queryKey: ['/api/admin/users'] });
+      const previous = queryClient.getQueryData(['/api/admin/users']);
+      
+      queryClient.setQueryData(['/api/admin/users'], (old: any) => 
+        old?.map((u: any) => u.id === userId ? { ...u, isActive: false } : u) || []
+      );
+      
+      toast({ title: "✓ Compte désactivé" });
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      queryClient.setQueryData(['/api/admin/users'], context?.previous);
       toast({
-        title: "Succès",
-        description: "Compte désactivé avec succès",
+        title: "Erreur",
+        description: "Erreur lors de la désactivation",
+        variant: "destructive"
       });
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
     },
   });
