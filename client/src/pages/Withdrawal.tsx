@@ -403,7 +403,6 @@ export default function Withdrawal() {
                   <div key={withdrawal.id} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
                     <div>
                       <p className="font-medium">{withdrawal.amount} FCFA</p>
-                      <p className="text-xs text-slate-500">{withdrawal.phoneNumber}</p>
                       <p className="text-xs text-slate-400">
                         {new Date(withdrawal.date).toLocaleDateString('fr-FR')}
                       </p>
