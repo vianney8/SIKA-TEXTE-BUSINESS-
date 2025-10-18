@@ -855,8 +855,6 @@ export class DatabaseStorage implements IStorage {
   }
   
   async updateWithdrawalStatus(withdrawalId: string, status: string): Promise<void> {
-    console.log(`[updateWithdrawalStatus] Starting - ID: ${withdrawalId}, Status: ${status}`);
-    
     // Get the withdrawal to find the userId and amount
     const [withdrawal] = await db
       .select()
@@ -865,27 +863,16 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
     
     if (!withdrawal) {
-      console.error(`[updateWithdrawalStatus] Withdrawal not found: ${withdrawalId}`);
       throw new Error('Withdrawal not found');
     }
-    
-    console.log(`[updateWithdrawalStatus] Withdrawal found - UserID: ${withdrawal.userId}, Amount: ${withdrawal.amount}, Type: ${typeof withdrawal.amount}`);
     
     // If rejecting, refund the amount to user's balance
     if (status === 'failed') {
       const refundAmount = parseFloat(withdrawal.amount);
-      console.log(`[updateWithdrawalStatus] Refunding ${refundAmount} to user ${withdrawal.userId}`);
-      try {
-        await this.updateUserBalance(withdrawal.userId, refundAmount);
-        console.log(`[updateWithdrawalStatus] Balance refunded successfully`);
-      } catch (error) {
-        console.error(`[updateWithdrawalStatus] Error refunding balance:`, error);
-        throw error;
-      }
+      await this.updateUserBalance(withdrawal.userId, refundAmount);
     }
     
     // Update withdrawal status
-    console.log(`[updateWithdrawalStatus] Updating withdrawal status in DB...`);
     await db
       .update(withdrawals)
       .set({ 
@@ -893,10 +880,8 @@ export class DatabaseStorage implements IStorage {
         processedAt: status === 'completed' ? new Date() : null 
       })
       .where(eq(withdrawals.id, withdrawalId));
-    console.log(`[updateWithdrawalStatus] Withdrawal status updated`);
     
     // Update the corresponding transaction status - find by userId, type, amount, and current pending status
-    console.log(`[updateWithdrawalStatus] Updating transaction status...`);
     await db
       .update(transactions)
       .set({ status })
@@ -908,7 +893,6 @@ export class DatabaseStorage implements IStorage {
           eq(transactions.status, 'pending')
         )
       );
-    console.log(`[updateWithdrawalStatus] Transaction status updated - Complete`);
   }
 
   // Identity verification operations

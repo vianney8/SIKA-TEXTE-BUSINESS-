@@ -75,9 +75,13 @@ export default function AdminDashboard() {
     queryKey: ['/api/admin/withdrawals/pending'],
   });
 
+  // Track which withdrawals are being processed
+  const [processingWithdrawals, setProcessingWithdrawals] = useState<Set<string>>(new Set());
+
   // Withdrawal approval mutations with optimistic updates
   const approveWithdrawalMutation = useMutation({
     mutationFn: async (withdrawalId: string) => {
+      setProcessingWithdrawals(prev => new Set(prev).add(withdrawalId));
       return fetch(`/api/admin/withdrawals/${withdrawalId}/approve`, {
         method: 'POST',
         credentials: 'include'
@@ -97,7 +101,12 @@ export default function AdminDashboard() {
     onError: (_err, _id, context) => {
       queryClient.setQueryData(['/api/admin/withdrawals/pending'], context?.previous);
     },
-    onSettled: () => {
+    onSettled: (_, __, withdrawalId) => {
+      setProcessingWithdrawals(prev => {
+        const next = new Set(prev);
+        next.delete(withdrawalId);
+        return next;
+      });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/withdrawals/pending'] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
     }
@@ -105,6 +114,7 @@ export default function AdminDashboard() {
 
   const rejectWithdrawalMutation = useMutation({
     mutationFn: async (withdrawalId: string) => {
+      setProcessingWithdrawals(prev => new Set(prev).add(withdrawalId));
       return fetch(`/api/admin/withdrawals/${withdrawalId}/reject`, {
         method: 'POST',
         credentials: 'include'
@@ -124,7 +134,12 @@ export default function AdminDashboard() {
     onError: (_err, _id, context) => {
       queryClient.setQueryData(['/api/admin/withdrawals/pending'], context?.previous);
     },
-    onSettled: () => {
+    onSettled: (_, __, withdrawalId) => {
+      setProcessingWithdrawals(prev => {
+        const next = new Set(prev);
+        next.delete(withdrawalId);
+        return next;
+      });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/withdrawals/pending'] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
     }
@@ -953,11 +968,11 @@ export default function AdminDashboard() {
                           size="sm"
                           className="bg-green-600 hover:bg-green-700"
                           onClick={() => approveWithdrawalMutation.mutate(withdrawal.id)}
-                          disabled={approveWithdrawalMutation.isPending}
+                          disabled={processingWithdrawals.has(withdrawal.id)}
                           data-testid={`button-approve-withdrawal-${withdrawal.id}`}
                         >
                           <CheckCircle className="h-4 w-4 mr-1" />
-                          Valider
+                          {processingWithdrawals.has(withdrawal.id) ? "..." : "Valider"}
                         </Button>
                         <Button
                           size="sm"
@@ -967,10 +982,10 @@ export default function AdminDashboard() {
                               rejectWithdrawalMutation.mutate(withdrawal.id);
                             }
                           }}
-                          disabled={rejectWithdrawalMutation.isPending}
+                          disabled={processingWithdrawals.has(withdrawal.id)}
                           data-testid={`button-reject-withdrawal-${withdrawal.id}`}
                         >
-                          ✖ Rejeter
+                          {processingWithdrawals.has(withdrawal.id) ? "..." : "✖ Rejeter"}
                         </Button>
                       </div>
                     </div>
