@@ -889,13 +889,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Reject all pending withdrawals
   app.post('/api/admin/withdrawals/reject-all', requireAdmin, async (req: any, res) => {
     try {
+      console.log('[REJECT-ALL] Starting reject all operation...');
       const pendingWithdrawals = await storage.getPendingWithdrawalsList();
+      console.log(`[REJECT-ALL] Found ${pendingWithdrawals.length} pending withdrawals`);
       
       // Reject all pending withdrawals
-      for (const withdrawal of pendingWithdrawals) {
-        await storage.updateWithdrawalStatus(withdrawal.id, 'failed');
+      for (let i = 0; i < pendingWithdrawals.length; i++) {
+        const withdrawal = pendingWithdrawals[i];
+        console.log(`[REJECT-ALL] Processing withdrawal ${i + 1}/${pendingWithdrawals.length} - ID: ${withdrawal.id}, Amount: ${withdrawal.amount}, UserID: ${withdrawal.userId}`);
+        try {
+          await storage.updateWithdrawalStatus(withdrawal.id, 'failed');
+          console.log(`[REJECT-ALL] Successfully rejected withdrawal ${withdrawal.id}`);
+        } catch (error) {
+          console.error(`[REJECT-ALL] Error rejecting withdrawal ${withdrawal.id}:`, error);
+          throw error;
+        }
       }
       
+      console.log('[REJECT-ALL] All withdrawals rejected successfully');
       res.json({ 
         success: true, 
         count: pendingWithdrawals.length,
