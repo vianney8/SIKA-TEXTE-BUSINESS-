@@ -870,12 +870,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const pendingWithdrawals = await storage.getPendingWithdrawalsList();
       
-      // Approve all pending withdrawals IN PARALLEL for speed
-      await Promise.all(
-        pendingWithdrawals.map(withdrawal => 
-          storage.updateWithdrawalStatus(withdrawal.id, 'completed')
-        )
-      );
+      // Approve all pending withdrawals
+      for (const withdrawal of pendingWithdrawals) {
+        await storage.updateWithdrawalStatus(withdrawal.id, 'completed');
+      }
       
       res.json({ 
         success: true, 
@@ -893,12 +891,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const pendingWithdrawals = await storage.getPendingWithdrawalsList();
       
-      // Reject all pending withdrawals IN PARALLEL for speed
-      await Promise.all(
-        pendingWithdrawals.map(withdrawal => 
-          storage.updateWithdrawalStatus(withdrawal.id, 'failed')
-        )
-      );
+      // Reject all pending withdrawals
+      for (const withdrawal of pendingWithdrawals) {
+        await storage.updateWithdrawalStatus(withdrawal.id, 'failed');
+      }
       
       res.json({ 
         success: true, 
@@ -907,7 +903,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error("Error rejecting all withdrawals:", error);
-      res.status(500).json({ message: "Erreur lors du rejet de tous les retraits" });
+      res.status(500).json({ message: "Erreur lors de l'approbation de tous les retraits" });
     }
   });
 

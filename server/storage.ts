@@ -866,12 +866,6 @@ export class DatabaseStorage implements IStorage {
       throw new Error('Withdrawal not found');
     }
     
-    // If rejecting, refund the amount to user's balance
-    if (status === 'failed') {
-      const refundAmount = parseFloat(withdrawal.amount);
-      await this.updateUserBalance(withdrawal.userId, refundAmount);
-    }
-    
     // Update withdrawal status
     await db
       .update(withdrawals)
