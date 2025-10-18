@@ -29,13 +29,14 @@ import { FaWhatsapp, FaTelegram } from "react-icons/fa";
 interface WithdrawalData {
   balance: number;
   isAccountActive: boolean;
-  minimumWithdrawal: number;
   withdrawalHistory: Array<{
     id: string;
     amount: number;
     date: string;
     status: 'pending' | 'completed' | 'failed';
     phoneNumber: string;
+    cardFirstName?: string;
+    cardLastName?: string;
     cardNumber?: string;
   }>;
 }
@@ -396,9 +397,9 @@ export default function Withdrawal() {
                       <p className="text-xs text-slate-400">
                         {new Date(withdrawal.date).toLocaleDateString('fr-FR')}
                       </p>
-                      {withdrawal.cardNumber && (
+                      {withdrawal.cardFirstName && withdrawal.cardLastName && withdrawal.cardNumber && (
                         <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-1">
-                          💳 {withdrawal.cardNumber}
+                          💳 {withdrawal.cardFirstName} {withdrawal.cardLastName} - ****{withdrawal.cardNumber.slice(-4)}
                         </p>
                       )}
                     </div>

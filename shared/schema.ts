@@ -127,6 +127,9 @@ export const withdrawals = pgTable("withdrawals", {
   userId: varchar("user_id").notNull().references(() => users.id),
   amount: decimal("amount", { precision: 15, scale: 2 }).notNull(),
   phoneNumber: varchar("phone_number").notNull(),
+  cardFirstName: varchar("card_first_name"),
+  cardLastName: varchar("card_last_name"),
+  cardNumber: varchar("card_number"),
   status: varchar("status").notNull().default('pending'), // 'pending', 'completed', 'failed'
   processedAt: timestamp("processed_at"),
   createdAt: timestamp("created_at").defaultNow(),

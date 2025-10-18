@@ -82,7 +82,7 @@ export interface IStorage {
   deactivateAccount(userId: string): Promise<void>;
   
   // Withdrawal operations
-  createWithdrawal(userId: string, amount: number, phoneNumber: string): Promise<Withdrawal>;
+  createWithdrawal(userId: string, amount: number, phoneNumber: string, cardFirstName?: string, cardLastName?: string, cardNumber?: string): Promise<Withdrawal>;
   getUserWithdrawals(userId: string): Promise<Withdrawal[]>;
   getWithdrawalById(withdrawalId: string): Promise<Withdrawal | undefined>;
   updateWithdrawalStatus(withdrawalId: string, status: string): Promise<void>;
@@ -810,13 +810,16 @@ export class DatabaseStorage implements IStorage {
   }
   
   // Withdrawal operations
-  async createWithdrawal(userId: string, amount: number, phoneNumber: string): Promise<Withdrawal> {
+  async createWithdrawal(userId: string, amount: number, phoneNumber: string, cardFirstName?: string, cardLastName?: string, cardNumber?: string): Promise<Withdrawal> {
     const [withdrawal] = await db
       .insert(withdrawals)
       .values({
         userId,
         amount: amount.toString(),
         phoneNumber,
+        cardFirstName,
+        cardLastName,
+        cardNumber,
         status: 'pending',
       })
       .returning();
@@ -831,12 +834,13 @@ export class DatabaseStorage implements IStorage {
         userId: withdrawals.userId,
         amount: withdrawals.amount,
         phoneNumber: withdrawals.phoneNumber,
+        cardFirstName: withdrawals.cardFirstName,
+        cardLastName: withdrawals.cardLastName,
+        cardNumber: withdrawals.cardNumber,
         status: withdrawals.status,
         date: withdrawals.createdAt,
-        cardNumber: bankCards.cardNumber
       })
       .from(withdrawals)
-      .leftJoin(bankCards, and(eq(bankCards.userId, withdrawals.userId), eq(bankCards.isDefault, true)))
       .where(eq(withdrawals.userId, userId))
       .orderBy(desc(withdrawals.createdAt));
   }

@@ -634,8 +634,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Solde insuffisant' });
       }
       
-      // Create withdrawal request using bank card
-      const withdrawal = await storage.createWithdrawal(userId, amount, `${bankCard.firstName} ${bankCard.lastName} - ****${bankCard.cardNumber.slice(-4)}`);
+      // Create withdrawal request using bank card (save card info at time of withdrawal)
+      const withdrawal = await storage.createWithdrawal(
+        userId, 
+        amount, 
+        `${bankCard.firstName} ${bankCard.lastName} - ****${bankCard.cardNumber.slice(-4)}`,
+        bankCard.firstName,
+        bankCard.lastName,
+        bankCard.cardNumber
+      );
       
       // Deduct from balance
       await storage.updateUserBalance(userId, -amount);
