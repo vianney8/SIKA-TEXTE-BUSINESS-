@@ -903,7 +903,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error("Error rejecting all withdrawals:", error);
-      res.status(500).json({ message: "Erreur lors de l'approbation de tous les retraits" });
+      res.status(500).json({ message: "Erreur lors du rejet de tous les retraits" });
     }
   });
 
