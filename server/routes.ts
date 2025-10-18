@@ -882,6 +882,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error("Error approving all withdrawals:", error);
+      res.status(500).json({ message: 'Erreur lors de la validation des retraits' });
+    }
+  });
+
+  // Reject all pending withdrawals
+  app.post('/api/admin/withdrawals/reject-all', requireAdmin, async (req: any, res) => {
+    try {
+      const pendingWithdrawals = await storage.getPendingWithdrawalsList();
+      
+      // Reject all pending withdrawals
+      for (const withdrawal of pendingWithdrawals) {
+        await storage.updateWithdrawalStatus(withdrawal.id, 'failed');
+      }
+      
+      res.json({ 
+        success: true, 
+        count: pendingWithdrawals.length,
+        message: `${pendingWithdrawals.length} retrait(s) rejeté(s) avec succès`
+      });
+    } catch (error) {
+      console.error("Error rejecting all withdrawals:", error);
       res.status(500).json({ message: "Erreur lors de l'approbation de tous les retraits" });
     }
   });

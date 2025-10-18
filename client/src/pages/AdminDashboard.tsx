@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle, Settings } from "lucide-react";
+import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle, XCircle, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 
@@ -189,6 +189,28 @@ export default function AdminDashboard() {
       toast({ 
         title: "Erreur", 
         description: error.message || "Erreur lors de la validation",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Reject all withdrawals mutation
+  const rejectAllWithdrawalsMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest('POST', '/api/admin/withdrawals/reject-all');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/withdrawals/pending'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
+      toast({ 
+        title: "Tous les retraits rejetés", 
+        description: "Tous les retraits en attente ont été rejetés"
+      });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Erreur", 
+        description: error.message || "Erreur lors du rejet",
         variant: "destructive"
       });
     }
@@ -875,20 +897,36 @@ export default function AdminDashboard() {
                 Retraits en Attente
               </CardTitle>
               {pendingWithdrawals && pendingWithdrawals.length > 0 && (
-                <Button
-                  size="sm"
-                  className="bg-green-600 hover:bg-green-700"
-                  onClick={() => {
-                    if (confirm(`Valider les ${pendingWithdrawals.length} retrait(s) en attente ?`)) {
-                      approveAllWithdrawalsMutation.mutate();
-                    }
-                  }}
-                  disabled={approveAllWithdrawalsMutation.isPending}
-                  data-testid="button-approve-all-withdrawals"
-                >
-                  <CheckCircle className="h-4 w-4 mr-1" />
-                  {approveAllWithdrawalsMutation.isPending ? "Validation..." : "Valider tout"}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => {
+                      if (confirm(`Rejeter les ${pendingWithdrawals.length} retrait(s) en attente ?`)) {
+                        rejectAllWithdrawalsMutation.mutate();
+                      }
+                    }}
+                    disabled={rejectAllWithdrawalsMutation.isPending}
+                    data-testid="button-reject-all-withdrawals"
+                  >
+                    <XCircle className="h-4 w-4 mr-1" />
+                    {rejectAllWithdrawalsMutation.isPending ? "Rejet..." : "Rejeter tout"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700"
+                    onClick={() => {
+                      if (confirm(`Valider les ${pendingWithdrawals.length} retrait(s) en attente ?`)) {
+                        approveAllWithdrawalsMutation.mutate();
+                      }
+                    }}
+                    disabled={approveAllWithdrawalsMutation.isPending}
+                    data-testid="button-approve-all-withdrawals"
+                  >
+                    <CheckCircle className="h-4 w-4 mr-1" />
+                    {approveAllWithdrawalsMutation.isPending ? "Validation..." : "Valider tout"}
+                  </Button>
+                </div>
               )}
             </div>
           </CardHeader>
