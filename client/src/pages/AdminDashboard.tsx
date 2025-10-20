@@ -75,58 +75,42 @@ export default function AdminDashboard() {
     queryKey: ['/api/admin/withdrawals/pending'],
   });
 
-  // Withdrawal approval mutations with optimistic updates
+  // Withdrawal approval mutations
   const approveWithdrawalMutation = useMutation({
     mutationFn: async (withdrawalId: string) => {
-      return fetch(`/api/admin/withdrawals/${withdrawalId}/approve`, {
-        method: 'POST',
-        credentials: 'include'
-      });
+      const response = await apiRequest('POST', `/api/admin/withdrawals/${withdrawalId}/approve`);
+      return response.json();
     },
-    onMutate: async (withdrawalId) => {
-      await queryClient.cancelQueries({ queryKey: ['/api/admin/withdrawals/pending'] });
-      const previous = queryClient.getQueryData(['/api/admin/withdrawals/pending']);
-      
-      queryClient.setQueryData(['/api/admin/withdrawals/pending'], (old: any) => 
-        old?.filter((w: any) => w.id !== withdrawalId) || []
-      );
-      
-      toast({ title: "✓ Retrait approuvé" });
-      return { previous };
-    },
-    onError: (_err, _id, context) => {
-      queryClient.setQueryData(['/api/admin/withdrawals/pending'], context?.previous);
-    },
-    onSettled: () => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/withdrawals/pending'] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
+      toast({ title: "✓ Retrait approuvé" });
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Erreur lors de l'approbation",
+        variant: "destructive"
+      });
     }
   });
 
   const rejectWithdrawalMutation = useMutation({
     mutationFn: async (withdrawalId: string) => {
-      return fetch(`/api/admin/withdrawals/${withdrawalId}/reject`, {
-        method: 'POST',
-        credentials: 'include'
-      });
+      const response = await apiRequest('POST', `/api/admin/withdrawals/${withdrawalId}/reject`);
+      return response.json();
     },
-    onMutate: async (withdrawalId) => {
-      await queryClient.cancelQueries({ queryKey: ['/api/admin/withdrawals/pending'] });
-      const previous = queryClient.getQueryData(['/api/admin/withdrawals/pending']);
-      
-      queryClient.setQueryData(['/api/admin/withdrawals/pending'], (old: any) => 
-        old?.filter((w: any) => w.id !== withdrawalId) || []
-      );
-      
-      toast({ title: "✓ Retrait rejeté" });
-      return { previous };
-    },
-    onError: (_err, _id, context) => {
-      queryClient.setQueryData(['/api/admin/withdrawals/pending'], context?.previous);
-    },
-    onSettled: () => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/withdrawals/pending'] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
+      toast({ title: "✓ Retrait rejeté" });
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Erreur lors du rejet",
+        variant: "destructive"
+      });
     }
   });
 
@@ -393,58 +377,38 @@ export default function AdminDashboard() {
   // Activate account mutation
   const activateAccountMutation = useMutation({
     mutationFn: async (userId: string) => {
-      return apiRequest('POST', `/api/admin/users/${userId}/activate`);
+      const response = await apiRequest('POST', `/api/admin/users/${userId}/activate`);
+      return response.json();
     },
-    onMutate: async (userId) => {
-      await queryClient.cancelQueries({ queryKey: ['/api/admin/users'] });
-      const previous = queryClient.getQueryData(['/api/admin/users']);
-      
-      queryClient.setQueryData(['/api/admin/users'], (old: any) => 
-        old?.map((u: any) => u.id === userId ? { ...u, isActive: true } : u) || []
-      );
-      
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
       toast({ title: "✓ Compte activé" });
-      return { previous };
     },
-    onError: (_err, _vars, context) => {
-      queryClient.setQueryData(['/api/admin/users'], context?.previous);
+    onError: () => {
       toast({
         title: "Erreur",
         description: "Erreur lors de l'activation",
         variant: "destructive"
       });
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
-    },
   });
 
   // Deactivate account mutation
   const deactivateAccountMutation = useMutation({
     mutationFn: async (userId: string) => {
-      return apiRequest('POST', `/api/admin/users/${userId}/deactivate`);
+      const response = await apiRequest('POST', `/api/admin/users/${userId}/deactivate`);
+      return response.json();
     },
-    onMutate: async (userId) => {
-      await queryClient.cancelQueries({ queryKey: ['/api/admin/users'] });
-      const previous = queryClient.getQueryData(['/api/admin/users']);
-      
-      queryClient.setQueryData(['/api/admin/users'], (old: any) => 
-        old?.map((u: any) => u.id === userId ? { ...u, isActive: false } : u) || []
-      );
-      
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
       toast({ title: "✓ Compte désactivé" });
-      return { previous };
     },
-    onError: (_err, _vars, context) => {
-      queryClient.setQueryData(['/api/admin/users'], context?.previous);
+    onError: () => {
       toast({
         title: "Erreur",
         description: "Erreur lors de la désactivation",
         variant: "destructive"
       });
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
     },
   });
 
