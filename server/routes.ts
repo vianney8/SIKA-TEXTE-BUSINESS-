@@ -803,7 +803,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Approve withdrawal
   app.post('/api/admin/withdrawals/:id/approve', requireAdmin, async (req: any, res) => {
     try {
+      console.log('[ADMIN] Approving withdrawal:', req.params.id);
       await storage.updateWithdrawalStatus(req.params.id, 'completed');
+      console.log('[ADMIN] Withdrawal approved successfully:', req.params.id);
       res.json({ success: true });
     } catch (error) {
       console.error("Error approving withdrawal:", error);
@@ -814,6 +816,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Reject withdrawal
   app.post('/api/admin/withdrawals/:id/reject', requireAdmin, async (req: any, res) => {
     try {
+      console.log('[ADMIN] Rejecting withdrawal:', req.params.id);
       const withdrawal = await storage.getWithdrawalById(req.params.id);
       if (!withdrawal) {
         return res.status(404).json({ message: "Retrait non trouvé" });
@@ -825,6 +828,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update withdrawal status to failed
       await storage.updateWithdrawalStatus(req.params.id, 'failed');
       
+      console.log('[ADMIN] Withdrawal rejected successfully:', req.params.id);
       res.json({ success: true });
     } catch (error) {
       console.error("Error rejecting withdrawal:", error);
@@ -1063,9 +1067,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/admin/users/:userId/activate', requireAdmin, async (req: any, res) => {
     try {
       const { userId } = req.params;
+      console.log('[ADMIN] Activating account for user:', userId);
       
       await storage.activateAccount(userId);
       
+      console.log('[ADMIN] Account activated successfully for user:', userId);
       res.json({ message: 'Compte activé avec succès' });
     } catch (error) {
       console.error('Error activating account:', error);
@@ -1077,9 +1083,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/admin/users/:userId/deactivate', requireAdmin, async (req: any, res) => {
     try {
       const { userId } = req.params;
+      console.log('[ADMIN] Deactivating account for user:', userId);
       
       await storage.deactivateAccount(userId);
       
+      console.log('[ADMIN] Account deactivated successfully for user:', userId);
       res.json({ message: 'Compte désactivé avec succès' });
     } catch (error) {
       console.error('Error deactivating account:', error);

@@ -758,12 +758,14 @@ export class DatabaseStorage implements IStorage {
   }
   
   async activateAccount(userId: string): Promise<void> {
+    console.log('[STORAGE] Activating account for userId:', userId);
     // Check if account was already active (to avoid duplicate commissions)
     const currentStatus = await this.getAccountStatus(userId);
     const wasAlreadyActive = currentStatus?.isActive === true;
+    console.log('[STORAGE] Current status:', currentStatus, 'Was already active:', wasAlreadyActive);
 
     // Activate the account
-    await db
+    const result = await db
       .insert(accountStatus)
       .values({
         userId,
@@ -776,7 +778,10 @@ export class DatabaseStorage implements IStorage {
           isActive: true,
           activatedAt: new Date(),
         },
-      });
+      })
+      .returning();
+    
+    console.log('[STORAGE] Account activation result:', result);
 
     // Award referral commission if this is the first activation and user was referred
     if (!wasAlreadyActive) {
@@ -800,13 +805,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deactivateAccount(userId: string): Promise<void> {
-    await db
+    console.log('[STORAGE] Deactivating account for userId:', userId);
+    const result = await db
       .update(accountStatus)
       .set({
         isActive: false,
         activatedAt: null,
       })
-      .where(eq(accountStatus.userId, userId));
+      .where(eq(accountStatus.userId, userId))
+      .returning();
+    console.log('[STORAGE] Account deactivation result:', result);
   }
   
   // Withdrawal operations
@@ -855,6 +863,7 @@ export class DatabaseStorage implements IStorage {
   }
   
   async updateWithdrawalStatus(withdrawalId: string, status: string): Promise<void> {
+    console.log('[STORAGE] Updating withdrawal status:', withdrawalId, 'to', status);
     // Get the withdrawal to find the userId and amount
     const [withdrawal] = await db
       .select()
@@ -863,20 +872,26 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
     
     if (!withdrawal) {
+      console.error('[STORAGE] Withdrawal not found:', withdrawalId);
       throw new Error('Withdrawal not found');
     }
     
+    console.log('[STORAGE] Found withdrawal:', withdrawal);
+    
     // Update withdrawal status
-    await db
+    const withdrawalUpdate = await db
       .update(withdrawals)
       .set({ 
         status, 
         processedAt: status === 'completed' ? new Date() : null 
       })
-      .where(eq(withdrawals.id, withdrawalId));
+      .where(eq(withdrawals.id, withdrawalId))
+      .returning();
+    
+    console.log('[STORAGE] Withdrawal update result:', withdrawalUpdate);
     
     // Update the corresponding transaction status - find by userId, type, amount, and current pending status
-    await db
+    const transactionUpdate = await db
       .update(transactions)
       .set({ status })
       .where(
@@ -886,7 +901,10 @@ export class DatabaseStorage implements IStorage {
           eq(transactions.amount, withdrawal.amount),
           eq(transactions.status, 'pending')
         )
-      );
+      )
+      .returning();
+    
+    console.log('[STORAGE] Transaction update result:', transactionUpdate);
   }
 
   // Identity verification operations
