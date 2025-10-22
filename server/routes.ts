@@ -941,6 +941,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post('/api/notifications/seen', requireAuth, async (req: any, res) => {
+    try {
+      const { notificationId } = req.body;
+      if (!notificationId) {
+        return res.status(400).json({ message: "notificationId requis" });
+      }
+      await storage.markNotificationSeen(notificationId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error marking notification as seen:", error);
+      res.status(500).json({ message: "Erreur lors du marquage de la notification" });
+    }
+  });
+
   app.get('/api/admin/stats', requireAdmin, async (req: any, res) => {
     try {
       const totalUsers = await storage.getTotalUsersCount();

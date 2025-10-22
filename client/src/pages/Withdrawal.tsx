@@ -45,6 +45,7 @@ interface Notification {
   id: string;
   message: string;
   isRead: boolean;
+  seenAt: string | null;
   createdAt: string;
 }
 
@@ -74,9 +75,36 @@ export default function Withdrawal() {
     queryKey: ['/api/bank-card'],
   });
 
-  const { data: notifications = [] } = useQuery<Notification[]>({
+  const { data: notifications = [], refetch: refetchNotifications } = useQuery<Notification[]>({
     queryKey: ['/api/notifications'],
   });
+
+  React.useEffect(() => {
+    if (notifications && notifications.length > 0) {
+      const unseenNotifications = notifications.filter(n => !n.seenAt);
+      unseenNotifications.forEach(notification => {
+        fetch('/api/notifications/seen', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ notificationId: notification.id })
+        });
+      });
+      
+      if (unseenNotifications.length > 0) {
+        setTimeout(() => {
+          refetchNotifications();
+        }, 500);
+      }
+    }
+  }, [notifications]);
+
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      refetchNotifications();
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [refetchNotifications]);
 
   const withdrawMutation = useMutation({
     mutationFn: async (data: { amount: number }) => {
@@ -316,8 +344,9 @@ export default function Withdrawal() {
           <div className="space-y-3">
             {notifications
               .filter(n => {
-                const notificationAge = Date.now() - new Date(n.createdAt).getTime();
-                return !n.isRead && notificationAge < 15000;
+                if (!n.seenAt) return false;
+                const timeSinceSeen = Date.now() - new Date(n.seenAt).getTime();
+                return timeSinceSeen < 15000;
               })
               .map((notification) => (
                 <Alert key={notification.id} className="border-red-500 bg-red-50 dark:bg-red-950">

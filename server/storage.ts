@@ -123,6 +123,7 @@ export interface IStorage {
   // Notifications
   getUserNotifications(userId: string): Promise<any[]>;
   createNotification(userId: string, message: string): Promise<any>;
+  markNotificationSeen(notificationId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1306,6 +1307,12 @@ export class DatabaseStorage implements IStorage {
       isRead: false
     }).returning();
     return result[0];
+  }
+
+  async markNotificationSeen(notificationId: string): Promise<void> {
+    await db.update(notifications)
+      .set({ seenAt: new Date() })
+      .where(eq(notifications.id, notificationId));
   }
 }
 
