@@ -161,6 +161,14 @@ export const bankCards = pgTable("bank_cards", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const notifications = pgTable("notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  message: text("message").notNull(),
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many, one }) => ({
   transactions: many(transactions),
@@ -177,6 +185,7 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   withdrawals: many(withdrawals),
   identityVerification: one(identityVerification),
   bankCards: many(bankCards),
+  notifications: many(notifications),
 }));
 
 export const workProgressRelations = relations(workProgress, ({ one }) => ({

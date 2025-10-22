@@ -911,6 +911,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Notifications routes
+  app.get('/api/notifications', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const notifications = await storage.getUserNotifications(userId);
+      res.json(notifications);
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+      res.status(500).json({ message: "Erreur lors de la récupération des notifications" });
+    }
+  });
+
+  app.post('/api/admin/notifications', requireAdmin, async (req: any, res) => {
+    try {
+      const { userId, message } = req.body;
+      if (!userId || !message) {
+        return res.status(400).json({ message: "userId et message requis" });
+      }
+      const notification = await storage.createNotification(userId, message);
+      res.json(notification);
+    } catch (error) {
+      console.error("Error creating notification:", error);
+      res.status(500).json({ message: "Erreur lors de la création de la notification" });
+    }
+  });
+
   app.get('/api/admin/stats', requireAdmin, async (req: any, res) => {
     try {
       const totalUsers = await storage.getTotalUsersCount();

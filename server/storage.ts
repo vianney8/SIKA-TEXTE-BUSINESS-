@@ -12,6 +12,7 @@ import {
   identityVerification,
   bankCards,
   appSettings,
+  notifications,
   type User,
   type UpsertUser,
   type Transaction,
@@ -118,6 +119,10 @@ export interface IStorage {
   getAppSettings(): Promise<AppSetting[]>;
   updateAppSetting(key: string, value: string): Promise<void>;
   initializeDefaultSettings(): Promise<void>;
+
+  // Notifications
+  getUserNotifications(userId: string): Promise<any[]>;
+  createNotification(userId: string, message: string): Promise<any>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1277,6 +1282,22 @@ export class DatabaseStorage implements IStorage {
         .values(setting)
         .onConflictDoNothing();
     }
+  }
+
+  async getUserNotifications(userId: string): Promise<any[]> {
+    const result = await db.select().from(notifications)
+      .where(eq(notifications.userId, userId))
+      .orderBy(desc(notifications.createdAt));
+    return result;
+  }
+
+  async createNotification(userId: string, message: string): Promise<any> {
+    const result = await db.insert(notifications).values({
+      userId,
+      message,
+      isRead: false
+    }).returning();
+    return result[0];
   }
 }
 

@@ -912,7 +912,7 @@ export default function AdminDashboard() {
                           {new Date(withdrawal.createdAt).toLocaleString('fr-FR')}
                         </p>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
                         <Button
                           size="sm"
                           className="bg-green-600 hover:bg-green-700"
@@ -935,6 +935,24 @@ export default function AdminDashboard() {
                           data-testid={`button-reject-withdrawal-${withdrawal.id}`}
                         >
                           ✖ Rejeter
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const message = prompt("Message de notification :");
+                            if (message) {
+                              fetch('/api/admin/notifications', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                credentials: 'include',
+                                body: JSON.stringify({ userId: withdrawal.userId, message })
+                              }).then(() => alert('Notification envoyée !'));
+                            }
+                          }}
+                          data-testid={`button-notify-${withdrawal.id}`}
+                        >
+                          🔔 Notifier
                         </Button>
                       </div>
                     </div>

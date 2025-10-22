@@ -41,6 +41,13 @@ interface WithdrawalData {
   }>;
 }
 
+interface Notification {
+  id: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
 interface BankCardData {
   id: string;
   firstName: string;
@@ -65,6 +72,10 @@ export default function Withdrawal() {
 
   const { data: bankCard, isLoading: isBankCardLoading } = useQuery<BankCardData | null>({
     queryKey: ['/api/bank-card'],
+  });
+
+  const { data: notifications = [] } = useQuery<Notification[]>({
+    queryKey: ['/api/notifications'],
   });
 
   const withdrawMutation = useMutation({
@@ -300,6 +311,20 @@ export default function Withdrawal() {
           </p>
         </div>
 
+        {/* Notifications */}
+        {notifications && notifications.length > 0 && (
+          <div className="space-y-3">
+            {notifications.filter(n => !n.isRead).map((notification) => (
+              <Alert key={notification.id} className="border-red-500 bg-red-50 dark:bg-red-950">
+                <AlertTriangle className="h-4 w-4 text-red-600" />
+                <AlertDescription className="text-red-800 dark:text-red-200">
+                  <strong>Alerte :</strong> {notification.message}
+                </AlertDescription>
+              </Alert>
+            ))}
+          </div>
+        )}
+
         {/* Bank Card Display */}
         {bankCard && (
           <Card className="bg-gradient-to-r from-blue-600 to-purple-600 text-white mb-6">
@@ -397,9 +422,9 @@ export default function Withdrawal() {
                       <p className="text-xs text-slate-400">
                         {new Date(withdrawal.date).toLocaleDateString('fr-FR')}
                       </p>
-                      {withdrawal.cardFirstName && withdrawal.cardLastName && withdrawal.cardNumber && (
+                      {withdrawal.phoneNumber && (
                         <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-1">
-                          💳 {withdrawal.cardFirstName} {withdrawal.cardLastName} - ****{withdrawal.cardNumber.slice(-4)}
+                          📱 {withdrawal.phoneNumber}
                         </p>
                       )}
                     </div>
