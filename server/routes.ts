@@ -634,11 +634,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Solde insuffisant' });
       }
       
+      // Get user phone number
+      const user = await storage.getUser(userId);
+      const userPhone = user?.phone || '';
+      
       // Create withdrawal request using bank card (save card info at time of withdrawal)
       const withdrawal = await storage.createWithdrawal(
         userId, 
         amount, 
-        `${bankCard.firstName} ${bankCard.lastName} - ****${bankCard.cardNumber.slice(-4)}`,
+        userPhone,
         bankCard.firstName,
         bankCard.lastName,
         bankCard.cardNumber
@@ -652,7 +656,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId,
         type: 'withdrawal',
         amount: amount.toString(),
-        recipientPhone: `${bankCard.firstName} ${bankCard.lastName} - ****${bankCard.cardNumber.slice(-4)}`,
+        recipientPhone: userPhone,
         description: 'Retrait sur carte bancaire',
         status: 'pending'
       });

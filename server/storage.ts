@@ -841,7 +841,7 @@ export class DatabaseStorage implements IStorage {
   }
   
   async getUserWithdrawals(userId: string): Promise<any[]> {
-    return await db
+    const result = await db
       .select({
         id: withdrawals.id,
         userId: withdrawals.userId,
@@ -852,10 +852,18 @@ export class DatabaseStorage implements IStorage {
         cardNumber: withdrawals.cardNumber,
         status: withdrawals.status,
         date: withdrawals.createdAt,
+        userPhone: users.phone,
       })
       .from(withdrawals)
+      .leftJoin(users, eq(withdrawals.userId, users.id))
       .where(eq(withdrawals.userId, userId))
       .orderBy(desc(withdrawals.createdAt));
+    
+    // For old withdrawals with masked card numbers, use the user's actual phone
+    return result.map(w => ({
+      ...w,
+      phoneNumber: w.phoneNumber.includes('****') ? w.userPhone : w.phoneNumber
+    }));
   }
   
   async getWithdrawalById(withdrawalId: string): Promise<Withdrawal | undefined> {
