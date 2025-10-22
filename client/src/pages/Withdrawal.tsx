@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -79,7 +79,7 @@ export default function Withdrawal() {
     queryKey: ['/api/notifications'],
   });
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (notifications && notifications.length > 0) {
       const unseenNotifications = notifications.filter(n => !n.seenAt);
       unseenNotifications.forEach(notification => {
@@ -99,7 +99,7 @@ export default function Withdrawal() {
     }
   }, [notifications]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const interval = setInterval(() => {
       refetchNotifications();
     }, 2000);
