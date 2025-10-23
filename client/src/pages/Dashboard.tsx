@@ -13,12 +13,19 @@ import { Button } from "@/components/ui/button";
 import { Eye, ArrowUpRight, Wallet, Users } from "lucide-react";
 import { formatFCFA } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useAppSetting } from "@/hooks/useAppSettings";
+import { FaWhatsapp } from "react-icons/fa";
 
 export default function Dashboard() {
   const { user } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { data: whatsappSupervisor } = useAppSetting('whatsapp_supervisor');
+  
+  const [position, setPosition] = useState({ x: window.innerWidth - 80, y: window.innerHeight - 180 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
   // Notification WhatsApp à chaque chargement
 
@@ -29,6 +36,38 @@ export default function Dashboard() {
   const { data: transactions = [] } = useQuery({
     queryKey: ["/api/transactions"],
   });
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    setDragOffset({
+      x: e.clientX - position.x,
+      y: e.clientY - position.y
+    });
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (isDragging) {
+      setPosition({
+        x: e.clientX - dragOffset.x,
+        y: e.clientY - dragOffset.y
+      });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  useEffect(() => {
+    if (isDragging) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDragging, dragOffset]);
 
   const handlePointage = async () => {
     // Check if user already did pointage today
@@ -232,6 +271,37 @@ export default function Dashboard() {
 
       <BottomNavigation currentPage="home" />
       <MiddleNotification />
+      
+      {/* WhatsApp Floating Button */}
+      <a
+        href={whatsappSupervisor?.startsWith('+') 
+          ? `https://wa.me/${whatsappSupervisor.replace(/[^0-9]/g, '')}` 
+          : whatsappSupervisor?.startsWith('https://') 
+            ? whatsappSupervisor 
+            : `https://wa.me/${whatsappSupervisor || '639072914078'}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        onMouseDown={handleMouseDown}
+        style={{
+          position: 'fixed',
+          left: `${position.x}px`,
+          top: `${position.y}px`,
+          cursor: isDragging ? 'grabbing' : 'grab',
+          zIndex: 9999,
+          transition: isDragging ? 'none' : 'transform 0.2s',
+        }}
+        className="group"
+        data-testid="button-whatsapp-float"
+      >
+        <div 
+          className="w-16 h-16 bg-[#25D366] rounded-full flex items-center justify-center shadow-lg hover:shadow-2xl hover:scale-110 transition-all"
+          style={{
+            boxShadow: '0 4px 12px rgba(37, 211, 102, 0.4)'
+          }}
+        >
+          <FaWhatsapp className="text-white text-3xl" />
+        </div>
+      </a>
     </div>
   );
 }
