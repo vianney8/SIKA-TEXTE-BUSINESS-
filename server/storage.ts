@@ -722,14 +722,35 @@ export class DatabaseStorage implements IStorage {
       throw new Error('Phrase non trouvée');
     }
     
-    // Check if answer is correct (flexible comparison ignoring final punctuation)
+    // Normalize text: remove punctuation at end, lowercase, trim whitespace
     const normalizeText = (text: string): string => {
       return text.toLowerCase().trim().replace(/[.!?;,]+$/, '').trim();
     };
     
     const userNormalized = normalizeText(userAnswer);
     const correctNormalized = normalizeText(sentence.correctedText);
-    const isCorrect = userNormalized === correctNormalized;
+    const originalNormalized = normalizeText(sentence.text);
+    
+    // Accept if:
+    // 1. User provides the complete corrected sentence
+    // 2. User provides just the corrected part (the correction itself)
+    // 3. User's answer is contained in the correct answer
+    let isCorrect = false;
+    
+    if (userNormalized === correctNormalized) {
+      // Full correct sentence
+      isCorrect = true;
+    } else if (correctNormalized.includes(userNormalized) && userNormalized.length >= 3) {
+      // User provided a partial correction (at least 3 chars)
+      isCorrect = true;
+    } else if (originalNormalized !== correctNormalized && userNormalized.length >= 3) {
+      // Check if the user's answer corrects the error
+      // If the correct text contains the user's answer, it's likely a valid partial correction
+      if (correctNormalized.includes(userNormalized)) {
+        isCorrect = true;
+      }
+    }
+    
     const reward = isCorrect ? 650 : 0; // 650 FCFA per correct answer
     
     // Record the correction
