@@ -996,6 +996,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Utilisateurs connectés actuellement
+  app.get('/api/admin/users/online', requireAdmin, async (req: any, res) => {
+    try {
+      const onlineUsers = await storage.getOnlineUsers();
+      res.json(onlineUsers);
+    } catch (error) {
+      console.error('Error fetching online users:', error);
+      res.status(500).json({ message: 'Erreur lors de la récupération des utilisateurs en ligne' });
+    }
+  });
+
   // Obtenir tous les utilisateurs avec parrainages pour admin
   app.get('/api/admin/users', requireAdmin, async (req: any, res) => {
     try {

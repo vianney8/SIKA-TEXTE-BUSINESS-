@@ -35,6 +35,17 @@ interface AdminUser {
   isActive?: boolean;
 }
 
+interface OnlineUser {
+  id: string;
+  phone: string;
+  email: string;
+  fullName: string;
+  balance: string;
+  referralCode: string;
+  role: string;
+  lastActivity: string;
+}
+
 export default function AdminDashboard() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
@@ -208,6 +219,12 @@ export default function AdminDashboard() {
   // Fetch all users with referrals
   const { data: allUsers } = useQuery<AdminUser[]>({
     queryKey: ['/api/admin/users'],
+  });
+
+  // Fetch online users (refresh every 10 seconds)
+  const { data: onlineUsers = [] } = useQuery<OnlineUser[]>({
+    queryKey: ['/api/admin/users/online'],
+    refetchInterval: 10000, // Refresh every 10 seconds
   });
 
   // Search users mutation (by phone or email)
@@ -851,6 +868,65 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Online Users Section */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>👥 Utilisateurs Connectés ({onlineUsers.length})</span>
+              <Badge variant="outline" className="bg-green-100 text-green-800">
+                {onlineUsers.length} en ligne
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {onlineUsers.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse border border-gray-300">
+                  <thead>
+                    <tr className="bg-gray-100 dark:bg-gray-800">
+                      <th className="border border-gray-300 px-4 py-2 text-left">Statut</th>
+                      <th className="border border-gray-300 px-4 py-2 text-left">Utilisateur</th>
+                      <th className="border border-gray-300 px-4 py-2 text-left">Téléphone</th>
+                      <th className="border border-gray-300 px-4 py-2 text-left">Email</th>
+                      <th className="border border-gray-300 px-4 py-2 text-left">Solde</th>
+                      <th className="border border-gray-300 px-4 py-2 text-left">Dernière Activité</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {onlineUsers.map((user) => (
+                      <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                        <td className="border border-gray-300 px-4 py-2">
+                          <Badge className="bg-green-500 text-white">
+                            🟢 En ligne
+                          </Badge>
+                        </td>
+                        <td className="border border-gray-300 px-4 py-2">
+                          <div>
+                            <div className="font-medium">{user.fullName}</div>
+                            <div className="text-sm text-gray-500">Code: {user.referralCode}</div>
+                          </div>
+                        </td>
+                        <td className="border border-gray-300 px-4 py-2">{user.phone}</td>
+                        <td className="border border-gray-300 px-4 py-2 text-sm">{user.email}</td>
+                        <td className="border border-gray-300 px-4 py-2">
+                          <span className="font-mono">{parseFloat(user.balance || '0').toFixed(0)} FCFA</span>
+                        </td>
+                        <td className="border border-gray-300 px-4 py-2 text-sm text-gray-500">
+                          {new Date(user.lastActivity).toLocaleString('fr-FR')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                Aucun utilisateur connecté actuellement
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Pending Withdrawals Section */}
         <Card className="mb-6">

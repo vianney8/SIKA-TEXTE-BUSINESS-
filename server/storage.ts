@@ -1247,6 +1247,30 @@ export class DatabaseStorage implements IStorage {
     return result as (User & { referralsCount: number })[];
   }
 
+  async getOnlineUsers(): Promise<(User & { lastActivity: Date })[]> {
+    // Get active sessions (expire_at > now)
+    const result = await db.execute(sql`
+      SELECT DISTINCT u.id, u.phone, u.email, u.full_name, u.balance, u.referral_code, u.role, 
+             MAX(s.expire) as last_activity
+      FROM users u
+      INNER JOIN sessions s ON s.sess::jsonb->>'userId' = u.id
+      WHERE s.expire > NOW()
+      GROUP BY u.id, u.phone, u.email, u.full_name, u.balance, u.referral_code, u.role
+      ORDER BY MAX(s.expire) DESC
+    `);
+    
+    return (result.rows || []).map((row: any) => ({
+      id: row.id,
+      phone: row.phone,
+      email: row.email,
+      fullName: row.full_name,
+      balance: row.balance,
+      referralCode: row.referral_code,
+      role: row.role,
+      lastActivity: row.last_activity,
+    })) as (User & { lastActivity: Date })[];
+  }
+
   async updateUserPassword(userId: string, hashedPassword: string): Promise<void> {
     await db
       .update(users)
