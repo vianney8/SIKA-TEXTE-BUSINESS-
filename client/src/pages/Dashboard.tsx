@@ -254,31 +254,19 @@ export default function Dashboard() {
             ))}
           </div>
 
-          {/* Social Media Icons and Telegram Button */}
-          <div className="mb-8 text-center">
-            {/* Social Media Links */}
-            <div className="flex justify-center space-x-4 mb-4">
-              <a href="#" className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center hover:scale-110 transition-transform">
-                <i className="fab fa-facebook-f text-white text-sm"></i>
-              </a>
-              <a href="#" className="w-10 h-10 bg-sky-400 rounded-full flex items-center justify-center hover:scale-110 transition-transform">
-                <i className="fab fa-twitter text-white text-sm"></i>
-              </a>
-              <a href="#" className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center hover:scale-110 transition-transform">
-                <i className="fab fa-youtube text-white text-sm"></i>
-              </a>
-              <a href="#" className="w-10 h-10 bg-pink-500 rounded-full flex items-center justify-center hover:scale-110 transition-transform">
-                <i className="fab fa-instagram text-white text-sm"></i>
-              </a>
-              <a href="#" className="w-10 h-10 bg-blue-700 rounded-full flex items-center justify-center hover:scale-110 transition-transform">
-                <i className="fab fa-linkedin text-white text-sm"></i>
-              </a>
-              <a href="#" className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center hover:scale-110 transition-transform">
-                <i className="fab fa-whatsapp text-white text-sm"></i>
-              </a>
+          {/* Central Notification Banner */}
+          <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl shadow-lg border-0 overflow-hidden">
+            <div className="p-6 text-center relative">
+              <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
+              <div className="relative z-10">
+                <h2 className="text-2xl font-bold mb-2">SIKA TEXTE BUSINESS</h2>
+                <p className="text-blue-100 text-lg">Plateforme Européenne</p>
+              </div>
             </div>
-            
-            {/* Telegram Group Button */}
+          </Card>
+
+          {/* Telegram Button before testimonials */}
+          <div className="my-8 text-center">
             <a
               href={telegramSupervisor?.startsWith('https://') 
                 ? telegramSupervisor 
@@ -292,17 +280,6 @@ export default function Dashboard() {
               <span className="font-medium">Rejoindre notre groupe Telegram</span>
             </a>
           </div>
-
-          {/* Central Notification Banner */}
-          <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl shadow-lg border-0 overflow-hidden">
-            <div className="p-6 text-center relative">
-              <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
-              <div className="relative z-10">
-                <h2 className="text-2xl font-bold mb-2">SIKA TEXTE BUSINESS</h2>
-                <p className="text-blue-100 text-lg">Plateforme Européenne</p>
-              </div>
-            </div>
-          </Card>
 
           {/* Testimonials Section */}
           <TestimonialsSlider />
