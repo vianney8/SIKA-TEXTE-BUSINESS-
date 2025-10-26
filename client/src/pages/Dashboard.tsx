@@ -14,7 +14,7 @@ import { Eye, ArrowUpRight, Wallet, Users } from "lucide-react";
 import { formatFCFA } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useAppSetting } from "@/hooks/useAppSettings";
-import { FaWhatsapp, FaTelegram } from "react-icons/fa";
+import { FaWhatsapp } from "react-icons/fa";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -22,7 +22,6 @@ export default function Dashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: whatsappSupervisor } = useAppSetting('whatsapp_supervisor');
-  const { data: telegramSupervisor } = useAppSetting('telegram_supervisor');
   
   const [position, setPosition] = useState({ x: window.innerWidth - 80, y: window.innerHeight - 180 });
   const [isDragging, setIsDragging] = useState(false);
@@ -264,29 +263,6 @@ export default function Dashboard() {
               </div>
             </div>
           </Card>
-
-          {/* Telegram Group Button */}
-          <a
-            href={telegramSupervisor?.startsWith('https://') 
-              ? telegramSupervisor 
-              : `https://t.me/${telegramSupervisor || 'yoursupervisor'}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block"
-            data-testid="link-telegram-group"
-          >
-            <Card className="bg-gradient-to-r from-[#0088cc] to-[#00a8e8] text-white rounded-xl shadow-lg border-0 overflow-hidden hover:shadow-2xl transition-shadow cursor-pointer">
-              <div className="p-5 flex items-center justify-center gap-3 relative">
-                <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
-                <div className="relative z-10 flex items-center gap-3">
-                  <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                    <FaTelegram className="text-white text-2xl" />
-                  </div>
-                  <span className="text-lg font-semibold">Rejoindre notre groupe Telegram</span>
-                </div>
-              </div>
-            </Card>
-          </a>
 
           {/* Testimonials Section */}
           <TestimonialsSlider />
