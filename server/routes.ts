@@ -62,7 +62,7 @@ async function requireAuth(req: any, res: any, next: any) {
     if (!user || user.isBlocked) {
       // Destroy session if user is blocked
       req.session.destroy();
-      return res.status(403).json({ message: "Account blocked" });
+      return res.status(403).json({ message: "Votre compte est bloqué" });
     }
     next();
   } catch (error) {
