@@ -836,22 +836,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Reject withdrawal
   app.post('/api/admin/withdrawals/:id/reject', requireAdmin, async (req: any, res) => {
     try {
-      console.log('[ADMIN] Rejecting withdrawal:', req.params.id);
+      console.log('[ADMIN WITHDRAWAL REJECT] Starting rejection for withdrawal:', req.params.id);
       const withdrawal = await storage.getWithdrawalById(req.params.id);
       if (!withdrawal) {
+        console.log('[ADMIN WITHDRAWAL REJECT] Withdrawal not found:', req.params.id);
         return res.status(404).json({ message: "Retrait non trouvé" });
       }
       
+      console.log(`[ADMIN WITHDRAWAL REJECT] Withdrawal found - User: ${withdrawal.userId}, Amount: ${withdrawal.amount}, Status: ${withdrawal.status}`);
+      
+      // Check if withdrawal is still pending (prevent double refunds)
+      if (withdrawal.status !== 'pending') {
+        console.log(`[ADMIN WITHDRAWAL REJECT] Withdrawal already processed with status: ${withdrawal.status}`);
+        return res.status(409).json({ 
+          message: `Ce retrait a déjà été traité (statut: ${withdrawal.status})`,
+          alreadyProcessed: true,
+          currentStatus: withdrawal.status
+        });
+      }
+      
+      // Get user info before refund
+      const userBefore = await storage.getUser(withdrawal.userId);
+      const balanceBefore = parseFloat(userBefore?.balance || '0');
+      
       // Refund the amount to user's balance
-      await storage.updateUserBalance(withdrawal.userId, parseFloat(withdrawal.amount));
+      const refundAmount = parseFloat(withdrawal.amount);
+      await storage.updateUserBalance(withdrawal.userId, refundAmount);
+      
+      console.log(`[ADMIN WITHDRAWAL REJECT] Refunded ${refundAmount} FCFA to user ${withdrawal.userId}. Balance: ${balanceBefore} → ${balanceBefore + refundAmount}`);
+      
+      // Create refund transaction for tracking
+      await storage.createTransaction({
+        userId: withdrawal.userId,
+        type: 'deposit',
+        amount: withdrawal.amount,
+        description: 'Remboursement retrait rejeté',
+        status: 'completed'
+      });
+      
+      console.log('[ADMIN WITHDRAWAL REJECT] Refund transaction created');
       
       // Update withdrawal status to failed
       await storage.updateWithdrawalStatus(req.params.id, 'failed');
       
-      console.log('[ADMIN] Withdrawal rejected successfully:', req.params.id);
-      res.json({ success: true });
+      console.log('[ADMIN WITHDRAWAL REJECT] Withdrawal rejected successfully:', req.params.id);
+      res.json({ success: true, message: 'Retrait rejeté et montant remboursé' });
     } catch (error) {
-      console.error("Error rejecting withdrawal:", error);
+      console.error("[ADMIN WITHDRAWAL REJECT] Error rejecting withdrawal:", error);
       res.status(500).json({ message: "Erreur lors du rejet" });
     }
   });
@@ -913,21 +944,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Reject all pending withdrawals
   app.post('/api/admin/withdrawals/reject-all', requireAdmin, async (req: any, res) => {
     try {
+      console.log('[ADMIN WITHDRAWAL REJECT-ALL] Starting bulk rejection');
       const pendingWithdrawals = await storage.getPendingWithdrawalsList();
       
-      // Reject all pending withdrawals
+      console.log(`[ADMIN WITHDRAWAL REJECT-ALL] Found ${pendingWithdrawals.length} pending withdrawals`);
+      
+      let refundedCount = 0;
+      let totalRefunded = 0;
+      
+      // Reject all pending withdrawals and refund users
       for (const withdrawal of pendingWithdrawals) {
+        const refundAmount = parseFloat(withdrawal.amount);
+        
+        // Refund the user
+        await storage.updateUserBalance(withdrawal.userId, refundAmount);
+        
+        // Create refund transaction
+        await storage.createTransaction({
+          userId: withdrawal.userId,
+          type: 'deposit',
+          amount: withdrawal.amount,
+          description: 'Remboursement retrait rejeté (rejet en masse)',
+          status: 'completed'
+        });
+        
+        // Update withdrawal status
         await storage.updateWithdrawalStatus(withdrawal.id, 'failed');
+        
+        refundedCount++;
+        totalRefunded += refundAmount;
+        
+        console.log(`[ADMIN WITHDRAWAL REJECT-ALL] Refunded ${refundAmount} FCFA to user ${withdrawal.userId}`);
       }
+      
+      console.log(`[ADMIN WITHDRAWAL REJECT-ALL] Completed: ${refundedCount} withdrawals rejected, ${totalRefunded} FCFA refunded`);
       
       res.json({ 
         success: true, 
-        count: pendingWithdrawals.length,
-        message: `${pendingWithdrawals.length} retrait(s) rejeté(s) avec succès`
+        count: refundedCount,
+        totalRefunded: totalRefunded,
+        message: `${refundedCount} retrait(s) rejeté(s) et ${totalRefunded} FCFA remboursé(s)`
       });
     } catch (error) {
-      console.error("Error rejecting all withdrawals:", error);
-      res.status(500).json({ message: "Erreur lors de l'approbation de tous les retraits" });
+      console.error("[ADMIN WITHDRAWAL REJECT-ALL] Error rejecting all withdrawals:", error);
+      res.status(500).json({ message: "Erreur lors du rejet des retraits" });
     }
   });
 
@@ -1207,11 +1267,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { withdrawalId } = req.params;
       const { status } = req.body;
       
+      console.log(`[ADMIN WITHDRAWAL STATUS] Updating withdrawal ${withdrawalId} to status: ${status}`);
+      
+      // Get withdrawal details
+      const withdrawal = await storage.getWithdrawalById(withdrawalId);
+      if (!withdrawal) {
+        return res.status(404).json({ message: 'Retrait non trouvé' });
+      }
+      
+      const oldStatus = withdrawal.status;
+      
+      // If changing to failed/rejected status, refund the user
+      if ((status === 'failed' || status === 'rejected') && oldStatus === 'pending') {
+        console.log(`[ADMIN WITHDRAWAL STATUS] Rejecting withdrawal - will refund user ${withdrawal.userId}`);
+        
+        const refundAmount = parseFloat(withdrawal.amount);
+        
+        // Refund the user
+        await storage.updateUserBalance(withdrawal.userId, refundAmount);
+        
+        // Create refund transaction
+        await storage.createTransaction({
+          userId: withdrawal.userId,
+          type: 'deposit',
+          amount: withdrawal.amount,
+          description: 'Remboursement retrait rejeté',
+          status: 'completed'
+        });
+        
+        console.log(`[ADMIN WITHDRAWAL STATUS] Refunded ${refundAmount} FCFA to user ${withdrawal.userId}`);
+      }
+      
+      // Update status
       await storage.updateWithdrawalStatus(withdrawalId, status);
       
-      res.json({ message: 'Statut du retrait mis à jour' });
+      console.log(`[ADMIN WITHDRAWAL STATUS] Status updated: ${oldStatus} → ${status}`);
+      
+      res.json({ message: 'Statut du retrait mis à jour', refunded: (status === 'failed' || status === 'rejected') && oldStatus === 'pending' });
     } catch (error) {
-      console.error('Error updating withdrawal status:', error);
+      console.error('[ADMIN WITHDRAWAL STATUS] Error updating withdrawal status:', error);
       res.status(500).json({ message: 'Erreur lors de la mise à jour du statut' });
     }
   });
