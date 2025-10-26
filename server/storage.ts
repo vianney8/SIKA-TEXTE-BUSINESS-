@@ -722,33 +722,44 @@ export class DatabaseStorage implements IStorage {
       throw new Error('Phrase non trouvée');
     }
     
-    // Normalize text: remove punctuation at end, lowercase, trim whitespace
+    // Normalize text: remove punctuation, lowercase, trim
     const normalizeText = (text: string): string => {
-      return text.toLowerCase().trim().replace(/[.!?;,]+$/, '').trim();
+      return text.toLowerCase().trim().replace(/[.!?;,]+$/, '').replace(/['']/g, "'").trim();
     };
     
     const userNormalized = normalizeText(userAnswer);
     const correctNormalized = normalizeText(sentence.correctedText);
     const originalNormalized = normalizeText(sentence.text);
     
-    // Accept if:
-    // 1. User provides the complete corrected sentence
-    // 2. User provides just the corrected part (the correction itself)
-    // 3. User's answer is contained in the correct answer
+    // Find the corrected word(s) by comparing original and correct sentences
+    const originalWords = originalNormalized.split(/\s+/);
+    const correctWords = correctNormalized.split(/\s+/);
+    const correctedParts: string[] = [];
+    
+    // Identify what changed between original and correct
+    for (let i = 0; i < Math.max(originalWords.length, correctWords.length); i++) {
+      if (originalWords[i] !== correctWords[i] && correctWords[i]) {
+        correctedParts.push(correctWords[i]);
+      }
+    }
+    
     let isCorrect = false;
     
+    // Strategy 1: Full correct sentence match
     if (userNormalized === correctNormalized) {
-      // Full correct sentence
       isCorrect = true;
-    } else if (correctNormalized.includes(userNormalized) && userNormalized.length >= 3) {
-      // User provided a partial correction (at least 3 chars)
+    } 
+    // Strategy 2: User provided just the corrected word(s)
+    else if (correctedParts.length > 0 && correctedParts.some(part => userNormalized.includes(part))) {
       isCorrect = true;
-    } else if (originalNormalized !== correctNormalized && userNormalized.length >= 3) {
-      // Check if the user's answer corrects the error
-      // If the correct text contains the user's answer, it's likely a valid partial correction
-      if (correctNormalized.includes(userNormalized)) {
-        isCorrect = true;
-      }
+    }
+    // Strategy 3: User's answer contains all the corrected parts
+    else if (correctedParts.length > 0 && correctedParts.every(part => userNormalized.includes(part))) {
+      isCorrect = true;
+    }
+    // Strategy 4: Any partial match with correct text (at least 3 chars)
+    else if (correctNormalized.includes(userNormalized) && userNormalized.length >= 3) {
+      isCorrect = true;
     }
     
     const reward = isCorrect ? 650 : 0; // 650 FCFA per correct answer
