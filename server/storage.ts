@@ -1346,7 +1346,7 @@ export class DatabaseStorage implements IStorage {
       { key: 'activation_link', value: 'https://app.payix.me/payment/32518586-14cc-4a45-877a-758608f969aa', label: 'Lien activation en ligne' },
       { key: 'whatsapp_group', value: 'https://chat.whatsapp.com/HtUYvCOeJArHYLhMcRCsDs', label: 'Groupe WhatsApp' },
       { key: 'telegram_supervisor', value: '@SIKAcustomer_service', label: 'Superviseur Telegram' },
-      { key: 'telegram_group', value: 'https://t.me/sikatexte_group', label: 'Groupe Telegram' }
+      { key: 'telegram_group', value: 'https://t.me/+A1QL2HAVBkMyMDA0', label: 'Groupe Telegram' }
     ];
 
     for (const setting of defaultSettings) {

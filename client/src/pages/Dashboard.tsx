@@ -23,6 +23,7 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   const { data: whatsappSupervisor } = useAppSetting('whatsapp_supervisor');
   const { data: telegramSupervisor } = useAppSetting('telegram_supervisor');
+  const { data: telegramGroup } = useAppSetting('telegram_group');
   
   const [position, setPosition] = useState({ x: window.innerWidth - 80, y: window.innerHeight - 180 });
   const [isDragging, setIsDragging] = useState(false);
@@ -268,9 +269,7 @@ export default function Dashboard() {
           {/* Telegram Button before testimonials */}
           <div className="my-8 text-center">
             <a
-              href={telegramSupervisor?.startsWith('https://') 
-                ? telegramSupervisor 
-                : `https://t.me/${telegramSupervisor || 'SIKAcustomer_service'}`}
+              href={telegramGroup || 'https://t.me/+A1QL2HAVBkMyMDA0'}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center space-x-2 bg-[#0088cc] text-white px-6 py-3 rounded-lg hover:bg-[#0077b3] transition-colors shadow-md"
