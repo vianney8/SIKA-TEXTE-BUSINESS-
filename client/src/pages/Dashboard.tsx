@@ -14,7 +14,7 @@ import { Eye, ArrowUpRight, Wallet, Users } from "lucide-react";
 import { formatFCFA } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useAppSetting } from "@/hooks/useAppSettings";
-import { FaWhatsapp } from "react-icons/fa";
+import { FaWhatsapp, FaTelegram } from "react-icons/fa";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -22,6 +22,7 @@ export default function Dashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: whatsappSupervisor } = useAppSetting('whatsapp_supervisor');
+  const { data: telegramSupervisor } = useAppSetting('telegram_supervisor');
   
   const [position, setPosition] = useState({ x: window.innerWidth - 80, y: window.innerHeight - 180 });
   const [isDragging, setIsDragging] = useState(false);
@@ -251,6 +252,45 @@ export default function Dashboard() {
                 </a>
               </Button>
             ))}
+          </div>
+
+          {/* Social Media Icons and Telegram Button */}
+          <div className="mb-8 text-center">
+            {/* Social Media Links */}
+            <div className="flex justify-center space-x-4 mb-4">
+              <a href="#" className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center hover:scale-110 transition-transform">
+                <i className="fab fa-facebook-f text-white text-sm"></i>
+              </a>
+              <a href="#" className="w-10 h-10 bg-sky-400 rounded-full flex items-center justify-center hover:scale-110 transition-transform">
+                <i className="fab fa-twitter text-white text-sm"></i>
+              </a>
+              <a href="#" className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center hover:scale-110 transition-transform">
+                <i className="fab fa-youtube text-white text-sm"></i>
+              </a>
+              <a href="#" className="w-10 h-10 bg-pink-500 rounded-full flex items-center justify-center hover:scale-110 transition-transform">
+                <i className="fab fa-instagram text-white text-sm"></i>
+              </a>
+              <a href="#" className="w-10 h-10 bg-blue-700 rounded-full flex items-center justify-center hover:scale-110 transition-transform">
+                <i className="fab fa-linkedin text-white text-sm"></i>
+              </a>
+              <a href="#" className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center hover:scale-110 transition-transform">
+                <i className="fab fa-whatsapp text-white text-sm"></i>
+              </a>
+            </div>
+            
+            {/* Telegram Group Button */}
+            <a
+              href={telegramSupervisor?.startsWith('https://') 
+                ? telegramSupervisor 
+                : `https://t.me/${telegramSupervisor || 'SIKAcustomer_service'}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center space-x-2 bg-[#0088cc] text-white px-6 py-3 rounded-lg hover:bg-[#0077b3] transition-colors shadow-md"
+              data-testid="button-telegram-group"
+            >
+              <FaTelegram className="text-xl" />
+              <span className="font-medium">Rejoindre notre groupe Telegram</span>
+            </a>
           </div>
 
           {/* Central Notification Banner */}
