@@ -1188,6 +1188,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async searchUsersByPhoneOrEmail(query: string): Promise<(User & { isActive?: boolean })[]> {
+    // Normaliser le numéro de recherche (retirer les caractères non-numériques)
+    const normalizedQuery = query.replace(/[^0-9]/g, '');
+    
     const result = await db
       .select({
         id: users.id,
@@ -1207,8 +1210,12 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(accountStatus, eq(accountStatus.userId, users.id))
       .where(
         or(
+          // Recherche par email (normale)
+          ilike(users.email, `%${query}%`),
+          // Recherche par téléphone (normale pour capturer les formats variés)
           ilike(users.phone, `%${query}%`),
-          ilike(users.email, `%${query}%`)
+          // Recherche par téléphone normalisé (retire tous les caractères non-numériques)
+          sql`regexp_replace(${users.phone}, '[^0-9]', '', 'g') LIKE ${`%${normalizedQuery}%`}`
         )
       )
       .limit(50);
