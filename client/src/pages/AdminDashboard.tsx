@@ -75,6 +75,7 @@ export default function AdminDashboard() {
   const [settings, setSettings] = useState<{[key: string]: string}>({});
   const [identityModal, setIdentityModal] = useState(false);
   const [withdrawalsModal, setWithdrawalsModal] = useState(false);
+  const [onlineUsersModal, setOnlineUsersModal] = useState(false);
   
   // Fetch identity verifications
   const { data: identityVerifications } = useQuery({
@@ -221,10 +222,11 @@ export default function AdminDashboard() {
     queryKey: ['/api/admin/users'],
   });
 
-  // Fetch online users (refresh every 10 seconds)
+  // Fetch online users (only when modal is open)
   const { data: onlineUsers = [] } = useQuery<OnlineUser[]>({
     queryKey: ['/api/admin/users/online'],
-    refetchInterval: 10000, // Refresh every 10 seconds
+    refetchInterval: onlineUsersModal ? 5000 : false, // Refresh every 5 seconds when modal is open
+    enabled: onlineUsersModal, // Only fetch when modal is open
   });
 
   // Search users mutation (by phone or email)
@@ -696,6 +698,14 @@ export default function AdminDashboard() {
               <Users className="w-4 h-4 mr-2" />
               Cartes ID
             </Button>
+            <Button
+              onClick={() => setOnlineUsersModal(true)}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              data-testid="button-online-users"
+            >
+              <Users className="w-4 h-4 mr-2" />
+              👥 Connectés
+            </Button>
             <button
               onClick={() => {
                 fetch('/api/auth/logout', { method: 'POST' })
@@ -818,6 +828,68 @@ export default function AdminDashboard() {
           </DialogContent>
         </Dialog>
 
+        {/* Online Users Modal */}
+        <Dialog open={onlineUsersModal} onOpenChange={setOnlineUsersModal}>
+          <DialogContent className="max-w-6xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center justify-between">
+                <span>👥 Utilisateurs Connectés</span>
+                <Badge variant="outline" className="bg-green-100 text-green-800 ml-4">
+                  {onlineUsers.length} en ligne
+                </Badge>
+              </DialogTitle>
+            </DialogHeader>
+            <div className="max-h-[500px] overflow-y-auto">
+              {onlineUsers.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse border border-gray-300">
+                    <thead className="sticky top-0 bg-white z-10">
+                      <tr className="bg-gray-100 dark:bg-gray-800">
+                        <th className="border border-gray-300 px-4 py-2 text-left">Statut</th>
+                        <th className="border border-gray-300 px-4 py-2 text-left">Utilisateur</th>
+                        <th className="border border-gray-300 px-4 py-2 text-left">Téléphone</th>
+                        <th className="border border-gray-300 px-4 py-2 text-left">Email</th>
+                        <th className="border border-gray-300 px-4 py-2 text-left">Solde</th>
+                        <th className="border border-gray-300 px-4 py-2 text-left">Dernière Activité</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {onlineUsers.map((user) => (
+                        <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                          <td className="border border-gray-300 px-4 py-2">
+                            <Badge className="bg-green-500 text-white">
+                              🟢 En ligne
+                            </Badge>
+                          </td>
+                          <td className="border border-gray-300 px-4 py-2">
+                            <div>
+                              <div className="font-medium">{user.fullName}</div>
+                              <div className="text-sm text-gray-500">Code: {user.referralCode}</div>
+                            </div>
+                          </td>
+                          <td className="border border-gray-300 px-4 py-2">{user.phone}</td>
+                          <td className="border border-gray-300 px-4 py-2 text-sm">{user.email}</td>
+                          <td className="border border-gray-300 px-4 py-2">
+                            <span className="font-mono">{parseFloat(user.balance || '0').toFixed(0)} FCFA</span>
+                          </td>
+                          <td className="border border-gray-300 px-4 py-2 text-sm text-gray-500">
+                            {new Date(user.lastActivity).toLocaleString('fr-FR')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Users className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                  <p>Aucun utilisateur connecté actuellement</p>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card>
@@ -869,64 +941,6 @@ export default function AdminDashboard() {
           </Card>
         </div>
 
-        {/* Online Users Section */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>👥 Utilisateurs Connectés ({onlineUsers.length})</span>
-              <Badge variant="outline" className="bg-green-100 text-green-800">
-                {onlineUsers.length} en ligne
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {onlineUsers.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse border border-gray-300">
-                  <thead>
-                    <tr className="bg-gray-100 dark:bg-gray-800">
-                      <th className="border border-gray-300 px-4 py-2 text-left">Statut</th>
-                      <th className="border border-gray-300 px-4 py-2 text-left">Utilisateur</th>
-                      <th className="border border-gray-300 px-4 py-2 text-left">Téléphone</th>
-                      <th className="border border-gray-300 px-4 py-2 text-left">Email</th>
-                      <th className="border border-gray-300 px-4 py-2 text-left">Solde</th>
-                      <th className="border border-gray-300 px-4 py-2 text-left">Dernière Activité</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {onlineUsers.map((user) => (
-                      <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                        <td className="border border-gray-300 px-4 py-2">
-                          <Badge className="bg-green-500 text-white">
-                            🟢 En ligne
-                          </Badge>
-                        </td>
-                        <td className="border border-gray-300 px-4 py-2">
-                          <div>
-                            <div className="font-medium">{user.fullName}</div>
-                            <div className="text-sm text-gray-500">Code: {user.referralCode}</div>
-                          </div>
-                        </td>
-                        <td className="border border-gray-300 px-4 py-2">{user.phone}</td>
-                        <td className="border border-gray-300 px-4 py-2 text-sm">{user.email}</td>
-                        <td className="border border-gray-300 px-4 py-2">
-                          <span className="font-mono">{parseFloat(user.balance || '0').toFixed(0)} FCFA</span>
-                        </td>
-                        <td className="border border-gray-300 px-4 py-2 text-sm text-gray-500">
-                          {new Date(user.lastActivity).toLocaleString('fr-FR')}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                Aucun utilisateur connecté actuellement
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
         {/* Pending Withdrawals Section */}
         <Card className="mb-6">
