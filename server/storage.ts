@@ -892,10 +892,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(withdrawals.userId, userId))
       .orderBy(desc(withdrawals.createdAt));
     
-    // For old withdrawals with masked card numbers, use the user's actual phone
+    // Display the bank card number if it exists, otherwise the phoneNumber
     return result.map(w => ({
       ...w,
-      phoneNumber: w.phoneNumber.includes('****') ? w.userPhone : w.phoneNumber
+      phoneNumber: w.cardNumber || w.phoneNumber
     }));
   }
   
