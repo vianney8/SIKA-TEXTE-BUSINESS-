@@ -110,6 +110,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Support new format with fullName, email, and phone
       const { fullName, email, phone, password, referralCode } = req.body;
       
+      console.log(`[REGISTER] Incoming data - Phone: ${phone}, Password length: ${password?.length}, Email: ${email}`);
+      
       // Basic validation
       if (!fullName || !email || !phone || !password) {
         return res.status(400).json({ message: "Nom complet, email, téléphone et mot de passe requis" });
@@ -122,17 +124,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if user already exists by phone
       const existingUserByPhone = await storage.getUserByPhone(phone);
       if (existingUserByPhone) {
+        console.log(`[REGISTER FAILED] User already exists with phone: ${phone}`);
         return res.status(400).json({ message: "Un utilisateur avec ce numéro de téléphone existe déjà" });
       }
 
       // Check if user already exists by email
       const existingUserByEmail = await storage.getUserByEmail(email);
       if (existingUserByEmail) {
+        console.log(`[REGISTER FAILED] User already exists with email: ${email}`);
         return res.status(400).json({ message: "Un utilisateur avec cette adresse email existe déjà" });
       }
 
       // Hash password (trim to avoid accidental spaces)
-      const hashedPassword = await bcrypt.hash(password.trim(), 10);
+      const trimmedPassword = password.trim();
+      console.log(`[REGISTER] Password - Original length: ${password.length}, Trimmed length: ${trimmedPassword.length}`);
+      const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
+      console.log(`[REGISTER] Password hashed successfully, hash length: ${hashedPassword.length}`);
 
       const user = await storage.createUser({
         password: hashedPassword,
@@ -141,6 +148,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         phone: phone,
         referralCode: referralCode,
       });
+      
+      console.log(`[REGISTER SUCCESS] User created - ID: ${user.id}, Phone: ${user.phone}, Email: ${user.email}`);
 
       // Create signup bonus transaction of 600 FCFA
       await storage.createTransaction({
