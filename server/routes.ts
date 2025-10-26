@@ -23,7 +23,7 @@ import {
 import bcrypt from "bcrypt";
 import session from "express-session";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import connectPg from "connect-pg-simple";
 import { randomBytes } from "crypto";
 
@@ -180,19 +180,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[LOGIN ATTEMPT] Phone: ${phoneNumber}, Password length: ${password.length}`);
       
       const user = await storage.getUserByPhone(phoneNumber);
-      if (!user || !user.password) {
-        console.log(`[LOGIN FAILED] User not found or no password set for phone: ${phoneNumber}`);
+      if (!user) {
+        console.log(`[LOGIN FAILED] User not found for phone: ${phoneNumber}`);
         return res.status(401).json({ message: "Numéro de téléphone ou mot de passe incorrect" });
       }
 
-      // Check if account is blocked
+      if (!user.password) {
+        console.log(`[LOGIN FAILED] No password set for phone: ${phoneNumber}`);
+        return res.status(401).json({ message: "Numéro de téléphone ou mot de passe incorrect" });
+      }
+
+      // Check if account is blocked BEFORE checking password
       if (user.isBlocked) {
         console.log(`[LOGIN FAILED] Account blocked for user: ${phoneNumber}`);
-        return res.status(403).json({ message: "ACCOUNT_BLOCKED", blocked: true });
+        return res.status(403).json({ message: "Votre compte est bloqué", blocked: true });
       }
 
       const isValidPassword = await bcrypt.compare(password.trim(), user.password);
-      console.log(`[LOGIN] Password validation result: ${isValidPassword}`);
+      console.log(`[LOGIN] Password validation result: ${isValidPassword} for phone: ${phoneNumber}`);
+      console.log(`[LOGIN DEBUG] Password from request (trimmed, length): ${password.trim().length}`);
+      console.log(`[LOGIN DEBUG] Stored hash (length): ${user.password.length}`);
       
       if (!isValidPassword) {
         console.log(`[LOGIN FAILED] Invalid password for user: ${phoneNumber}`);
@@ -1069,12 +1076,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { userId } = req.params;
       const { newPassword } = adminUpdatePasswordSchema.parse(req.body);
       
-      console.log(`[ADMIN PASSWORD UPDATE] User ID: ${userId}, Password length: ${newPassword.length}`);
+      console.log(`[ADMIN PASSWORD UPDATE] User ID: ${userId}, New password length: ${newPassword.length}, Trimmed length: ${newPassword.trim().length}`);
+      
+      // Get user before update for logging
+      const userBefore = await storage.getUser(userId);
+      console.log(`[ADMIN PASSWORD UPDATE] User phone: ${userBefore?.phone}, Old hash length: ${userBefore?.password?.length || 0}`);
       
       const hashedPassword = await bcrypt.hash(newPassword.trim(), 10);
+      console.log(`[ADMIN PASSWORD UPDATE] New hash generated, length: ${hashedPassword.length}`);
+      
       await storage.updateUserPassword(userId, hashedPassword);
       
-      console.log(`[ADMIN PASSWORD UPDATE] Password successfully hashed and updated for user ${userId}`);
+      // Verify the update worked
+      const userAfter = await storage.getUser(userId);
+      console.log(`[ADMIN PASSWORD UPDATE] Update complete. New hash in DB, length: ${userAfter?.password?.length || 0}`);
+      console.log(`[ADMIN PASSWORD UPDATE] Hash changed: ${userBefore?.password !== userAfter?.password}`);
+      
+      // Destroy all sessions for this user so they must log in with new password
+      await db.execute(sql`DELETE FROM sessions WHERE sess::jsonb->>'userId' = ${userId}`);
+      console.log(`[ADMIN PASSWORD UPDATE] All sessions destroyed for user ${userId}`);
       
       res.json({ message: 'Mot de passe mis à jour avec succès' });
     } catch (error: any) {
@@ -1092,8 +1112,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { userId } = req.params;
       const { blocked } = adminBlockUserSchema.parse(req.body);
       
+      // Get user info for logging
+      const user = await storage.getUser(userId);
+      console.log(`[ADMIN BLOCK/UNBLOCK] User: ${user?.phone}, Action: ${blocked ? 'BLOCK' : 'UNBLOCK'}`);
+      
       await storage.blockUser(userId, blocked);
       
+      // If blocking, destroy all active sessions
+      if (blocked) {
+        await db.execute(sql`DELETE FROM sessions WHERE sess::jsonb->>'userId' = ${userId}`);
+        console.log(`[ADMIN BLOCK] All sessions destroyed for user ${userId}`);
+      }
+      
+      console.log(`[ADMIN BLOCK/UNBLOCK] Success for user ${userId}`);
       res.json({ message: blocked ? 'Utilisateur bloqué avec succès' : 'Utilisateur débloqué avec succès' });
     } catch (error: any) {
       console.error('Error blocking/unblocking user:', error);
