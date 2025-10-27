@@ -42,18 +42,27 @@ export default function Profile() {
 
   const [countryCode, setCountryCode] = useState(extractCountryCode((user as any)?.phone || ""));
 
-  // Update country code when user changes
-  useEffect(() => {
-    setCountryCode(extractCountryCode((user as any)?.phone || ""));
-  }, [(user as any)?.phone]);
-
   const profileForm = useForm<ProfileForm>({
     defaultValues: {
-      fullName: (user as any)?.fullName || ((user as any)?.firstName + " " + (user as any)?.lastName) || "",
-      phone: (user as any)?.phone ? (user as any).phone.replace(/^\+\d{3}/, "") : "",
-      email: (user as any)?.email || "",
+      fullName: "",
+      phone: "",
+      email: "",
     },
   });
+
+  // Update form when user data loads or changes
+  useEffect(() => {
+    if (user) {
+      const extractedCountryCode = extractCountryCode((user as any)?.phone || "");
+      setCountryCode(extractedCountryCode);
+      
+      profileForm.reset({
+        fullName: (user as any)?.fullName || ((user as any)?.firstName + " " + (user as any)?.lastName) || "",
+        phone: (user as any)?.phone ? (user as any).phone.replace(/^\+\d{3}/, "") : "",
+        email: (user as any)?.email || "",
+      });
+    }
+  }, [user]);
 
   const passwordForm = useForm<PasswordForm>({
     defaultValues: {
@@ -65,8 +74,13 @@ export default function Profile() {
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: ProfileForm) => {
+      // Validate phone number is not empty
+      if (!data.phone || data.phone.trim() === "") {
+        throw new Error("Le numéro de téléphone ne peut pas être vide");
+      }
+      
       // Combine country code with phone number before sending
-      const fullPhone = countryCode + data.phone;
+      const fullPhone = countryCode + data.phone.trim();
       return await apiRequest("PUT", "/api/user/profile", {
         ...data,
         phone: fullPhone,
