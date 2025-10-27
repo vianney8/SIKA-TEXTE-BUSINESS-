@@ -170,7 +170,7 @@ export default function TeamPage() {
                   {referralData?.activeReferrals || 0}
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-400">
-                  Comptes actifs
+                  Comptes activés
                 </p>
               </div>
             </CardContent>

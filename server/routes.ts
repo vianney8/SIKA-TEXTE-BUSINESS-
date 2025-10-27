@@ -111,6 +111,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { fullName, email, phone, password, referralCode } = req.body;
       
       console.log(`[REGISTER] Incoming data - Phone: ${phone}, Password length: ${password?.length}, Email: ${email}`);
+      console.log(`[REGISTER DEBUG] Full request body:`, JSON.stringify({ fullName, email, phone: phone, hasPassword: !!password, referralCode }));
       
       // Basic validation
       if (!fullName || !email || !phone || !password) {
@@ -141,6 +142,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
       console.log(`[REGISTER] Password hashed successfully, hash length: ${hashedPassword.length}`);
 
+      console.log(`[REGISTER] About to create user with phone: ${phone}`);
+      
       const user = await storage.createUser({
         password: hashedPassword,
         fullName: fullName,
@@ -149,7 +152,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         referralCode: referralCode,
       });
       
-      console.log(`[REGISTER SUCCESS] User created - ID: ${user.id}, Phone: ${user.phone}, Email: ${user.email}`);
+      console.log(`[REGISTER SUCCESS] User created - ID: ${user.id}, Phone SENT: ${phone}, Phone STORED: ${user.phone}, Email: ${user.email}`);
+      
+      // Check if phone number changed
+      if (user.phone !== phone) {
+        console.warn(`[REGISTER WARNING] Phone number mismatch! Sent: ${phone}, Stored: ${user.phone}`);
+      }
 
       // Create signup bonus transaction of 600 FCFA
       await storage.createTransaction({
@@ -702,10 +710,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.upsertUser({ id: userId, referralCode });
       }
       
+      // Get account activation status for each referred user
+      const activatedReferralsCount = await Promise.all(
+        referrals.filter(r => r.referredUser).map(async (r) => {
+          const accountStatus = await storage.getAccountStatus(r.referredUserId);
+          return accountStatus?.isActive === true ? 1 : 0;
+        })
+      ).then(results => results.reduce((sum: number, val: number) => sum + val, 0));
+      
       const referralData = {
         referralCode,
         totalReferrals: stats.totalReferrals,
-        activeReferrals: referrals.filter(r => r.referredUser).length,
+        activeReferrals: activatedReferralsCount, // Count only activated accounts
         totalCommission: stats.totalCommission,
         monthlyCommission: stats.monthlyCommission,
         referrals: referrals.map(r => ({
