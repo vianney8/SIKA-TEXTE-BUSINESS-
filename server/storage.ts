@@ -1009,7 +1009,21 @@ export class DatabaseStorage implements IStorage {
         
         console.log(`[STORAGE] Withdrawal deleted - User: ${deletedWithdrawal.userId}, Amount: ${deletedWithdrawal.amount}`);
         
-        // Step 2: Refund the user's balance
+        // Step 2: Delete the corresponding withdrawal transaction from transactions table
+        // This prevents cancelled withdrawals from appearing in user's transaction history
+        const deletedTransactions = await tx
+          .delete(transactions)
+          .where(and(
+            eq(transactions.userId, deletedWithdrawal.userId),
+            eq(transactions.type, 'withdrawal'),
+            eq(transactions.amount, deletedWithdrawal.amount),
+            eq(transactions.status, 'pending')
+          ))
+          .returning();
+        
+        console.log(`[STORAGE] Deleted ${deletedTransactions.length} matching withdrawal transaction(s) from history`);
+        
+        // Step 3: Refund the user's balance
         const refundAmount = parseFloat(deletedWithdrawal.amount);
         const [user] = await tx
           .select()
@@ -1027,7 +1041,7 @@ export class DatabaseStorage implements IStorage {
         
         console.log(`[STORAGE] Balance updated: ${currentBalance} → ${newBalance}`);
         
-        // Step 3: Create refund transaction record
+        // Step 4: Create refund transaction record
         const reference = `TXN${Date.now()}${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
         await tx.insert(transactions).values({
           userId: deletedWithdrawal.userId,
