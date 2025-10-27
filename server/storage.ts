@@ -1063,20 +1063,7 @@ export class DatabaseStorage implements IStorage {
           .set({ balance: newBalance.toString() })
           .where(eq(users.id, deletedWithdrawal.userId));
         
-        console.log(`[STORAGE] Balance updated: ${currentBalance} → ${newBalance}`);
-        
-        // Step 4: Create refund transaction record
-        const reference = `TXN${Date.now()}${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
-        await tx.insert(transactions).values({
-          userId: deletedWithdrawal.userId,
-          type: 'deposit',
-          amount: deletedWithdrawal.amount,
-          description: description,
-          status: 'completed',
-          reference
-        });
-        
-        console.log('[STORAGE] Refund transaction created');
+        console.log(`[STORAGE] Balance updated: ${currentBalance} → ${newBalance} (silent refund, no transaction history)`);
         
         return { success: true, withdrawal: deletedWithdrawal };
       });
