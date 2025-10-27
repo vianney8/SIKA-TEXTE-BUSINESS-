@@ -130,6 +130,7 @@ export const withdrawals = pgTable("withdrawals", {
   cardFirstName: varchar("card_first_name"),
   cardLastName: varchar("card_last_name"),
   cardNumber: varchar("card_number"),
+  reference: varchar("reference"),
   status: varchar("status").notNull().default('pending'), // 'pending', 'completed', 'failed'
   processedAt: timestamp("processed_at"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -293,7 +294,6 @@ export const loginUserSchema = z.object({
 export const insertTransactionSchema = createInsertSchema(transactions).omit({
   id: true,
   userId: true,
-  reference: true,
   createdAt: true,
 });
 

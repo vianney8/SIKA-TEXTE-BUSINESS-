@@ -662,6 +662,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(userId);
       const userPhone = user?.phone || '';
       
+      // Generate unique reference for linking withdrawal and transaction
+      const reference = `WD${Date.now()}${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+      
       // Create withdrawal request using bank card (save card info at time of withdrawal)
       const withdrawal = await storage.createWithdrawal(
         userId, 
@@ -669,20 +672,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userPhone,
         bankCard.firstName,
         bankCard.lastName,
-        bankCard.cardNumber
+        bankCard.cardNumber,
+        reference
       );
       
       // Deduct from balance
       await storage.updateUserBalance(userId, -amount);
       
-      // Create transaction record
+      // Create transaction record with same reference
       await storage.createTransaction({
         userId,
         type: 'withdrawal',
         amount: amount.toString(),
         recipientPhone: userPhone,
         description: 'Retrait sur carte bancaire',
-        status: 'pending'
+        status: 'pending',
+        reference
       });
       
       res.json({ message: 'Demande de retrait créée avec succès', withdrawal });

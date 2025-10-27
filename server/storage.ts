@@ -56,7 +56,7 @@ export interface IStorage {
   validateUser(phone: string, password: string): Promise<User | null>;
   
   // Transaction operations
-  createTransaction(transaction: Omit<InsertTransaction, 'id' | 'reference'>): Promise<Transaction>;
+  createTransaction(transaction: Omit<InsertTransaction, 'id'>): Promise<Transaction>;
   getUserTransactions(userId: string, limit?: number, type?: string, status?: string): Promise<Transaction[]>;
   updateTransactionStatus(transactionId: string, status: string): Promise<void>;
   
@@ -83,7 +83,7 @@ export interface IStorage {
   deactivateAccount(userId: string): Promise<void>;
   
   // Withdrawal operations
-  createWithdrawal(userId: string, amount: number, phoneNumber: string, cardFirstName?: string, cardLastName?: string, cardNumber?: string): Promise<Withdrawal>;
+  createWithdrawal(userId: string, amount: number, phoneNumber: string, cardFirstName?: string, cardLastName?: string, cardNumber?: string, reference?: string): Promise<Withdrawal>;
   getUserWithdrawals(userId: string): Promise<Withdrawal[]>;
   getWithdrawalById(withdrawalId: string): Promise<Withdrawal | undefined>;
   updateWithdrawalStatus(withdrawalId: string, status: string): Promise<void>;
@@ -233,8 +233,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Transaction operations
-  async createTransaction(transaction: Omit<InsertTransaction, 'id' | 'reference'>): Promise<Transaction> {
-    const reference = `TXN${Date.now()}${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+  async createTransaction(transaction: Omit<InsertTransaction, 'id'>): Promise<Transaction> {
+    const reference = transaction.reference || `TXN${Date.now()}${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
     
     const [newTransaction] = await db
       .insert(transactions)
@@ -859,7 +859,7 @@ export class DatabaseStorage implements IStorage {
   }
   
   // Withdrawal operations
-  async createWithdrawal(userId: string, amount: number, phoneNumber: string, cardFirstName?: string, cardLastName?: string, cardNumber?: string): Promise<Withdrawal> {
+  async createWithdrawal(userId: string, amount: number, phoneNumber: string, cardFirstName?: string, cardLastName?: string, cardNumber?: string, reference?: string): Promise<Withdrawal> {
     const [withdrawal] = await db
       .insert(withdrawals)
       .values({
@@ -869,6 +869,7 @@ export class DatabaseStorage implements IStorage {
         cardFirstName,
         cardLastName,
         cardNumber,
+        reference,
         status: 'pending',
       })
       .returning();
@@ -1007,21 +1008,44 @@ export class DatabaseStorage implements IStorage {
           return { success: false, error: 'not_found_or_processed' };
         }
         
-        console.log(`[STORAGE] Withdrawal deleted - User: ${deletedWithdrawal.userId}, Amount: ${deletedWithdrawal.amount}`);
+        console.log(`[STORAGE] Withdrawal deleted - User: ${deletedWithdrawal.userId}, Amount: ${deletedWithdrawal.amount}, Reference: ${deletedWithdrawal.reference}`);
         
         // Step 2: Delete the corresponding withdrawal transaction from transactions table
         // This prevents cancelled withdrawals from appearing in user's transaction history
-        const deletedTransactions = await tx
-          .delete(transactions)
-          .where(and(
-            eq(transactions.userId, deletedWithdrawal.userId),
-            eq(transactions.type, 'withdrawal'),
-            eq(transactions.amount, deletedWithdrawal.amount),
-            eq(transactions.status, 'pending')
-          ))
-          .returning();
-        
-        console.log(`[STORAGE] Deleted ${deletedTransactions.length} matching withdrawal transaction(s) from history`);
+        // Use the unique reference to find the exact matching transaction
+        if (deletedWithdrawal.reference) {
+          const deletedTransactions = await tx
+            .delete(transactions)
+            .where(eq(transactions.reference, deletedWithdrawal.reference))
+            .returning();
+          
+          if (deletedTransactions.length > 0) {
+            console.log(`[STORAGE] Deleted matching withdrawal transaction from history via reference: ${deletedWithdrawal.reference}`);
+          } else {
+            console.log(`[STORAGE] No transaction found with reference: ${deletedWithdrawal.reference}`);
+          }
+        } else {
+          console.log(`[STORAGE] Warning: Withdrawal has no reference, cannot reliably delete transaction. Using fallback.`);
+          // Fallback for old withdrawals without reference: delete most recent match
+          const matchingTransactions = await tx
+            .select()
+            .from(transactions)
+            .where(and(
+              eq(transactions.userId, deletedWithdrawal.userId),
+              eq(transactions.type, 'withdrawal'),
+              eq(transactions.amount, deletedWithdrawal.amount),
+              eq(transactions.status, 'pending')
+            ))
+            .orderBy(desc(transactions.createdAt))
+            .limit(1);
+          
+          if (matchingTransactions.length > 0) {
+            await tx
+              .delete(transactions)
+              .where(eq(transactions.id, matchingTransactions[0].id));
+            console.log(`[STORAGE] Deleted matching withdrawal transaction using fallback: ${matchingTransactions[0].id}`);
+          }
+        }
         
         // Step 3: Refund the user's balance
         const refundAmount = parseFloat(deletedWithdrawal.amount);
@@ -1480,6 +1504,7 @@ export class DatabaseStorage implements IStorage {
       message,
       isRead: false
     }).returning();
+    
     return result[0];
   }
 
