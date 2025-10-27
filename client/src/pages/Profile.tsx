@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -28,6 +28,24 @@ export default function Profile() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<"profile" | "password">("profile");
+  
+  // Extract country code from user's phone number
+  const extractCountryCode = (phone: string) => {
+    if (!phone) return "+228";
+    if (phone.startsWith("+228")) return "+228";
+    if (phone.startsWith("+225")) return "+225";
+    if (phone.startsWith("+221")) return "+221";
+    if (phone.startsWith("+226")) return "+226";
+    if (phone.startsWith("+229")) return "+229";
+    return "+228"; // Default
+  };
+
+  const [countryCode, setCountryCode] = useState(extractCountryCode((user as any)?.phone || ""));
+
+  // Update country code when user changes
+  useEffect(() => {
+    setCountryCode(extractCountryCode((user as any)?.phone || ""));
+  }, [(user as any)?.phone]);
 
   const profileForm = useForm<ProfileForm>({
     defaultValues: {
@@ -47,7 +65,12 @@ export default function Profile() {
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: ProfileForm) => {
-      return await apiRequest("PUT", "/api/user/profile", data);
+      // Combine country code with phone number before sending
+      const fullPhone = countryCode + data.phone;
+      return await apiRequest("PUT", "/api/user/profile", {
+        ...data,
+        phone: fullPhone,
+      });
     },
     onSuccess: () => {
       toast({
@@ -197,23 +220,31 @@ export default function Profile() {
                       <FormItem>
                         <FormLabel>Numéro de téléphone</FormLabel>
                         <div className="flex">
-                          <select disabled className="bg-muted border border-input rounded-l-lg px-3 py-3 focus:ring-2 focus:ring-ring focus:border-transparent outline-none text-muted-foreground">
-                            <option>🇹🇬 +228</option>
-                            <option>🇨🇮 +225</option>
-                            <option>🇸🇳 +221</option>
-                            <option>🇧🇫 +226</option>
+                          <select 
+                            value={countryCode}
+                            onChange={(e) => setCountryCode(e.target.value)}
+                            className="border border-input rounded-l-lg px-3 py-3 focus:ring-2 focus:ring-ring focus:border-transparent outline-none"
+                            data-testid="select-country-code"
+                          >
+                            <option value="+228">🇹🇬 +228</option>
+                            <option value="+225">🇨🇮 +225</option>
+                            <option value="+221">🇸🇳 +221</option>
+                            <option value="+226">🇧🇫 +226</option>
+                            <option value="+229">🇧🇯 +229</option>
                           </select>
                           <FormControl>
                             <Input
                               type="tel"
                               placeholder="12345678"
                               {...field}
-                              disabled
                               data-testid="input-phone"
-                              className="flex-1 px-4 py-3 border border-l-0 border-input rounded-r-lg focus:ring-2 focus:ring-ring bg-muted text-muted-foreground"
+                              className="flex-1 px-4 py-3 border border-l-0 border-input rounded-r-lg focus:ring-2 focus:ring-ring"
                             />
                           </FormControl>
                         </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Ce numéro sera utilisé pour votre prochaine connexion
+                        </p>
                         <FormMessage />
                       </FormItem>
                     )}
