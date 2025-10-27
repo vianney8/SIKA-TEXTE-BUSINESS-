@@ -212,6 +212,48 @@ export default function AdminDashboard() {
     }
   });
 
+  // Cancel withdrawal mutation (delete + refund)
+  const cancelWithdrawalMutation = useMutation({
+    mutationFn: async (withdrawalId: string) => {
+      const response = await apiRequest('POST', `/api/admin/withdrawals/${withdrawalId}/cancel`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/withdrawals/pending'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
+      toast({ title: "✓ Retrait annulé et utilisateur remboursé" });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erreur",
+        description: error.message || "Erreur lors de l'annulation",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Cancel all withdrawals mutation (delete + refund)
+  const cancelAllWithdrawalsMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest('POST', '/api/admin/withdrawals/cancel-all');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/withdrawals/pending'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
+      toast({ 
+        title: "Tous les retraits annulés", 
+        description: "Tous les retraits ont été annulés et les utilisateurs remboursés"
+      });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Erreur", 
+        description: error.message || "Erreur lors de l'annulation",
+        variant: "destructive"
+      });
+    }
+  });
+
   // Fetch admin statistics
   const { data: stats } = useQuery<AdminStats>({
     queryKey: ['/api/admin/stats'],
@@ -951,7 +993,7 @@ export default function AdminDashboard() {
                 Retraits en Attente
               </CardTitle>
               {pendingWithdrawals && pendingWithdrawals.length > 0 && (
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <Button
                     size="sm"
                     variant="destructive"
@@ -965,6 +1007,21 @@ export default function AdminDashboard() {
                   >
                     <XCircle className="h-4 w-4 mr-1" />
                     {rejectAllWithdrawalsMutation.isPending ? "Rejet..." : "Rejeter tout"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-orange-500 text-orange-600 hover:bg-orange-50"
+                    onClick={() => {
+                      if (confirm(`ATTENTION : Annuler les ${pendingWithdrawals.length} retrait(s) va les supprimer définitivement de l'historique et rembourser les utilisateurs. Continuer ?`)) {
+                        cancelAllWithdrawalsMutation.mutate();
+                      }
+                    }}
+                    disabled={cancelAllWithdrawalsMutation.isPending}
+                    data-testid="button-cancel-all-withdrawals"
+                  >
+                    <XCircle className="h-4 w-4 mr-1" />
+                    {cancelAllWithdrawalsMutation.isPending ? "Annulation..." : "Annuler tout"}
                   </Button>
                   <Button
                     size="sm"
@@ -1025,6 +1082,20 @@ export default function AdminDashboard() {
                           data-testid={`button-reject-withdrawal-${withdrawal.id}`}
                         >
                           ✖ Rejeter
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-orange-500 text-orange-600 hover:bg-orange-50"
+                          onClick={() => {
+                            if (confirm("ATTENTION : Annuler ce retrait va le supprimer définitivement de l'historique et rembourser l'utilisateur. Continuer ?")) {
+                              cancelWithdrawalMutation.mutate(withdrawal.id);
+                            }
+                          }}
+                          disabled={cancelWithdrawalMutation.isPending}
+                          data-testid={`button-cancel-withdrawal-${withdrawal.id}`}
+                        >
+                          🗑️ Annuler
                         </Button>
                         <Button
                           size="sm"

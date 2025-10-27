@@ -1007,6 +1007,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Cancel withdrawal (delete + refund) - fully atomic transaction
+  app.post('/api/admin/withdrawals/:id/cancel', requireAdmin, async (req: any, res) => {
+    try {
+      console.log('[ADMIN WITHDRAWAL CANCEL] Starting atomic cancellation for withdrawal:', req.params.id);
+      
+      // Atomic operation: delete + refund + create transaction all in one DB transaction
+      const result = await storage.cancelWithdrawalAtomic(
+        req.params.id,
+        'Remboursement retrait annulé'
+      );
+      
+      if (!result.success) {
+        if (result.error === 'not_found_or_processed') {
+          console.log('[ADMIN WITHDRAWAL CANCEL] Withdrawal not found or already processed:', req.params.id);
+          return res.status(409).json({ 
+            message: "Ce retrait a déjà été traité ou n'existe pas",
+            alreadyProcessed: true
+          });
+        }
+        
+        console.error('[ADMIN WITHDRAWAL CANCEL] Transaction failed:', result.error);
+        return res.status(500).json({ message: "Erreur lors de l'annulation du retrait" });
+      }
+      
+      console.log('[ADMIN WITHDRAWAL CANCEL] Withdrawal canceled successfully:', req.params.id);
+      res.json({ success: true, message: 'Retrait annulé et montant remboursé' });
+    } catch (error) {
+      console.error("[ADMIN WITHDRAWAL CANCEL] Error canceling withdrawal:", error);
+      res.status(500).json({ message: "Erreur lors de l'annulation du retrait" });
+    }
+  });
+
+  // Cancel all pending withdrawals (delete + refund) - uses atomic cancellation
+  app.post('/api/admin/withdrawals/cancel-all', requireAdmin, async (req: any, res) => {
+    try {
+      console.log('[ADMIN WITHDRAWAL CANCEL-ALL] Starting bulk atomic cancellation');
+      const pendingWithdrawals = await storage.getPendingWithdrawalsList();
+      
+      console.log(`[ADMIN WITHDRAWAL CANCEL-ALL] Found ${pendingWithdrawals.length} pending withdrawals at snapshot time`);
+      
+      let canceledCount = 0;
+      let totalRefunded = 0;
+      let skippedCount = 0;
+      
+      for (const withdrawal of pendingWithdrawals) {
+        // Use atomic cancel (delete + refund + transaction) in one DB transaction
+        const result = await storage.cancelWithdrawalAtomic(
+          withdrawal.id,
+          'Remboursement retrait annulé (annulation en masse)'
+        );
+        
+        if (!result.success) {
+          // Withdrawal was already processed by another request
+          console.log(`[ADMIN WITHDRAWAL CANCEL-ALL] Skipping withdrawal ${withdrawal.id} - already processed or failed`);
+          skippedCount++;
+          continue;
+        }
+        
+        const refundAmount = parseFloat(result.withdrawal!.amount);
+        canceledCount++;
+        totalRefunded += refundAmount;
+        
+        console.log(`[ADMIN WITHDRAWAL CANCEL-ALL] Canceled and refunded ${refundAmount} FCFA to user ${result.withdrawal!.userId}`);
+      }
+      
+      console.log(`[ADMIN WITHDRAWAL CANCEL-ALL] Completed: ${canceledCount} withdrawals canceled, ${skippedCount} skipped, ${totalRefunded} FCFA refunded`);
+      
+      res.json({ 
+        success: true, 
+        count: canceledCount,
+        skipped: skippedCount,
+        totalRefunded: totalRefunded,
+        message: `${canceledCount} retrait(s) annulé(s) et ${totalRefunded} FCFA remboursé(s)`
+      });
+    } catch (error) {
+      console.error("[ADMIN WITHDRAWAL CANCEL-ALL] Error canceling all withdrawals:", error);
+      res.status(500).json({ message: "Erreur lors de l'annulation des retraits" });
+    }
+  });
+
   // Notifications routes
   app.get('/api/notifications', requireAuth, async (req: any, res) => {
     try {

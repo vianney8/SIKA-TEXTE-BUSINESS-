@@ -87,6 +87,9 @@ export interface IStorage {
   getUserWithdrawals(userId: string): Promise<Withdrawal[]>;
   getWithdrawalById(withdrawalId: string): Promise<Withdrawal | undefined>;
   updateWithdrawalStatus(withdrawalId: string, status: string): Promise<void>;
+  deleteWithdrawal(withdrawalId: string): Promise<void>;
+  deleteWithdrawalIfPending(withdrawalId: string): Promise<Withdrawal | null>;
+  cancelWithdrawalAtomic(withdrawalId: string, description: string): Promise<{ success: boolean; withdrawal?: Withdrawal; error?: string }>;
 
   // Identity verification operations
   createIdentityVerification(userId: string, frontIdPhoto: string, backIdPhoto: string, selfiePhoto: string): Promise<IdentityVerification>;
@@ -951,6 +954,100 @@ export class DatabaseStorage implements IStorage {
       .returning();
     
     console.log('[STORAGE] Transaction update result:', transactionUpdate);
+  }
+
+  async deleteWithdrawal(withdrawalId: string): Promise<void> {
+    console.log('[STORAGE] Deleting withdrawal:', withdrawalId);
+    await db.delete(withdrawals).where(eq(withdrawals.id, withdrawalId));
+    console.log('[STORAGE] Withdrawal deleted successfully');
+  }
+
+  async deleteWithdrawalIfPending(withdrawalId: string): Promise<Withdrawal | null> {
+    console.log('[STORAGE] Attempting atomic delete for withdrawal:', withdrawalId);
+    
+    // Atomic delete: only delete if status is 'pending' and return the deleted row
+    // This prevents double refunds from concurrent operations
+    const result = await db.transaction(async (tx) => {
+      const [deletedWithdrawal] = await tx
+        .delete(withdrawals)
+        .where(and(
+          eq(withdrawals.id, withdrawalId),
+          eq(withdrawals.status, 'pending')
+        ))
+        .returning();
+      
+      return deletedWithdrawal || null;
+    });
+    
+    if (result) {
+      console.log('[STORAGE] Withdrawal atomically deleted (was pending):', withdrawalId);
+      return result as Withdrawal;
+    } else {
+      console.log('[STORAGE] Withdrawal not deleted (not found or not pending):', withdrawalId);
+      return null;
+    }
+  }
+
+  async cancelWithdrawalAtomic(withdrawalId: string, description: string): Promise<{ success: boolean; withdrawal?: Withdrawal; error?: string }> {
+    console.log('[STORAGE] Starting atomic cancel with refund for withdrawal:', withdrawalId);
+    
+    try {
+      const result = await db.transaction(async (tx) => {
+        // Step 1: Delete the withdrawal if it's still pending
+        const [deletedWithdrawal] = await tx
+          .delete(withdrawals)
+          .where(and(
+            eq(withdrawals.id, withdrawalId),
+            eq(withdrawals.status, 'pending')
+          ))
+          .returning();
+        
+        if (!deletedWithdrawal) {
+          console.log('[STORAGE] Withdrawal not found or already processed');
+          return { success: false, error: 'not_found_or_processed' };
+        }
+        
+        console.log(`[STORAGE] Withdrawal deleted - User: ${deletedWithdrawal.userId}, Amount: ${deletedWithdrawal.amount}`);
+        
+        // Step 2: Refund the user's balance
+        const refundAmount = parseFloat(deletedWithdrawal.amount);
+        const [user] = await tx
+          .select()
+          .from(users)
+          .where(eq(users.id, deletedWithdrawal.userId))
+          .limit(1);
+        
+        const currentBalance = parseFloat(user?.balance || '0');
+        const newBalance = currentBalance + refundAmount;
+        
+        await tx
+          .update(users)
+          .set({ balance: newBalance.toString() })
+          .where(eq(users.id, deletedWithdrawal.userId));
+        
+        console.log(`[STORAGE] Balance updated: ${currentBalance} → ${newBalance}`);
+        
+        // Step 3: Create refund transaction record
+        const reference = `TXN${Date.now()}${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+        await tx.insert(transactions).values({
+          userId: deletedWithdrawal.userId,
+          type: 'deposit',
+          amount: deletedWithdrawal.amount,
+          description: description,
+          status: 'completed',
+          reference
+        });
+        
+        console.log('[STORAGE] Refund transaction created');
+        
+        return { success: true, withdrawal: deletedWithdrawal };
+      });
+      
+      return result;
+    } catch (error) {
+      console.error('[STORAGE] Error in atomic cancel:', error);
+      return { success: false, error: 'transaction_failed' };
+    }
   }
 
   // Identity verification operations
