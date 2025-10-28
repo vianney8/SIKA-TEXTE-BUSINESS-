@@ -293,7 +293,7 @@ export default function AdminDashboard() {
   });
 
   // Fetch all users with referrals (lazy loaded - only when needed)
-  const { data: allUsers, isLoading: isLoadingUsers, refetch: refetchUsers } = useQuery<AdminUser[]>({
+  const { data: allUsers, isLoading: isLoadingUsers, isFetching: isFetchingUsers, refetch: refetchUsers } = useQuery<AdminUser[]>({
     queryKey: ['/api/admin/users'],
     enabled: false, // Ne charger que manuellement via refetch
     staleTime: 60000, // Données valides pendant 1 minute
@@ -302,7 +302,7 @@ export default function AdminDashboard() {
 
   // Fonction pour charger/rafraîchir les utilisateurs à la demande
   const loadUsersIfNeeded = () => {
-    if (!isLoadingUsers) {
+    if (!isLoadingUsers && !isFetchingUsers) {
       refetchUsers();
     }
   };
@@ -1242,7 +1242,7 @@ export default function AdminDashboard() {
               <Button
                 variant={userFilter === "all" ? "default" : "outline"}
                 onClick={() => { setUserFilter("all"); loadUsersIfNeeded(); }}
-                disabled={isLoadingUsers}
+                disabled={isLoadingUsers || isFetchingUsers}
                 data-testid="filter-all-users"
               >
                 Tous ({allUsers?.length || 0})
@@ -1250,7 +1250,7 @@ export default function AdminDashboard() {
               <Button
                 variant={userFilter === "blocked" ? "destructive" : "outline"}
                 onClick={() => { setUserFilter("blocked"); loadUsersIfNeeded(); }}
-                disabled={isLoadingUsers}
+                disabled={isLoadingUsers || isFetchingUsers}
                 data-testid="filter-blocked-users"
               >
                 <Lock className="h-4 w-4 mr-1" />
@@ -1294,7 +1294,7 @@ export default function AdminDashboard() {
             
             {/* Users List - Show filtered results or all users */}
             <div>
-              {isLoadingUsers ? (
+              {(isLoadingUsers || isFetchingUsers) ? (
                 <p className="text-center py-8 text-muted-foreground">Chargement des utilisateurs...</p>
               ) : searchQuery.trim().length >= 3 ? (
                 // Show search results
