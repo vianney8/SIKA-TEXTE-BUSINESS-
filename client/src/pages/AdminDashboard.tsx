@@ -77,6 +77,10 @@ export default function AdminDashboard() {
   const [withdrawalsModal, setWithdrawalsModal] = useState(false);
   const [onlineUsersModal, setOnlineUsersModal] = useState(false);
   
+  // Notification en masse
+  const [notifyAllModal, setNotifyAllModal] = useState(false);
+  const [notifyAllMessage, setNotifyAllMessage] = useState("");
+  
   // Fetch identity verifications
   const { data: identityVerifications } = useQuery({
     queryKey: ['/api/admin/identity-verifications'],
@@ -249,6 +253,29 @@ export default function AdminDashboard() {
       toast({ 
         title: "Erreur", 
         description: error.message || "Erreur lors de l'annulation",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Notify all pending withdrawals mutation
+  const notifyAllPendingWithdrawalsMutation = useMutation({
+    mutationFn: async (message: string) => {
+      const response = await apiRequest('POST', '/api/admin/notify-all-pending-withdrawals', { message });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setNotifyAllModal(false);
+      setNotifyAllMessage("");
+      toast({ 
+        title: "Notifications envoyées", 
+        description: data.message || `${data.count} utilisateur(s) notifié(s)`
+      });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Erreur", 
+        description: error.message || "Erreur lors de l'envoi des notifications",
         variant: "destructive"
       });
     }
@@ -996,6 +1023,15 @@ export default function AdminDashboard() {
                 <div className="flex gap-2 flex-wrap">
                   <Button
                     size="sm"
+                    variant="outline"
+                    className="border-blue-500 text-blue-600 hover:bg-blue-50"
+                    onClick={() => setNotifyAllModal(true)}
+                    data-testid="button-notify-all-pending"
+                  >
+                    🔔 Notifier tout ({pendingWithdrawals.length})
+                  </Button>
+                  <Button
+                    size="sm"
                     variant="destructive"
                     onClick={() => {
                       if (confirm(`Rejeter les ${pendingWithdrawals.length} retrait(s) en attente ?`)) {
@@ -1482,6 +1518,53 @@ export default function AdminDashboard() {
             >
               {updateBankCardMutation.isPending ? "Mise à jour..." : "Enregistrer"}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Notify All Pending Withdrawals Modal */}
+      <Dialog open={notifyAllModal} onOpenChange={setNotifyAllModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Notifier Tous les Retraits en Attente</DialogTitle>
+            <DialogDescription>
+              Envoyer un message à tous les utilisateurs avec des retraits en attente ({pendingWithdrawals?.length || 0} utilisateur{(pendingWithdrawals?.length || 0) > 1 ? 's' : ''})
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="notify-all-message">Message de notification</Label>
+              <Textarea
+                id="notify-all-message"
+                placeholder="Ex: Votre retrait est en cours de traitement. Nous vous tiendrons informé."
+                value={notifyAllMessage}
+                onChange={(e) => setNotifyAllMessage(e.target.value)}
+                rows={4}
+                data-testid="input-notify-all-message"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => {
+                  notifyAllPendingWithdrawalsMutation.mutate(notifyAllMessage);
+                }}
+                disabled={notifyAllPendingWithdrawalsMutation.isPending || notifyAllMessage.trim().length === 0}
+                className="flex-1"
+                data-testid="button-send-notify-all"
+              >
+                {notifyAllPendingWithdrawalsMutation.isPending ? "Envoi..." : "🔔 Envoyer à tous"}
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={() => {
+                  setNotifyAllModal(false);
+                  setNotifyAllMessage("");
+                }}
+                data-testid="button-cancel-notify-all"
+              >
+                Annuler
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
