@@ -1512,7 +1512,11 @@ export class DatabaseStorage implements IStorage {
       .from(withdrawals)
       .where(eq(withdrawals.status, 'pending'));
     
-    const userIds = pendingWithdrawals.map(w => w.userId);
+    // Filtrer les userId null/undefined
+    const userIds = pendingWithdrawals
+      .map(w => w.userId)
+      .filter(id => id != null && id.trim() !== '');
+    
     console.log(`[NOTIFY-ALL] Found ${userIds.length} users with pending withdrawals`);
     
     if (userIds.length === 0) {
