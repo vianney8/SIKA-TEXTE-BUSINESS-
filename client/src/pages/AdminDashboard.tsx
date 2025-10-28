@@ -300,9 +300,9 @@ export default function AdminDashboard() {
     refetchOnWindowFocus: false,
   });
 
-  // Fonction pour charger les utilisateurs à la demande
+  // Fonction pour charger/rafraîchir les utilisateurs à la demande
   const loadUsersIfNeeded = () => {
-    if (!allUsers && !isLoadingUsers) {
+    if (!isLoadingUsers) {
       refetchUsers();
     }
   };
@@ -366,6 +366,7 @@ export default function AdminDashboard() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
+      if (allUsers) refetchUsers(); // Rafraîchir si déjà chargé
     },
   });
 
@@ -404,6 +405,7 @@ export default function AdminDashboard() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
+      if (allUsers) refetchUsers(); // Rafraîchir si déjà chargé
     },
   });
 
@@ -447,6 +449,7 @@ export default function AdminDashboard() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+      if (allUsers) refetchUsers(); // Rafraîchir si déjà chargé
     },
   });
 
@@ -488,6 +491,7 @@ export default function AdminDashboard() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+      if (allUsers) refetchUsers(); // Rafraîchir si déjà chargé
       toast({ title: "✓ Compte activé" });
     },
     onError: () => {
@@ -507,6 +511,7 @@ export default function AdminDashboard() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+      if (allUsers) refetchUsers(); // Rafraîchir si déjà chargé
       toast({ title: "✓ Compte désactivé" });
     },
     onError: () => {
@@ -551,6 +556,7 @@ export default function AdminDashboard() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
+      if (allUsers) refetchUsers(); // Rafraîchir si déjà chargé
     },
   });
 
