@@ -52,7 +52,7 @@ export default function AdminDashboard() {
   const [searchResults, setSearchResults] = useState<AdminUser[]>([]);
   const [userFilter, setUserFilter] = useState<"all" | "blocked" | "active">("all");
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
-  const [shouldLoadUsers, setShouldLoadUsers] = useState(true);
+  const [shouldLoadUsers, setShouldLoadUsers] = useState(false);
   
   // Modals state
   const [balanceModal, setBalanceModal] = useState(false);
@@ -82,10 +82,11 @@ export default function AdminDashboard() {
   const [notifyAllModal, setNotifyAllModal] = useState(false);
   const [notifyAllMessage, setNotifyAllMessage] = useState("");
   
-  // Fetch identity verifications
+  // Fetch identity verifications (only when modal is open)
   const { data: identityVerifications } = useQuery({
     queryKey: ['/api/admin/identity-verifications'],
-    staleTime: 60000, // Données valides pendant 1 minute
+    enabled: identityModal, // Charger seulement quand modal ouvert
+    staleTime: 60000,
     refetchOnWindowFocus: false,
   });
 
@@ -368,7 +369,6 @@ export default function AdminDashboard() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
       if (allUsers) refetchUsers(); // Rafraîchir si déjà chargé
     },
   });
@@ -407,7 +407,6 @@ export default function AdminDashboard() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
       if (allUsers) refetchUsers(); // Rafraîchir si déjà chargé
     },
   });
@@ -483,6 +482,7 @@ export default function AdminDashboard() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
+      if (allUsers) refetchUsers();
     },
   });
 
@@ -558,7 +558,6 @@ export default function AdminDashboard() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
       if (allUsers) refetchUsers(); // Rafraîchir si déjà chargé
     },
   });
