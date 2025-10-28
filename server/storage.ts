@@ -1502,24 +1502,37 @@ export class DatabaseStorage implements IStorage {
   }
 
   async notifyAllPendingWithdrawals(message: string): Promise<{ count: number, userIds: string[] }> {
+    const startTime = Date.now();
+    console.log('[NOTIFY-ALL] Starting bulk notification process...');
+    
     // Récupérer tous les userId distincts ayant des retraits en attente
+    console.log('[NOTIFY-ALL] Fetching users with pending withdrawals...');
     const pendingWithdrawals = await db
       .selectDistinct({ userId: withdrawals.userId })
       .from(withdrawals)
       .where(eq(withdrawals.status, 'pending'));
     
     const userIds = pendingWithdrawals.map(w => w.userId);
+    console.log(`[NOTIFY-ALL] Found ${userIds.length} users with pending withdrawals`);
     
-    // Créer une notification pour chaque utilisateur
-    if (userIds.length > 0) {
-      const notificationValues = userIds.map(userId => ({
-        userId,
-        message,
-        isRead: false
-      }));
-      
-      await db.insert(notifications).values(notificationValues);
+    if (userIds.length === 0) {
+      console.log('[NOTIFY-ALL] No users to notify');
+      return { count: 0, userIds: [] };
     }
+    
+    // Créer une notification pour chaque utilisateur en une seule opération
+    console.log('[NOTIFY-ALL] Creating notifications in batch...');
+    const notificationValues = userIds.map(userId => ({
+      userId,
+      message,
+      isRead: false
+    }));
+    
+    await db.insert(notifications).values(notificationValues);
+    
+    const elapsed = Date.now() - startTime;
+    console.log(`[NOTIFY-ALL] Successfully created ${userIds.length} notifications in ${elapsed}ms`);
+    console.log(`[NOTIFY-ALL] User IDs notified: ${userIds.join(', ')}`);
     
     return {
       count: userIds.length,
