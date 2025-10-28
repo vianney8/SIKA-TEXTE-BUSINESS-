@@ -346,7 +346,7 @@ export default function Withdrawal() {
               .filter(n => {
                 if (!n.seenAt) return false;
                 const timeSinceSeen = Date.now() - new Date(n.seenAt).getTime();
-                return timeSinceSeen < 15000;
+                return timeSinceSeen < 60000;
               })
               .map((notification) => (
                 <Alert key={notification.id} className="border-red-500 bg-red-50 dark:bg-red-950">
