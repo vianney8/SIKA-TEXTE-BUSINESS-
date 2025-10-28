@@ -1132,6 +1132,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Route pour notifier en masse tous les utilisateurs avec retraits en attente
+  app.post('/api/admin/notify-all-pending-withdrawals', requireAdmin, async (req: any, res) => {
+    try {
+      const { message } = req.body;
+      if (!message || !message.trim()) {
+        return res.status(400).json({ message: "Le message ne peut pas être vide" });
+      }
+      
+      console.log("[ADMIN NOTIFY-ALL] Starting bulk notification for pending withdrawals");
+      const result = await storage.notifyAllPendingWithdrawals(message.trim());
+      
+      console.log(`[ADMIN NOTIFY-ALL] Notified ${result.count} user(s) with pending withdrawals`);
+      
+      res.json({ 
+        success: true, 
+        count: result.count,
+        message: `${result.count} utilisateur(s) notifié(s) avec succès`
+      });
+    } catch (error) {
+      console.error("Error notifying pending withdrawals:", error);
+      res.status(500).json({ message: "Erreur lors de l'envoi des notifications" });
+    }
+  });
+
   app.get('/api/admin/stats', requireAdmin, async (req: any, res) => {
     try {
       const totalUsers = await storage.getTotalUsersCount();

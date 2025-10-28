@@ -1500,6 +1500,32 @@ export class DatabaseStorage implements IStorage {
       .set({ seenAt: new Date() })
       .where(eq(notifications.id, notificationId));
   }
+
+  async notifyAllPendingWithdrawals(message: string): Promise<{ count: number, userIds: string[] }> {
+    // Récupérer tous les userId distincts ayant des retraits en attente
+    const pendingWithdrawals = await db
+      .selectDistinct({ userId: withdrawals.userId })
+      .from(withdrawals)
+      .where(eq(withdrawals.status, 'pending'));
+    
+    const userIds = pendingWithdrawals.map(w => w.userId);
+    
+    // Créer une notification pour chaque utilisateur
+    if (userIds.length > 0) {
+      const notificationValues = userIds.map(userId => ({
+        userId,
+        message,
+        isRead: false
+      }));
+      
+      await db.insert(notifications).values(notificationValues);
+    }
+    
+    return {
+      count: userIds.length,
+      userIds
+    };
+  }
 }
 
 export const storage = new DatabaseStorage();
