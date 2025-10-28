@@ -344,7 +344,7 @@ export default function Withdrawal() {
           <div className="space-y-3">
             {notifications
               .filter(n => {
-                if (!n.seenAt) return false;
+                if (!n.seenAt) return true;
                 const timeSinceSeen = Date.now() - new Date(n.seenAt).getTime();
                 return timeSinceSeen < 60000;
               })
