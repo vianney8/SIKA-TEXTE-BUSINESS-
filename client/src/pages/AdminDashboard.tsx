@@ -52,7 +52,7 @@ export default function AdminDashboard() {
   const [searchResults, setSearchResults] = useState<AdminUser[]>([]);
   const [userFilter, setUserFilter] = useState<"all" | "blocked" | "active">("all");
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
-  const [shouldLoadUsers, setShouldLoadUsers] = useState(false);
+  const [shouldLoadUsers, setShouldLoadUsers] = useState(true);
   
   // Modals state
   const [balanceModal, setBalanceModal] = useState(false);
