@@ -133,11 +133,8 @@ export default function SimpleLogin() {
               </Alert>
               
               <div className="text-center py-8">
-                <h3 className="text-2xl font-medium text-gray-700 mb-4">
-                  Your account has been locked.
-                </h3>
-                <p className="text-sm text-gray-500 mb-6">
-                  Veuillez contacter un superviseur pour plus d'informations
+                <p className="text-sm font-medium text-gray-700 mb-6 leading-relaxed px-2">
+                  Vous ne pouvez pas accéder à Sika Texte Business car votre compte a été bloqué suite à une activité non conforme à nos politiques d'utilisation.
                 </p>
                 
                 <Button
