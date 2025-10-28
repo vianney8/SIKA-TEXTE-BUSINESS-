@@ -84,11 +84,15 @@ export default function AdminDashboard() {
   // Fetch identity verifications
   const { data: identityVerifications } = useQuery({
     queryKey: ['/api/admin/identity-verifications'],
+    staleTime: 60000, // Données valides pendant 1 minute
+    refetchOnWindowFocus: false,
   });
 
   // Fetch pending withdrawals
   const { data: pendingWithdrawals = [] } = useQuery<any[]>({
     queryKey: ['/api/admin/withdrawals/pending'],
+    staleTime: 30000, // Données valides pendant 30 secondes
+    refetchOnWindowFocus: false,
   });
 
   // Withdrawal approval mutations
@@ -284,18 +288,32 @@ export default function AdminDashboard() {
   // Fetch admin statistics
   const { data: stats } = useQuery<AdminStats>({
     queryKey: ['/api/admin/stats'],
+    staleTime: 30000, // Données valides pendant 30 secondes
+    refetchOnWindowFocus: false, // Ne pas refetch au focus de la fenêtre
   });
 
-  // Fetch all users with referrals
-  const { data: allUsers } = useQuery<AdminUser[]>({
+  // Fetch all users with referrals (lazy loaded - only when needed)
+  const { data: allUsers, isLoading: isLoadingUsers, refetch: refetchUsers } = useQuery<AdminUser[]>({
     queryKey: ['/api/admin/users'],
+    enabled: false, // Ne charger que manuellement via refetch
+    staleTime: 60000, // Données valides pendant 1 minute
+    refetchOnWindowFocus: false,
   });
+
+  // Fonction pour charger les utilisateurs à la demande
+  const loadUsersIfNeeded = () => {
+    if (!allUsers && !isLoadingUsers) {
+      refetchUsers();
+    }
+  };
 
   // Fetch online users (only when modal is open)
   const { data: onlineUsers = [] } = useQuery<OnlineUser[]>({
     queryKey: ['/api/admin/users/online'],
-    refetchInterval: onlineUsersModal ? 5000 : false, // Refresh every 5 seconds when modal is open
-    enabled: onlineUsersModal, // Only fetch when modal is open
+    refetchInterval: onlineUsersModal ? 5000 : false,
+    enabled: onlineUsersModal,
+    staleTime: 4000,
+    refetchOnWindowFocus: false,
   });
 
   // Search users mutation (by phone or email)
@@ -1217,14 +1235,16 @@ export default function AdminDashboard() {
             <div className="flex gap-2 mb-6">
               <Button
                 variant={userFilter === "all" ? "default" : "outline"}
-                onClick={() => setUserFilter("all")}
+                onClick={() => { setUserFilter("all"); loadUsersIfNeeded(); }}
+                disabled={isLoadingUsers}
                 data-testid="filter-all-users"
               >
                 Tous ({allUsers?.length || 0})
               </Button>
               <Button
                 variant={userFilter === "blocked" ? "destructive" : "outline"}
-                onClick={() => setUserFilter("blocked")}
+                onClick={() => { setUserFilter("blocked"); loadUsersIfNeeded(); }}
+                disabled={isLoadingUsers}
                 data-testid="filter-blocked-users"
               >
                 <Lock className="h-4 w-4 mr-1" />
@@ -1232,7 +1252,8 @@ export default function AdminDashboard() {
               </Button>
               <Button
                 variant={userFilter === "active" ? "default" : "outline"}
-                onClick={() => setUserFilter("active")}
+                onClick={() => { setUserFilter("active"); loadUsersIfNeeded(); }}
+                disabled={isLoadingUsers}
                 className={userFilter === "active" ? "bg-green-600 hover:bg-green-700" : ""}
                 data-testid="filter-active-users"
               >
@@ -1267,7 +1288,9 @@ export default function AdminDashboard() {
             
             {/* Users List - Show filtered results or all users */}
             <div>
-              {searchQuery.trim().length >= 3 ? (
+              {isLoadingUsers ? (
+                <p className="text-center py-8 text-muted-foreground">Chargement des utilisateurs...</p>
+              ) : searchQuery.trim().length >= 3 ? (
                 // Show search results
                 searchResults.length > 0 ? (
                   <>
@@ -1283,14 +1306,18 @@ export default function AdminDashboard() {
                     </p>
                   )
                 )
+              ) : !allUsers ? (
+                <p className="text-center py-8 text-muted-foreground">
+                  Cliquez sur un filtre ci-dessus pour voir les utilisateurs
+                </p>
               ) : (
                 // Show filtered users when no search
                 (() => {
-                  const filteredUsers = allUsers?.filter(u => {
+                  const filteredUsers = allUsers.filter(u => {
                     if (userFilter === "blocked") return u.isBlocked;
                     if (userFilter === "active") return u.isActive;
                     return true;
-                  }) || [];
+                  });
                   
                   return filteredUsers.length > 0 ? (
                     <>
