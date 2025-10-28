@@ -52,6 +52,7 @@ export default function AdminDashboard() {
   const [searchResults, setSearchResults] = useState<AdminUser[]>([]);
   const [userFilter, setUserFilter] = useState<"all" | "blocked" | "active">("all");
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [shouldLoadUsers, setShouldLoadUsers] = useState(false);
   
   // Modals state
   const [balanceModal, setBalanceModal] = useState(false);
@@ -295,14 +296,16 @@ export default function AdminDashboard() {
   // Fetch all users with referrals (lazy loaded - only when needed)
   const { data: allUsers, isLoading: isLoadingUsers, isFetching: isFetchingUsers, refetch: refetchUsers } = useQuery<AdminUser[]>({
     queryKey: ['/api/admin/users'],
-    enabled: false, // Ne charger que manuellement via refetch
+    enabled: shouldLoadUsers, // Charger quand l'utilisateur clique sur un filtre
     staleTime: 60000, // Données valides pendant 1 minute
     refetchOnWindowFocus: false,
   });
 
   // Fonction pour charger/rafraîchir les utilisateurs à la demande
   const loadUsersIfNeeded = () => {
-    if (!isLoadingUsers && !isFetchingUsers) {
+    if (!shouldLoadUsers) {
+      setShouldLoadUsers(true);
+    } else if (!isLoadingUsers && !isFetchingUsers) {
       refetchUsers();
     }
   };
