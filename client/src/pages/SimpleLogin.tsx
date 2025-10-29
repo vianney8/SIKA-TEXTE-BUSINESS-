@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { Lock, Phone, Eye, EyeOff, XCircle } from "lucide-react";
-import { FaWhatsapp, FaTelegram } from "react-icons/fa";
+import { FaInstagram, FaTelegram } from "react-icons/fa";
 import { useAppSetting } from "@/hooks/useAppSettings";
 
 // Country codes for supported countries
@@ -31,8 +31,8 @@ export default function SimpleLogin() {
   const [showSupervisorDialog, setShowSupervisorDialog] = useState(false);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
-  const whatsappLink = useAppSetting("whatsapp_supervisor")?.data || "https://wa.me/639072914078";
-  const telegramLink = useAppSetting("telegram_supervisor")?.data || "https://t.me/yoursupervisor";
+  const { data: instagramSupervisor } = useAppSetting("instagram_supervisor");
+  const { data: telegramSupervisor } = useAppSetting("telegram_supervisor");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -254,15 +254,22 @@ export default function SimpleLogin() {
           </DialogHeader>
           <div className="space-y-3 mt-4">
             <Button
-              onClick={() => window.open(whatsappLink, "_blank")}
-              className="w-full bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2"
-              data-testid="button-whatsapp"
+              onClick={() => window.open(`https://www.instagram.com/${instagramSupervisor || 'sikacustomer_service'}`, "_blank")}
+              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white flex items-center justify-center gap-2"
+              data-testid="button-instagram"
             >
-              <FaWhatsapp className="w-5 h-5" />
-              Contacter via WhatsApp
+              <FaInstagram className="w-5 h-5" />
+              Contacter via Instagram
             </Button>
             <Button
-              onClick={() => window.open(telegramLink, "_blank")}
+              onClick={() => {
+                const telegram = telegramSupervisor?.startsWith('@') 
+                  ? `https://t.me/${telegramSupervisor.slice(1)}` 
+                  : telegramSupervisor?.startsWith('https://') 
+                    ? telegramSupervisor 
+                    : `https://t.me/${telegramSupervisor || 'SIKAcustomer_service'}`;
+                window.open(telegram, "_blank");
+              }}
               className="w-full bg-blue-500 hover:bg-blue-600 text-white flex items-center justify-center gap-2"
               data-testid="button-telegram"
             >
