@@ -141,7 +141,7 @@ export default function Team() {
                         <User className="text-primary" size={16} />
                       </div>
                       <div>
-                        <div className="font-medium" data-testid={`text-referral-name-${referral.id}`}>
+                        <div className="font-bold" data-testid={`text-referral-name-${referral.id}`}>
                           {referral.referredUser?.fullName || "Utilisateur"}
                         </div>
                         <div className="text-xs text-muted-foreground" data-testid={`text-referral-date-${referral.id}`}>

@@ -28,7 +28,7 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
           <Menu size={24} strokeWidth={3} />
         </Button>
         <div className="text-center">
-          <div className="text-sm opacity-90" data-testid="text-username">
+          <div className="text-sm opacity-90 font-bold" data-testid="text-username">
             {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.fullName || 'Utilisateur'}
           </div>
         </div>

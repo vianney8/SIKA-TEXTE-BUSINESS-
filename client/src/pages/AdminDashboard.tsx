@@ -632,7 +632,7 @@ export default function AdminDashboard() {
               <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                 <td className="border border-gray-300 px-4 py-2">
                   <div>
-                    <div className="font-medium">{user.fullName}</div>
+                    <div className="font-bold">{user.fullName}</div>
                     <div className="text-sm text-gray-500">Code: {user.referralCode}</div>
                   </div>
                 </td>
@@ -958,7 +958,7 @@ export default function AdminDashboard() {
                           </td>
                           <td className="border border-gray-300 px-4 py-2">
                             <div>
-                              <div className="font-medium">{user.fullName}</div>
+                              <div className="font-bold">{user.fullName}</div>
                               <div className="text-sm text-gray-500">Code: {user.referralCode}</div>
                             </div>
                           </td>

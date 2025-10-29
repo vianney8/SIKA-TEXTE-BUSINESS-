@@ -146,7 +146,7 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
               </AvatarFallback>
             </Avatar>
             <div className="flex-1">
-              <div className="font-semibold text-lg" data-testid="text-menu-user-name">
+              <div className="font-bold text-lg" data-testid="text-menu-user-name">
                 {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.fullName || "Utilisateur"}
               </div>
               <Badge variant="secondary" className="mt-1 bg-white/20 text-white border-white/20">
