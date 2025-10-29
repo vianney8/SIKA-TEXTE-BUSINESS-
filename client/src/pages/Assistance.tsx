@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, MessageCircle, Users, Headphones } from "lucide-react";
+import { ArrowLeft, MessageCircle, Users, Headphones, Download } from "lucide-react";
 import { Link } from "wouter";
 import { FaInstagram, FaTelegram } from "react-icons/fa";
 import { useAppSetting } from "@/hooks/useAppSettings";
@@ -55,6 +55,41 @@ export default function Assistance() {
 
         {/* Contact Options */}
         <div className="space-y-4">
+          {/* Instagram Download Card */}
+          <Card className="border-2 border-purple-200 dark:border-purple-800 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950 dark:to-pink-950">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-3">
+                <div className="bg-gradient-to-br from-purple-600 to-pink-600 p-2 rounded-full">
+                  <FaInstagram className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">Vous n'avez pas un compte Instagram ?</h3>
+                  <p className="text-sm text-muted-foreground font-normal">
+                    Téléchargez l'application gratuitement
+                  </p>
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-4">
+                Instagram est une application gratuite et facile à utiliser, comme Facebook. 
+                Téléchargez Instagram Lite pour créer votre compte en quelques minutes et commencer 
+                à contacter notre service client directement depuis l'application.
+              </p>
+              <Button 
+                onClick={() => window.open('https://play.google.com/store/apps/details?id=com.instagram.lite', '_blank', 'noopener,noreferrer')}
+                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
+                data-testid="button-download-instagram"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Télécharger Instagram Lite
+              </Button>
+              <p className="text-xs text-center text-muted-foreground mt-3">
+                Disponible sur Google Play Store
+              </p>
+            </CardContent>
+          </Card>
+
           {/* Instagram Contact */}
           <Card className="hover:shadow-lg transition-all duration-300">
             <CardHeader>
