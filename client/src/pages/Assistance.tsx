@@ -143,8 +143,7 @@ export default function Assistance() {
               </p>
               <Button 
                 onClick={handleTelegramContact}
-                variant="outline"
-                className="w-full border-blue-300 hover:bg-blue-50 dark:border-blue-700 dark:hover:bg-blue-950"
+                className="w-full bg-blue-500 hover:bg-blue-600 text-white"
                 data-testid="button-telegram-contact"
               >
                 <MessageCircle className="w-4 h-4 mr-2" />
