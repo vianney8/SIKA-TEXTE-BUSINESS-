@@ -238,11 +238,11 @@ export default function Withdrawal() {
                     <div className="flex items-center justify-center gap-2 mb-3">
                       <MessageCircle className="w-5 h-5 text-orange-600" />
                       <span className="font-semibold text-orange-800 dark:text-orange-200">
-                        Besoin d'aide ?
+                        Compte non activé après paiement ?
                       </span>
                     </div>
                     <p className="text-sm text-orange-700 dark:text-orange-300 mb-3 text-center">
-                      Contactez notre superviseur pour assistance
+                      Si vous avez effectué le paiement d'activation et que votre compte n'est toujours pas actif, contactez immédiatement notre superviseur
                     </p>
                     <Button 
                       data-testid="button-supervisor-contact"
