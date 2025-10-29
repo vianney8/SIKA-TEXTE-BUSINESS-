@@ -2,17 +2,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, MessageCircle, Users, Headphones } from "lucide-react";
 import { Link } from "wouter";
-import { FaWhatsapp, FaTelegram } from "react-icons/fa";
+import { FaInstagram, FaTelegram } from "react-icons/fa";
 import { useAppSetting } from "@/hooks/useAppSettings";
 
 export default function Assistance() {
-  const { data: whatsappGroup } = useAppSetting('whatsapp_group');
+  const { data: instagramSupport } = useAppSetting('instagram_supervisor');
   const { data: telegramSupervisor } = useAppSetting('telegram_supervisor');
 
-  const handleWhatsAppGroup = () => {
-    // WhatsApp group join link
-    const whatsappGroupUrl = whatsappGroup || "https://chat.whatsapp.com/CXhYz9x8KJ6AabcdXefGHi";
-    window.open(whatsappGroupUrl, '_blank', 'noopener,noreferrer');
+  const handleInstagramContact = () => {
+    const instagramUrl = `https://www.instagram.com/${instagramSupport || 'sikacustomer_service'}`;
+    window.open(instagramUrl, '_blank', 'noopener,noreferrer');
   };
 
   const handleTelegramContact = () => {
@@ -56,33 +55,33 @@ export default function Assistance() {
 
         {/* Contact Options */}
         <div className="space-y-4">
-          {/* WhatsApp Group */}
+          {/* Instagram Contact */}
           <Card className="hover:shadow-lg transition-all duration-300">
             <CardHeader>
               <CardTitle className="flex items-center gap-3">
-                <div className="bg-green-100 dark:bg-green-900 p-2 rounded-full">
-                  <FaWhatsapp className="w-6 h-6 text-green-600 dark:text-green-400" />
+                <div className="bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900 dark:to-pink-900 p-2 rounded-full">
+                  <FaInstagram className="w-6 h-6 text-purple-600 dark:text-purple-400" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold">Groupe WhatsApp</h3>
+                  <h3 className="text-lg font-semibold">Contact Service client Instagram</h3>
                   <p className="text-sm text-muted-foreground font-normal">
-                    Rejoignez notre communauté d'utilisateurs
+                    Support client disponible
                   </p>
                 </div>
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground mb-4">
-                Connectez-vous avec d'autres utilisateurs de SIKA TEXTE, partagez vos expériences, 
-                obtenez des conseils et restez informé des dernières nouvelles.
+                Contactez notre service client sur Instagram pour toute assistance, 
+                question ou problème concernant votre compte SIKA TEXTE.
               </p>
               <Button 
-                onClick={handleWhatsAppGroup}
-                className="w-full bg-green-600 hover:bg-green-700 text-white"
-                data-testid="button-whatsapp-group"
+                onClick={handleInstagramContact}
+                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
+                data-testid="button-instagram-contact"
               >
-                <Users className="w-4 h-4 mr-2" />
-                Rejoindre le Groupe WhatsApp
+                <MessageCircle className="w-4 h-4 mr-2" />
+                Contacter sur Instagram
               </Button>
             </CardContent>
           </Card>

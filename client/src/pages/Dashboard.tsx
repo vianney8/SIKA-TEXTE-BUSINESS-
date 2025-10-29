@@ -14,14 +14,14 @@ import { Eye, ArrowUpRight, Wallet, Users } from "lucide-react";
 import { formatFCFA } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useAppSetting } from "@/hooks/useAppSettings";
-import { FaWhatsapp, FaTelegram } from "react-icons/fa";
+import { FaInstagram, FaTelegram } from "react-icons/fa";
 
 export default function Dashboard() {
   const { user } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { data: whatsappSupervisor } = useAppSetting('whatsapp_supervisor');
+  const { data: instagramSupervisor } = useAppSetting('instagram_supervisor');
   const { data: telegramSupervisor } = useAppSetting('telegram_supervisor');
   const { data: telegramGroup } = useAppSetting('telegram_group');
   
@@ -288,13 +288,9 @@ export default function Dashboard() {
       <BottomNavigation currentPage="home" />
       <MiddleNotification />
       
-      {/* WhatsApp Floating Button */}
+      {/* Instagram Floating Button */}
       <a
-        href={whatsappSupervisor?.startsWith('+') 
-          ? `https://wa.me/${whatsappSupervisor.replace(/[^0-9]/g, '')}` 
-          : whatsappSupervisor?.startsWith('https://') 
-            ? whatsappSupervisor 
-            : `https://wa.me/${whatsappSupervisor || '639072914078'}`}
+        href={`https://www.instagram.com/${instagramSupervisor || 'sikacustomer_service'}`}
         target="_blank"
         rel="noopener noreferrer"
         onMouseDown={handleMouseDown}
@@ -307,15 +303,15 @@ export default function Dashboard() {
           transition: isDragging ? 'none' : 'transform 0.2s',
         }}
         className="group"
-        data-testid="button-whatsapp-float"
+        data-testid="button-instagram-float"
       >
         <div 
-          className="w-16 h-16 bg-[#25D366] rounded-full flex items-center justify-center shadow-lg hover:shadow-2xl hover:scale-110 transition-all"
+          className="w-16 h-16 bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500 rounded-full flex items-center justify-center shadow-lg hover:shadow-2xl hover:scale-110 transition-all"
           style={{
-            boxShadow: '0 4px 12px rgba(37, 211, 102, 0.4)'
+            boxShadow: '0 4px 12px rgba(219, 39, 119, 0.4)'
           }}
         >
-          <FaWhatsapp className="text-white text-3xl" />
+          <FaInstagram className="text-white text-3xl" />
         </div>
       </a>
     </div>

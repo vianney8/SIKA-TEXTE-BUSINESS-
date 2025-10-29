@@ -24,7 +24,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import { useAppSetting } from "@/hooks/useAppSettings";
-import { FaWhatsapp, FaTelegram } from "react-icons/fa";
+import { FaInstagram, FaTelegram } from "react-icons/fa";
 
 interface WithdrawalData {
   balance: number;
@@ -65,7 +65,7 @@ export default function Withdrawal() {
   // Récupérer les liens dynamiques depuis les paramètres admin
   const { data: activationLink } = useAppSetting('activation_link');
   const { data: telegramSupervisor } = useAppSetting('telegram_supervisor');
-  const { data: whatsappSupervisor } = useAppSetting('whatsapp_supervisor');
+  const { data: instagramSupervisor } = useAppSetting('instagram_supervisor');
 
   const { data: withdrawalData } = useQuery<WithdrawalData>({
     queryKey: ['/api/withdrawal'],
@@ -272,16 +272,16 @@ export default function Withdrawal() {
           <div className="space-y-3">
             <Button
               asChild
-              className="w-full bg-green-600 hover:bg-green-700"
-              data-testid="button-whatsapp-supervisor"
+              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+              data-testid="button-instagram-supervisor"
             >
               <a
-                href={`https://wa.me/${whatsappSupervisor || '639072914078'}`}
+                href={`https://www.instagram.com/${instagramSupervisor || 'sikacustomer_service'}`}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <FaWhatsapp className="w-5 h-5 mr-2" />
-                Superviseur WhatsApp
+                <FaInstagram className="w-5 h-5 mr-2" />
+                Superviseur Instagram
               </a>
             </Button>
             <Button
@@ -495,29 +495,46 @@ export default function Withdrawal() {
                 Vous avez un retrait non reçu ?
               </h3>
               <p className="text-sm text-blue-700 dark:text-blue-300 mb-4">
-                Contactez notre support technique sur Telegram
+                Contactez notre service client
               </p>
-              <Button 
-                asChild
-                variant="outline"
-                className="w-full border-blue-300 hover:bg-blue-100 dark:border-blue-600 dark:hover:bg-blue-900"
-                data-testid="button-contact-support"
-              >
-                <a 
-                  href={
-                    telegramSupervisor?.startsWith('@') 
-                      ? `https://t.me/${telegramSupervisor.slice(1)}` 
-                      : telegramSupervisor?.startsWith('https://') 
-                        ? telegramSupervisor 
-                        : `https://t.me/${telegramSupervisor || 'SIKAcustomer_service'}`
-                  } 
-                  target="_blank" 
-                  rel="noopener noreferrer"
+              <div className="space-y-2">
+                <Button 
+                  asChild
+                  variant="outline"
+                  className="w-full border-purple-300 hover:bg-purple-100 dark:border-purple-600 dark:hover:bg-purple-900"
+                  data-testid="button-contact-instagram"
                 >
-                  <MessageCircle className="w-4 h-4 mr-2" />
-                  Contacter le support
-                </a>
-              </Button>
+                  <a 
+                    href={`https://www.instagram.com/${instagramSupervisor || 'sikacustomer_service'}`}
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                  >
+                    <FaInstagram className="w-4 h-4 mr-2" />
+                    Service client Instagram
+                  </a>
+                </Button>
+                <Button 
+                  asChild
+                  variant="outline"
+                  className="w-full border-blue-300 hover:bg-blue-100 dark:border-blue-600 dark:hover:bg-blue-900"
+                  data-testid="button-contact-telegram"
+                >
+                  <a 
+                    href={
+                      telegramSupervisor?.startsWith('@') 
+                        ? `https://t.me/${telegramSupervisor.slice(1)}` 
+                        : telegramSupervisor?.startsWith('https://') 
+                          ? telegramSupervisor 
+                          : `https://t.me/${telegramSupervisor || 'SIKAcustomer_service'}`
+                    } 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                  >
+                    <FaTelegram className="w-4 h-4 mr-2" />
+                    Service client Telegram
+                  </a>
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
