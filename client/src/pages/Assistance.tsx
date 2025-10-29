@@ -73,19 +73,19 @@ export default function Assistance() {
             <CardContent>
               <p className="text-sm text-muted-foreground mb-4">
                 Instagram est une application gratuite et facile à utiliser, comme Facebook. 
-                Téléchargez Instagram Lite pour créer votre compte en quelques minutes et commencer 
+                Téléchargez Instagram pour créer votre compte en quelques minutes et commencer 
                 à contacter notre service client directement depuis l'application.
               </p>
               <Button 
-                onClick={() => window.open('https://play.google.com/store/apps/details?id=com.instagram.lite', '_blank', 'noopener,noreferrer')}
+                onClick={() => window.open('https://play.google.com/store/apps/details?id=com.instagram.android', '_blank', 'noopener,noreferrer')}
                 className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
                 data-testid="button-download-instagram"
               >
                 <Download className="w-4 h-4 mr-2" />
-                Télécharger Instagram Lite
+                Télécharger Instagram
               </Button>
               <p className="text-xs text-center text-muted-foreground mt-3">
-                Disponible sur Google Play Store
+                Disponible sur Play Store et Apple Store
               </p>
             </CardContent>
           </Card>
