@@ -25,7 +25,7 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
           className="text-primary-foreground hover:bg-white/10"
           data-testid="button-menu"
         >
-          <Menu size={24} />
+          <Menu size={24} strokeWidth={3} />
         </Button>
         <div className="text-center">
           <div className="text-sm opacity-90" data-testid="text-username">

@@ -226,18 +226,6 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
             ))}
           </div>
 
-          {/* Afficher plus button */}
-          <div className="pt-4">
-            <Button
-              variant="ghost"
-              className="w-full justify-between p-4 bg-gradient-to-r from-orange-400 to-green-400 text-white rounded-lg hover:from-orange-500 hover:to-green-500 transition-all"
-              data-testid="button-show-more"
-            >
-              <span className="font-medium">Afficher plus</span>
-              <ChevronDown size={16} />
-            </Button>
-          </div>
-          
         </nav>
       </div>
     </>

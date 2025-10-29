@@ -125,16 +125,16 @@ export default function AdminSettings() {
             </div>
 
             <div>
-              <Label htmlFor="whatsapp_supervisor">Superviseur WhatsApp</Label>
+              <Label htmlFor="instagram_supervisor">Compte Instagram Service Client</Label>
               <Input
-                id="whatsapp_supervisor"
-                value={settings.whatsapp_supervisor || ''}
-                onChange={(e) => handleInputChange('whatsapp_supervisor', e.target.value)}
-                placeholder="639072914078"
-                data-testid="input-whatsapp-supervisor"
+                id="instagram_supervisor"
+                value={settings.instagram_supervisor || ''}
+                onChange={(e) => handleInputChange('instagram_supervisor', e.target.value)}
+                placeholder="sikacustomer_service"
+                data-testid="input-instagram-supervisor"
               />
               <p className="text-sm text-muted-foreground mt-1">
-                Numéro WhatsApp du superviseur (format: 639072914078)
+                Nom d'utilisateur Instagram (sans @)
               </p>
             </div>
 

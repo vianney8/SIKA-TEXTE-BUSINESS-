@@ -94,7 +94,7 @@ export default function Assistance() {
                   <FaTelegram className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold">Contact Service client</h3>
+                  <h3 className="text-lg font-semibold">Contact Service client Telegram</h3>
                   <p className="text-sm text-muted-foreground font-normal">
                     Support technique et administratif
                   </p>
