@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
   User, 
   Edit, 
@@ -141,6 +141,7 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
         <div className="gradient-bg text-primary-foreground p-6">
           <div className="flex items-center space-x-4 mb-4">
             <Avatar className="w-16 h-16 border-2 border-white/20">
+              <AvatarImage src={user?.profileImageUrl} alt={user?.fullName || "Utilisateur"} />
               <AvatarFallback className="bg-white/20 text-white text-lg font-semibold">
                 {user?.firstName && user?.lastName ? `${user.firstName[0]}${user.lastName[0]}` : user?.fullName?.[0] || "U"}
               </AvatarFallback>
