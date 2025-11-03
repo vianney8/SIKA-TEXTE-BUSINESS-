@@ -13,8 +13,7 @@ import {
   Wallet, 
   HelpCircle,
   ChevronDown,
-  Code2,
-  Download
+  Code2
 } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -50,23 +49,30 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
     }
   };
 
+  const menuItems = [
+    {
+      icon: Briefcase,
+      label: "Nouveau travail",
+      href: "/work",
+      testId: "button-new-work",
+    },
+    {
+      icon: CreditCard,
+      label: "Transactions",
+      href: "/transactions",
+      testId: "button-transactions",
+    },
+    {
+      icon: Settings,
+      label: "Profil",
+      href: "/profile",
+      testId: "button-profile",
+    },
+  ];
+
   // Navigate to assistance page
   const handleAssistance = () => {
     window.location.href = '/assistance';
-    onClose();
-  };
-
-  // Handle app installation
-  const handleInstallApp = () => {
-    const installFn = (window as any).installApp;
-    if (installFn) {
-      installFn();
-    } else {
-      toast({
-        title: "Installation disponible",
-        description: "Utilisez le bouton 'Installer' de votre navigateur",
-      });
-    }
     onClose();
   };
 
@@ -86,65 +92,31 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
     onClose();
   };
 
-  const menuItems = [
-    {
-      icon: Download,
-      label: "Télécharger l'application",
-      action: handleInstallApp,
-      testId: "button-install-app",
-      color: "from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700",
-    },
-    {
-      icon: Briefcase,
-      label: "Nouveau travail",
-      href: "/work",
-      testId: "button-new-work",
-      color: "from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700",
-    },
-    {
-      icon: CreditCard,
-      label: "Transactions",
-      href: "/transactions",
-      testId: "button-transactions",
-      color: "from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700",
-    },
-    {
-      icon: Settings,
-      label: "Profil",
-      href: "/profile",
-      testId: "button-profile",
-      color: "from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700",
-    },
-  ];
-
   const secondaryItems = [
     {
       icon: Wallet,
       label: "Retrait",
       action: handleWithdrawal,
       testId: "button-withdrawal",
-      color: "from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700",
+      highlight: false,
     },
     {
       icon: HelpCircle,
       label: "Assistance",
       action: handleAssistance,
       testId: "button-help",
-      color: "from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700",
     },
     {
       icon: Code2,
       label: "API Agrégateur",
       href: "/api-agregateur",
       testId: "button-api-agregateur",
-      color: "from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700",
     },
     {
       icon: () => <span className="text-lg font-bold">•••</span>,
       label: "Plus",
       href: "/summary",
       testId: "button-summary",
-      color: "from-slate-500 to-gray-600 hover:from-slate-600 hover:to-gray-700",
     },
   ];
 
@@ -194,59 +166,42 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
         
         <nav className="p-4 space-y-2">
           {/* Main Menu Items */}
-          {menuItems.map((item: any) => (
-            item.action ? (
-              <Button
-                key={item.label}
-                variant="ghost"
-                className={`w-full justify-start p-4 rounded-lg transition-colors h-auto bg-gradient-to-r ${item.color}`}
-                onClick={item.action}
-                data-testid={item.testId}
-              >
+          {menuItems.map((item) => (
+            <Button
+              key={item.label}
+              asChild
+              variant="ghost"
+              className="w-full justify-start p-4 hover:bg-slate-100 rounded-lg transition-colors h-auto"
+              onClick={onClose}
+              data-testid={item.testId}
+            >
+              <Link href={item.href}>
                 <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center bg-white/20">
-                    <item.icon className="text-white" size={18} />
+                  <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
+                    <item.icon className="text-slate-600" size={18} />
                   </div>
-                  <span className="font-medium text-white">{item.label}</span>
+                  <span className="font-medium text-slate-700">{item.label}</span>
                 </div>
-              </Button>
-            ) : (
-              <Button
-                key={item.label}
-                asChild
-                variant="ghost"
-                className={`w-full justify-start p-4 rounded-lg transition-colors h-auto bg-gradient-to-r ${item.color}`}
-                onClick={onClose}
-                data-testid={item.testId}
-              >
-                <Link href={item.href}>
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center bg-white/20">
-                      <item.icon className="text-white" size={18} />
-                    </div>
-                    <span className="font-medium text-white">{item.label}</span>
-                  </div>
-                </Link>
-              </Button>
-            )
+              </Link>
+            </Button>
           ))}
           
           {/* Secondary Items */}
           <div className="pt-2 space-y-2">
-            {secondaryItems.map((item: any) => (
+            {secondaryItems.map((item) => (
               item.action ? (
                 <Button
                   key={item.label}
                   variant="ghost"
-                  className={`w-full justify-start p-4 rounded-lg transition-colors h-auto bg-gradient-to-r ${item.color}`}
+                  className="w-full justify-start p-4 rounded-lg transition-colors h-auto hover:bg-slate-100"
                   onClick={item.action}
                   data-testid={item.testId}
                 >
                   <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center bg-white/20">
-                      <item.icon className="text-white" size={18} />
+                    <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
+                      <item.icon className="text-slate-600" size={18} />
                     </div>
-                    <span className="font-medium text-white">{item.label}</span>
+                    <span className="font-medium text-slate-700">{item.label}</span>
                   </div>
                 </Button>
               ) : (
@@ -254,16 +209,16 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
                   key={item.label}
                   asChild
                   variant="ghost"
-                  className={`w-full justify-start p-4 rounded-lg transition-colors h-auto bg-gradient-to-r ${item.color}`}
+                  className="w-full justify-start p-4 rounded-lg transition-colors h-auto hover:bg-slate-100"
                   onClick={onClose}
                   data-testid={item.testId}
                 >
                   <Link href={item.href}>
                     <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center bg-white/20">
-                        <item.icon className="text-white" size={18} />
+                      <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
+                        <item.icon className="text-slate-600" size={18} />
                       </div>
-                      <span className="font-medium text-white">{item.label}</span>
+                      <span className="font-medium text-slate-700">{item.label}</span>
                     </div>
                   </Link>
                 </Button>
