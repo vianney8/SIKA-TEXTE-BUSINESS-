@@ -173,8 +173,8 @@ export default function Profile() {
     mutationFn: async (file: File) => {
       setUploading(true);
       try {
-        const uploadUrlResponse = await apiRequest('POST', '/api/profile/photo/upload-url', { fileName: file.name });
-        const { uploadURL } = uploadUrlResponse;
+        const uploadUrlData = await apiRequest('POST', '/api/profile/photo/upload-url', { fileName: file.name }) as { uploadURL: string };
+        const { uploadURL } = uploadUrlData;
 
         const uploadResponse = await fetch(uploadURL, {
           method: 'PUT',
