@@ -191,11 +191,11 @@ export default function Withdrawal() {
                   </AlertDescription>
                 </Alert>
 
-                <div className="bg-orange-50 dark:bg-orange-900 p-4 rounded-lg mb-6">
-                  <h3 className="font-semibold text-orange-900 dark:text-orange-100 mb-2">
+                <div className="bg-cyan-50 dark:bg-cyan-900 p-4 rounded-lg mb-6">
+                  <h3 className="font-semibold text-cyan-900 dark:text-cyan-100 mb-2">
                     Pourquoi activer ?
                   </h3>
-                  <ul className="text-sm text-orange-800 dark:text-orange-200 space-y-1 text-left">
+                  <ul className="text-sm text-cyan-800 dark:text-cyan-200 space-y-1 text-left">
                     <li>✅ Pour que votre compte puisse être actif et accepter les paiements directs</li>
                     <li>✅ Ce statut actif rendra votre compte accessible aux fonctionnalités de retrait</li>
                     <li>✅ Une fois activé, vous recevrez vos gains directement et automatiquement</li>
@@ -457,7 +457,7 @@ export default function Withdrawal() {
                         {new Date(withdrawal.date).toLocaleDateString('fr-FR')}
                       </p>
                       {withdrawal.phoneNumber && (
-                        <p className="text-xs text-orange-600 dark:text-orange-400 font-medium mt-1">
+                        <p className="text-xs text-cyan-600 dark:text-cyan-400 font-medium mt-1">
                           📱 {withdrawal.phoneNumber}
                         </p>
                       )}
@@ -487,14 +487,14 @@ export default function Withdrawal() {
         </Card>
 
         {/* Support Contact */}
-        <Card className="border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950">
+        <Card className="border-cyan-200 bg-cyan-50 dark:border-cyan-800 dark:bg-cyan-950">
           <CardContent className="p-6">
             <div className="text-center">
-              <MessageCircle className="w-12 h-12 text-orange-600 dark:text-orange-400 mx-auto mb-3" />
-              <h3 className="font-semibold text-orange-900 dark:text-orange-100 mb-2">
+              <MessageCircle className="w-12 h-12 text-cyan-600 dark:text-cyan-400 mx-auto mb-3" />
+              <h3 className="font-semibold text-cyan-900 dark:text-cyan-100 mb-2">
                 Vous avez un retrait non reçu ?
               </h3>
-              <p className="text-sm text-orange-700 dark:text-orange-300 mb-4">
+              <p className="text-sm text-cyan-700 dark:text-cyan-300 mb-4">
                 Contactez notre service client
               </p>
               <div className="space-y-2">

@@ -9,15 +9,15 @@
 ## Color System
 
 ### Primary Palette (Dark & Light Modes)
-- **Primary Orange:** 25 95% 53% (energy, warmth, CTAs, African vitality)
-- **Accent Orange:** 20 90% 48% (hover states, emphasis)
-- **Light Background:** 30 20% 98% (light mode base)
-- **Dark Background:** 28 25% 12% (dark mode base)
-- **Surface Light:** 30 15% 95% (cards in light mode)
-- **Surface Dark:** 28 20% 16% (cards in dark mode)
+- **Primary Cyan:** 192 100% 50% (modern, fresh, professional CTAs)
+- **Accent Cyan:** 188 95% 45% (hover states, emphasis)
+- **Light Background:** 192 20% 98% (light mode base)
+- **Dark Background:** 192 25% 12% (dark mode base)
+- **Surface Light:** 192 15% 95% (cards in light mode)
+- **Surface Dark:** 192 20% 16% (cards in dark mode)
 - **Success Green:** 145 65% 45% (transactions, confirmations)
-- **Text Primary:** 30 15% 15% (light) / 30 10% 92% (dark)
-- **Text Secondary:** 30 10% 45% (light) / 30 8% 65% (dark)
+- **Text Primary:** 192 15% 15% (light) / 192 10% 92% (dark)
+- **Text Secondary:** 192 10% 45% (light) / 192 8% 65% (dark)
 
 ### Secondary Colors
 - **Purple-Pink Gradient:** For Instagram branding (from-purple-600 to-pink-600)
