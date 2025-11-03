@@ -50,27 +50,6 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
     }
   };
 
-  const menuItems = [
-    {
-      icon: Briefcase,
-      label: "Nouveau travail",
-      href: "/work",
-      testId: "button-new-work",
-    },
-    {
-      icon: CreditCard,
-      label: "Transactions",
-      href: "/transactions",
-      testId: "button-transactions",
-    },
-    {
-      icon: Settings,
-      label: "Profil",
-      href: "/profile",
-      testId: "button-profile",
-    },
-  ];
-
   // Navigate to assistance page
   const handleAssistance = () => {
     window.location.href = '/assistance';
@@ -107,6 +86,34 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
     onClose();
   };
 
+  const menuItems = [
+    {
+      icon: Download,
+      label: "Télécharger l'application",
+      action: handleInstallApp,
+      testId: "button-install-app",
+      special: true,
+    },
+    {
+      icon: Briefcase,
+      label: "Nouveau travail",
+      href: "/work",
+      testId: "button-new-work",
+    },
+    {
+      icon: CreditCard,
+      label: "Transactions",
+      href: "/transactions",
+      testId: "button-transactions",
+    },
+    {
+      icon: Settings,
+      label: "Profil",
+      href: "/profile",
+      testId: "button-profile",
+    },
+  ];
+
   const secondaryItems = [
     {
       icon: Wallet,
@@ -120,13 +127,6 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
       label: "Assistance",
       action: handleAssistance,
       testId: "button-help",
-    },
-    {
-      icon: Download,
-      label: "Télécharger l'application",
-      action: handleInstallApp,
-      testId: "button-install-app",
-      special: true,
     },
     {
       icon: Code2,
@@ -188,24 +188,47 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
         
         <nav className="p-4 space-y-2">
           {/* Main Menu Items */}
-          {menuItems.map((item) => (
-            <Button
-              key={item.label}
-              asChild
-              variant="ghost"
-              className="w-full justify-start p-4 hover:bg-slate-100 rounded-lg transition-colors h-auto"
-              onClick={onClose}
-              data-testid={item.testId}
-            >
-              <Link href={item.href}>
+          {menuItems.map((item: any) => (
+            item.action ? (
+              <Button
+                key={item.label}
+                variant="ghost"
+                className={`w-full justify-start p-4 rounded-lg transition-colors h-auto ${
+                  item.special 
+                    ? 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700' 
+                    : 'hover:bg-slate-100'
+                }`}
+                onClick={item.action}
+                data-testid={item.testId}
+              >
                 <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
-                    <item.icon className="text-slate-600" size={18} />
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    item.special ? 'bg-white/20' : 'bg-slate-100'
+                  }`}>
+                    <item.icon className={item.special ? 'text-white' : 'text-slate-600'} size={18} />
                   </div>
-                  <span className="font-medium text-slate-700">{item.label}</span>
+                  <span className={`font-medium ${item.special ? 'text-white' : 'text-slate-700'}`}>{item.label}</span>
                 </div>
-              </Link>
-            </Button>
+              </Button>
+            ) : (
+              <Button
+                key={item.label}
+                asChild
+                variant="ghost"
+                className="w-full justify-start p-4 hover:bg-slate-100 rounded-lg transition-colors h-auto"
+                onClick={onClose}
+                data-testid={item.testId}
+              >
+                <Link href={item.href}>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
+                      <item.icon className="text-slate-600" size={18} />
+                    </div>
+                    <span className="font-medium text-slate-700">{item.label}</span>
+                  </div>
+                </Link>
+              </Button>
+            )
           ))}
           
           {/* Secondary Items */}
