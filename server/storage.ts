@@ -122,6 +122,9 @@ export interface IStorage {
   getAppSettings(): Promise<AppSetting[]>;
   updateAppSetting(key: string, value: string): Promise<void>;
   initializeDefaultSettings(): Promise<void>;
+  
+  // Profile photo
+  updateUserProfilePhoto(userId: string, photoPath: string): Promise<void>;
 
   // Notifications
   getUserNotifications(userId: string): Promise<any[]>;
@@ -1542,6 +1545,13 @@ export class DatabaseStorage implements IStorage {
       count: userIds.length,
       userIds
     };
+  }
+
+  async updateUserProfilePhoto(userId: string, photoPath: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ profileImageUrl: photoPath })
+      .where(eq(users.id, userId));
   }
 }
 

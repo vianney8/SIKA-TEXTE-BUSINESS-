@@ -26,6 +26,7 @@ import { db } from "./db";
 import { eq, sql } from "drizzle-orm";
 import connectPg from "connect-pg-simple";
 import { randomBytes } from "crypto";
+import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 
 // Session setup
 function setupSessions(app: Express) {
@@ -1471,6 +1472,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Erreur lors de la récupération du paramètre:', error);
       res.status(500).json({ message: 'Erreur lors de la récupération du paramètre' });
+    }
+  });
+
+  // Photo de profil routes
+  app.post('/api/profile/photo/upload-url', requireAuth, async (req: any, res) => {
+    try {
+      const { fileName } = req.body;
+      if (!fileName) {
+        return res.status(400).json({ message: 'Nom de fichier requis' });
+      }
+      
+      const objectStorageService = new ObjectStorageService();
+      const uploadURL = await objectStorageService.getUploadURL(fileName);
+      res.json({ uploadURL });
+    } catch (error) {
+      console.error('Erreur lors de la génération de l\'URL d\'upload:', error);
+      res.status(500).json({ message: 'Erreur lors de la génération de l\'URL' });
+    }
+  });
+
+  app.put('/api/profile/photo', requireAuth, async (req: any, res) => {
+    try {
+      const { photoURL } = req.body;
+      if (!photoURL) {
+        return res.status(400).json({ message: 'URL de la photo requise' });
+      }
+
+      const userId = req.session.userId;
+      const objectStorageService = new ObjectStorageService();
+      const photoPath = objectStorageService.normalizeObjectPath(photoURL);
+      
+      await storage.updateUserProfilePhoto(userId, photoPath);
+      res.json({ photoPath, message: 'Photo de profil mise à jour avec succès' });
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour de la photo de profil:', error);
+      res.status(500).json({ message: 'Erreur lors de la mise à jour' });
+    }
+  });
+
+  app.get('/profile-photos/:filename(*)', async (req, res) => {
+    try {
+      const filename = req.params.filename;
+      const photoPath = `/profile-photos/${filename}`;
+      
+      const objectStorageService = new ObjectStorageService();
+      const photoFile = await objectStorageService.getProfilePhotoFile(photoPath);
+      
+      await objectStorageService.downloadObject(photoFile, res);
+    } catch (error) {
+      if (error instanceof ObjectNotFoundError) {
+        return res.status(404).json({ message: 'Photo non trouvée' });
+      }
+      console.error('Erreur lors de la récupération de la photo:', error);
+      res.status(500).json({ message: 'Erreur serveur' });
     }
   });
 
