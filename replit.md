@@ -48,6 +48,11 @@ Preferred communication style: Simple, everyday language.
 - **Responsive Layout**: Mobile-optimized interface with bottom navigation and touch-friendly interactions
 - **Progressive Enhancement**: Works across different screen sizes and devices
 - **Performance**: Optimized bundle sizes and lazy loading for fast mobile performance
+- **PWA Support**: Progressive Web App functionality with offline support and installable app experience
+  - Service Worker for offline caching and background sync
+  - Web App Manifest for native app-like installation on mobile devices
+  - Install prompt for Chrome, Edge, and compatible browsers
+  - Offline-first architecture with cached assets and API responses
 
 ## External Dependencies
 
