@@ -173,7 +173,8 @@ export default function Profile() {
     mutationFn: async (file: File) => {
       setUploading(true);
       try {
-        const uploadUrlData = await apiRequest('POST', '/api/profile/photo/upload-url', { fileName: file.name }) as { uploadURL: string };
+        const uploadUrlRes = await apiRequest('POST', '/api/profile/photo/upload-url', { fileName: file.name });
+        const uploadUrlData = await uploadUrlRes.json() as { uploadURL: string };
         const { uploadURL } = uploadUrlData;
 
         const uploadResponse = await fetch(uploadURL, {
@@ -188,8 +189,8 @@ export default function Profile() {
           throw new Error('Échec du téléchargement de la photo');
         }
 
-        const updateResponse = await apiRequest('PUT', '/api/profile/photo', { photoURL: uploadURL });
-        return updateResponse;
+        const updateRes = await apiRequest('PUT', '/api/profile/photo', { photoURL: uploadURL });
+        return updateRes.json();
       } finally {
         setUploading(false);
       }
