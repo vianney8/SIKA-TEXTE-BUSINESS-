@@ -19,21 +19,6 @@ window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredPrompt = e;
   console.log('💡 L\'application peut être installée!');
-  
-  // Afficher automatiquement le prompt après 2 secondes
-  setTimeout(() => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      deferredPrompt.userChoice.then((choiceResult: any) => {
-        if (choiceResult.outcome === 'accepted') {
-          console.log('✅ Utilisateur a accepté l\'installation');
-        } else {
-          console.log('❌ Utilisateur a refusé l\'installation');
-        }
-        deferredPrompt = null;
-      });
-    }
-  }, 2000);
 });
 
 window.addEventListener('appinstalled', () => {
