@@ -143,7 +143,7 @@ export default function Dashboard() {
       icon: ArrowUpRight,
       label: "Transfert",
       href: "/transfer",
-      bgColor: "bg-cyan-100",
+      bgColor: "bg-blue-100",
       iconColor: "text-primary",
       testId: "button-transfer",
     },
@@ -151,7 +151,7 @@ export default function Dashboard() {
       icon: Wallet,
       label: "Retrait",
       href: "/withdrawal",
-      bgColor: "bg-cyan-100",
+      bgColor: "bg-orange-100",
       iconColor: "text-accent",
       testId: "button-withdrawal",
     },
@@ -179,11 +179,11 @@ export default function Dashboard() {
       case "pointage":
         return "bg-yellow-100";
       case "transfer":
-        return "bg-cyan-100";
+        return "bg-blue-100";
       case "recharge":
-        return "bg-cyan-100";
+        return "bg-orange-100";
       case "payment":
-        return "bg-cyan-100";
+        return "bg-blue-100";
       default:
         return "bg-gray-100";
     }
@@ -256,12 +256,12 @@ export default function Dashboard() {
           </div>
 
           {/* Central Notification Banner */}
-          <Card className="bg-gradient-to-r from-cyan-500 to-cyan-600 text-white rounded-xl shadow-lg border-0 overflow-hidden">
+          <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl shadow-lg border-0 overflow-hidden">
             <div className="p-6 text-center relative">
               <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
               <div className="relative z-10">
                 <h2 className="text-2xl font-bold mb-2">SIKA TEXTE BUSINESS</h2>
-                <p className="text-cyan-100 text-lg">Plateforme Européenne</p>
+                <p className="text-blue-100 text-lg">Plateforme Européenne</p>
               </div>
             </div>
           </Card>

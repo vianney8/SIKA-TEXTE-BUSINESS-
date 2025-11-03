@@ -9,19 +9,18 @@
 ## Color System
 
 ### Primary Palette (Dark & Light Modes)
-- **Primary Cyan:** 192 100% 50% (modern, fresh, professional CTAs)
-- **Accent Cyan:** 188 95% 45% (hover states, emphasis)
-- **Light Background:** 192 20% 98% (light mode base)
-- **Dark Background:** 192 25% 12% (dark mode base)
-- **Surface Light:** 192 15% 95% (cards in light mode)
-- **Surface Dark:** 192 20% 16% (cards in dark mode)
+- **Primary Blue:** 215 85% 45% (trust, professional, CTAs)
+- **Deep Navy:** 220 40% 20% (headers, emphasis in light mode)
+- **Light Background:** 210 20% 98% (light mode base)
+- **Dark Background:** 220 25% 12% (dark mode base)
+- **Surface Light:** 210 15% 95% (cards in light mode)
+- **Surface Dark:** 220 20% 16% (cards in dark mode)
 - **Success Green:** 145 65% 45% (transactions, confirmations)
-- **Text Primary:** 192 15% 15% (light) / 192 10% 92% (dark)
-- **Text Secondary:** 192 10% 45% (light) / 192 8% 65% (dark)
+- **Text Primary:** 220 15% 15% (light) / 210 10% 92% (dark)
+- **Text Secondary:** 220 10% 45% (light) / 210 8% 65% (dark)
 
-### Secondary Colors
-- **Purple-Pink Gradient:** For Instagram branding (from-purple-600 to-pink-600)
-- **Telegram Blue:** 213 94% 55% (Telegram contact button)
+### Accent (Minimal Use)
+- **Alert Orange:** 25 90% 55% (warnings only)
 
 ## Typography
 

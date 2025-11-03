@@ -139,7 +139,7 @@ export default function SimpleLogin() {
                 
                 <Button
                   onClick={() => setShowSupervisorDialog(true)}
-                  className="w-full"
+                  className="w-full bg-blue-600 hover:bg-blue-700"
                   data-testid="button-contact-supervisor"
                 >
                   Contacter un superviseur
@@ -220,7 +220,7 @@ export default function SimpleLogin() {
 
                 <Button
                   type="submit"
-                  className="w-full"
+                  className="w-full bg-blue-600 hover:bg-blue-700"
                   disabled={isLoading}
                   data-testid="button-login"
                 >
@@ -232,7 +232,7 @@ export default function SimpleLogin() {
                 <span className="text-gray-600">Pas encore de compte ? </span>
                 <button
                   onClick={() => setLocation("/register")}
-                  className="text-primary hover:underline font-medium"
+                  className="text-blue-600 hover:underline font-medium"
                   data-testid="link-register"
                 >
                   Créer un compte
