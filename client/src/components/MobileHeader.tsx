@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Menu, Bell, Eye, EyeOff, Plus, User } from "lucide-react";
+import { Menu, Bell, Eye, EyeOff, Plus } from "lucide-react";
 import { Link } from "wouter";
 import { formatFCFA } from "@/lib/utils";
 import { useState } from "react";
@@ -28,13 +27,7 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
         >
           <Menu size={24} strokeWidth={3} />
         </Button>
-        <div className="flex items-center gap-2">
-          <Avatar className="w-8 h-8 border-2 border-white/30">
-            <AvatarImage src={user?.profileImageUrl} alt={user?.fullName || 'Utilisateur'} />
-            <AvatarFallback className="bg-white/20 text-white text-xs">
-              {user?.fullName ? user.fullName.charAt(0).toUpperCase() : <User size={16} />}
-            </AvatarFallback>
-          </Avatar>
+        <div className="text-center">
           <div className="text-sm opacity-90 font-bold" data-testid="text-username">
             {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.fullName || 'Utilisateur'}
           </div>

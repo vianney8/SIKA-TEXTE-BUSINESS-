@@ -137,12 +137,9 @@ export class ObjectStorageService {
     }
   
     const url = new URL(rawPath);
-    let rawObjectPath = url.pathname;
+    const rawObjectPath = url.pathname;
   
     let objectEntityDir = this.getPrivateObjectDir();
-    if (!objectEntityDir.startsWith("/")) {
-      objectEntityDir = `/${objectEntityDir}`;
-    }
     if (!objectEntityDir.endsWith("/")) {
       objectEntityDir = `${objectEntityDir}/`;
     }

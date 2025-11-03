@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { ArrowLeft, User, Edit, Lock, Camera, Loader2 } from "lucide-react";
+import { ArrowLeft, User, Edit, Lock } from "lucide-react";
 import { Link } from "wouter";
 
 type ProfileForm = {
@@ -28,9 +28,6 @@ export default function Profile() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<"profile" | "password">("profile");
-  const [uploading, setUploading] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   
   // Extract country code from user's phone number
   const extractCountryCode = (phone: string) => {
@@ -139,91 +136,6 @@ export default function Profile() {
     updatePasswordMutation.mutate(data);
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      toast({
-        variant: 'destructive',
-        title: 'Fichier invalide',
-        description: 'Veuillez sélectionner une image',
-      });
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast({
-        variant: 'destructive',
-        title: 'Fichier trop volumineux',
-        description: 'La taille maximale est de 5 MB',
-      });
-      return;
-    }
-
-    setSelectedFile(file);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setPreviewUrl(reader.result as string);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const uploadPhotoMutation = useMutation({
-    mutationFn: async (file: File) => {
-      setUploading(true);
-      try {
-        const uploadUrlRes = await apiRequest('POST', '/api/profile/photo/upload-url', { fileName: file.name });
-        const uploadUrlData = await uploadUrlRes.json() as { uploadURL: string };
-        const { uploadURL } = uploadUrlData;
-
-        const uploadResponse = await fetch(uploadURL, {
-          method: 'PUT',
-          body: file,
-          headers: {
-            'Content-Type': file.type,
-          },
-        });
-
-        if (!uploadResponse.ok) {
-          throw new Error('Échec du téléchargement de la photo');
-        }
-
-        const updateRes = await apiRequest('PUT', '/api/profile/photo', { photoURL: uploadURL });
-        return updateRes.json();
-      } finally {
-        setUploading(false);
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
-      toast({
-        title: 'Photo mise à jour',
-        description: 'Votre photo de profil a été modifiée avec succès',
-      });
-      setSelectedFile(null);
-      setPreviewUrl(null);
-    },
-    onError: (error: Error) => {
-      toast({
-        variant: 'destructive',
-        title: 'Erreur',
-        description: error.message || 'Impossible de mettre à jour la photo',
-      });
-    },
-  });
-
-  const handleUploadPhoto = () => {
-    if (selectedFile) {
-      uploadPhotoMutation.mutate(selectedFile);
-    }
-  };
-
-  const handleCancelUpload = () => {
-    setSelectedFile(null);
-    setPreviewUrl(null);
-  };
-
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -271,70 +183,17 @@ export default function Profile() {
 
               {/* Profile Picture */}
               <div className="text-center mb-8">
-                <div className="relative inline-block">
-                  <div className="w-24 h-24 bg-gradient-to-r from-primary to-accent rounded-full mx-auto mb-4 flex items-center justify-center overflow-hidden">
-                    {previewUrl ? (
-                      <img 
-                        src={previewUrl} 
-                        alt="Aperçu photo de profil" 
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (user as any)?.profileImageUrl ? (
-                      <img 
-                        src={(user as any).profileImageUrl} 
-                        alt="Photo de profil" 
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <User className="text-white" size={36} />
-                    )}
-                  </div>
-                  {!selectedFile && (
-                    <label
-                      htmlFor="photo-upload-input"
-                      className="absolute bottom-4 right-0 bg-primary text-white p-2 rounded-full cursor-pointer hover:bg-primary/90 transition-colors shadow-lg"
-                      data-testid="button-change-photo"
-                    >
-                      <Camera className="w-4 h-4" />
-                      <input
-                        id="photo-upload-input"
-                        type="file"
-                        accept="image/*"
-                        onChange={handleFileSelect}
-                        className="hidden"
-                        data-testid="input-photo-file"
-                      />
-                    </label>
+                <div className="w-24 h-24 bg-gradient-to-r from-primary to-accent rounded-full mx-auto mb-4 flex items-center justify-center">
+                  {(user as any)?.profileImageUrl ? (
+                    <img 
+                      src={(user as any).profileImageUrl} 
+                      alt="Photo de profil" 
+                      className="w-full h-full rounded-full object-cover"
+                    />
+                  ) : (
+                    <User className="text-white" size={36} />
                   )}
                 </div>
-                {selectedFile && (
-                  <div className="flex gap-2 justify-center mb-4">
-                    <Button
-                      onClick={handleUploadPhoto}
-                      disabled={uploading}
-                      size="sm"
-                      data-testid="button-upload-photo"
-                    >
-                      {uploading ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Upload...
-                        </>
-                      ) : (
-                        'Enregistrer la photo'
-                      )}
-                    </Button>
-                    <Button
-                      onClick={handleCancelUpload}
-                      variant="outline"
-                      disabled={uploading}
-                      size="sm"
-                      data-testid="button-cancel-upload"
-                    >
-                      Annuler
-                    </Button>
-                  </div>
-                )}
                 <h3 className="text-lg font-semibold" data-testid="text-user-name">
                   {(user as any)?.fullName || (user as any)?.firstName + " " + (user as any)?.lastName || "Utilisateur"}
                 </h3>
