@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sika-texte-v2';
+const CACHE_NAME = 'sika-texte-v3';
 const urlsToCache = [
   '/',
   '/index.html',
