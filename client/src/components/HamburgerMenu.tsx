@@ -13,7 +13,8 @@ import {
   Wallet, 
   HelpCircle,
   ChevronDown,
-  Code2
+  Code2,
+  Download
 } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -76,6 +77,20 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
     onClose();
   };
 
+  // Handle app installation
+  const handleInstallApp = () => {
+    const installFn = (window as any).installApp;
+    if (installFn) {
+      installFn();
+    } else {
+      toast({
+        title: "Installation disponible",
+        description: "Utilisez le bouton 'Installer' de votre navigateur",
+      });
+    }
+    onClose();
+  };
+
   const handleWithdrawal = () => {
     const currentBalance = (balance as any)?.balance || 0;
     const canWithdraw = currentBalance >= 2000;
@@ -105,6 +120,13 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
       label: "Assistance",
       action: handleAssistance,
       testId: "button-help",
+    },
+    {
+      icon: Download,
+      label: "Télécharger l'application",
+      action: handleInstallApp,
+      testId: "button-install-app",
+      special: true,
     },
     {
       icon: Code2,
@@ -188,20 +210,26 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
           
           {/* Secondary Items */}
           <div className="pt-2 space-y-2">
-            {secondaryItems.map((item) => (
+            {secondaryItems.map((item: any) => (
               item.action ? (
                 <Button
                   key={item.label}
                   variant="ghost"
-                  className="w-full justify-start p-4 rounded-lg transition-colors h-auto hover:bg-slate-100"
+                  className={`w-full justify-start p-4 rounded-lg transition-colors h-auto ${
+                    item.special 
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700' 
+                      : 'hover:bg-slate-100'
+                  }`}
                   onClick={item.action}
                   data-testid={item.testId}
                 >
                   <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
-                      <item.icon className="text-slate-600" size={18} />
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                      item.special ? 'bg-white/20' : 'bg-slate-100'
+                    }`}>
+                      <item.icon className={item.special ? 'text-white' : 'text-slate-600'} size={18} />
                     </div>
-                    <span className="font-medium text-slate-700">{item.label}</span>
+                    <span className={`font-medium ${item.special ? 'text-white' : 'text-slate-700'}`}>{item.label}</span>
                   </div>
                 </Button>
               ) : (

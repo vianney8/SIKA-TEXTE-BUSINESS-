@@ -18,12 +18,40 @@ let deferredPrompt: any;
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredPrompt = e;
-  console.log('💡 L\'application peut être installée! Un bouton "Installer" apparaîtra dans le navigateur.');
+  console.log('💡 L\'application peut être installée!');
+  
+  // Afficher automatiquement le prompt après 2 secondes
+  setTimeout(() => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then((choiceResult: any) => {
+        if (choiceResult.outcome === 'accepted') {
+          console.log('✅ Utilisateur a accepté l\'installation');
+        } else {
+          console.log('❌ Utilisateur a refusé l\'installation');
+        }
+        deferredPrompt = null;
+      });
+    }
+  }, 2000);
 });
 
 window.addEventListener('appinstalled', () => {
   console.log('✅ Application installée avec succès!');
   deferredPrompt = null;
 });
+
+// Exposer deferredPrompt globalement pour le menu
+(window as any).installApp = () => {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then((choiceResult: any) => {
+      if (choiceResult.outcome === 'accepted') {
+        console.log('✅ Installation acceptée');
+      }
+      deferredPrompt = null;
+    });
+  }
+};
 
 createRoot(document.getElementById("root")!).render(<App />);
