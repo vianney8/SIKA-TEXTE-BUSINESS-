@@ -661,7 +661,7 @@ export class DatabaseStorage implements IStorage {
       .from(sentences)
       .where(eq(sentences.isActive, true));
     
-    if (Number(count[0].count) < 120) { // Ensure we have at least 120 sentences for 10 days rotation
+    if (Number(count[0].count) < 360) { // Ensure we have at least 360 sentences for 30 days rotation
       await this.createAdditionalSentences();
     }
   }
