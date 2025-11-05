@@ -655,70 +655,153 @@ export class DatabaseStorage implements IStorage {
   }
 
   private async ensureSufficientSentences(): Promise<void> {
-    // Check if we have enough sentences in the database
-    const count = await db.select({ count: sql<number>`count(*)` }).from(sentences);
+    // Check if we have enough active sentences in the database
+    const count = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(sentences)
+      .where(eq(sentences.isActive, true));
     
-    if (Number(count[0].count) < 50) { // Ensure we have at least 50 sentences for rotation
+    if (Number(count[0].count) < 120) { // Ensure we have at least 120 sentences for 10 days rotation
       await this.createAdditionalSentences();
     }
   }
 
   private async createAdditionalSentences(): Promise<void> {
-    // Add more sentences to ensure sufficient variety for daily assignments
+    // Add 100+ varied sentences for proper rotation over 10 days
     const additionalSentences = [
-      {
-        text: "Le soleil brilles dans le ciel bleu sans nuage aujourd'hui.",
-        correctedText: "Le soleil brille dans le ciel bleu sans nuage aujourd'hui.",
-        errorCount: 1
-      },
-      {
-        text: "Mes parents travaille dur pour nous offrir une meilleure vie.",
-        correctedText: "Mes parents travaillent dur pour nous offrir une meilleure vie.",
-        errorCount: 1
-      },
-      {
-        text: "La musique africaine tradition est très riche et variée.",
-        correctedText: "La musique africaine traditionnelle est très riche et variée.",
-        errorCount: 1
-      },
-      {
-        text: "Les fermiers cultivent le mais, le mil et l'arachide.",
-        correctedText: "Les fermiers cultivent le maïs, le mil et l'arachide.",
-        errorCount: 1
-      },
-      {
-        text: "Notre village organize une fête culturelle chaque année.",
-        correctedText: "Notre village organise une fête culturelle chaque année.",
-        errorCount: 1
-      },
-      {
-        text: "Les technologies moderne transforment notre façon de vivre.",
-        correctedText: "Les technologies modernes transforment notre façon de vivre.",
-        errorCount: 1
-      },
-      {
-        text: "L'éducation est la clé du développement économiques durable.",
-        correctedText: "L'éducation est la clé du développement économique durable.",
-        errorCount: 1
-      },
-      {
-        text: "Les jeunes entrepreneurs créent des entreprise innovantes.",
-        correctedText: "Les jeunes entrepreneurs créent des entreprises innovantes.",
-        errorCount: 1
-      },
-      {
-        text: "Il faut protéger l'environnement pour les générations futures.",
-        correctedText: "Il faut protéger l'environnement pour les générations futures.",
-        errorCount: 0
-      },
-      {
-        text: "La culture africaine influence la mode et l'art mondial.",
-        correctedText: "La culture africaine influence la mode et l'art mondial.",
-        errorCount: 0
-      }
+      { text: "Les enfants joue dans le parc.", correctedText: "Les enfants jouent dans le parc.", errorCount: 1 },
+      { text: "Ma soeur étudient à l'université.", correctedText: "Ma sœur étudie à l'université.", errorCount: 1 },
+      { text: "Les fleurs pousse rapidement au printemps.", correctedText: "Les fleurs poussent rapidement au printemps.", errorCount: 1 },
+      { text: "Le marché est ouvert tout les jours.", correctedText: "Le marché est ouvert tous les jours.", errorCount: 1 },
+      { text: "Les oiseaux chantes le matin.", correctedText: "Les oiseaux chantent le matin.", errorCount: 1 },
+      { text: "Mon frère travail dans une banque.", correctedText: "Mon frère travaille dans une banque.", errorCount: 1 },
+      { text: "Les étudiants révises leurs leçons.", correctedText: "Les étudiants révisent leurs leçons.", errorCount: 1 },
+      { text: "La pluie tombent souvent en été.", correctedText: "La pluie tombe souvent en été.", errorCount: 1 },
+      { text: "Les fruits sont très bon aujourd'hui.", correctedText: "Les fruits sont très bons aujourd'hui.", errorCount: 1 },
+      { text: "Nous regardons un film interessant.", correctedText: "Nous regardons un film intéressant.", errorCount: 1 },
+      { text: "Le professeur explique la leçon clairement.", correctedText: "Le professeur explique la leçon clairement.", errorCount: 0 },
+      { text: "Les voitures roule trop vite.", correctedText: "Les voitures roulent trop vite.", errorCount: 1 },
+      { text: "Mon ami habite en France depuis dix ans.", correctedText: "Mon ami habite en France depuis dix ans.", errorCount: 0 },
+      { text: "Les médecins soigne les malades avec dévouement.", correctedText: "Les médecins soignent les malades avec dévouement.", errorCount: 1 },
+      { text: "Le train arrives à l'heure.", correctedText: "Le train arrive à l'heure.", errorCount: 1 },
+      { text: "Les professeurs enseigne avec passion.", correctedText: "Les professeurs enseignent avec passion.", errorCount: 1 },
+      { text: "La mer est très calme ce matin.", correctedText: "La mer est très calme ce matin.", errorCount: 0 },
+      { text: "Les touristes visitent les monuments historique.", correctedText: "Les touristes visitent les monuments historiques.", errorCount: 1 },
+      { text: "Mon père lit le journal tout les matins.", correctedText: "Mon père lit le journal tous les matins.", errorCount: 1 },
+      { text: "Les agriculteurs travaillent dans les champs.", correctedText: "Les agriculteurs travaillent dans les champs.", errorCount: 0 },
+      { text: "Les commerçants vende leurs produits au marché.", correctedText: "Les commerçants vendent leurs produits au marché.", errorCount: 1 },
+      { text: "Ma mère prépare un délicieux repas.", correctedText: "Ma mère prépare un délicieux repas.", errorCount: 0 },
+      { text: "Les musiciens joue de beaux morceaux.", correctedText: "Les musiciens jouent de beaux morceaux.", errorCount: 1 },
+      { text: "Le bébé dort paisiblement dans son lit.", correctedText: "Le bébé dort paisiblement dans son lit.", errorCount: 0 },
+      { text: "Les artistes peint de magnifiques tableaux.", correctedText: "Les artistes peignent de magnifiques tableaux.", errorCount: 1 },
+      { text: "Le bus passe devant chez moi tout les heures.", correctedText: "Le bus passe devant chez moi toutes les heures.", errorCount: 1 },
+      { text: "Les sportifs s'entraine tous les jours.", correctedText: "Les sportifs s'entraînent tous les jours.", errorCount: 1 },
+      { text: "Le chat dort sur le canapé.", correctedText: "Le chat dort sur le canapé.", errorCount: 0 },
+      { text: "Les policiers veille sur la sécurité.", correctedText: "Les policiers veillent sur la sécurité.", errorCount: 1 },
+      { text: "Le coucher du soleil est magnifique ce soir.", correctedText: "Le coucher du soleil est magnifique ce soir.", errorCount: 0 },
+      { text: "Les scientifiques fait des découvertes importantes.", correctedText: "Les scientifiques font des découvertes importantes.", errorCount: 1 },
+      { text: "Mon cousin étudie la médecine à l'université.", correctedText: "Mon cousin étudie la médecine à l'université.", errorCount: 0 },
+      { text: "Les danseurs répète pour le spectacle.", correctedText: "Les danseurs répètent pour le spectacle.", errorCount: 1 },
+      { text: "Le jardinier arrose les plantes chaque matin.", correctedText: "Le jardinier arrose les plantes chaque matin.", errorCount: 0 },
+      { text: "Les ingénieurs construit des ponts solides.", correctedText: "Les ingénieurs construisent des ponts solides.", errorCount: 1 },
+      { text: "La bibliothèque est ouverte au public.", correctedText: "La bibliothèque est ouverte au public.", errorCount: 0 },
+      { text: "Les cuisiniers prépare des plats délicieux.", correctedText: "Les cuisiniers préparent des plats délicieux.", errorCount: 1 },
+      { text: "Le pilote conduit l'avion avec prudence.", correctedText: "Le pilote conduit l'avion avec prudence.", errorCount: 0 },
+      { text: "Les journalistes écrit des articles intéressants.", correctedText: "Les journalistes écrivent des articles intéressants.", errorCount: 1 },
+      { text: "La lune brille dans le ciel nocturne.", correctedText: "La lune brille dans le ciel nocturne.", errorCount: 0 },
+      { text: "Les infirmières prend soin des patients.", correctedText: "Les infirmières prennent soin des patients.", errorCount: 1 },
+      { text: "Le chien court dans le jardin joyeusement.", correctedText: "Le chien court dans le jardin joyeusement.", errorCount: 0 },
+      { text: "Les architectes dessine de beaux bâtiments.", correctedText: "Les architectes dessinent de beaux bâtiments.", errorCount: 1 },
+      { text: "Le boulanger prépare du pain frais tous les jours.", correctedText: "Le boulanger prépare du pain frais tous les jours.", errorCount: 0 },
+      { text: "Les photographes prend de belles photos.", correctedText: "Les photographes prennent de belles photos.", errorCount: 1 },
+      { text: "La rivière coule calmement vers la mer.", correctedText: "La rivière coule calmement vers la mer.", errorCount: 0 },
+      { text: "Les mécaniciens répare les voitures rapidement.", correctedText: "Les mécaniciens réparent les voitures rapidement.", errorCount: 1 },
+      { text: "Le forgeron travaille le fer avec habileté.", correctedText: "Le forgeron travaille le fer avec habileté.", errorCount: 0 },
+      { text: "Les électriciens installe les câbles électriques.", correctedText: "Les électriciens installent les câbles électriques.", errorCount: 1 },
+      { text: "La montagne se dresse majestueusement.", correctedText: "La montagne se dresse majestueusement.", errorCount: 0 },
+      { text: "Les pompiers éteint les incendies courageusement.", correctedText: "Les pompiers éteignent les incendies courageusement.", errorCount: 1 },
+      { text: "Le menuisier fabrique des meubles en bois.", correctedText: "Le menuisier fabrique des meubles en bois.", errorCount: 0 },
+      { text: "Les pêcheurs attrape du poisson frais.", correctedText: "Les pêcheurs attrapent du poisson frais.", errorCount: 1 },
+      { text: "L'école accueille les enfants chaque matin.", correctedText: "L'école accueille les enfants chaque matin.", errorCount: 0 },
+      { text: "Les couturiers confectionne de beaux vêtements.", correctedText: "Les couturiers confectionnent de beaux vêtements.", errorCount: 1 },
+      { text: "Le forgeron forge des outils utiles.", correctedText: "Le forgeron forge des outils utiles.", errorCount: 0 },
+      { text: "Les chauffeurs conduit les bus prudemment.", correctedText: "Les chauffeurs conduisent les bus prudemment.", errorCount: 1 },
+      { text: "Le parfum des fleurs embaume le jardin.", correctedText: "Le parfum des fleurs embaume le jardin.", errorCount: 0 },
+      { text: "Les bergers garde leurs troupeaux.", correctedText: "Les bergers gardent leurs troupeaux.", errorCount: 1 },
+      { text: "Le vent souffle doucement dans les arbres.", correctedText: "Le vent souffle doucement dans les arbres.", errorCount: 0 },
+      { text: "Les vendeurs propose leurs marchandises.", correctedText: "Les vendeurs proposent leurs marchandises.", errorCount: 1 },
+      { text: "La forêt abrite de nombreux animaux.", correctedText: "La forêt abrite de nombreux animaux.", errorCount: 0 },
+      { text: "Les maçons construisent des maisons solide.", correctedText: "Les maçons construisent des maisons solides.", errorCount: 1 },
+      { text: "Le potier crée de beaux vases en argile.", correctedText: "Le potier crée de beaux vases en argile.", errorCount: 0 },
+      { text: "Les plombiers répare les tuyaux d'eau.", correctedText: "Les plombiers réparent les tuyaux d'eau.", errorCount: 1 },
+      { text: "Le pont relie les deux rives du fleuve.", correctedText: "Le pont relie les deux rives du fleuve.", errorCount: 0 },
+      { text: "Les peintres décore les murs avec goût.", correctedText: "Les peintres décorent les murs avec goût.", errorCount: 1 },
+      { text: "La cascade tombe avec fracas.", correctedText: "La cascade tombe avec fracas.", errorCount: 0 },
+      { text: "Les cordonniers répare les chaussures usées.", correctedText: "Les cordonniers réparent les chaussures usées.", errorCount: 1 },
+      { text: "Le stade accueille les matchs de football.", correctedText: "Le stade accueille les matchs de football.", errorCount: 0 },
+      { text: "Les bijoutiers fabrique de beaux bijoux.", correctedText: "Les bijoutiers fabriquent de beaux bijoux.", errorCount: 1 },
+      { text: "L'aube annonce le début d'une nouvelle journée.", correctedText: "L'aube annonce le début d'une nouvelle journée.", errorCount: 0 },
+      { text: "Les libraires vende des livres intéressants.", correctedText: "Les libraires vendent des livres intéressants.", errorCount: 1 },
+      { text: "Le phare guide les bateaux dans la nuit.", correctedText: "Le phare guide les bateaux dans la nuit.", errorCount: 0 },
+      { text: "Les pharmaciens délivre les médicaments.", correctedText: "Les pharmaciens délivrent les médicaments.", errorCount: 1 },
+      { text: "Le château domine toute la vallée.", correctedText: "Le château domine toute la vallée.", errorCount: 0 },
+      { text: "Les soudeurs assemble les pièces métalliques.", correctedText: "Les soudeurs assemblent les pièces métalliques.", errorCount: 1 },
+      { text: "Le temple témoigne de la foi des ancêtres.", correctedText: "Le temple témoigne de la foi des ancêtres.", errorCount: 0 },
+      { text: "Les fleuristes compose de jolis bouquets.", correctedText: "Les fleuristes composent de jolis bouquets.", errorCount: 1 },
+      { text: "Le marais abrite une faune variée.", correctedText: "Le marais abrite une faune variée.", errorCount: 0 },
+      { text: "Les vignerons cultive la vigne avec soin.", correctedText: "Les vignerons cultivent la vigne avec soin.", errorCount: 1 },
+      { text: "La cloche sonne pour annoncer midi.", correctedText: "La cloche sonne pour annoncer midi.", errorCount: 0 },
+      { text: "Les bouchers vende de la viande fraîche.", correctedText: "Les bouchers vendent de la viande fraîche.", errorCount: 1 },
+      { text: "Le musée conserve des œuvres d'art précieuses.", correctedText: "Le musée conserve des œuvres d'art précieuses.", errorCount: 0 },
+      { text: "Les horlogers répare les montres cassées.", correctedText: "Les horlogers réparent les montres cassées.", errorCount: 1 },
+      { text: "Le désert s'étend à perte de vue.", correctedText: "Le désert s'étend à perte de vue.", errorCount: 0 },
+      { text: "Les imprimeurs produit des livres et journaux.", correctedText: "Les imprimeurs produisent des livres et journaux.", errorCount: 1 },
+      { text: "La fontaine embellit la place du village.", correctedText: "La fontaine embellit la place du village.", errorCount: 0 },
+      { text: "Les menuisiers fabrique des portes et fenêtres.", correctedText: "Les menuisiers fabriquent des portes et fenêtres.", errorCount: 1 },
+      { text: "Le volcan dort paisiblement depuis des siècles.", correctedText: "Le volcan dort paisiblement depuis des siècles.", errorCount: 0 },
+      { text: "Les tapissiers rénove les vieux meubles.", correctedText: "Les tapissiers rénovent les vieux meubles.", errorCount: 1 },
+      { text: "L'église accueille les fidèles le dimanche.", correctedText: "L'église accueille les fidèles le dimanche.", errorCount: 0 },
+      { text: "Les verriers souffle le verre avec art.", correctedText: "Les verriers soufflent le verre avec art.", errorCount: 1 },
+      { text: "La prairie verdoyante s'étend à l'horizon.", correctedText: "La prairie verdoyante s'étend à l'horizon.", errorCount: 0 },
+      { text: "Les céramistes modèle l'argile avec talent.", correctedText: "Les céramistes modèlent l'argile avec talent.", errorCount: 1 },
+      { text: "Le lac reflète les montagnes environnantes.", correctedText: "Le lac reflète les montagnes environnantes.", errorCount: 0 },
+      { text: "Les tisserands tisse de beaux tissus colorés.", correctedText: "Les tisserands tissent de beaux tissus colorés.", errorCount: 1 },
+      { text: "La grotte cache des trésors anciens.", correctedText: "La grotte cache des trésors anciens.", errorCount: 0 },
+      { text: "Les sculpteurs taille la pierre magistralement.", correctedText: "Les sculpteurs taillent la pierre magistralement.", errorCount: 1 },
+      { text: "Le port accueille les navires du monde entier.", correctedText: "Le port accueille les navires du monde entier.", errorCount: 0 },
+      { text: "Les tanneurs prépare les cuirs avec expertise.", correctedText: "Les tanneurs préparent les cuirs avec expertise.", errorCount: 1 },
+      { text: "La tour domine fièrement la cité.", correctedText: "La tour domine fièrement la cité.", errorCount: 0 },
+      { text: "Les graveurs décore les métaux précieux.", correctedText: "Les graveurs décorent les métaux précieux.", errorCount: 1 },
+      { text: "Le jardin fleurit magnifiquement au printemps.", correctedText: "Le jardin fleurit magnifiquement au printemps.", errorCount: 0 },
+      { text: "Les ébénistes crée des meubles raffinés.", correctedText: "Les ébénistes créent des meubles raffinés.", errorCount: 1 },
+      { text: "La colline offre une vue panoramique.", correctedText: "La colline offre une vue panoramique.", errorCount: 0 },
+      { text: "Les tonneliers fabrique des tonneaux robustes.", correctedText: "Les tonneliers fabriquent des tonneaux robustes.", errorCount: 1 },
+      { text: "Le moulin broie le grain depuis des générations.", correctedText: "Le moulin broie le grain depuis des générations.", errorCount: 0 },
+      { text: "Les cordiers tresse des cordes solides.", correctedText: "Les cordiers tressent des cordes solides.", errorCount: 1 },
+      { text: "Le vallon abrite un village paisible.", correctedText: "Le vallon abrite un village paisible.", errorCount: 0 },
+      { text: "Les dinandiers martèle le cuivre avec force.", correctedText: "Les dinandiers martèlent le cuivre avec force.", errorCount: 1 },
+      { text: "Le cloître invite à la méditation.", correctedText: "Le cloître invite à la méditation.", errorCount: 0 },
+      { text: "Les vanniers tresse l'osier habilement.", correctedText: "Les vanniers tressent l'osier habilement.", errorCount: 1 },
+      { text: "Le plateau s'élève au-dessus des nuages.", correctedText: "Le plateau s'élève au-dessus des nuages.", errorCount: 0 }
     ];
 
-    await db.insert(sentences).values(additionalSentences);
+    // Insert only sentences that don't already exist
+    for (const sentence of additionalSentences) {
+      const existing = await db
+        .select()
+        .from(sentences)
+        .where(
+          and(
+            eq(sentences.text, sentence.text),
+            eq(sentences.correctedText, sentence.correctedText)
+          )
+        )
+        .limit(1);
+
+      if (existing.length === 0) {
+        await db.insert(sentences).values(sentence);
+      }
+    }
   }
   
   async submitCorrection(userId: string, sentenceId: string, userAnswer: string): Promise<{ correct: boolean; reward: number }> {
