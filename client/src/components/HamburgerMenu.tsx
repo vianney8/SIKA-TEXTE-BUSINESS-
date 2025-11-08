@@ -77,23 +77,9 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
   };
 
   const handleWithdrawal = () => {
-    const currentBalance = (balance as any)?.balance || 0;
-    const canWithdraw = currentBalance >= 2000;
-    
-    if (!canWithdraw) {
-      toast({
-        title: "Retrait non disponible",
-        description: "Atteignez le minimum de 2000 FCFA d'abord",
-        variant: "destructive"
-      });
-      return;
-    }
     window.location.href = '/withdrawal';
     onClose();
   };
-
-  const currentBalance = (balance as any)?.balance || 0;
-  const canWithdraw = currentBalance >= 2000;
 
   const secondaryItems = [
     {
@@ -102,8 +88,6 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
       action: handleWithdrawal,
       testId: "button-withdrawal",
       highlight: false,
-      badge: canWithdraw ? "Disponible" : "Min. 2000 FCFA",
-      badgeVariant: canWithdraw ? "success" : "warning" as "success" | "warning",
     },
     {
       icon: HelpCircle,
@@ -193,7 +177,7 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
           
           {/* Secondary Items */}
           <div className="pt-2 space-y-2">
-            {secondaryItems.map((item: any) => (
+            {secondaryItems.map((item) => (
               item.action ? (
                 <Button
                   key={item.label}
@@ -202,25 +186,11 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
                   onClick={item.action}
                   data-testid={item.testId}
                 >
-                  <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
-                        <item.icon className="text-slate-600" size={18} />
-                      </div>
-                      <span className="font-medium text-slate-700">{item.label}</span>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
+                      <item.icon className="text-slate-600" size={18} />
                     </div>
-                    {item.badge && (
-                      <Badge 
-                        variant={item.badgeVariant === "success" ? "default" : "secondary"}
-                        className={
-                          item.badgeVariant === "success" 
-                            ? "bg-green-500 text-white text-xs" 
-                            : "bg-orange-100 text-orange-700 text-xs"
-                        }
-                      >
-                        {item.badge}
-                      </Badge>
-                    )}
+                    <span className="font-medium text-slate-700">{item.label}</span>
                   </div>
                 </Button>
               ) : (
