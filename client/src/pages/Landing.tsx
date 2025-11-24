@@ -61,8 +61,23 @@ export default function Landing() {
                   </Link>
                 </Button>
               </div>
+
+              {/* Trust Indicators */}
+              <div className="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center mb-4">SÉCURISÉ ET FIABLE</p>
+                <div className="flex justify-center gap-4 text-2xl text-gray-400 dark:text-gray-500">
+                  <i className="fas fa-lock"></i>
+                  <i className="fas fa-shield-alt"></i>
+                  <i className="fas fa-certificate"></i>
+                </div>
+              </div>
             </CardContent>
           </Card>
+
+          {/* Bottom Info */}
+          <div className="mt-8 text-center text-gray-300 dark:text-gray-400 text-sm">
+            <p>Disponible sur web et mobile</p>
+          </div>
         </div>
       </div>
 
