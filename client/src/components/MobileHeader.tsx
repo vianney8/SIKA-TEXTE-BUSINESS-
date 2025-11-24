@@ -67,7 +67,7 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
             className="bg-accent text-accent-foreground px-8 py-2 rounded-lg font-semibold hover:bg-orange-600 transition-colors"
             data-testid="button-pointage"
           >
-            <Plus className="mr-2" size={16} />
+            <Plus className="mr-1" size={16} />
             Gagnez vos points
           </Button>
         </div>
