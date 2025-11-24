@@ -1643,6 +1643,24 @@ export class DatabaseStorage implements IStorage {
       .set({ profileImageUrl: photoPath })
       .where(eq(users.id, userId));
   }
+
+  async getUserSupportMessages(userId: string): Promise<SupportMessage[]> {
+    const result = await db.select().from(supportMessages)
+      .where(eq(supportMessages.userId, userId))
+      .orderBy(supportMessages.createdAt);
+    return result;
+  }
+
+  async createSupportMessage(userId: string, message: string, senderType: 'user' | 'admin'): Promise<SupportMessage> {
+    const result = await db.insert(supportMessages).values({
+      userId,
+      message,
+      senderType,
+      isRead: false
+    }).returning();
+    
+    return result[0];
+  }
 }
 
 export const storage = new DatabaseStorage();
