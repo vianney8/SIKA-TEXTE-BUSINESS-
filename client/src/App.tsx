@@ -26,7 +26,6 @@ import IdentityVerification from "@/pages/IdentityVerification";
 import BankCard from "@/pages/BankCard";
 import AdminDashboard from "@/pages/AdminDashboard";
 import AdminSettings from "@/pages/AdminSettings";
-import AdminSupportMessages from "@/pages/AdminSupportMessages";
 import Summary from "@/pages/Summary";
 
 // Wrapper component to handle authenticated user redirects for register page

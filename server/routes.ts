@@ -1529,63 +1529,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Support messages routes
-  app.get('/api/support-messages', requireAuth, async (req: any, res) => {
-    try {
-      const userId = req.session.userId;
-      const messages = await storage.getUserSupportMessages(userId);
-      res.json(messages);
-    } catch (error) {
-      console.error('Erreur lors de la récupération des messages:', error);
-      res.status(500).json({ message: 'Erreur lors de la récupération des messages' });
-    }
-  });
-
-  app.post('/api/support-messages', requireAuth, async (req: any, res) => {
-    try {
-      const userId = req.session.userId;
-      const { message } = req.body;
-
-      if (!message || typeof message !== 'string' || !message.trim()) {
-        return res.status(400).json({ message: 'Message requis' });
-      }
-
-      const supportMessage = await storage.createSupportMessage(userId, message.trim(), 'user');
-      res.json(supportMessage);
-    } catch (error) {
-      console.error('Erreur lors de la création du message:', error);
-      res.status(500).json({ message: 'Erreur lors de la création du message' });
-    }
-  });
-
-  // Admin route to get all support messages
-  app.get('/api/admin/support-messages', requireAdmin, async (req: any, res) => {
-    try {
-      const result = await db.select().from(supportMessages).orderBy(supportMessages.createdAt);
-      res.json(result);
-    } catch (error) {
-      console.error('Erreur lors de la récupération des messages admin:', error);
-      res.status(500).json({ message: 'Erreur lors de la récupération des messages' });
-    }
-  });
-
-  // Admin route to send reply
-  app.post('/api/admin/support-messages/:userId', requireAdmin, async (req: any, res) => {
-    try {
-      const { userId } = req.params;
-      const { message } = req.body;
-
-      if (!message || typeof message !== 'string' || !message.trim()) {
-        return res.status(400).json({ message: 'Message requis' });
-      }
-
-      const supportMessage = await storage.createSupportMessage(userId, message.trim(), 'admin');
-      res.json(supportMessage);
-    } catch (error) {
-      console.error('Erreur lors de la création du message admin:', error);
-      res.status(500).json({ message: 'Erreur lors de la création du message' });
-    }
-  });
 
   // Initialiser les paramètres par défaut
   storage.initializeDefaultSettings().catch(console.error);

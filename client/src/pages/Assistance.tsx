@@ -1,73 +1,13 @@
-import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { ArrowLeft, MessageCircle, Users, Headphones, Download, Send, MessageSquare } from "lucide-react";
+import { ArrowLeft, MessageCircle, Users, Headphones, Download } from "lucide-react";
 import { Link } from "wouter";
 import { FaInstagram, FaTelegram } from "react-icons/fa";
 import { useAppSetting } from "@/hooks/useAppSettings";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
-
-interface SupportMessage {
-  id: string;
-  message: string;
-  senderType: 'user' | 'admin';
-  createdAt: string;
-}
 
 export default function Assistance() {
   const { data: instagramSupport } = useAppSetting('instagram_supervisor');
   const { data: telegramSupervisor } = useAppSetting('telegram_supervisor');
-  const { toast } = useToast();
-  const [messageText, setMessageText] = useState("");
-  const [showChat, setShowChat] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const { data: messages = [], isLoading, refetch } = useQuery<SupportMessage[]>({
-    queryKey: ['/api/support-messages'],
-  });
-
-  // Auto-scroll to bottom when messages change
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  // Poll for new messages every 2 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      refetch();
-    }, 2000);
-    return () => clearInterval(interval);
-  }, [refetch]);
-
-  const sendMessageMutation = useMutation({
-    mutationFn: async (message: string) => {
-      const res = await apiRequest('POST', '/api/support-messages', { message });
-      return await res.json();
-    },
-    onSuccess: () => {
-      setMessageText("");
-      queryClient.invalidateQueries({ queryKey: ['/api/support-messages'] });
-      toast({
-        title: "Message envoyé",
-        description: "Votre message a été envoyé à l'administrateur",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Erreur",
-        description: error.message || "Erreur lors de l'envoi du message",
-        variant: "destructive"
-      });
-    }
-  });
-
-  const handleSendMessage = () => {
-    if (!messageText.trim()) return;
-    sendMessageMutation.mutate(messageText);
-  };
 
   const handleInstagramContact = () => {
     const instagramUrl = `https://www.instagram.com/${instagramSupport || 'sikacustomer_service'}`;
@@ -75,6 +15,7 @@ export default function Assistance() {
   };
 
   const handleTelegramContact = () => {
+    // Telegram contact for provider - convert @handle to https://t.me/handle
     const telegramHandle = telegramSupervisor || "@sikatexte_support";
     const telegramUrl = telegramHandle.startsWith('@') 
       ? `https://t.me/${telegramHandle.slice(1)}` 
@@ -111,104 +52,6 @@ export default function Assistance() {
             Notre équipe d'assistance est là pour vous aider. Choisissez le canal de communication qui vous convient le mieux.
           </p>
         </div>
-
-        {/* Chat en ligne Button */}
-        {!showChat && (
-          <Button 
-            onClick={() => setShowChat(true)}
-            className="w-full mb-6 bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white"
-            data-testid="button-online-support"
-            size="lg"
-          >
-            <MessageSquare className="w-5 h-5 mr-2" />
-            Assistance en ligne (Chat)
-          </Button>
-        )}
-
-        {/* Chat Interface */}
-        {showChat && (
-          <Card className="mb-6 border-2 border-green-200 dark:border-green-800">
-            <CardHeader className="border-b">
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <MessageCircle className="w-5 h-5 text-green-600" />
-                  Chat en direct avec l'administrateur
-                </CardTitle>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => setShowChat(false)}
-                  data-testid="button-close-chat"
-                >
-                  ✕
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="p-4">
-              {/* Messages Display */}
-              <div className="h-80 overflow-y-auto mb-4 border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-slate-50 dark:bg-slate-900">
-                {isLoading ? (
-                  <p className="text-center text-muted-foreground">Chargement des messages...</p>
-                ) : messages.length === 0 ? (
-                  <p className="text-center text-muted-foreground">Aucun message. Envoyez votre première question !</p>
-                ) : (
-                  <div className="space-y-3">
-                    {messages.map((msg) => (
-                      <div 
-                        key={msg.id}
-                        data-testid={`message-${msg.id}`}
-                        className={`flex ${msg.senderType === 'user' ? 'justify-end' : 'justify-start'}`}
-                      >
-                        <div 
-                          className={`max-w-xs px-4 py-2 rounded-lg ${
-                            msg.senderType === 'user'
-                              ? 'bg-blue-500 text-white rounded-br-none'
-                              : 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white rounded-bl-none'
-                          }`}
-                        >
-                          <p className="text-sm">{msg.message}</p>
-                          <p className="text-xs opacity-70 mt-1">
-                            {new Date(msg.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-
-              {/* Message Input */}
-              <div className="flex gap-2">
-                <Input
-                  data-testid="input-support-message"
-                  type="text"
-                  placeholder="Écrivez votre message..."
-                  value={messageText}
-                  onChange={(e) => setMessageText(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter' && !sendMessageMutation.isPending) {
-                      handleSendMessage();
-                    }
-                  }}
-                  disabled={sendMessageMutation.isPending}
-                  className="flex-1"
-                />
-                <Button 
-                  onClick={handleSendMessage}
-                  disabled={sendMessageMutation.isPending || !messageText.trim()}
-                  data-testid="button-send-message"
-                  className="bg-green-500 hover:bg-green-600 text-white"
-                >
-                  <Send className="w-4 h-4" />
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                ✅ Les messages sont vérifiés en temps réel par l'administrateur
-              </p>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Contact Options */}
         <div className="space-y-4">
