@@ -13,6 +13,7 @@ import {
   bankCards,
   appSettings,
   notifications,
+  supportMessages,
   type User,
   type UpsertUser,
   type Transaction,
@@ -30,6 +31,8 @@ import {
   type InsertBankCard,
   type AppSetting,
   type InsertAppSetting,
+  type SupportMessage,
+  type InsertSupportMessage,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, inArray, like, ilike, or, notInArray } from "drizzle-orm";
@@ -130,6 +133,10 @@ export interface IStorage {
   getUserNotifications(userId: string): Promise<any[]>;
   createNotification(userId: string, message: string): Promise<any>;
   markNotificationSeen(notificationId: string): Promise<void>;
+
+  // Support messages
+  getUserSupportMessages(userId: string): Promise<SupportMessage[]>;
+  createSupportMessage(userId: string, message: string, senderType: 'user' | 'admin'): Promise<SupportMessage>;
 }
 
 export class DatabaseStorage implements IStorage {

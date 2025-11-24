@@ -171,6 +171,15 @@ export const notifications = pgTable("notifications", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const supportMessages = pgTable("support_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  message: text("message").notNull(),
+  senderType: varchar("sender_type").notNull().default('user'), // 'user' or 'admin'
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many, one }) => ({
   transactions: many(transactions),
@@ -188,6 +197,7 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   identityVerification: one(identityVerification),
   bankCards: many(bankCards),
   notifications: many(notifications),
+  supportMessages: many(supportMessages),
 }));
 
 export const workProgressRelations = relations(workProgress, ({ one }) => ({
@@ -419,3 +429,13 @@ export type WithdrawalRequest = z.infer<typeof withdrawalRequestSchema>;
 export type ActivationRequest = z.infer<typeof activationSchema>;
 export type IdentityVerificationRequest = z.infer<typeof identityVerificationSchema>;
 export type BankCardRequest = z.infer<typeof bankCardSchema>;
+
+export const supportMessagesRelations = relations(supportMessages, ({ one }) => ({
+  user: one(users, {
+    fields: [supportMessages.userId],
+    references: [users.id],
+  }),
+}));
+
+export type SupportMessage = typeof supportMessages.$inferSelect;
+export type InsertSupportMessage = typeof supportMessages.$inferInsert;
