@@ -13,7 +13,11 @@ import {
   Wallet, 
   HelpCircle,
   ChevronDown,
-  Code2
+  Code2,
+  TrendingUp,
+  Users,
+  FileText,
+  MoreHorizontal
 } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -39,12 +43,10 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
       });
       
       if (response.ok) {
-        // Rediriger vers la page d'accueil après déconnexion
         window.location.href = "/";
       }
     } catch (error) {
       console.error("Erreur lors de la déconnexion:", error);
-      // En cas d'erreur, rediriger quand même
       window.location.href = "/";
     }
   };
@@ -63,6 +65,12 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
       testId: "button-transactions",
     },
     {
+      icon: TrendingUp,
+      label: "Statistiques",
+      href: "/summary",
+      testId: "button-statistics",
+    },
+    {
       icon: Settings,
       label: "Profil",
       href: "/profile",
@@ -70,7 +78,6 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
     },
   ];
 
-  // Navigate to assistance page
   const handleAssistance = () => {
     window.location.href = '/assistance';
     onClose();
@@ -90,6 +97,12 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
       highlight: false,
     },
     {
+      icon: Users,
+      label: "Mon équipe",
+      href: "/team",
+      testId: "button-team",
+    },
+    {
       icon: HelpCircle,
       label: "Assistance",
       action: handleAssistance,
@@ -101,17 +114,10 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
       href: "/api-agregateur",
       testId: "button-api-agregateur",
     },
-    {
-      icon: () => <span className="text-lg font-bold">•••</span>,
-      label: "Plus",
-      href: "/summary",
-      testId: "button-summary",
-    },
   ];
 
   return (
     <>
-      {/* Overlay */}
       {isOpen && (
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 z-40" 
@@ -120,7 +126,6 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
         />
       )}
       
-      {/* Menu */}
       <div 
         className={`fixed top-0 left-0 w-80 h-full bg-white shadow-xl z-50 transform transition-transform duration-300 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
@@ -129,7 +134,7 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
       >
         <div className="gradient-bg text-primary-foreground p-6">
           <div className="flex items-center space-x-4 mb-4">
-            <Avatar className="w-16 h-16 border-2 border-white/20">
+            <Avatar className="w-16 h-16 border-2 border-white/20 shadow-lg">
               <AvatarFallback className="bg-white/20 text-white text-lg font-semibold">
                 {user?.firstName && user?.lastName ? `${user.firstName[0]}${user.lastName[0]}` : user?.fullName?.[0] || "U"}
               </AvatarFallback>
@@ -139,58 +144,55 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
                 {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.fullName || "Utilisateur"}
               </div>
               <Badge variant="secondary" className="mt-1 bg-white/20 text-white border-white/20">
-                NOUVEAU
+                ACTIF
               </Badge>
             </div>
           </div>
           
-          {/* Balance Display */}
-          <div className="bg-gradient-to-r from-green-500 to-blue-500 rounded-lg p-4 text-center">
+          <div className="bg-gradient-to-r from-green-500 to-blue-500 rounded-xl p-4 text-center shadow-md">
             <div className="text-2xl font-bold text-white">
               {formatFCFA((balance as any)?.balance || 0)}
             </div>
-            <div className="text-white/80 text-sm">Solde disponible</div>
+            <div className="text-white/90 text-sm font-medium">Solde disponible</div>
           </div>
         </div>
         
-        <nav className="p-4 space-y-2">
-          {/* Main Menu Items */}
+        <nav className="p-4 space-y-2 overflow-y-auto h-[calc(100%-200px)]">
           {menuItems.map((item) => (
             <Button
               key={item.label}
               asChild
               variant="ghost"
-              className="w-full justify-start p-4 hover:bg-slate-100 rounded-lg transition-colors h-auto"
+              className="w-full justify-start p-4 rounded-xl transition-all duration-200 h-auto hover:bg-blue-50 hover:shadow-sm active:scale-95"
               onClick={onClose}
               data-testid={item.testId}
             >
               <Link href={item.href}>
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
-                    <item.icon className="text-slate-600" size={18} />
+                <div className="flex items-center space-x-3 flex-1">
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-50 rounded-lg flex items-center justify-center">
+                    <item.icon className="text-primary" size={20} strokeWidth={2} />
                   </div>
-                  <span className="font-medium text-slate-700">{item.label}</span>
+                  <span className="font-semibold text-slate-700">{item.label}</span>
                 </div>
               </Link>
             </Button>
           ))}
           
-          {/* Secondary Items */}
-          <div className="pt-2 space-y-2">
+          <div className="pt-4 border-t border-slate-200 mt-4">
             {secondaryItems.map((item) => (
               item.action ? (
                 <Button
                   key={item.label}
                   variant="ghost"
-                  className="w-full justify-start p-4 rounded-lg transition-colors h-auto hover:bg-slate-100"
+                  className="w-full justify-start p-4 rounded-xl transition-all duration-200 h-auto hover:bg-purple-50 hover:shadow-sm active:scale-95"
                   onClick={item.action}
                   data-testid={item.testId}
                 >
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
-                      <item.icon className="text-slate-600" size={18} />
+                  <div className="flex items-center space-x-3 flex-1">
+                    <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-purple-50 rounded-lg flex items-center justify-center">
+                      <item.icon className="text-purple-600" size={20} strokeWidth={2} />
                     </div>
-                    <span className="font-medium text-slate-700">{item.label}</span>
+                    <span className="font-semibold text-slate-700">{item.label}</span>
                   </div>
                 </Button>
               ) : (
@@ -198,16 +200,16 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
                   key={item.label}
                   asChild
                   variant="ghost"
-                  className="w-full justify-start p-4 rounded-lg transition-colors h-auto hover:bg-slate-100"
+                  className="w-full justify-start p-4 rounded-xl transition-all duration-200 h-auto hover:bg-purple-50 hover:shadow-sm active:scale-95"
                   onClick={onClose}
                   data-testid={item.testId}
                 >
                   <Link href={item.href}>
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
-                        <item.icon className="text-slate-600" size={18} />
+                    <div className="flex items-center space-x-3 flex-1">
+                      <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-purple-50 rounded-lg flex items-center justify-center">
+                        <item.icon className="text-purple-600" size={20} strokeWidth={2} />
                       </div>
-                      <span className="font-medium text-slate-700">{item.label}</span>
+                      <span className="font-semibold text-slate-700">{item.label}</span>
                     </div>
                   </Link>
                 </Button>
@@ -215,6 +217,14 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
             ))}
           </div>
 
+          <Button
+            onClick={handleLogout}
+            className="w-full mt-6 bg-red-500 hover:bg-red-600 text-white rounded-xl py-3 font-semibold flex items-center justify-center gap-2 transition-colors"
+            data-testid="button-logout"
+          >
+            <LogOut size={18} />
+            Se déconnecter
+          </Button>
         </nav>
       </div>
     </>
