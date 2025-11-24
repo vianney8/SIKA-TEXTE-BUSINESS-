@@ -1558,6 +1558,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin route to get all support messages
+  app.get('/api/admin/support-messages', requireAdmin, async (req: any, res) => {
+    try {
+      const result = await db.select().from(supportMessages).orderBy(supportMessages.createdAt);
+      res.json(result);
+    } catch (error) {
+      console.error('Erreur lors de la récupération des messages admin:', error);
+      res.status(500).json({ message: 'Erreur lors de la récupération des messages' });
+    }
+  });
+
   // Admin route to send reply
   app.post('/api/admin/support-messages/:userId', requireAdmin, async (req: any, res) => {
     try {
