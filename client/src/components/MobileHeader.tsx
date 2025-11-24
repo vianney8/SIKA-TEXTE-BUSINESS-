@@ -68,7 +68,7 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
             data-testid="button-pointage"
           >
             <Plus className="mr-2" size={16} />
-            Pointage
+            Gagnez vos points
           </Button>
         </div>
         <div className="flex justify-between text-xs mt-2 opacity-75">
