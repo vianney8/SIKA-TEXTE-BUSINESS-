@@ -144,7 +144,7 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
                 {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.fullName || "Utilisateur"}
               </div>
               <Badge variant="secondary" className="mt-1 bg-white/20 text-white border-white/20">
-                ACTIF
+                NOUVEAU
               </Badge>
             </div>
           </div>
