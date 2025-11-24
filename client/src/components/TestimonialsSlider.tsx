@@ -559,30 +559,8 @@ export default function TestimonialsSlider() {
           ))}
         </div>
         
-        {/* Social Media Links */}
+        {/* Logout Button - Full Width */}
         <div className="mt-6 text-center">
-          <div className="flex justify-center space-x-4 mb-6">
-            <a href="#" className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center hover:scale-110 transition-transform">
-              <i className="fab fa-facebook-f text-white text-sm"></i>
-            </a>
-            <a href="#" className="w-10 h-10 bg-sky-400 rounded-full flex items-center justify-center hover:scale-110 transition-transform">
-              <i className="fab fa-twitter text-white text-sm"></i>
-            </a>
-            <a href="#" className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center hover:scale-110 transition-transform">
-              <i className="fab fa-youtube text-white text-sm"></i>
-            </a>
-            <a href="#" className="w-10 h-10 bg-pink-500 rounded-full flex items-center justify-center hover:scale-110 transition-transform">
-              <i className="fab fa-instagram text-white text-sm"></i>
-            </a>
-            <a href="#" className="w-10 h-10 bg-blue-700 rounded-full flex items-center justify-center hover:scale-110 transition-transform">
-              <i className="fab fa-linkedin text-white text-sm"></i>
-            </a>
-            <a href="#" className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center hover:scale-110 transition-transform">
-              <i className="fab fa-whatsapp text-white text-sm"></i>
-            </a>
-          </div>
-          
-          {/* Logout Button - Full Width */}
           <button
             onClick={() => {
               fetch("/api/auth/logout", {
