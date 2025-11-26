@@ -1602,20 +1602,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         payment = paymentRecords[0];
       }
       
-      // If no payment found by reference, find the latest pending payment for this user
+      // If no payment found by reference, find the FIRST (oldest) pending payment for this user
       if (!payment) {
-        console.log('[ACTIVATION] No payment found by reference, searching latest pending payment for user...');
+        console.log('[ACTIVATION] No payment found by reference, searching oldest pending payment for user...');
         const userPayments = await db.select().from(bkapayPayments)
           .where(and(
             eq(bkapayPayments.userId, userId),
             eq(bkapayPayments.status, 'pending')
           ))
-          .orderBy(desc(bkapayPayments.createdAt))
+          .orderBy(bkapayPayments.createdAt)  // ASC - oldest first
           .limit(1);
         payment = userPayments[0];
         
         if (payment) {
-          console.log('[ACTIVATION] Found latest pending payment:', payment.reference);
+          console.log('[ACTIVATION] Found oldest pending payment:', payment.reference);
         }
       }
 
