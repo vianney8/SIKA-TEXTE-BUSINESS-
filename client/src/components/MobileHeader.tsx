@@ -15,63 +15,75 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
   const [isBalanceVisible, setIsBalanceVisible] = useState(true);
 
   return (
-    <header className="gradient-bg text-primary-foreground sticky top-0 z-50">
-      
-      <div className="px-6 py-4 flex justify-between items-center">
+    <header className="sticky top-0 z-50 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white shadow-lg">
+      {/* Top Navigation Bar */}
+      <div className="px-4 py-3 flex justify-between items-center backdrop-blur-sm bg-white/5">
         <Button 
           variant="ghost" 
           size="sm" 
           onClick={onMenuToggle}
-          className="text-primary-foreground hover:bg-white/10"
+          className="text-white hover:bg-white/20 transition-colors"
           data-testid="button-menu"
         >
-          <Menu size={24} strokeWidth={3} />
+          <Menu size={24} strokeWidth={2.5} />
         </Button>
-        <div className="text-center">
-          <div className="text-sm opacity-90 font-bold" data-testid="text-username">
-            {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.fullName || 'Utilisateur'}
+        
+        <div className="text-center flex-1">
+          <div className="text-lg font-black tracking-wider" data-testid="text-username">
+            Vj
           </div>
         </div>
+        
         <Button 
           asChild
           variant="ghost" 
           size="sm"
-          className="text-primary-foreground hover:bg-white/10"
+          className="text-white hover:bg-white/20 relative transition-colors"
           data-testid="button-notifications"
         >
           <Link href="/transactions">
-            <Bell size={20} />
+            <Bell size={22} strokeWidth={2} />
+            <span className="absolute top-1 right-1 w-2 h-2 bg-red-400 rounded-full animate-pulse"></span>
           </Link>
         </Button>
       </div>
 
-      {/* Balance Display */}
-      <div className="px-6 pb-6">
-        <div className="text-center">
-          <div className="flex items-center justify-center text-3xl font-bold mb-2">
+      {/* Balance & Action Section */}
+      <div className="px-6 py-8 text-center backdrop-blur-sm bg-white/5">
+        {/* Balance Display */}
+        <div className="mb-5">
+          <div className="flex items-center justify-center gap-3 mb-3">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setIsBalanceVisible(!isBalanceVisible)}
-              className="text-primary-foreground hover:bg-white/10 p-1 mr-3"
+              className="text-white hover:bg-white/20 p-1 transition-colors"
               data-testid="button-toggle-balance"
             >
-              {isBalanceVisible ? <Eye className="text-lg" /> : <EyeOff className="text-lg" />}
+              {isBalanceVisible ? (
+                <Eye size={20} strokeWidth={2} />
+              ) : (
+                <EyeOff size={20} strokeWidth={2} />
+              )}
             </Button>
-            <span data-testid="text-balance">
+            <div className="text-5xl font-black tracking-tight" data-testid="text-balance">
               {isBalanceVisible ? formatFCFA(balance) : "••••••"}
-            </span>
+            </div>
           </div>
-          <Button 
-            onClick={onPointage}
-            className="bg-accent text-accent-foreground px-8 py-2 rounded-lg font-semibold hover:bg-orange-600 transition-colors"
-            data-testid="button-pointage"
-          >
-            <Plus className="mr-1" size={16} />
-            Gagnez vos points
-          </Button>
         </div>
-        <div className="flex justify-between text-xs mt-2 opacity-75">
+
+        {/* Earn Points Button */}
+        <Button 
+          onClick={onPointage}
+          className="w-full bg-gradient-to-r from-red-400 to-pink-500 hover:from-red-500 hover:to-pink-600 text-white font-bold py-3 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95"
+          data-testid="button-pointage"
+        >
+          <Plus size={20} className="mr-2" />
+          Gagnez vos points
+        </Button>
+
+        {/* Footer Info */}
+        <div className="flex justify-between text-xs mt-4 opacity-80 font-medium">
           <span data-testid="text-account-id">
             {user?.id?.substring(0, 10) || user?.email?.split('@')[0] || 'testuser45'}
           </span>
