@@ -1583,34 +1583,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Verify payment and activate account after user returns from BKAPay
-  app.post('/api/activation/verify-payment', requireAuth, async (req: any, res) => {
+  // This endpoint works WITH or WITHOUT authentication
+  app.post('/api/activation/verify-payment', async (req: any, res) => {
     try {
-      const userId = req.session.userId;
+      const sessionUserId = req.session?.userId;
       const { reference } = req.body;
       
       console.log('[ACTIVATION] ===== VERIFY PAYMENT START =====');
-      console.log('[ACTIVATION] UserID:', userId);
+      console.log('[ACTIVATION] Session UserID:', sessionUserId || 'NOT LOGGED IN');
       console.log('[ACTIVATION] Reference provided:', reference);
       
       let payment;
       
+      // Method 1: Find by reference (most reliable - works without session)
       if (reference) {
-        // Find payment by reference
         console.log('[ACTIVATION] Finding payment by reference...');
         const paymentRecords = await db.select().from(bkapayPayments)
           .where(eq(bkapayPayments.reference, reference));
         payment = paymentRecords[0];
+        
+        if (payment) {
+          console.log('[ACTIVATION] Payment found by reference:', payment.reference);
+        }
       }
       
-      // If no payment found by reference, find the FIRST (oldest) pending payment for this user
-      if (!payment) {
-        console.log('[ACTIVATION] No payment found by reference, searching oldest pending payment for user...');
+      // Method 2: If no reference but user is logged in, find their oldest pending payment
+      if (!payment && sessionUserId) {
+        console.log('[ACTIVATION] No payment by reference, searching oldest pending for user...');
         const userPayments = await db.select().from(bkapayPayments)
           .where(and(
-            eq(bkapayPayments.userId, userId),
+            eq(bkapayPayments.userId, sessionUserId),
             eq(bkapayPayments.status, 'pending')
           ))
-          .orderBy(bkapayPayments.createdAt)  // ASC - oldest first
+          .orderBy(bkapayPayments.createdAt)
           .limit(1);
         payment = userPayments[0];
         
@@ -1620,8 +1625,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (!payment) {
-        console.log('[ACTIVATION] ERROR: No pending payment found for user:', userId);
+        console.log('[ACTIVATION] ERROR: No payment found');
         return res.status(404).json({ message: 'Paiement non trouvé', activated: false });
+      }
+
+      // Check if already completed
+      if (payment.status === 'completed') {
+        console.log('[ACTIVATION] Payment already completed, checking account status...');
+        const accountStatus = await storage.getAccountStatus(payment.userId);
+        if (accountStatus?.isActive) {
+          return res.json({ message: 'Compte déjà activé', activated: true, isActive: true });
+        }
       }
 
       console.log('[ACTIVATION] Payment found:', {
@@ -1641,12 +1655,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
         .where(eq(bkapayPayments.id, payment.id));
 
-      // Activate the account
-      console.log('[ACTIVATION] Activating account for user:', userId);
-      await storage.activateAccount(userId);
+      // Activate the account using the userId from the payment record
+      const targetUserId = payment.userId;
+      console.log('[ACTIVATION] Activating account for user:', targetUserId);
+      await storage.activateAccount(targetUserId);
 
       // Verify activation
-      const updatedStatus = await storage.getAccountStatus(userId);
+      const updatedStatus = await storage.getAccountStatus(targetUserId);
       console.log('[ACTIVATION] Account status after activation:', {
         isActive: updatedStatus?.isActive,
         activatedAt: updatedStatus?.activatedAt
