@@ -15,7 +15,7 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
   const [isBalanceVisible, setIsBalanceVisible] = useState(true);
 
   return (
-    <header className="sticky top-0 z-50 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white shadow-lg">
+    <header className="sticky top-0 z-50 bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800 text-white shadow-lg">
       {/* Top Navigation Bar */}
       <div className="px-4 py-3 flex justify-between items-center backdrop-blur-sm bg-white/5">
         <Button 

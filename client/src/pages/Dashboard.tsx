@@ -265,12 +265,12 @@ export default function Dashboard() {
           </Button>
 
           {/* Central Notification Banner */}
-          <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl shadow-lg border-0 overflow-hidden">
+          <Card className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-xl shadow-lg border-0 overflow-hidden">
             <div className="p-6 text-center relative">
-              <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
+              <div className="absolute inset-0 bg-white/5 backdrop-blur-sm"></div>
               <div className="relative z-10">
-                <h2 className="text-2xl font-bold mb-2">SIKA TEXTE BUSINESS</h2>
-                <p className="text-blue-100 text-lg">Plateforme Européenne</p>
+                <h2 className="text-2xl font-bold mb-2 text-white">SIKA TEXTE BUSINESS</h2>
+                <p className="text-emerald-100 text-lg">Plateforme Européenne</p>
               </div>
             </div>
           </Card>
