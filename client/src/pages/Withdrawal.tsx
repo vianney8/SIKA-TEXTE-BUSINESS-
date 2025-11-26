@@ -128,6 +128,34 @@ export default function Withdrawal() {
     },
   });
 
+  const activationMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/activation/init-payment", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!response.ok) throw new Error("Erreur lors de l'initiation du paiement");
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Redirection vers BKAPay",
+        description: "Vous allez être redirigé pour payer l'activation",
+      });
+      setTimeout(() => {
+        window.location.href = data.redirectUrl;
+      }, 1000);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erreur",
+        description: "Impossible d'initier le paiement",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleWithdraw = () => {
     const withdrawalAmount = parseFloat(amount);
     
@@ -220,18 +248,13 @@ export default function Withdrawal() {
                 <div className="space-y-4">
                   <Button 
                     data-testid="button-external-payment"
-                    asChild
+                    onClick={() => activationMutation.mutate()}
+                    disabled={activationMutation.isPending}
                     size="lg" 
-                    className="w-full"
+                    className="w-full bg-gradient-to-r from-primary to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold"
                   >
-                    <a 
-                      href={activationLink || "https://app.payix.me/payment/32518586-14cc-4a45-877a-758608f969aa"} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                    >
-                      <ExternalLink className="w-5 h-5 mr-2" />
-                      Payer l'activation en ligne
-                    </a>
+                    <ExternalLink className="w-5 h-5 mr-2" />
+                    {activationMutation.isPending ? "Traitement..." : "Payer l'activation en ligne"}
                   </Button>
 
                   <div className="bg-orange-50 dark:bg-orange-900 p-4 rounded-lg">
