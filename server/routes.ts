@@ -1593,33 +1593,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: 'Unauthorized', activated: false });
       }
 
-      // Check if payment is completed
-      if (payment.status === 'completed') {
-        console.log('[ACTIVATION] Payment already completed, checking account status');
-        // Verify account is activated
-        const accountStatus = await storage.getAccountStatus(userId);
-        if (accountStatus?.isActive) {
-          console.log('[ACTIVATION] Account already active');
-          return res.json({ message: 'Compte déjà activé', activated: true });
-        } else {
-          console.log('[ACTIVATION] Activating account for completed payment');
-          // Activate account if not already done
-          await storage.activateAccount(userId);
-          return res.json({ message: 'Compte activé avec succès', activated: true });
+      // Check account status
+      const accountStatus = await storage.getAccountStatus(userId);
+      const isAlreadyActive = accountStatus?.isActive === true;
+      
+      // If account is already active, just confirm it
+      if (isAlreadyActive) {
+        console.log('[ACTIVATION] Account already active');
+        // Still mark payment as completed if not already
+        if (payment.status !== 'completed') {
+          await db.update(bkapayPayments).set({ 
+            status: 'completed',
+            completedAt: new Date(),
+          }).where(eq(bkapayPayments.reference, reference));
         }
-      } else {
-        console.log('[ACTIVATION] Payment status is:', payment.status);
-        // Mark as completed and activate
-        await db.update(bkapayPayments).set({ 
-          status: 'completed',
-          completedAt: new Date(),
-        }).where(eq(bkapayPayments.reference, reference));
-
-        await storage.activateAccount(userId);
-
-        console.log('[ACTIVATION] Account activated successfully for user:', userId);
-        return res.json({ message: 'Compte activé avec succès', activated: true });
+        return res.json({ message: 'Compte déjà activé', activated: true });
       }
+
+      // Mark payment as completed and activate account
+      console.log('[ACTIVATION] Marking payment as completed and activating account');
+      await db.update(bkapayPayments).set({ 
+        status: 'completed',
+        completedAt: new Date(),
+      }).where(eq(bkapayPayments.reference, reference));
+
+      await storage.activateAccount(userId);
+
+      console.log('[ACTIVATION] Account activated successfully for user:', userId);
+      return res.json({ message: 'Compte activé avec succès', activated: true });
     } catch (error) {
       console.error('Error verifying payment:', error);
       res.status(500).json({ message: 'Erreur lors de la vérification du paiement', activated: false });
