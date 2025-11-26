@@ -53,6 +53,12 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
 
   const menuItems = [
     {
+      icon: Lock,
+      label: "Activer le compte",
+      href: "/activation",
+      testId: "button-activation",
+    },
+    {
       icon: Briefcase,
       label: "Nouveau travail",
       href: "/work",

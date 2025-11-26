@@ -18,7 +18,9 @@ import {
   adminCreditAccountSchema
 ,
   appSettingUpdateSchema,
-  bankCards
+  bankCards,
+  bkapayPayments,
+  accountStatus
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import session from "express-session";
@@ -1529,6 +1531,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // BKAPAY ACTIVATION ENDPOINTS
+  app.post('/api/activation/init-payment', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const amount = 3600;
+      const reference = `ACT-${userId.substring(0, 8)}-${Date.now()}`;
+      const publicKey = process.env.BKAPAY_PUBLIC_KEY;
+      
+      if (!publicKey) {
+        return res.status(500).json({ message: 'Clé BKAPay non configurée' });
+      }
+
+      // Generate redirect URL with parameters
+      const redirectUrl = `https://bkapay.com/api-pay/${publicKey}?amount=${amount}&description=Activation%20Compte%20Sika%20Texte&reference=${reference}`;
+      
+      // Store payment record
+      await db.insert(bkapayPayments).values({
+        userId,
+        amount: amount.toString(),
+        reference,
+        redirectUrl,
+        status: 'pending',
+      });
+
+      res.json({ redirectUrl, reference, amount });
+    } catch (error) {
+      console.error('Error initiating payment:', error);
+      res.status(500).json({ message: 'Erreur lors de l\'initiation du paiement' });
+    }
+  });
+
+  app.post('/api/activation/callback', async (req: any, res) => {
+    try {
+      const { reference, status, transactionId } = req.body;
+      
+      if (!reference || !status) {
+        return res.status(400).json({ message: 'Données invalides' });
+      }
+
+      if (status === 'success' || status === 'completed') {
+        // Update payment status
+        await db.update(bkapayPayments).set({ 
+          status: 'completed',
+          completedAt: new Date(),
+        }).where(eq(bkapayPayments.reference, reference));
+
+        // Find payment to get userId
+        const payment = await db.select().from(bkapayPayments).where(eq(bkapayPayments.reference, reference));
+        const paymentRecord = payment[0];
+
+        if (!paymentRecord) {
+          return res.status(404).json({ message: 'Paiement non trouvé' });
+        }
+
+        // Activate account
+        await storage.activateAccount(paymentRecord.userId);
+
+        // Create transaction record
+        await storage.createTransaction({
+          userId: paymentRecord.userId,
+          type: 'deposit',
+          amount: '0',
+          description: 'Activation de compte - Paiement BKAPay',
+          status: 'completed',
+          reference: transactionId || reference,
+        });
+
+        return res.json({ message: 'Compte activé avec succès', activated: true });
+      } else {
+        // Update payment status to failed
+        await db.update(bkapayPayments).set({ status: 'failed' }).where(eq(bkapayPayments.reference, reference));
+        return res.json({ message: 'Paiement échoué', activated: false });
+      }
+    } catch (error) {
+      console.error('Error processing callback:', error);
+      res.status(500).json({ message: 'Erreur lors du traitement du paiement' });
+    }
+  });
+
+  app.get('/api/activation/status', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const accountStatus = await storage.getAccountStatus(userId);
+      res.json({ 
+        isActive: accountStatus?.isActive || false,
+        activatedAt: accountStatus?.activatedAt,
+      });
+    } catch (error) {
+      console.error('Error fetching activation status:', error);
+      res.status(500).json({ message: 'Erreur lors de la récupération du statut' });
+    }
+  });
 
   // Initialiser les paramètres par défaut
   storage.initializeDefaultSettings().catch(console.error);

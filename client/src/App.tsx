@@ -27,6 +27,7 @@ import BankCard from "@/pages/BankCard";
 import AdminDashboard from "@/pages/AdminDashboard";
 import AdminSettings from "@/pages/AdminSettings";
 import Summary from "@/pages/Summary";
+import Activation from "@/pages/Activation";
 
 // Wrapper component to handle authenticated user redirects for register page
 function RegisterWithRedirect() {
@@ -122,6 +123,7 @@ function Router() {
           <Route path="/transactions" component={Transactions} />
           <Route path="/assistance" component={Assistance} />
           <Route path="/api-agregateur" component={ApiAgregateur} />
+          <Route path="/activation" component={Activation} />
           <Route path="/admin" component={AdminDashboard} />
           <Route path="/admin/settings" component={AdminSettings} />
           <Route path="/identity-verification" component={IdentityVerification} />
