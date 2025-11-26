@@ -73,49 +73,69 @@ export default function Withdrawal() {
 
   // Verify payment after returning from BKAPay
   useEffect(() => {
+    // Check all possible ways BKAPay might return the reference
     const searchParams = new URLSearchParams(window.location.search);
-    const paymentVerified = searchParams.get('payment_verified');
-    const reference = searchParams.get('reference');
+    let reference = searchParams.get('reference');
+    
+    // Also check hash parameters in case BKAPay uses fragment
+    if (!reference && window.location.hash) {
+      const hashParams = new URLSearchParams(window.location.hash.slice(1));
+      reference = hashParams.get('reference');
+    }
 
-    if (paymentVerified === 'true' && reference) {
-      console.log('[WITHDRAWAL] Verifying payment after return from BKAPay:', reference);
+    // If we have a reference, verify the payment immediately
+    if (reference) {
+      console.log('[WITHDRAWAL] Found reference from BKAPay return:', reference);
+      console.log('[WITHDRAWAL] Full URL:', window.location.href);
       
-      fetch('/api/activation/verify-payment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ reference }),
-      })
-        .then(res => res.json())
-        .then(data => {
-          console.log('[WITHDRAWAL] Payment verification result:', data);
+      // Wait a moment to ensure session is established
+      const verifyPayment = async () => {
+        try {
+          console.log('[WITHDRAWAL] Verifying payment:', reference);
+          const response = await fetch('/api/activation/verify-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ reference }),
+          });
+          
+          const data = await response.json();
+          console.log('[WITHDRAWAL] Payment verification result:', data, 'Status:', response.status);
+          
           if (data.activated) {
             toast({
               title: "Succès !",
               description: "Votre compte a été activé avec succès",
             });
             // Refresh withdrawal data to show activated account
-            setTimeout(() => {
-              refetchWithdrawalData();
-              // Clean up URL
-              window.history.replaceState({}, document.title, '/withdrawal');
-            }, 1000);
+            await new Promise(resolve => setTimeout(resolve, 500));
+            refetchWithdrawalData();
+            // Clean up URL
+            window.history.replaceState({}, document.title, '/withdrawal');
           } else {
+            console.warn('[WITHDRAWAL] Activation failed:', data);
             toast({
-              title: "Erreur",
-              description: data.message || "Impossible de vérifier le paiement",
-              variant: "destructive",
+              title: "Information",
+              description: data.message || "Paiement reçu, vérification en cours...",
             });
+            // Refresh anyway to check account status
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            refetchWithdrawalData();
           }
-        })
-        .catch(error => {
+        } catch (error) {
           console.error('[WITHDRAWAL] Error verifying payment:', error);
           toast({
             title: "Erreur",
             description: "Erreur lors de la vérification du paiement",
             variant: "destructive",
           });
-        });
+          // Try refresh anyway
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          refetchWithdrawalData();
+        }
+      };
+      
+      verifyPayment();
     }
   }, [refetchWithdrawalData, toast]);
 

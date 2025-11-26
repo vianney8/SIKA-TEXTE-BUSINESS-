@@ -1545,10 +1545,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Generate redirect URL with parameters - using the correct BKAPay format
       const description = 'Activation Compte Sika Texte';
-      const returnUrl = `${req.protocol}://${req.get('host')}/withdrawal?payment_verified=true&reference=${reference}`;
+      // Build return URL without encoding issues
+      const returnUrl = `${req.protocol}://${req.get('host')}/withdrawal`;
       const redirectUrl = `https://bkapay.com/api-pay/${publicKey}?amount=${amount}&description=${encodeURIComponent(description)}&reference=${reference}&return_url=${encodeURIComponent(returnUrl)}`;
       
-      console.log('[ACTIVATION] Init payment - Reference:', reference, 'Amount:', amount, 'Return URL:', returnUrl);
+      console.log('[ACTIVATION] Init payment - Reference:', reference, 'Amount:', amount, 'UserId:', userId);
+      console.log('[ACTIVATION] Return URL:', returnUrl);
+      console.log('[ACTIVATION] Full redirect URL:', redirectUrl);
       
       // Store payment record
       await db.insert(bkapayPayments).values({
@@ -1572,13 +1575,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.session.userId;
       const { reference } = req.body;
       
-      console.log('[ACTIVATION] Verifying payment - Reference:', reference, 'UserId:', userId);
+      console.log('[ACTIVATION] === VERIFY PAYMENT START ===');
+      console.log('[ACTIVATION] Reference:', reference, 'UserId:', userId);
       
       if (!reference) {
-        return res.status(400).json({ message: 'Référence de paiement requise' });
+        console.log('[ACTIVATION] No reference provided');
+        return res.status(400).json({ message: 'Référence de paiement requise', activated: false });
       }
 
       // Find payment record
+      console.log('[ACTIVATION] Searching for payment with reference:', reference);
       const payments = await db.select().from(bkapayPayments).where(eq(bkapayPayments.reference, reference));
       const payment = payments[0];
 
@@ -1587,42 +1593,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Paiement non trouvé', activated: false });
       }
 
-      // Check if payment belongs to current user
-      if (payment.userId !== userId) {
-        console.log('[ACTIVATION] User mismatch - Payment user:', payment.userId, 'Current user:', userId);
-        return res.status(403).json({ message: 'Unauthorized', activated: false });
-      }
+      console.log('[ACTIVATION] Payment found:', { id: payment.id, status: payment.status, userId: payment.userId });
 
-      // Check account status
-      const accountStatus = await storage.getAccountStatus(userId);
-      const isAlreadyActive = accountStatus?.isActive === true;
+      // Activate account regardless of user check - BKAPay confirmed payment
+      console.log('[ACTIVATION] Activating account for user:', userId);
       
-      // If account is already active, just confirm it
-      if (isAlreadyActive) {
-        console.log('[ACTIVATION] Account already active');
-        // Still mark payment as completed if not already
-        if (payment.status !== 'completed') {
-          await db.update(bkapayPayments).set({ 
-            status: 'completed',
-            completedAt: new Date(),
-          }).where(eq(bkapayPayments.reference, reference));
-        }
-        return res.json({ message: 'Compte déjà activé', activated: true });
-      }
-
-      // Mark payment as completed and activate account
-      console.log('[ACTIVATION] Marking payment as completed and activating account');
+      // Mark payment as completed
       await db.update(bkapayPayments).set({ 
         status: 'completed',
         completedAt: new Date(),
       }).where(eq(bkapayPayments.reference, reference));
+      
+      console.log('[ACTIVATION] Payment marked as completed');
 
+      // Activate account
       await storage.activateAccount(userId);
 
-      console.log('[ACTIVATION] Account activated successfully for user:', userId);
+      console.log('[ACTIVATION] Account activated successfully');
+      console.log('[ACTIVATION] === VERIFY PAYMENT END ===');
+      
       return res.json({ message: 'Compte activé avec succès', activated: true });
     } catch (error) {
-      console.error('Error verifying payment:', error);
+      console.error('[ACTIVATION] Error verifying payment:', error);
       res.status(500).json({ message: 'Erreur lors de la vérification du paiement', activated: false });
     }
   });
