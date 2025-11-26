@@ -363,7 +363,7 @@ export default function Withdrawal() {
                     </span>
                   </div>
                   <p className="text-2xl font-bold text-green-800 dark:text-green-200">
-                    500 FCFA
+                    3 600 FCFA
                   </p>
                   <p className="text-sm text-green-600 dark:text-green-300 mt-1">
                     Paiement unique
