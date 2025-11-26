@@ -52,6 +52,7 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
       <div className="px-6 py-8 text-center backdrop-blur-sm bg-white/5">
         {/* Balance Display */}
         <div className="mb-5">
+          <div className="text-sm font-semibold mb-2 opacity-90">Solde disponible</div>
           <div className="flex items-center justify-center gap-3 mb-3">
             <Button
               variant="ghost"
@@ -66,7 +67,7 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
                 <EyeOff size={20} strokeWidth={2} />
               )}
             </Button>
-            <div className="text-3xl font-black tracking-tight" data-testid="text-balance">
+            <div className="text-4xl font-black tracking-tight" data-testid="text-balance">
               {isBalanceVisible ? formatFCFA(balance) : "••••••"}
             </div>
           </div>
