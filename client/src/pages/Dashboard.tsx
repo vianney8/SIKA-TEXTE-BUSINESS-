@@ -261,8 +261,7 @@ export default function Dashboard() {
             className="w-full bg-gradient-to-r from-red-400 to-pink-500 hover:from-red-500 hover:to-pink-600 text-white font-bold py-3 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95 mb-8"
             data-testid="button-pointage"
           >
-            <Plus size={20} className="mr-2" />
-            Gagnez vos points
+            Faire du pointage
           </Button>
 
           {/* Central Notification Banner */}
