@@ -10,7 +10,7 @@ import MiddleNotification from "@/components/MiddleNotification";
 import WhatsAppNotification from "@/components/WhatsAppNotification";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Eye, ArrowUpRight, Wallet, Users } from "lucide-react";
+import { Eye, ArrowUpRight, Wallet, Users, Plus } from "lucide-react";
 import { formatFCFA } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useAppSetting } from "@/hooks/useAppSettings";
@@ -236,7 +236,7 @@ export default function Dashboard() {
       <main className="pb-20">
         <div className="p-6">
           {/* Action Buttons */}
-          <div className="grid grid-cols-2 gap-4 mb-8">
+          <div className="grid grid-cols-2 gap-4 mb-4">
             {actionButtons.map((button) => (
               <Button
                 key={button.label}
@@ -254,6 +254,16 @@ export default function Dashboard() {
               </Button>
             ))}
           </div>
+
+          {/* Earn Points Button */}
+          <Button 
+            onClick={handlePointage}
+            className="w-full bg-gradient-to-r from-red-400 to-pink-500 hover:from-red-500 hover:to-pink-600 text-white font-bold py-3 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95 mb-8"
+            data-testid="button-pointage"
+          >
+            <Plus size={20} className="mr-2" />
+            Gagnez vos points
+          </Button>
 
           {/* Central Notification Banner */}
           <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl shadow-lg border-0 overflow-hidden">

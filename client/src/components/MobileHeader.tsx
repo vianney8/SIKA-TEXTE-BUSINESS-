@@ -73,16 +73,6 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
           </div>
         </div>
 
-        {/* Earn Points Button */}
-        <Button 
-          onClick={onPointage}
-          className="w-full bg-gradient-to-r from-red-400 to-pink-500 hover:from-red-500 hover:to-pink-600 text-white font-bold py-3 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95"
-          data-testid="button-pointage"
-        >
-          <Plus size={20} className="mr-2" />
-          Gagnez vos points
-        </Button>
-
         {/* Footer Info */}
         <div className="flex justify-between text-xs mt-4 opacity-80 font-medium">
           <span data-testid="text-account-id">
