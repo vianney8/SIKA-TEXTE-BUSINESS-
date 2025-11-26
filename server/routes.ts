@@ -1535,7 +1535,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/activation/init-payment', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session.userId;
-      const amount = 3600;
+      const amount = 500;
       const reference = `ACT-${userId.substring(0, 8)}-${Date.now()}`;
       const publicKey = 'pk_live_86e45542-6e13-4be1-862b-935f3834037a';
       
