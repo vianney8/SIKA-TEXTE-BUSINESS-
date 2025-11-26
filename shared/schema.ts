@@ -180,6 +180,17 @@ export const supportMessages = pgTable("support_messages", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const bkapayPayments = pgTable("bkapay_payments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  amount: decimal("amount", { precision: 15, scale: 2 }).notNull().default('3600'),
+  reference: varchar("reference").unique(),
+  status: varchar("status").notNull().default('pending'), // 'pending', 'completed', 'failed'
+  redirectUrl: text("redirect_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many, one }) => ({
   transactions: many(transactions),
