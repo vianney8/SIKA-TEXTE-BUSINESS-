@@ -1548,13 +1548,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Store reference in session for faster verification
       (req as any).session.activationReference = reference;
       (req as any).session.activationUserId = userId;
-      // Build return URL 
-      const returnUrl = `${req.protocol}://${req.get('host')}/withdrawal?ref=${reference}`;
+      
+      // Build return URL - always use HTTPS for production
+      const host = req.get('host');
+      const protocol = host.includes('replit') ? 'https' : req.protocol;
+      const returnUrl = `${protocol}://${host}/withdrawal?ref=${reference}`;
       const redirectUrl = `https://bkapay.com/api-pay/${publicKey}?amount=${amount}&description=${encodeURIComponent(description)}&reference=${reference}&return_url=${encodeURIComponent(returnUrl)}`;
       
-      console.log('[ACTIVATION] Init payment - Reference:', reference, 'Amount:', amount, 'UserId:', userId);
-      console.log('[ACTIVATION] Return URL:', returnUrl);
-      console.log('[ACTIVATION] Redirect URL:', redirectUrl);
+      console.log('[BKAPAY] ========== INIT PAYMENT ==========');
+      console.log('[BKAPAY] User ID:', userId);
+      console.log('[BKAPAY] Reference:', reference);
+      console.log('[BKAPAY] Amount:', amount, 'FCFA');
+      console.log('[BKAPAY] Return URL:', returnUrl);
+      console.log('[BKAPAY] Redirect URL:', redirectUrl);
+      console.log('[BKAPAY] ===================================');
       
       // Store payment record
       await db.insert(bkapayPayments).values({
@@ -1567,7 +1574,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ redirectUrl, reference, amount });
     } catch (error) {
-      console.error('Error initiating payment:', error);
+      console.error('[BKAPAY] Error initiating payment:', error);
       res.status(500).json({ message: 'Erreur lors de l\'initiation du paiement' });
     }
   });

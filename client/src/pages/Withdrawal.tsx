@@ -71,52 +71,97 @@ export default function Withdrawal() {
     queryKey: ['/api/withdrawal'],
   });
 
-  // Verify payment after returning from BKAPay - runs on component mount and when ref changes
+  // Verify payment after returning from BKAPay - runs on component mount
   useEffect(() => {
     const verifyPaymentIfNeeded = async () => {
       const searchParams = new URLSearchParams(window.location.search);
-      const reference = searchParams.get('ref') || searchParams.get('reference');
+      let reference = searchParams.get('ref') || searchParams.get('reference');
       
-      if (reference) {
-        console.log('[WITHDRAWAL] Payment reference detected:', reference);
-        console.log('[WITHDRAWAL] Full URL:', window.location.href);
+      // If no reference in URL, check localStorage (BKAPay may not preserve URL params)
+      if (!reference) {
+        const storedRef = localStorage.getItem('pendingActivationRef');
+        const storedTime = localStorage.getItem('pendingActivationTime');
         
-        try {
-          console.log('[WITHDRAWAL] Calling verify-payment API...');
-          const response = await fetch('/api/activation/verify-payment', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ reference }),
-          });
-          
-          const data = await response.json();
-          console.log('[WITHDRAWAL] Verify response:', data, 'Status:', response.status);
-          
-          if (data.activated) {
-            console.log('[WITHDRAWAL] Account activated successfully');
-            toast({
-              title: "Succès !",
-              description: "Votre compte a été activé avec succès",
-            });
-            // Wait and refresh
-            await new Promise(resolve => setTimeout(resolve, 800));
-            refetchWithdrawalData();
-            // Clean up URL
-            window.history.replaceState({}, document.title, '/withdrawal');
+        if (storedRef && storedTime) {
+          const timeDiff = Date.now() - parseInt(storedTime);
+          // Only use stored reference if it's less than 30 minutes old
+          if (timeDiff < 30 * 60 * 1000) {
+            reference = storedRef;
+            console.log('[RETURN] Using reference from localStorage:', reference);
           } else {
-            console.log('[WITHDRAWAL] Activation response but not activated:', data);
-            // Refresh data anyway to check current state
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            refetchWithdrawalData();
+            // Clear old data
+            localStorage.removeItem('pendingActivationRef');
+            localStorage.removeItem('pendingActivationTime');
           }
-        } catch (error) {
-          console.error('[WITHDRAWAL] Payment verification error:', error);
-          // Still try to refresh data
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          refetchWithdrawalData();
         }
       }
+      
+      if (!reference) {
+        console.log('[RETURN] No payment reference found');
+        return;
+      }
+      
+      console.log('[RETURN] ========== PAYMENT VERIFICATION ==========');
+      console.log('[RETURN] Reference:', reference);
+      console.log('[RETURN] Full URL:', window.location.href);
+      console.log('[RETURN] Calling verify-payment API...');
+      
+      try {
+        const response = await fetch('/api/activation/verify-payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ reference }),
+        });
+        
+        const data = await response.json();
+        console.log('[RETURN] API Response:', data);
+        console.log('[RETURN] HTTP Status:', response.status);
+        
+        // Clear localStorage after verification attempt
+        localStorage.removeItem('pendingActivationRef');
+        localStorage.removeItem('pendingActivationTime');
+        
+        if (data.activated) {
+          console.log('[RETURN] SUCCESS - Account activated!');
+          toast({
+            title: "Félicitations !",
+            description: "Votre compte a été activé avec succès. Vous pouvez maintenant effectuer des retraits.",
+          });
+          
+          // Clean up URL immediately
+          window.history.replaceState({}, document.title, '/withdrawal');
+          
+          // Refresh data to show activated state
+          await new Promise(resolve => setTimeout(resolve, 500));
+          refetchWithdrawalData();
+        } else {
+          console.log('[RETURN] Activation response:', data.message);
+          toast({
+            title: "Information",
+            description: data.message || "Vérification du paiement en cours...",
+          });
+          
+          // Clean URL and refresh anyway
+          window.history.replaceState({}, document.title, '/withdrawal');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          refetchWithdrawalData();
+        }
+      } catch (error) {
+        console.error('[RETURN] Verification error:', error);
+        toast({
+          title: "Erreur",
+          description: "Erreur lors de la vérification. Veuillez contacter le support.",
+          variant: "destructive",
+        });
+        
+        // Clean URL and try refresh
+        window.history.replaceState({}, document.title, '/withdrawal');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        refetchWithdrawalData();
+      }
+      
+      console.log('[RETURN] ==========================================');
     };
     
     verifyPaymentIfNeeded();
@@ -181,27 +226,56 @@ export default function Withdrawal() {
 
   const activationMutation = useMutation({
     mutationFn: async () => {
+      console.log('[ACTIVATION] Initiating payment...');
       const response = await fetch("/api/activation/init-payment", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
       });
-      if (!response.ok) throw new Error("Erreur lors de l'initiation du paiement");
-      return response.json();
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[ACTIVATION] Init payment failed:', response.status, errorData);
+        throw new Error(errorData.message || "Erreur lors de l'initiation du paiement");
+      }
+      
+      const data = await response.json();
+      console.log('[ACTIVATION] Payment init response:', data);
+      return data;
     },
     onSuccess: (data: any) => {
+      console.log('[ACTIVATION] Redirecting to BKAPay:', data.redirectUrl);
+      
+      if (!data.redirectUrl) {
+        console.error('[ACTIVATION] No redirect URL received!');
+        toast({
+          title: "Erreur",
+          description: "URL de paiement non reçue",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Store reference in localStorage for verification after return
+      if (data.reference) {
+        localStorage.setItem('pendingActivationRef', data.reference);
+        localStorage.setItem('pendingActivationTime', Date.now().toString());
+        console.log('[ACTIVATION] Stored reference in localStorage:', data.reference);
+      }
+      
       toast({
-        title: "Redirection vers BKAPay",
-        description: "Vous allez être redirigé pour payer l'activation",
+        title: "Redirection en cours...",
+        description: "Vous allez être redirigé vers BKAPay pour payer",
       });
-      setTimeout(() => {
-        window.location.href = data.redirectUrl;
-      }, 1000);
+      
+      // Redirect immediately to BKAPay
+      window.location.href = data.redirectUrl;
     },
     onError: (error: any) => {
+      console.error('[ACTIVATION] Payment error:', error);
       toast({
         title: "Erreur",
-        description: "Impossible d'initier le paiement",
+        description: error.message || "Impossible d'initier le paiement",
         variant: "destructive",
       });
     },
