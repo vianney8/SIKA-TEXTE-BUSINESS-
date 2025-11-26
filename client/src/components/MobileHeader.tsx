@@ -66,7 +66,7 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
                 <EyeOff size={20} strokeWidth={2} />
               )}
             </Button>
-            <div className="text-5xl font-black tracking-tight" data-testid="text-balance">
+            <div className="text-3xl font-black tracking-tight" data-testid="text-balance">
               {isBalanceVisible ? formatFCFA(balance) : "••••••"}
             </div>
           </div>
