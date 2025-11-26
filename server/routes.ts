@@ -589,10 +589,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const withdrawals = await storage.getUserWithdrawals(userId);
       const balance = await storage.getUserBalance(userId);
       
+      // Get all transactions for this user
+      const allTransactions = await storage.getUserTransactions(userId);
+      
+      // Combine withdrawal history with activation transactions
+      const combinedHistory = [
+        // Add withdrawals
+        ...withdrawals.map((w: any) => ({
+          id: w.id,
+          amount: w.amount,
+          date: w.createdAt,
+          status: w.status,
+          type: 'withdrawal',
+          phoneNumber: w.phoneNumber,
+          description: `Retrait vers ${w.phoneNumber}`
+        })),
+        // Add activation and payment transactions
+        ...allTransactions
+          .filter((t: any) => t.type === 'payment' || (t.type === 'deposit' && t.description?.includes('Activation')))
+          .map((t: any) => ({
+            id: t.id,
+            amount: t.amount,
+            date: t.createdAt,
+            status: t.status,
+            type: t.type,
+            description: t.description
+          }))
+      ].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      
       res.json({
         balance,
         isAccountActive: accountStatus?.isActive || false,
-        withdrawalHistory: withdrawals
+        withdrawalHistory: combinedHistory
       });
     } catch (error) {
       console.error('Error fetching withdrawal data:', error);
@@ -1620,8 +1648,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Create transaction record
         await storage.createTransaction({
           userId,
-          type: 'deposit',
-          amount: '0',
+          type: 'payment',
+          amount: '3600',
           description: 'Activation de compte - Paiement BKAPay',
           status: 'completed',
           reference: reference,
