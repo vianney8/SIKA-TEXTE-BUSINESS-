@@ -118,7 +118,7 @@ export const accountStatus = pgTable("account_status", {
   userId: varchar("user_id").notNull().unique().references(() => users.id),
   isActive: boolean("is_active").notNull().default(false),
   activatedAt: timestamp("activated_at"),
-  activationFee: decimal("activation_fee", { precision: 15, scale: 2 }).default('3600'),
+  activationFee: decimal("activation_fee", { precision: 15, scale: 2 }).default('500'),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -183,7 +183,7 @@ export const supportMessages = pgTable("support_messages", {
 export const bkapayPayments = pgTable("bkapay_payments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),
-  amount: decimal("amount", { precision: 15, scale: 2 }).notNull().default('3600'),
+  amount: decimal("amount", { precision: 15, scale: 2 }).notNull().default('500'),
   reference: varchar("reference").unique(),
   status: varchar("status").notNull().default('pending'), // 'pending', 'completed', 'failed'
   redirectUrl: text("redirect_url"),
@@ -380,7 +380,7 @@ export const bankCardSchema = z.object({
 });
 
 export const activationSchema = z.object({
-  activationFee: z.number().min(3600, "Frais d'activation de 3600 FCFA requis"),
+  activationFee: z.number().min(500, "Frais d'activation de 500 FCFA requis"),
 });
 
 // Schémas pour les opérations administrateur

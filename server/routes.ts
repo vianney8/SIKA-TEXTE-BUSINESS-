@@ -1535,7 +1535,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/activation/init-payment', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session.userId;
-      const amount = 3600;
+      const amount = 500;
       const reference = `ACT-${userId.substring(0, 8)}-${Date.now()}`;
       const publicKey = process.env.BKAPAY_PUBLIC_KEY;
       
