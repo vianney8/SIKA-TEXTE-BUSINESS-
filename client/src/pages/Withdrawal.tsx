@@ -71,27 +71,18 @@ export default function Withdrawal() {
     queryKey: ['/api/withdrawal'],
   });
 
-  // Verify payment after returning from BKAPay
+  // Verify payment after returning from BKAPay - runs on component mount and when ref changes
   useEffect(() => {
-    // Check all possible ways BKAPay might return the reference
-    const searchParams = new URLSearchParams(window.location.search);
-    let reference = searchParams.get('reference');
-    
-    // Also check hash parameters in case BKAPay uses fragment
-    if (!reference && window.location.hash) {
-      const hashParams = new URLSearchParams(window.location.hash.slice(1));
-      reference = hashParams.get('reference');
-    }
-
-    // If we have a reference, verify the payment immediately
-    if (reference) {
-      console.log('[WITHDRAWAL] Found reference from BKAPay return:', reference);
-      console.log('[WITHDRAWAL] Full URL:', window.location.href);
+    const verifyPaymentIfNeeded = async () => {
+      const searchParams = new URLSearchParams(window.location.search);
+      const reference = searchParams.get('ref') || searchParams.get('reference');
       
-      // Wait a moment to ensure session is established
-      const verifyPayment = async () => {
+      if (reference) {
+        console.log('[WITHDRAWAL] Payment reference detected:', reference);
+        console.log('[WITHDRAWAL] Full URL:', window.location.href);
+        
         try {
-          console.log('[WITHDRAWAL] Verifying payment:', reference);
+          console.log('[WITHDRAWAL] Calling verify-payment API...');
           const response = await fetch('/api/activation/verify-payment', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -100,43 +91,35 @@ export default function Withdrawal() {
           });
           
           const data = await response.json();
-          console.log('[WITHDRAWAL] Payment verification result:', data, 'Status:', response.status);
+          console.log('[WITHDRAWAL] Verify response:', data, 'Status:', response.status);
           
           if (data.activated) {
+            console.log('[WITHDRAWAL] Account activated successfully');
             toast({
               title: "Succès !",
               description: "Votre compte a été activé avec succès",
             });
-            // Refresh withdrawal data to show activated account
-            await new Promise(resolve => setTimeout(resolve, 500));
+            // Wait and refresh
+            await new Promise(resolve => setTimeout(resolve, 800));
             refetchWithdrawalData();
             // Clean up URL
             window.history.replaceState({}, document.title, '/withdrawal');
           } else {
-            console.warn('[WITHDRAWAL] Activation failed:', data);
-            toast({
-              title: "Information",
-              description: data.message || "Paiement reçu, vérification en cours...",
-            });
-            // Refresh anyway to check account status
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            console.log('[WITHDRAWAL] Activation response but not activated:', data);
+            // Refresh data anyway to check current state
+            await new Promise(resolve => setTimeout(resolve, 1500));
             refetchWithdrawalData();
           }
         } catch (error) {
-          console.error('[WITHDRAWAL] Error verifying payment:', error);
-          toast({
-            title: "Erreur",
-            description: "Erreur lors de la vérification du paiement",
-            variant: "destructive",
-          });
-          // Try refresh anyway
+          console.error('[WITHDRAWAL] Payment verification error:', error);
+          // Still try to refresh data
           await new Promise(resolve => setTimeout(resolve, 2000));
           refetchWithdrawalData();
         }
-      };
-      
-      verifyPayment();
-    }
+      }
+    };
+    
+    verifyPaymentIfNeeded();
   }, [refetchWithdrawalData, toast]);
 
   const { data: bankCard, isLoading: isBankCardLoading } = useQuery<BankCardData | null>({
