@@ -1531,37 +1531,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // BKAPAY ACTIVATION ENDPOINTS
+  // BKAPAY ACTIVATION ENDPOINTS - API v1.2
   app.post('/api/activation/init-payment', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session.userId;
       const amount = 500;
       const reference = `ACT-${userId.substring(0, 8)}-${Date.now()}`;
-      const publicKey = 'pk_live_86e45542-6e13-4be1-862b-935f3834037a';
+      const publicKey = 'pk_live_5eff0747-2b39-41ca-b286-2be79c5a837a';
       
       if (!publicKey) {
         return res.status(500).json({ message: 'Clé BKAPay non configurée' });
       }
 
-      // Generate redirect URL with parameters - using the correct BKAPay format
+      // BKAPay API v1.2 format
       const description = 'Activation Compte Sika Texte';
-      // Store reference in session for faster verification
+      
+      // Store reference in session for verification after return
       (req as any).session.activationReference = reference;
       (req as any).session.activationUserId = userId;
       
-      // Build return URL - always use HTTPS for production
+      // Build callback URL - always use HTTPS for production
       const host = req.get('host');
       const protocol = host.includes('replit') ? 'https' : req.protocol;
-      const returnUrl = `${protocol}://${host}/withdrawal?ref=${reference}`;
-      const redirectUrl = `https://bkapay.com/api-pay/${publicKey}?amount=${amount}&description=${encodeURIComponent(description)}&reference=${reference}&return_url=${encodeURIComponent(returnUrl)}`;
+      const callbackUrl = `${protocol}://${host}/activation-success?ref=${reference}`;
       
-      console.log('[BKAPAY] ========== INIT PAYMENT ==========');
-      console.log('[BKAPAY] User ID:', userId);
-      console.log('[BKAPAY] Reference:', reference);
-      console.log('[BKAPAY] Amount:', amount, 'FCFA');
-      console.log('[BKAPAY] Return URL:', returnUrl);
-      console.log('[BKAPAY] Redirect URL:', redirectUrl);
-      console.log('[BKAPAY] ===================================');
+      // BKAPay API v1.2 URL format: callback parameter instead of return_url
+      const redirectUrl = `https://bkapay.com/api-pay/${publicKey}?amount=${amount}&description=${encodeURIComponent(description)}&callback=${encodeURIComponent(callbackUrl)}`;
+      
+      console.log('[BKAPAY v1.2] ========== INIT PAYMENT ==========');
+      console.log('[BKAPAY v1.2] User ID:', userId);
+      console.log('[BKAPAY v1.2] Reference:', reference);
+      console.log('[BKAPAY v1.2] Amount:', amount, 'FCFA');
+      console.log('[BKAPAY v1.2] Callback URL:', callbackUrl);
+      console.log('[BKAPAY v1.2] Redirect URL:', redirectUrl);
+      console.log('[BKAPAY v1.2] =====================================');
       
       // Store payment record
       await db.insert(bkapayPayments).values({
@@ -1574,7 +1577,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ redirectUrl, reference, amount });
     } catch (error) {
-      console.error('[BKAPAY] Error initiating payment:', error);
+      console.error('[BKAPAY v1.2] Error initiating payment:', error);
       res.status(500).json({ message: 'Erreur lors de l\'initiation du paiement' });
     }
   });

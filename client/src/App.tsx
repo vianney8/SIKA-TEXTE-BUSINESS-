@@ -28,6 +28,7 @@ import AdminDashboard from "@/pages/AdminDashboard";
 import AdminSettings from "@/pages/AdminSettings";
 import Summary from "@/pages/Summary";
 import Activation from "@/pages/Activation";
+import ActivationSuccess from "@/pages/ActivationSuccess";
 
 // Wrapper component to handle authenticated user redirects for register page
 function RegisterWithRedirect() {
@@ -124,6 +125,7 @@ function Router() {
           <Route path="/assistance" component={Assistance} />
           <Route path="/api-agregateur" component={ApiAgregateur} />
           <Route path="/activation" component={Activation} />
+          <Route path="/activation-success" component={ActivationSuccess} />
           <Route path="/admin" component={AdminDashboard} />
           <Route path="/admin/settings" component={AdminSettings} />
           <Route path="/identity-verification" component={IdentityVerification} />

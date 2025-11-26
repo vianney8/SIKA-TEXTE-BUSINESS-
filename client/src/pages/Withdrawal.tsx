@@ -226,7 +226,7 @@ export default function Withdrawal() {
 
   const activationMutation = useMutation({
     mutationFn: async () => {
-      console.log('[ACTIVATION] Initiating payment...');
+      console.log('[BKAPAY v1.2] Initiating payment...');
       const response = await fetch("/api/activation/init-payment", {
         method: "POST",
         credentials: "include",
@@ -235,19 +235,19 @@ export default function Withdrawal() {
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('[ACTIVATION] Init payment failed:', response.status, errorData);
+        console.error('[BKAPAY v1.2] Init payment failed:', response.status, errorData);
         throw new Error(errorData.message || "Erreur lors de l'initiation du paiement");
       }
       
       const data = await response.json();
-      console.log('[ACTIVATION] Payment init response:', data);
+      console.log('[BKAPAY v1.2] Payment init response:', data);
       return data;
     },
     onSuccess: (data: any) => {
-      console.log('[ACTIVATION] Redirecting to BKAPay:', data.redirectUrl);
+      console.log('[BKAPAY v1.2] Redirecting to BKAPay:', data.redirectUrl);
       
       if (!data.redirectUrl) {
-        console.error('[ACTIVATION] No redirect URL received!');
+        console.error('[BKAPAY v1.2] No redirect URL received!');
         toast({
           title: "Erreur",
           description: "URL de paiement non reçue",
@@ -256,23 +256,23 @@ export default function Withdrawal() {
         return;
       }
       
-      // Store reference in localStorage for verification after return
+      // Store reference in localStorage for verification after return from BKAPay
       if (data.reference) {
         localStorage.setItem('pendingActivationRef', data.reference);
         localStorage.setItem('pendingActivationTime', Date.now().toString());
-        console.log('[ACTIVATION] Stored reference in localStorage:', data.reference);
+        console.log('[BKAPAY v1.2] Stored reference in localStorage:', data.reference);
       }
       
       toast({
-        title: "Redirection en cours...",
-        description: "Vous allez être redirigé vers BKAPay pour payer",
+        title: "Redirection vers BKAPay",
+        description: "Vous allez être redirigé pour effectuer le paiement",
       });
       
-      // Redirect immediately to BKAPay
+      // Redirect to BKAPay payment page
       window.location.href = data.redirectUrl;
     },
     onError: (error: any) => {
-      console.error('[ACTIVATION] Payment error:', error);
+      console.error('[BKAPAY v1.2] Payment error:', error);
       toast({
         title: "Erreur",
         description: error.message || "Impossible d'initier le paiement",
