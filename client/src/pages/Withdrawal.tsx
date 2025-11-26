@@ -67,9 +67,57 @@ export default function Withdrawal() {
   const { data: telegramSupervisor } = useAppSetting('telegram_supervisor');
   const { data: instagramSupervisor } = useAppSetting('instagram_supervisor');
 
-  const { data: withdrawalData } = useQuery<WithdrawalData>({
+  const { data: withdrawalData, refetch: refetchWithdrawalData } = useQuery<WithdrawalData>({
     queryKey: ['/api/withdrawal'],
   });
+
+  // Verify payment after returning from BKAPay
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const paymentVerified = searchParams.get('payment_verified');
+    const reference = searchParams.get('reference');
+
+    if (paymentVerified === 'true' && reference) {
+      console.log('[WITHDRAWAL] Verifying payment after return from BKAPay:', reference);
+      
+      fetch('/api/activation/verify-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ reference }),
+      })
+        .then(res => res.json())
+        .then(data => {
+          console.log('[WITHDRAWAL] Payment verification result:', data);
+          if (data.activated) {
+            toast({
+              title: "Succès !",
+              description: "Votre compte a été activé avec succès",
+            });
+            // Refresh withdrawal data to show activated account
+            setTimeout(() => {
+              refetchWithdrawalData();
+              // Clean up URL
+              window.history.replaceState({}, document.title, '/withdrawal');
+            }, 1000);
+          } else {
+            toast({
+              title: "Erreur",
+              description: data.message || "Impossible de vérifier le paiement",
+              variant: "destructive",
+            });
+          }
+        })
+        .catch(error => {
+          console.error('[WITHDRAWAL] Error verifying payment:', error);
+          toast({
+            title: "Erreur",
+            description: "Erreur lors de la vérification du paiement",
+            variant: "destructive",
+          });
+        });
+    }
+  }, [refetchWithdrawalData, toast]);
 
   const { data: bankCard, isLoading: isBankCardLoading } = useQuery<BankCardData | null>({
     queryKey: ['/api/bank-card'],

@@ -1537,14 +1537,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.session.userId;
       const amount = 3600;
       const reference = `ACT-${userId.substring(0, 8)}-${Date.now()}`;
-      const publicKey = process.env.BKAPAY_PUBLIC_KEY;
+      const publicKey = 'pk_live_86e45542-6e13-4be1-862b-935f3834037a';
       
       if (!publicKey) {
         return res.status(500).json({ message: 'Clé BKAPay non configurée' });
       }
 
-      // Generate redirect URL with parameters
-      const redirectUrl = `https://bkapay.com/api-pay/${publicKey}?amount=${amount}&description=Activation%20Compte%20Sika%20Texte&reference=${reference}`;
+      // Generate redirect URL with parameters - using the correct BKAPay format
+      const description = 'Activation Compte Sika Texte';
+      const returnUrl = `${req.protocol}://${req.get('host')}/withdrawal?payment_verified=true&reference=${reference}`;
+      const redirectUrl = `https://bkapay.com/api-pay/${publicKey}?amount=${amount}&description=${encodeURIComponent(description)}&reference=${reference}&return_url=${encodeURIComponent(returnUrl)}`;
+      
+      console.log('[ACTIVATION] Init payment - Reference:', reference, 'Amount:', amount, 'Return URL:', returnUrl);
       
       // Store payment record
       await db.insert(bkapayPayments).values({
@@ -1559,6 +1563,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error initiating payment:', error);
       res.status(500).json({ message: 'Erreur lors de l\'initiation du paiement' });
+    }
+  });
+
+  // New endpoint to verify payment status and activate account after user returns from BKAPay
+  app.post('/api/activation/verify-payment', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { reference } = req.body;
+      
+      console.log('[ACTIVATION] Verifying payment - Reference:', reference, 'UserId:', userId);
+      
+      if (!reference) {
+        return res.status(400).json({ message: 'Référence de paiement requise' });
+      }
+
+      // Find payment record
+      const payments = await db.select().from(bkapayPayments).where(eq(bkapayPayments.reference, reference));
+      const payment = payments[0];
+
+      if (!payment) {
+        console.log('[ACTIVATION] Payment not found for reference:', reference);
+        return res.status(404).json({ message: 'Paiement non trouvé', activated: false });
+      }
+
+      // Check if payment belongs to current user
+      if (payment.userId !== userId) {
+        console.log('[ACTIVATION] User mismatch - Payment user:', payment.userId, 'Current user:', userId);
+        return res.status(403).json({ message: 'Unauthorized', activated: false });
+      }
+
+      // Check if payment is completed
+      if (payment.status === 'completed') {
+        console.log('[ACTIVATION] Payment already completed, checking account status');
+        // Verify account is activated
+        const accountStatus = await storage.getAccountStatus(userId);
+        if (accountStatus?.isActive) {
+          console.log('[ACTIVATION] Account already active');
+          return res.json({ message: 'Compte déjà activé', activated: true });
+        } else {
+          console.log('[ACTIVATION] Activating account for completed payment');
+          // Activate account if not already done
+          await storage.activateAccount(userId);
+          return res.json({ message: 'Compte activé avec succès', activated: true });
+        }
+      } else {
+        console.log('[ACTIVATION] Payment status is:', payment.status);
+        // Mark as completed and activate
+        await db.update(bkapayPayments).set({ 
+          status: 'completed',
+          completedAt: new Date(),
+        }).where(eq(bkapayPayments.reference, reference));
+
+        await storage.activateAccount(userId);
+
+        // Create transaction record
+        await storage.createTransaction({
+          userId,
+          type: 'deposit',
+          amount: '0',
+          description: 'Activation de compte - Paiement BKAPay',
+          status: 'completed',
+          reference: reference,
+        });
+
+        console.log('[ACTIVATION] Account activated successfully for user:', userId);
+        return res.json({ message: 'Compte activé avec succès', activated: true });
+      }
+    } catch (error) {
+      console.error('Error verifying payment:', error);
+      res.status(500).json({ message: 'Erreur lors de la vérification du paiement', activated: false });
     }
   });
 
