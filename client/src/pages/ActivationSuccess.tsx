@@ -14,7 +14,7 @@ export default function ActivationSuccess() {
       console.log('[ACTIVATION-SUCCESS] Page loaded');
       console.log('[ACTIVATION-SUCCESS] Full URL:', window.location.href);
       
-      // Get reference from URL or localStorage
+      // Get reference from URL or localStorage (optional - backend will find latest pending payment)
       const searchParams = new URLSearchParams(window.location.search);
       let reference = searchParams.get('ref') || searchParams.get('reference');
       
@@ -32,29 +32,16 @@ export default function ActivationSuccess() {
         }
       }
       
-      console.log('[ACTIVATION-SUCCESS] Reference:', reference);
-      
-      if (!reference) {
-        console.log('[ACTIVATION-SUCCESS] No reference found, checking localStorage for recent payment');
-        
-        // Try to activate with stored reference anyway
-        const storedRef = localStorage.getItem('pendingActivationRef');
-        if (storedRef) {
-          reference = storedRef;
-        } else {
-          setStatus('error');
-          setMessage('Référence de paiement non trouvée. Si vous avez payé, contactez le support.');
-          return;
-        }
-      }
+      console.log('[ACTIVATION-SUCCESS] Reference:', reference || 'none (will use latest pending)');
       
       try {
+        // Call API - it will find latest pending payment if no reference provided
         console.log('[ACTIVATION-SUCCESS] Calling verify-payment API...');
         const response = await fetch('/api/activation/verify-payment', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ reference }),
+          body: JSON.stringify({ reference: reference || null }),
         });
         
         const data = await response.json();

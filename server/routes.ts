@@ -25,7 +25,7 @@ import {
 import bcrypt from "bcrypt";
 import session from "express-session";
 import { db } from "./db";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and, desc } from "drizzle-orm";
 import connectPg from "connect-pg-simple";
 import { randomBytes } from "crypto";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
@@ -1590,21 +1590,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log('[ACTIVATION] ===== VERIFY PAYMENT START =====');
       console.log('[ACTIVATION] UserID:', userId);
-      console.log('[ACTIVATION] Reference:', reference);
+      console.log('[ACTIVATION] Reference provided:', reference);
       
-      if (!reference) {
-        console.log('[ACTIVATION] ERROR: No reference provided');
-        return res.status(400).json({ message: 'Référence manquante', activated: false });
+      let payment;
+      
+      if (reference) {
+        // Find payment by reference
+        console.log('[ACTIVATION] Finding payment by reference...');
+        const paymentRecords = await db.select().from(bkapayPayments)
+          .where(eq(bkapayPayments.reference, reference));
+        payment = paymentRecords[0];
+      }
+      
+      // If no payment found by reference, find the latest pending payment for this user
+      if (!payment) {
+        console.log('[ACTIVATION] No payment found by reference, searching latest pending payment for user...');
+        const userPayments = await db.select().from(bkapayPayments)
+          .where(and(
+            eq(bkapayPayments.userId, userId),
+            eq(bkapayPayments.status, 'pending')
+          ))
+          .orderBy(desc(bkapayPayments.createdAt))
+          .limit(1);
+        payment = userPayments[0];
+        
+        if (payment) {
+          console.log('[ACTIVATION] Found latest pending payment:', payment.reference);
+        }
       }
 
-      // Find payment record
-      console.log('[ACTIVATION] Finding payment record...');
-      const paymentRecords = await db.select().from(bkapayPayments)
-        .where(eq(bkapayPayments.reference, reference));
-      const payment = paymentRecords[0];
-
       if (!payment) {
-        console.log('[ACTIVATION] ERROR: Payment not found for reference:', reference);
+        console.log('[ACTIVATION] ERROR: No pending payment found for user:', userId);
         return res.status(404).json({ message: 'Paiement non trouvé', activated: false });
       }
 
@@ -1612,7 +1628,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         id: payment.id,
         userId: payment.userId,
         status: payment.status,
-        amount: payment.amount
+        amount: payment.amount,
+        reference: payment.reference
       });
 
       // Mark payment as completed in DB
@@ -1622,7 +1639,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: 'completed',
           completedAt: new Date(),
         })
-        .where(eq(bkapayPayments.reference, reference));
+        .where(eq(bkapayPayments.id, payment.id));
 
       // Activate the account
       console.log('[ACTIVATION] Activating account for user:', userId);
