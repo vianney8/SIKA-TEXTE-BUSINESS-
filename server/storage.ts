@@ -921,8 +921,8 @@ export class DatabaseStorage implements IStorage {
     if (!wasAlreadyActive) {
       const user = await this.getUser(userId);
       if (user?.referredBy) {
-        // Calculate commission: 20% of 500 FCFA activation cost = 100 FCFA
-        const activationCost = 500;
+        // Calculate commission: 20% of 3600 FCFA activation cost = 720 FCFA
+        const activationCost = 3600;
         const commissionRate = 0.20;
         const commission = activationCost * commissionRate;
 
