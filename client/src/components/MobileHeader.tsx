@@ -15,9 +15,9 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
   const [isBalanceVisible, setIsBalanceVisible] = useState(true);
 
   return (
-    <header className="sticky top-0 z-50 bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800 text-white shadow-lg">
+    <header className="sticky top-0 z-50 bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 text-white shadow-lg">
       {/* Top Navigation Bar */}
-      <div className="px-4 py-3 flex justify-between items-center backdrop-blur-sm bg-white/5">
+      <div className="px-4 py-2 flex justify-between items-center backdrop-blur-sm bg-white/5">
         <Button 
           variant="ghost" 
           size="sm" 
@@ -49,10 +49,10 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
       </div>
 
       {/* Balance & Action Section */}
-      <div className="px-6 py-8 text-center backdrop-blur-sm bg-white/5">
+      <div className="px-6 py-6 text-center backdrop-blur-sm bg-white/5">
         {/* Balance Display */}
-        <div className="mb-5">
-          <div className="text-sm font-semibold mb-2 opacity-90">Solde disponible</div>
+        <div className="mb-4">
+          <div className="text-sm font-semibold mb-1 opacity-90">Solde disponible</div>
           <div className="flex items-center justify-center gap-3 mb-3">
             <Button
               variant="ghost"
