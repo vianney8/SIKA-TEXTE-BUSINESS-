@@ -30,7 +30,8 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
         
         <div className="text-center flex-1">
           <div className="text-lg font-black tracking-wider" data-testid="text-username">
-            Vj
+            {user?.firstName ? user.firstName.charAt(0).toUpperCase() : 'V'}
+            {user?.lastName ? user.lastName.charAt(0).toUpperCase() : 'j'}
           </div>
         </div>
         
