@@ -28,8 +28,8 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
           <Menu size={24} strokeWidth={2.5} />
         </Button>
         
-        <div className="text-center flex-1">
-          <div className="text-base font-bold tracking-wide truncate max-w-[180px]" data-testid="text-username">
+        <div className="flex-1 flex justify-center">
+          <div className="text-base font-bold tracking-wide truncate max-w-xs text-center" data-testid="text-username">
             {user?.firstName && user?.lastName 
               ? `${user.firstName} ${user.lastName}` 
               : user?.fullName || 'Utilisateur'}
