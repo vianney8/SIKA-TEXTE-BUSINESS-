@@ -29,9 +29,10 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
         </Button>
         
         <div className="text-center flex-1">
-          <div className="text-lg font-black tracking-wider" data-testid="text-username">
-            {user?.firstName ? user.firstName.charAt(0).toUpperCase() : 'V'}
-            {user?.lastName ? user.lastName.charAt(0).toUpperCase() : 'j'}
+          <div className="text-base font-bold tracking-wide truncate max-w-[180px]" data-testid="text-username">
+            {user?.firstName && user?.lastName 
+              ? `${user.firstName} ${user.lastName}` 
+              : user?.fullName || 'Utilisateur'}
           </div>
         </div>
         
