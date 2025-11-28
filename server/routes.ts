@@ -25,7 +25,7 @@ import {
 import bcrypt from "bcrypt";
 import session from "express-session";
 import { db } from "./db";
-import { eq, sql, and, desc } from "drizzle-orm";
+import { eq, sql, and, desc, or } from "drizzle-orm";
 import connectPg from "connect-pg-simple";
 import { randomBytes } from "crypto";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
@@ -1582,46 +1582,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Verify payment and activate account after user returns from BKAPay
-  // This endpoint works WITH or WITHOUT authentication
+  // Verify payment with BKAPay/WAVE API and activate account
   app.post('/api/activation/verify-payment', async (req: any, res) => {
     try {
       const sessionUserId = req.session?.userId;
       const { reference } = req.body;
       
       console.log('[ACTIVATION] ===== VERIFY PAYMENT START =====');
-      console.log('[ACTIVATION] Session UserID:', sessionUserId || 'NOT LOGGED IN');
       console.log('[ACTIVATION] Reference provided:', reference);
       
       let payment;
       
-      // Method 1: Find by reference (most reliable - works without session)
+      // Find payment by reference
       if (reference) {
         console.log('[ACTIVATION] Finding payment by reference...');
         const paymentRecords = await db.select().from(bkapayPayments)
           .where(eq(bkapayPayments.reference, reference));
         payment = paymentRecords[0];
-        
-        if (payment) {
-          console.log('[ACTIVATION] Payment found by reference:', payment.reference);
-        }
       }
       
-      // Method 2: If no reference but user is logged in, find their oldest pending payment
       if (!payment && sessionUserId) {
-        console.log('[ACTIVATION] No payment by reference, searching oldest pending for user...');
         const userPayments = await db.select().from(bkapayPayments)
           .where(and(
             eq(bkapayPayments.userId, sessionUserId),
-            eq(bkapayPayments.status, 'pending')
+            or(
+              eq(bkapayPayments.status, 'pending'),
+              eq(bkapayPayments.status, 'awaiting_verification')
+            )
           ))
           .orderBy(bkapayPayments.createdAt)
           .limit(1);
         payment = userPayments[0];
-        
-        if (payment) {
-          console.log('[ACTIVATION] Found oldest pending payment:', payment.reference);
-        }
       }
 
       if (!payment) {
@@ -1631,22 +1622,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Check if already completed
       if (payment.status === 'completed') {
-        console.log('[ACTIVATION] Payment already completed, checking account status...');
         const accountStatus = await storage.getAccountStatus(payment.userId);
         if (accountStatus?.isActive) {
           return res.json({ message: 'Compte déjà activé', activated: true, isActive: true });
         }
       }
 
-      console.log('[ACTIVATION] Payment found:', {
-        id: payment.id,
-        userId: payment.userId,
-        status: payment.status,
-        amount: payment.amount,
-        reference: payment.reference
-      });
+      console.log('[ACTIVATION] Verifying payment with BKAPay API...');
+      
+      // CRITICAL: Verify payment actually occurred by calling BKAPay verification endpoint
+      // Only mark as verified after confirming with BKAPay
+      try {
+        const verifyUrl = `https://bkapay.com/api/verify-transaction/${payment.reference}`;
+        const verifyResponse = await fetch(verifyUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${process.env.BKAPAY_API_KEY || ''}`
+          }
+        });
 
-      // Mark payment as completed in DB
+        const verifyData = await verifyResponse.json();
+        console.log('[ACTIVATION] BKAPay verification response:', verifyData);
+
+        // Check if payment was actually successful
+        if (!verifyData || !verifyData.status || (verifyData.status !== 'success' && verifyData.status !== 'completed')) {
+          console.log('[ACTIVATION] Payment NOT verified by BKAPay:', verifyData);
+          return res.status(402).json({ 
+            message: 'Paiement non confirmé. Veuillez vous assurer que vous avez réellement payé.',
+            activated: false
+          });
+        }
+
+        console.log('[ACTIVATION] Payment VERIFIED by BKAPay!');
+      } catch (apiError) {
+        console.log('[ACTIVATION] Could not verify with BKAPay API, marking for manual verification');
+        // If API fails, require manual admin verification
+        await db.update(bkapayPayments)
+          .set({ status: 'awaiting_verification' })
+          .where(eq(bkapayPayments.id, payment.id));
+
+        return res.json({ 
+          message: 'Paiement en vérification - Veuillez attendre la confirmation de notre équipe',
+          activated: false,
+          awaiting_verification: true
+        });
+      }
+
+      // Mark payment as completed
       console.log('[ACTIVATION] Marking payment as completed...');
       await db.update(bkapayPayments)
         .set({
@@ -1655,21 +1677,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
         .where(eq(bkapayPayments.id, payment.id));
 
-      // Activate the account using the userId from the payment record
+      // Activate the account
       const targetUserId = payment.userId;
       console.log('[ACTIVATION] Activating account for user:', targetUserId);
       await storage.activateAccount(targetUserId);
 
       // Verify activation
       const updatedStatus = await storage.getAccountStatus(targetUserId);
-      console.log('[ACTIVATION] Account status after activation:', {
-        isActive: updatedStatus?.isActive,
-        activatedAt: updatedStatus?.activatedAt
-      });
-
-      console.log('[ACTIVATION] ===== VERIFY PAYMENT END - SUCCESS =====');
+      
+      console.log('[ACTIVATION] ===== PAYMENT VERIFIED & ACCOUNT ACTIVATED =====');
       return res.json({
-        message: 'Compte activé avec succès',
+        message: 'Votre paiement a été confirmé et votre compte est activé!',
         activated: true,
         isActive: updatedStatus?.isActive
       });
@@ -1679,6 +1697,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: 'Erreur lors de la vérification du paiement',
         activated: false
       });
+    }
+  });
+
+  // Admin endpoint to approve a payment and activate account
+  app.post('/api/admin/approve-activation/:paymentId', requireAdmin, async (req: any, res) => {
+    try {
+      const { paymentId } = req.params;
+      
+      console.log('[ADMIN] Approving activation for payment:', paymentId);
+      
+      // Find the payment
+      const payments = await db.select().from(bkapayPayments)
+        .where(eq(bkapayPayments.id, paymentId));
+      const payment = payments[0];
+      
+      if (!payment) {
+        return res.status(404).json({ message: 'Paiement non trouvé' });
+      }
+
+      if (payment.status === 'completed') {
+        return res.status(400).json({ message: 'Ce paiement a déjà été approuvé' });
+      }
+
+      // Mark payment as completed
+      await db.update(bkapayPayments)
+        .set({
+          status: 'completed',
+          completedAt: new Date(),
+        })
+        .where(eq(bkapayPayments.id, paymentId));
+
+      // Activate the user's account
+      await storage.activateAccount(payment.userId);
+
+      // Get user info for response
+      const user = await storage.getUser(payment.userId);
+
+      console.log('[ADMIN] Activation approved for user:', payment.userId);
+      
+      res.json({ 
+        message: 'Compte activé avec succès',
+        user: {
+          id: user?.id,
+          fullName: user?.fullName || `${user?.firstName} ${user?.lastName}`,
+          phone: user?.phone
+        }
+      });
+    } catch (error) {
+      console.error('[ADMIN] Error approving activation:', error);
+      res.status(500).json({ message: 'Erreur lors de l\'approbation' });
+    }
+  });
+
+  // Admin endpoint to reject a payment
+  app.post('/api/admin/reject-activation/:paymentId', requireAdmin, async (req: any, res) => {
+    try {
+      const { paymentId } = req.params;
+      const { reason } = req.body;
+      
+      console.log('[ADMIN] Rejecting activation for payment:', paymentId);
+      
+      // Find the payment
+      const payments = await db.select().from(bkapayPayments)
+        .where(eq(bkapayPayments.id, paymentId));
+      const payment = payments[0];
+      
+      if (!payment) {
+        return res.status(404).json({ message: 'Paiement non trouvé' });
+      }
+
+      // Mark payment as rejected
+      await db.update(bkapayPayments)
+        .set({
+          status: 'rejected',
+        })
+        .where(eq(bkapayPayments.id, paymentId));
+
+      console.log('[ADMIN] Activation rejected for payment:', paymentId, 'Reason:', reason);
+      
+      res.json({ message: 'Paiement rejeté' });
+    } catch (error) {
+      console.error('[ADMIN] Error rejecting activation:', error);
+      res.status(500).json({ message: 'Erreur lors du rejet' });
+    }
+  });
+
+  // Admin endpoint to get pending activations
+  app.get('/api/admin/pending-activations', requireAdmin, async (req: any, res) => {
+    try {
+      // Get all payments awaiting verification
+      const pendingPayments = await db.select().from(bkapayPayments)
+        .where(eq(bkapayPayments.status, 'awaiting_verification'))
+        .orderBy(bkapayPayments.createdAt);
+
+      // Get user info for each payment
+      const paymentsWithUsers = await Promise.all(
+        pendingPayments.map(async (payment) => {
+          const user = await storage.getUser(payment.userId);
+          return {
+            ...payment,
+            user: user ? {
+              id: user.id,
+              fullName: user.fullName || `${user.firstName} ${user.lastName}`,
+              phone: user.phone,
+              email: user.email
+            } : null
+          };
+        })
+      );
+
+      res.json(paymentsWithUsers);
+    } catch (error) {
+      console.error('[ADMIN] Error fetching pending activations:', error);
+      res.status(500).json({ message: 'Erreur lors de la récupération' });
     }
   });
 

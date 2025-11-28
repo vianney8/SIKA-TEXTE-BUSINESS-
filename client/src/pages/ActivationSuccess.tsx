@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
-import { CheckCircle, Loader2, XCircle } from "lucide-react";
+import { CheckCircle, Loader2, XCircle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function ActivationSuccess() {
   const [, setLocation] = useLocation();
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
+  const [status, setStatus] = useState<'loading' | 'success' | 'pending' | 'error'>('loading');
   const [message, setMessage] = useState('Vérification du paiement en cours...');
 
   useEffect(() => {
@@ -59,6 +59,9 @@ export default function ActivationSuccess() {
           setTimeout(() => {
             setLocation('/withdrawal');
           }, 3000);
+        } else if (data.awaiting_verification) {
+          setStatus('pending');
+          setMessage(data.message || 'Votre paiement est en cours de vérification par notre équipe.');
         } else {
           setStatus('error');
           setMessage(data.message || 'Erreur lors de l\'activation. Contactez le support si vous avez payé.');
@@ -96,6 +99,25 @@ export default function ActivationSuccess() {
                 className="mt-4 bg-green-600 hover:bg-green-700"
               >
                 Accéder aux retraits
+              </Button>
+            </>
+          )}
+
+          {status === 'pending' && (
+            <>
+              <Clock className="w-16 h-16 mx-auto text-orange-500 mb-4" />
+              <h2 className="text-xl font-semibold text-orange-600 mb-2">Paiement en vérification</h2>
+              <p className="text-gray-600 dark:text-gray-400 mb-4">{message}</p>
+              <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4 mb-4">
+                <p className="text-sm text-orange-800 dark:text-orange-200">
+                  Notre équipe vérifie votre paiement. Votre compte sera activé sous peu si le paiement est confirmé.
+                </p>
+              </div>
+              <Button 
+                onClick={() => setLocation('/')}
+                className="w-full bg-orange-500 hover:bg-orange-600"
+              >
+                Retour à l'accueil
               </Button>
             </>
           )}
