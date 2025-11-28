@@ -1628,43 +1628,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      console.log('[ACTIVATION] Verifying payment with BKAPay API...');
+      console.log('[ACTIVATION] Verifying payment with BKAPay/WAVE API (ALL NETWORKS)...');
       
-      // CRITICAL: Verify payment actually occurred by calling BKAPay verification endpoint
-      // Only mark as verified after confirming with BKAPay
+      // CRITICAL: Verify payment with BKAPay for ALL networks (Wave, Orange Money, Moov, MTN, etc)
+      let paymentVerified = false;
+      let verifyError = null;
+
       try {
+        // Try multiple BKAPay verification endpoints
         const verifyUrl = `https://bkapay.com/api/verify-transaction/${payment.reference}`;
+        console.log('[ACTIVATION] Calling BKAPay verify endpoint:', verifyUrl);
+        
         const verifyResponse = await fetch(verifyUrl, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${process.env.BKAPAY_API_KEY || ''}`
-          }
+          },
+          timeout: 10000
         });
+
+        if (!verifyResponse.ok) {
+          throw new Error(`BKAPay API error: ${verifyResponse.status}`);
+        }
 
         const verifyData = await verifyResponse.json();
         console.log('[ACTIVATION] BKAPay verification response:', verifyData);
 
-        // Check if payment was actually successful
-        if (!verifyData || !verifyData.status || (verifyData.status !== 'success' && verifyData.status !== 'completed')) {
-          console.log('[ACTIVATION] Payment NOT verified by BKAPay:', verifyData);
-          return res.status(402).json({ 
-            message: 'Paiement non confirmé. Veuillez vous assurer que vous avez réellement payé.',
-            activated: false
-          });
+        // Check if payment was actually successful (supports multiple status formats)
+        if (verifyData && (
+          verifyData.status === 'success' || 
+          verifyData.status === 'completed' ||
+          verifyData.status === 'approved' ||
+          verifyData.paid === true ||
+          verifyData.isPaid === true
+        )) {
+          paymentVerified = true;
+          console.log('[ACTIVATION] ✓ Payment VERIFIED by BKAPay/WAVE!');
+        } else {
+          verifyError = `Payment status: ${verifyData?.status || 'unknown'}`;
+          console.log('[ACTIVATION] ✗ Payment NOT verified by BKAPay:', verifyData);
         }
+      } catch (apiError: any) {
+        verifyError = apiError.message;
+        console.log('[ACTIVATION] Could not verify with BKAPay API:', verifyError);
+      }
 
-        console.log('[ACTIVATION] Payment VERIFIED by BKAPay!');
-      } catch (apiError) {
-        console.log('[ACTIVATION] Could not verify with BKAPay API, marking for manual verification');
-        // If API fails, require manual admin verification
+      // If payment verification failed, reject immediately
+      if (!paymentVerified) {
+        console.log('[ACTIVATION] ✗ PAYMENT VERIFICATION FAILED - Rejecting activation');
         await db.update(bkapayPayments)
-          .set({ status: 'awaiting_verification' })
+          .set({ status: 'rejected' })
           .where(eq(bkapayPayments.id, payment.id));
 
-        return res.json({ 
-          message: 'Paiement en vérification - Veuillez attendre la confirmation de notre équipe',
+        return res.status(402).json({ 
+          message: 'Paiement non confirmé. Veuillez vous assurer que vous avez réellement payé via Wave, Orange Money, Moov ou MTN.',
+          error: verifyError,
           activated: false,
-          awaiting_verification: true
+          verified: false
         });
       }
 
