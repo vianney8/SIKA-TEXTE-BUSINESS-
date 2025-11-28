@@ -1643,8 +1643,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${process.env.BKAPAY_API_KEY || ''}`
-          },
-          timeout: 10000
+          }
         });
 
         if (!verifyResponse.ok) {
@@ -1831,6 +1830,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('[ADMIN] Error fetching pending activations:', error);
       res.status(500).json({ message: 'Erreur lors de la récupération' });
+    }
+  });
+
+  // AUDIT: Get fraudulent users who activated without real payment (last 5 days)
+  app.get('/api/admin/audit-fraud-activations', requireAdmin, async (req: any, res) => {
+    try {
+      console.log('[AUDIT] Checking for fraudulent activations (last 5 days)...');
+      
+      // Get all completed payments from last 5 days
+      const fiveDaysAgo = new Date();
+      fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+      
+      const suspiciousPayments = await db.select().from(bkapayPayments)
+        .where(and(
+          eq(bkapayPayments.status, 'completed'),
+          sql`created_at >= ${fiveDaysAgo.toISOString()}`
+        ))
+        .orderBy(desc(bkapayPayments.completedAt));
+
+      console.log(`[AUDIT] Found ${suspiciousPayments.length} completed payments in last 5 days`);
+
+      // Check each payment with BKAPay API to verify it was real
+      const fraudulentUsers = await Promise.all(
+        suspiciousPayments.map(async (payment) => {
+          try {
+            const verifyUrl = `https://bkapay.com/api/verify-transaction/${payment.reference}`;
+            const verifyResponse = await fetch(verifyUrl, {
+              headers: {
+                'Authorization': `Bearer ${process.env.BKAPAY_API_KEY || ''}`
+              }
+            });
+
+            const verifyData = await verifyResponse.json();
+            
+            // If payment is NOT confirmed by BKAPay, it's fraudulent
+            const isRealPayment = verifyData && (
+              verifyData.status === 'success' || 
+              verifyData.status === 'completed' ||
+              verifyData.paid === true
+            );
+
+            if (!isRealPayment) {
+              const user = await storage.getUser(payment.userId);
+              return {
+                paymentId: payment.id,
+                reference: payment.reference,
+                amount: payment.amount,
+                status: payment.status,
+                completedAt: payment.completedAt,
+                bkapayStatus: verifyData?.status || 'NOT_FOUND',
+                fraud: true,
+                user: user ? {
+                  id: user.id,
+                  fullName: user.fullName || `${user.firstName} ${user.lastName}`,
+                  phone: user.phone,
+                  email: user.email,
+                  isActive: user.isActive,
+                  balance: user.balance
+                } : null
+              };
+            }
+            return null;
+          } catch (error) {
+            console.error('[AUDIT] Error checking payment:', error);
+            return null;
+          }
+        })
+      );
+
+      const fraudDetected = fraudulentUsers.filter(f => f !== null);
+      console.log(`[AUDIT] ⚠️ FRAUD DETECTED: ${fraudDetected.length} fraudulent activations found!`);
+      
+      res.json({
+        fraudCount: fraudDetected.length,
+        totalChecked: suspiciousPayments.length,
+        period: '5 jours',
+        fraudulentActivations: fraudDetected,
+        summary: `${fraudDetected.length} utilisateurs ont activé leurs comptes sans paiement réel`
+      });
+    } catch (error) {
+      console.error('[AUDIT] Error during fraud audit:', error);
+      res.status(500).json({ message: 'Erreur lors de l\'audit' });
     }
   });
 
