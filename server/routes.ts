@@ -1915,50 +1915,112 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // SECURED CALLBACK - Always verify with BKAPay API before activation
   app.post('/api/activation/callback', async (req: any, res) => {
     try {
       const { reference, status, transactionId } = req.body;
       
-      if (!reference || !status) {
-        return res.status(400).json({ message: 'Données invalides' });
+      console.log('[CALLBACK SECURITY] ===== PAYMENT CALLBACK RECEIVED =====');
+      console.log('[CALLBACK SECURITY] Reference:', reference);
+      console.log('[CALLBACK SECURITY] Status claimed:', status);
+      
+      if (!reference) {
+        return res.status(400).json({ message: 'Référence manquante' });
       }
 
-      if (status === 'success' || status === 'completed') {
-        // Update payment status
-        await db.update(bkapayPayments).set({ 
-          status: 'completed',
-          completedAt: new Date(),
-        }).where(eq(bkapayPayments.reference, reference));
+      // Find payment record
+      const payment = await db.select().from(bkapayPayments).where(eq(bkapayPayments.reference, reference));
+      const paymentRecord = payment[0];
 
-        // Find payment to get userId
-        const payment = await db.select().from(bkapayPayments).where(eq(bkapayPayments.reference, reference));
-        const paymentRecord = payment[0];
+      if (!paymentRecord) {
+        console.log('[CALLBACK SECURITY] ERROR: Payment not found for reference:', reference);
+        return res.status(404).json({ message: 'Paiement non trouvé' });
+      }
 
-        if (!paymentRecord) {
-          return res.status(404).json({ message: 'Paiement non trouvé' });
-        }
-
-        // Activate account
-        await storage.activateAccount(paymentRecord.userId);
-
-        // Create transaction record
-        await storage.createTransaction({
-          userId: paymentRecord.userId,
-          type: 'deposit',
-          amount: '0',
-          description: 'Activation de compte - Paiement BKAPay',
-          status: 'completed',
-          reference: transactionId || reference,
+      // CRITICAL SECURITY: Always verify with BKAPay API - NEVER trust callback status alone
+      console.log('[CALLBACK SECURITY] Verifying payment with BKAPay API...');
+      
+      let paymentVerified = false;
+      let apiResponse = null;
+      
+      try {
+        const verifyUrl = `https://bkapay.com/api/verify-transaction/${reference}`;
+        const verifyResponse = await fetch(verifyUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${process.env.BKAPAY_API_KEY || ''}`,
+            'Content-Type': 'application/json'
+          }
         });
 
-        return res.json({ message: 'Compte activé avec succès', activated: true });
-      } else {
-        // Update payment status to failed
-        await db.update(bkapayPayments).set({ status: 'failed' }).where(eq(bkapayPayments.reference, reference));
-        return res.json({ message: 'Paiement échoué', activated: false });
+        if (verifyResponse.ok) {
+          const contentType = verifyResponse.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            apiResponse = await verifyResponse.json();
+            console.log('[CALLBACK SECURITY] BKAPay API response:', apiResponse);
+            
+            // Check for confirmed payment status
+            if (apiResponse && (
+              apiResponse.status === 'success' ||
+              apiResponse.status === 'completed' ||
+              apiResponse.status === 'approved' ||
+              apiResponse.status === 'SUCCESSFUL' ||
+              apiResponse.paid === true ||
+              apiResponse.isPaid === true
+            )) {
+              paymentVerified = true;
+              console.log('[CALLBACK SECURITY] ✓ Payment VERIFIED by BKAPay API');
+            }
+          } else {
+            console.log('[CALLBACK SECURITY] WARNING: BKAPay returned non-JSON response');
+          }
+        } else {
+          console.log('[CALLBACK SECURITY] WARNING: BKAPay API returned status:', verifyResponse.status);
+        }
+      } catch (apiError) {
+        console.error('[CALLBACK SECURITY] BKAPay API error:', apiError);
       }
+
+      // SECURITY: If payment NOT verified by API, DO NOT activate
+      if (!paymentVerified) {
+        console.log('[CALLBACK SECURITY] ✗ PAYMENT NOT VERIFIED - Activation BLOCKED');
+        
+        // Mark as awaiting verification for admin review
+        await db.update(bkapayPayments).set({ 
+          status: 'awaiting_verification'
+        }).where(eq(bkapayPayments.reference, reference));
+
+        return res.status(402).json({ 
+          message: 'Paiement non confirmé par BKAPay. Votre demande sera examinée.',
+          activated: false,
+          verified: false
+        });
+      }
+
+      // Payment verified - proceed with activation
+      console.log('[CALLBACK SECURITY] ✓ Payment verified - Activating account...');
+      
+      await db.update(bkapayPayments).set({ 
+        status: 'completed',
+        completedAt: new Date(),
+      }).where(eq(bkapayPayments.reference, reference));
+
+      await storage.activateAccount(paymentRecord.userId);
+
+      await storage.createTransaction({
+        userId: paymentRecord.userId,
+        type: 'deposit',
+        amount: '0',
+        description: 'Activation de compte - Paiement BKAPay vérifié',
+        status: 'completed',
+        reference: transactionId || reference,
+      });
+
+      console.log('[CALLBACK SECURITY] ===== ACCOUNT ACTIVATED (VERIFIED) =====');
+      return res.json({ message: 'Compte activé avec succès', activated: true, verified: true });
+      
     } catch (error) {
-      console.error('Error processing callback:', error);
+      console.error('[CALLBACK SECURITY] Error processing callback:', error);
       res.status(500).json({ message: 'Erreur lors du traitement du paiement' });
     }
   });
