@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -28,6 +28,12 @@ export default function Profile() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<"profile" | "password">("profile");
+  
+  // Fetch activation status
+  const { data: activationStatus } = useQuery<{ is_active: boolean; activated_at: string | null }>({
+    queryKey: ["/api/activation/status"],
+    enabled: !!user,
+  });
   
   // Extract country code from user's phone number
   const extractCountryCode = (phone: string) => {
@@ -306,9 +312,15 @@ export default function Profile() {
 
                 <div className="flex justify-between items-center p-4 bg-muted rounded-lg">
                   <span>Statut du compte</span>
-                  <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm">
-                    Vérifié
-                  </span>
+                  {activationStatus?.is_active ? (
+                    <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold" data-testid="status-active">
+                      Actif
+                    </span>
+                  ) : (
+                    <span className="bg-red-100 text-red-600 px-3 py-1 rounded-full text-sm font-semibold" data-testid="status-inactive">
+                      Inactif
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex justify-between items-center p-4 bg-muted rounded-lg">
