@@ -552,11 +552,11 @@ export class DatabaseStorage implements IStorage {
   async getDailySentences(userId: string, limit = 12): Promise<(Sentence & { assignedDate: string })[]> {
     const today = this.getCurrentDate();
     
-    // Ensure we have a large pool of sentences first
+    // Step 1: Ensure large sentence pool exists
     await this.ensureLargeSentencePool();
     
-    // Get existing assignments for today
-    let existingAssignments = await db
+    // Step 2: Check existing assignments for today
+    let todayAssignments = await db
       .select({
         sentence: sentences,
         assignedDate: userSentenceAssignments.assignedDate
@@ -571,82 +571,62 @@ export class DatabaseStorage implements IStorage {
       )
       .limit(limit);
 
-    // If we already have enough assignments for today, return them
-    if (existingAssignments.length >= limit) {
-      return existingAssignments.map(a => ({ ...a.sentence, assignedDate: a.assignedDate }));
+    // Return early if already have enough
+    if (todayAssignments.length >= limit) {
+      return todayAssignments.map(a => ({ ...a.sentence, assignedDate: a.assignedDate }));
     }
 
-    // We need more sentences
-    const neededCount = limit - existingAssignments.length;
-    const todayAssignedIds = existingAssignments.map(a => a.sentence.id);
-    
-    // Get random sentences not already assigned today
-    let candidateSentences: Sentence[];
-    if (todayAssignedIds.length > 0) {
-      candidateSentences = await db
-        .select()
-        .from(sentences)
-        .where(
-          and(
-            eq(sentences.isActive, true),
-            notInArray(sentences.id, todayAssignedIds)
+    // Step 3: Keep trying until we have enough sentences
+    const maxAttempts = 5;
+    for (let attempt = 0; attempt < maxAttempts && todayAssignments.length < limit; attempt++) {
+      const assignedIds = todayAssignments.map(a => a.sentence.id);
+      const neededCount = limit - todayAssignments.length;
+      
+      // Get random sentences not yet assigned today
+      let availableSentences: Sentence[];
+      if (assignedIds.length > 0) {
+        availableSentences = await db
+          .select()
+          .from(sentences)
+          .where(
+            and(
+              eq(sentences.isActive, true),
+              notInArray(sentences.id, assignedIds)
+            )
           )
-        )
-        .orderBy(sql`random()`)
-        .limit(neededCount);
-    } else {
-      candidateSentences = await db
-        .select()
-        .from(sentences)
-        .where(eq(sentences.isActive, true))
-        .orderBy(sql`random()`)
-        .limit(neededCount);
-    }
-
-    // If still not enough, force generate more sentences and retry
-    if (candidateSentences.length < neededCount) {
-      await this.generateMassiveSentencePool();
-      
-      const newTodayIds = [...todayAssignedIds, ...candidateSentences.map(s => s.id)];
-      const stillNeeded = neededCount - candidateSentences.length;
-      
-      const moreSentences = await db
-        .select()
-        .from(sentences)
-        .where(
-          and(
-            eq(sentences.isActive, true),
-            newTodayIds.length > 0 ? notInArray(sentences.id, newTodayIds) : sql`true`
-          )
-        )
-        .orderBy(sql`random()`)
-        .limit(stillNeeded);
-      
-      candidateSentences = [...candidateSentences, ...moreSentences];
-    }
-
-    // Create assignments for new sentences one by one
-    for (const sentence of candidateSentences) {
-      try {
-        await db.insert(userSentenceAssignments).values({
-          userId,
-          sentenceId: sentence.id,
-          assignedDate: today,
-        }).onConflictDoNothing();
-      } catch (error) {
-        continue;
+          .orderBy(sql`random()`)
+          .limit(neededCount);
+      } else {
+        availableSentences = await db
+          .select()
+          .from(sentences)
+          .where(eq(sentences.isActive, true))
+          .orderBy(sql`random()`)
+          .limit(neededCount);
       }
-    }
 
-    // Fetch final result and retry if needed (up to 3 attempts)
-    let attempts = 0;
-    const maxAttempts = 3;
-    
-    while (attempts < maxAttempts) {
-      attempts++;
-      
-      const finalAssignments = await db
-        .select({ 
+      // If not enough sentences, generate more
+      if (availableSentences.length < neededCount) {
+        await this.generateMassiveSentencePool();
+        continue; // Retry with new pool
+      }
+
+      // Assign sentences
+      for (const sentence of availableSentences) {
+        try {
+          await db.insert(userSentenceAssignments).values({
+            userId,
+            sentenceId: sentence.id,
+            assignedDate: today,
+          }).onConflictDoNothing();
+        } catch {
+          // Conflict - another request assigned this sentence, continue
+        }
+      }
+
+      // Re-fetch current assignments
+      todayAssignments = await db
+        .select({
           sentence: sentences,
           assignedDate: userSentenceAssignments.assignedDate
         })
@@ -659,67 +639,66 @@ export class DatabaseStorage implements IStorage {
           )
         )
         .limit(limit);
+    }
 
-      if (finalAssignments.length >= limit) {
-        return finalAssignments.map(a => ({ ...a.sentence, assignedDate: a.assignedDate }));
-      }
+    // Guarantee: keep trying until we have exactly `limit` sentences
+    while (todayAssignments.length < limit) {
+      const assignedIds = todayAssignments.map(a => a.sentence.id);
+      const stillNeeded = limit - todayAssignments.length;
       
-      // Need more sentences - get any available sentences
-      const currentIds = finalAssignments.map(a => a.sentence.id);
-      const stillNeeded = limit - finalAssignments.length;
-      
-      const additionalSentences = await db
+      // Get ANY active sentences (no exclusion - allows reuse)
+      const fallbackSentences = await db
         .select()
         .from(sentences)
-        .where(
-          and(
-            eq(sentences.isActive, true),
-            currentIds.length > 0 ? notInArray(sentences.id, currentIds) : sql`true`
-          )
-        )
+        .where(eq(sentences.isActive, true))
         .orderBy(sql`random()`)
-        .limit(stillNeeded);
+        .limit(stillNeeded * 2); // Fetch extra to handle conflicts
       
-      // Force generate more if still not enough
-      if (additionalSentences.length < stillNeeded && attempts < maxAttempts) {
+      if (fallbackSentences.length === 0) {
+        // No sentences exist at all - create emergency batch
         await this.generateMassiveSentencePool();
+        continue;
       }
       
-      // Try to assign additional sentences
-      for (const sentence of additionalSentences) {
+      // Filter out already assigned today, then assign
+      const unassignedToday = fallbackSentences.filter(s => !assignedIds.includes(s.id));
+      const toAssign = unassignedToday.length > 0 ? unassignedToday : fallbackSentences;
+      
+      for (const sentence of toAssign.slice(0, stillNeeded)) {
         try {
           await db.insert(userSentenceAssignments).values({
             userId,
             sentenceId: sentence.id,
             assignedDate: today,
           }).onConflictDoNothing();
-        } catch (error) {
+        } catch {
           continue;
         }
       }
-    }
-
-    // Final fetch after all retries
-    const result = await db
-      .select({ 
-        sentence: sentences,
-        assignedDate: userSentenceAssignments.assignedDate
-      })
-      .from(userSentenceAssignments)
-      .innerJoin(sentences, eq(userSentenceAssignments.sentenceId, sentences.id))
-      .where(
-        and(
-          eq(userSentenceAssignments.userId, userId),
-          eq(userSentenceAssignments.assignedDate, today)
+      
+      // Re-fetch current count
+      todayAssignments = await db
+        .select({
+          sentence: sentences,
+          assignedDate: userSentenceAssignments.assignedDate
+        })
+        .from(userSentenceAssignments)
+        .innerJoin(sentences, eq(userSentenceAssignments.sentenceId, sentences.id))
+        .where(
+          and(
+            eq(userSentenceAssignments.userId, userId),
+            eq(userSentenceAssignments.assignedDate, today)
+          )
         )
-      )
-      .limit(limit);
-
-    if (result.length < limit) {
-      console.log(`[getDailySentences] Warning: Only ${result.length}/${limit} sentences for user ${userId} after ${maxAttempts} attempts.`);
+        .limit(limit);
+      
+      // Safety: prevent infinite loop if pool is truly exhausted
+      if (fallbackSentences.length > 0 && toAssign.length === 0) {
+        break;
+      }
     }
 
-    return result.map(a => ({ ...a.sentence, assignedDate: a.assignedDate }));
+    return todayAssignments.map(a => ({ ...a.sentence, assignedDate: a.assignedDate }));
   }
   
   private async ensureLargeSentencePool(): Promise<void> {
@@ -731,21 +710,23 @@ export class DatabaseStorage implements IStorage {
   }
   
   private async generateMassiveSentencePool(): Promise<void> {
-    const subjects = ["Les enfants", "Ma sœur", "Mon frère", "Les étudiants", "Les oiseaux", "Les médecins", "Les professeurs", "Les agriculteurs", "Les artistes", "Les musiciens", "Mon père", "Ma mère", "Mes amis", "Les voisins", "Les travailleurs", "Les villageois", "Les paysans", "Les bergers", "Les pêcheurs", "Les chasseurs"];
+    const subjects = ["Les enfants", "Ma sœur", "Mon frère", "Les étudiants", "Les oiseaux", "Les médecins", "Les professeurs", "Les agriculteurs", "Les artistes", "Les musiciens", "Mon père", "Ma mère", "Mes amis", "Les voisins", "Les travailleurs", "Les villageois", "Les paysans", "Les bergers", "Les pêcheurs", "Les chasseurs", "Le directeur", "La secrétaire", "Les clients", "Les patrons", "Ma cousine", "Mon oncle", "Ma tante", "Les infirmiers", "Les avocats", "Les comptables"];
     
-    const verbsCorrect = ["jouent", "travaillent", "mangent", "chantent", "dansent", "étudient", "cuisinent", "lisent", "écrivent", "parlent", "courent", "marchent", "voyagent", "dorment", "rêvent"];
-    const verbsIncorrect = ["joue", "travail", "mange", "chante", "danse", "étudie", "cuisine", "lit", "écrit", "parle", "cour", "marche", "voyage", "dors", "rêve"];
+    const verbsCorrect = ["jouent", "travaillent", "mangent", "chantent", "dansent", "étudient", "cuisinent", "lisent", "écrivent", "parlent", "courent", "marchent", "voyagent", "dorment", "rêvent", "nagent", "peignent", "construisent", "réparent", "nettoient"];
+    const verbsIncorrect = ["joue", "travail", "mange", "chante", "danse", "étudie", "cuisine", "lit", "écrit", "parle", "cour", "marche", "voyage", "dors", "rêve", "nage", "peint", "construit", "répare", "nettoi"];
     
-    const adverbsCorrect = ["très", "beaucoup", "souvent", "toujours", "parfois", "rapidement", "lentement", "facilement"];
-    const adverbsIncorrect = ["tres", "baucoup", "souven", "toujour", "parfoi", "rapidemant", "lantement", "facilemant"];
+    const adverbsCorrect = ["très", "beaucoup", "souvent", "toujours", "parfois", "rapidement", "lentement", "facilement", "difficilement", "énormément"];
+    const adverbsIncorrect = ["tres", "baucoup", "souven", "toujour", "parfoi", "rapidemant", "lantement", "facilemant", "difficilemant", "enormement"];
     
-    const locations = ["dans le jardin", "à la maison", "au marché", "à l'école", "au travail", "dans la forêt", "sur la plage", "dans le parc", "à la bibliothèque", "au restaurant", "dans la cuisine", "au bureau", "à l'hôpital", "à l'université", "au stade"];
+    const locations = ["dans le jardin", "à la maison", "au marché", "à l'école", "au travail", "dans la forêt", "sur la plage", "dans le parc", "à la bibliothèque", "au restaurant", "dans la cuisine", "au bureau", "à l'hôpital", "à l'université", "au stade", "dans la rue", "au supermarché", "à la banque", "au cinéma", "à la gare"];
     
-    const timeExpressionsCorrect = ["chaque matin", "tous les jours", "chaque soir", "le dimanche", "en été", "au printemps"];
-    const timeExpressionsIncorrect = ["chaque mattin", "tout les jours", "chaque soire", "le dimence", "en etté", "au printamps"];
+    const timeExpressionsCorrect = ["chaque matin", "tous les jours", "chaque soir", "le dimanche", "en été", "au printemps", "en hiver", "en automne", "le week-end", "pendant les vacances"];
+    const timeExpressionsIncorrect = ["chaque mattin", "tout les jours", "chaque soire", "le dimence", "en etté", "au printamps", "en hivere", "en autone", "le wekend", "pandant les vacances"];
     
     const newSentences: Array<{text: string; correctedText: string; errorCount: number; difficulty: string}> = [];
+    const timestamp = Date.now();
     
+    // Type 1: Subject + incorrect verb + location
     for (let i = 0; i < subjects.length; i++) {
       for (let j = 0; j < verbsCorrect.length; j++) {
         for (let k = 0; k < locations.length; k++) {
@@ -756,10 +737,11 @@ export class DatabaseStorage implements IStorage {
       }
     }
     
+    // Type 2: Subject + verb + incorrect adverb + location
     for (let i = 0; i < subjects.length; i++) {
       for (let j = 0; j < adverbsCorrect.length; j++) {
         for (let k = 0; k < locations.length; k++) {
-          const verbIdx = i % verbsCorrect.length;
+          const verbIdx = (i + k) % verbsCorrect.length;
           const text = `${subjects[i]} ${verbsCorrect[verbIdx]} ${adverbsIncorrect[j]} ${locations[k]}.`;
           const correctedText = `${subjects[i]} ${verbsCorrect[verbIdx]} ${adverbsCorrect[j]} ${locations[k]}.`;
           newSentences.push({ text, correctedText, errorCount: 1, difficulty: 'easy' });
@@ -767,35 +749,36 @@ export class DatabaseStorage implements IStorage {
       }
     }
     
+    // Type 3: Time expression + Subject + verb + location (double error)
     for (let i = 0; i < subjects.length; i++) {
       for (let j = 0; j < timeExpressionsCorrect.length; j++) {
-        const verbIdx = i % verbsCorrect.length;
-        const locIdx = i % locations.length;
-        const text = `${timeExpressionsIncorrect[j]}, ${subjects[i]} ${verbsIncorrect[verbIdx]} ${locations[locIdx]}.`;
-        const correctedText = `${timeExpressionsCorrect[j]}, ${subjects[i]} ${verbsCorrect[verbIdx]} ${locations[locIdx]}.`;
-        newSentences.push({ text, correctedText, errorCount: 2, difficulty: 'medium' });
+        for (let k = 0; k < locations.length; k++) {
+          const verbIdx = (i + j) % verbsCorrect.length;
+          const text = `${timeExpressionsIncorrect[j]}, ${subjects[i]} ${verbsIncorrect[verbIdx]} ${locations[k]}.`;
+          const correctedText = `${timeExpressionsCorrect[j]}, ${subjects[i]} ${verbsCorrect[verbIdx]} ${locations[k]}.`;
+          newSentences.push({ text, correctedText, errorCount: 2, difficulty: 'medium' });
+        }
       }
     }
     
-    const shuffled = newSentences.sort(() => Math.random() - 0.5).slice(0, 2000);
+    // Shuffle and batch insert
+    const shuffled = newSentences.sort(() => Math.random() - 0.5);
+    const batchSize = 100;
+    let inserted = 0;
     
-    for (const sentence of shuffled) {
-      const existing = await db
-        .select()
-        .from(sentences)
-        .where(eq(sentences.text, sentence.text))
-        .limit(1);
-      
-      if (existing.length === 0) {
+    for (let i = 0; i < shuffled.length && inserted < 3000; i += batchSize) {
+      const batch = shuffled.slice(i, i + batchSize);
+      for (const sentence of batch) {
         try {
-          await db.insert(sentences).values(sentence);
-        } catch (error) {
+          await db.insert(sentences).values(sentence).onConflictDoNothing();
+          inserted++;
+        } catch {
           continue;
         }
       }
     }
     
-    console.log(`[generateMassiveSentencePool] Generated pool of sentences`);
+    console.log(`[generateMassiveSentencePool] Pool generation complete. Attempted to add ${inserted} sentences.`);
   }
 
   private async ensureSufficientSentences(): Promise<void> {
