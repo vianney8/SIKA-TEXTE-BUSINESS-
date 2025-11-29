@@ -30,7 +30,7 @@ export default function Profile() {
   const [activeTab, setActiveTab] = useState<"profile" | "password">("profile");
   
   // Fetch activation status
-  const { data: activationStatus } = useQuery<{ is_active: boolean; activated_at: string | null }>({
+  const { data: activationStatus } = useQuery<{ isActive: boolean; activatedAt: string | null }>({
     queryKey: ["/api/activation/status"],
     enabled: !!user,
   });
@@ -312,7 +312,7 @@ export default function Profile() {
 
                 <div className="flex justify-between items-center p-4 bg-muted rounded-lg">
                   <span>Statut du compte</span>
-                  {activationStatus?.is_active ? (
+                  {activationStatus?.isActive ? (
                     <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold" data-testid="status-active">
                       Actif
                     </span>
