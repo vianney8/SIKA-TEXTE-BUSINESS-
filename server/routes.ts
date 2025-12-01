@@ -1675,95 +1675,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // SECURITY CHECK 4: Verify with BKAPay API using private key
+      // SECURITY CHECK 4: MANDATORY - Verify with BKAPay API using private key
       const privateKey = process.env.BKAPAY_API_KEY;
       const transactionId = allParams?.transactionId;
-      let bkapayVerified = false;
       
-      if (privateKey && transactionId) {
-        try {
-          console.log('[ACTIVATION] Verifying with BKAPay API...');
-          
-          // Try multiple possible BKAPay verification endpoints
-          const verifyEndpoints = [
-            `https://bkapay.com/api/v1/transactions/${transactionId}/verify`,
-            `https://bkapay.com/api/v1/transactions/${transactionId}`,
-            `https://api.bkapay.com/v1/transactions/${transactionId}`,
-          ];
-          
-          for (const endpoint of verifyEndpoints) {
-            try {
-              const verifyResponse = await fetch(endpoint, {
-                method: 'GET',
-                headers: {
-                  'Authorization': `Bearer ${privateKey}`,
-                  'Content-Type': 'application/json'
-                }
-              });
-              
-              if (verifyResponse.ok) {
-                const verifyData = await verifyResponse.json();
-                console.log('[ACTIVATION] BKAPay API response:', JSON.stringify(verifyData));
-                
-                // Check for success status in various formats
-                const status = verifyData.status?.toLowerCase();
-                if (status === 'success' || status === 'successful' || status === 'paid' || status === 'completed') {
-                  bkapayVerified = true;
-                  console.log('[ACTIVATION] ✓ BKAPay API verification SUCCESSFUL');
-                  break;
-                }
-              }
-            } catch (endpointError) {
-              console.log('[ACTIVATION] Endpoint failed:', endpoint);
-            }
-          }
-        } catch (apiError) {
-          console.log('[ACTIVATION] BKAPay API error:', apiError);
-        }
-      }
-      
-      // SECURITY CHECK 5: Check callback status parameter
-      const callbackStatus = allParams?.status?.toLowerCase();
-      const isCallbackSuccess = callbackStatus === 'success' || callbackStatus === 'successful' || callbackStatus === 'paid';
-      const isCallbackFailed = callbackStatus === 'failed' || callbackStatus === 'failure' || callbackStatus === 'cancelled';
-      
-      console.log('[ACTIVATION] Callback status:', callbackStatus);
-      console.log('[ACTIVATION] BKAPay API verified:', bkapayVerified);
-      console.log('[ACTIVATION] Callback indicates success:', isCallbackSuccess);
-      console.log('[ACTIVATION] Callback indicates failure:', isCallbackFailed);
-      
-      // REJECT if callback explicitly shows failure
-      if (isCallbackFailed) {
-        console.log('[ACTIVATION] REJECTED: Callback indicates payment failed');
-        await db.update(bkapayPayments)
-          .set({ status: 'failed', callbackState: null })
-          .where(eq(bkapayPayments.id, payment.id));
-        
-        return res.json({ 
-          message: 'Le paiement a échoué. Veuillez réessayer.',
+      if (!privateKey) {
+        console.log('[ACTIVATION] REJECTED: No BKAPay private key configured');
+        return res.status(500).json({
+          message: 'Configuration error. Please contact support.',
           activated: false
         });
       }
       
-      // ACTIVATE if:
-      // 1. BKAPay API verified the transaction, OR
-      // 2. State token is valid AND (callback shows success OR has transactionId)
-      const hasValidStateToken = payment.callbackState === state;
-      const hasTransactionId = !!transactionId;
-      const canActivate = bkapayVerified || (hasValidStateToken && (isCallbackSuccess || hasTransactionId));
-      
-      console.log('[ACTIVATION] Can activate:', canActivate);
-      console.log('[ACTIVATION] - State token valid:', hasValidStateToken);
-      console.log('[ACTIVATION] - Has transaction ID:', hasTransactionId);
-      
-      if (!canActivate) {
-        console.log('[ACTIVATION] Cannot verify - awaiting manual verification');
+      if (!transactionId) {
+        console.log('[ACTIVATION] REJECTED: No transaction ID from BKAPay');
         await db.update(bkapayPayments)
-          .set({ status: 'awaiting_verification' })
+          .set({ status: 'awaiting_verification', callbackState: null })
           .where(eq(bkapayPayments.id, payment.id));
         
         return res.json({ 
-          message: 'Paiement en cours de vérification. Veuillez patienter.',
+          message: 'Transaction ID manquant. Veuillez contacter le support.',
+          activated: false,
+          awaiting_verification: true
+        });
+      }
+      
+      // Verify with BKAPay API - MANDATORY
+      let bkapayVerified = false;
+      console.log('[ACTIVATION] MANDATORY BKAPay API verification for transaction:', transactionId);
+      
+      try {
+        // Try multiple possible BKAPay verification endpoints
+        const verifyEndpoints = [
+          `https://bkapay.com/api/v1/transactions/${transactionId}/verify`,
+          `https://bkapay.com/api/v1/transactions/${transactionId}`,
+          `https://api.bkapay.com/v1/transactions/${transactionId}`,
+        ];
+        
+        for (const endpoint of verifyEndpoints) {
+          try {
+            console.log('[ACTIVATION] Trying endpoint:', endpoint);
+            const verifyResponse = await fetch(endpoint, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${privateKey}`,
+                'Content-Type': 'application/json'
+              }
+            });
+            
+            console.log('[ACTIVATION] Response status:', verifyResponse.status);
+            
+            if (verifyResponse.ok) {
+              const verifyData = await verifyResponse.json();
+              console.log('[ACTIVATION] BKAPay API response:', JSON.stringify(verifyData));
+              
+              // Check for success status in various formats
+              const status = verifyData.status?.toLowerCase();
+              if (status === 'success' || status === 'successful' || status === 'paid' || status === 'completed') {
+                bkapayVerified = true;
+                console.log('[ACTIVATION] ✓ BKAPay API verification SUCCESSFUL');
+                break;
+              } else {
+                console.log('[ACTIVATION] BKAPay returned status:', status);
+              }
+            }
+          } catch (endpointError) {
+            console.log('[ACTIVATION] Endpoint error:', endpointError);
+          }
+        }
+      } catch (apiError) {
+        console.log('[ACTIVATION] BKAPay API error:', apiError);
+      }
+      
+      // REJECT if API verification failed
+      if (!bkapayVerified) {
+        console.log('[ACTIVATION] REJECTED: BKAPay API verification FAILED');
+        await db.update(bkapayPayments)
+          .set({ status: 'awaiting_verification', callbackState: null })
+          .where(eq(bkapayPayments.id, payment.id));
+        
+        return res.json({ 
+          message: 'Impossible de vérifier le paiement avec BKAPay. Veuillez réessayer.',
           activated: false,
           awaiting_verification: true
         });
