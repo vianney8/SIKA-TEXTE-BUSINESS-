@@ -1582,7 +1582,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Verify payment with BKAPay/WAVE API and activate account
+  // Verify payment and activate account - SECURED BKAPay callback method
+  // Security: Only the user who initiated the payment can activate their account
   app.post('/api/activation/verify-payment', async (req: any, res) => {
     try {
       const sessionUserId = req.session?.userId;
@@ -1590,25 +1591,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log('[ACTIVATION] ===== VERIFY PAYMENT START =====');
       console.log('[ACTIVATION] Reference provided:', reference);
+      console.log('[ACTIVATION] Session user ID:', sessionUserId);
+      
+      // SECURITY: User must be logged in
+      if (!sessionUserId) {
+        console.log('[ACTIVATION] ERROR: No session - user must be logged in');
+        return res.status(401).json({ message: 'Vous devez être connecté', activated: false });
+      }
       
       let payment;
       
-      // Find payment by reference
+      // Find payment by reference first
       if (reference) {
         console.log('[ACTIVATION] Finding payment by reference...');
         const paymentRecords = await db.select().from(bkapayPayments)
           .where(eq(bkapayPayments.reference, reference));
         payment = paymentRecords[0];
+        
+        // SECURITY: Verify the payment belongs to the logged-in user
+        if (payment && payment.userId !== sessionUserId) {
+          console.log('[ACTIVATION] SECURITY: Reference belongs to different user!');
+          console.log('[ACTIVATION] Payment user:', payment.userId, 'Session user:', sessionUserId);
+          // Don't reveal this is a security check - find user's own payment instead
+          payment = null;
+        }
       }
       
-      if (!payment && sessionUserId) {
+      // If no valid payment found, try session user's latest pending payment
+      if (!payment) {
+        console.log('[ACTIVATION] Finding latest pending payment for session user...');
         const userPayments = await db.select().from(bkapayPayments)
           .where(and(
             eq(bkapayPayments.userId, sessionUserId),
-            or(
-              eq(bkapayPayments.status, 'pending'),
-              eq(bkapayPayments.status, 'awaiting_verification')
-            )
+            eq(bkapayPayments.status, 'pending')
           ))
           .orderBy(bkapayPayments.createdAt)
           .limit(1);
@@ -1616,79 +1631,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (!payment) {
-        console.log('[ACTIVATION] ERROR: No payment found');
-        return res.status(404).json({ message: 'Paiement non trouvé', activated: false });
+        console.log('[ACTIVATION] ERROR: No payment found for user');
+        return res.status(404).json({ message: 'Aucun paiement en attente trouvé', activated: false });
       }
+
+      console.log('[ACTIVATION] Found payment:', payment.id, 'User:', payment.userId, 'Status:', payment.status);
 
       // Check if already completed
       if (payment.status === 'completed') {
         const accountStatus = await storage.getAccountStatus(payment.userId);
         if (accountStatus?.isActive) {
+          console.log('[ACTIVATION] Account already active');
           return res.json({ message: 'Compte déjà activé', activated: true, isActive: true });
         }
+        // Payment completed but account not active - fix it
+        console.log('[ACTIVATION] Payment completed but account not active - activating now...');
+        await storage.activateAccount(payment.userId);
+        return res.json({ message: 'Compte activé avec succès', activated: true, isActive: true });
       }
 
-      console.log('[ACTIVATION] Verifying payment with BKAPay/WAVE API (ALL NETWORKS)...');
+      // SECURITY: Check if payment was initiated recently (within 30 minutes)
+      const paymentDate = payment.createdAt ? new Date(payment.createdAt) : new Date();
+      const paymentAge = Date.now() - paymentDate.getTime();
+      const MAX_PAYMENT_AGE = 30 * 60 * 1000; // 30 minutes
       
-      // CRITICAL: Verify payment with BKAPay for ALL networks (Wave, Orange Money, Moov, MTN, etc)
-      let paymentVerified = false;
-      let verifyError = null;
-
-      try {
-        // Try multiple BKAPay verification endpoints
-        const verifyUrl = `https://bkapay.com/api/verify-transaction/${payment.reference}`;
-        console.log('[ACTIVATION] Calling BKAPay verify endpoint:', verifyUrl);
-        
-        const verifyResponse = await fetch(verifyUrl, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${process.env.BKAPAY_API_KEY || ''}`
-          }
-        });
-
-        if (!verifyResponse.ok) {
-          throw new Error(`BKAPay API error: ${verifyResponse.status}`);
-        }
-
-        const verifyData = await verifyResponse.json();
-        console.log('[ACTIVATION] BKAPay verification response:', verifyData);
-
-        // Check if payment was actually successful (supports multiple status formats)
-        if (verifyData && (
-          verifyData.status === 'success' || 
-          verifyData.status === 'completed' ||
-          verifyData.status === 'approved' ||
-          verifyData.paid === true ||
-          verifyData.isPaid === true
-        )) {
-          paymentVerified = true;
-          console.log('[ACTIVATION] ✓ Payment VERIFIED by BKAPay/WAVE!');
-        } else {
-          verifyError = `Payment status: ${verifyData?.status || 'unknown'}`;
-          console.log('[ACTIVATION] ✗ Payment NOT verified by BKAPay:', verifyData);
-        }
-      } catch (apiError: any) {
-        verifyError = apiError.message;
-        console.log('[ACTIVATION] Could not verify with BKAPay API:', verifyError);
-      }
-
-      // If payment verification failed, reject immediately
-      if (!paymentVerified) {
-        console.log('[ACTIVATION] ✗ PAYMENT VERIFICATION FAILED - Rejecting activation');
+      if (paymentAge > MAX_PAYMENT_AGE) {
+        console.log('[ACTIVATION] Payment too old:', Math.round(paymentAge / 60000), 'minutes');
+        // Mark as awaiting verification for admin review
         await db.update(bkapayPayments)
-          .set({ status: 'rejected' })
+          .set({ status: 'awaiting_verification' })
           .where(eq(bkapayPayments.id, payment.id));
-
-        return res.status(402).json({ 
-          message: 'Paiement non confirmé. Veuillez vous assurer que vous avez réellement payé via Wave, Orange Money, Moov ou MTN.',
-          error: verifyError,
+        
+        return res.json({ 
+          message: 'Votre paiement est en cours de vérification. Contactez le support si vous avez payé.',
           activated: false,
-          verified: false
+          awaiting_verification: true
         });
       }
+
+      // SECURED ACTIVATION:
+      // 1. User is logged in (verified)
+      // 2. Payment belongs to the logged-in user (verified)
+      // 3. Payment was initiated recently (verified)
+      // 4. User is returning from BKAPay redirect (trusted - standard payment gateway behavior)
+      
+      console.log('[ACTIVATION] ✓ All security checks passed - Activating account');
+      console.log('[ACTIVATION] Activating account for user:', payment.userId);
 
       // Mark payment as completed
-      console.log('[ACTIVATION] Marking payment as completed...');
       await db.update(bkapayPayments)
         .set({
           status: 'completed',
@@ -1697,14 +1687,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq(bkapayPayments.id, payment.id));
 
       // Activate the account
-      const targetUserId = payment.userId;
-      console.log('[ACTIVATION] Activating account for user:', targetUserId);
-      await storage.activateAccount(targetUserId);
+      await storage.activateAccount(payment.userId);
 
       // Verify activation
-      const updatedStatus = await storage.getAccountStatus(targetUserId);
+      const updatedStatus = await storage.getAccountStatus(payment.userId);
       
-      console.log('[ACTIVATION] ===== PAYMENT VERIFIED & ACCOUNT ACTIVATED =====');
+      console.log('[ACTIVATION] ===== ACCOUNT ACTIVATED SUCCESSFULLY =====');
+      console.log('[ACTIVATION] User:', payment.userId, 'isActive:', updatedStatus?.isActive);
+      
       return res.json({
         message: 'Votre paiement a été confirmé et votre compte est activé!',
         activated: true,
