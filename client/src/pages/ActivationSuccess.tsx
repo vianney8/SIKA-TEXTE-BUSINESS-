@@ -14,23 +14,47 @@ export default function ActivationSuccess() {
       console.log('[ACTIVATION-SUCCESS] Page loaded');
       console.log('[ACTIVATION-SUCCESS] Full URL:', window.location.href);
       
-      // Parse BKAPay callback parameters from URL
+      // Get full URL and all parameters
+      const fullUrl = window.location.href;
       const searchParams = new URLSearchParams(window.location.search);
-      const bkapayStatus = searchParams.get('status');
-      const transactionId = searchParams.get('transactionId');
-      const amount = searchParams.get('amount');
+      
+      // Collect ALL URL parameters for analysis
+      const allParams: Record<string, string> = {};
+      searchParams.forEach((value, key) => {
+        allParams[key] = value;
+        console.log(`[ACTIVATION-SUCCESS] Param: ${key} = ${value}`);
+      });
+      
+      // Get known parameters
       const reference = searchParams.get('ref') || searchParams.get('reference');
       const state = searchParams.get('state');
       
-      console.log('[ACTIVATION-SUCCESS] BKAPay Status:', bkapayStatus);
-      console.log('[ACTIVATION-SUCCESS] Transaction ID:', transactionId);
-      console.log('[ACTIVATION-SUCCESS] Amount:', amount);
-      console.log('[ACTIVATION-SUCCESS] Reference:', reference);
-      console.log('[ACTIVATION-SUCCESS] State:', state);
+      // Detect success indicators in URL (flexible detection)
+      const urlLower = fullUrl.toLowerCase();
+      const successIndicators = ['success', 'successful', 'completed', 'paid', 'approved', 'confirmed', 'ok', 'done'];
+      const failureIndicators = ['failed', 'failure', 'error', 'cancelled', 'canceled', 'rejected', 'declined'];
       
-      // Check BKAPay status first
-      if (bkapayStatus === 'failed') {
-        console.log('[ACTIVATION-SUCCESS] BKAPay returned FAILED status');
+      let isPaymentSuccess = successIndicators.some(indicator => urlLower.includes(indicator));
+      let isPaymentFailed = failureIndicators.some(indicator => urlLower.includes(indicator));
+      
+      // Also check specific status parameter values
+      const statusParam = searchParams.get('status') || searchParams.get('Status') || searchParams.get('STATUS');
+      if (statusParam) {
+        const statusLower = statusParam.toLowerCase();
+        if (successIndicators.some(ind => statusLower.includes(ind))) {
+          isPaymentSuccess = true;
+        }
+        if (failureIndicators.some(ind => statusLower.includes(ind))) {
+          isPaymentFailed = true;
+        }
+      }
+      
+      console.log('[ACTIVATION-SUCCESS] Success detected:', isPaymentSuccess);
+      console.log('[ACTIVATION-SUCCESS] Failure detected:', isPaymentFailed);
+      
+      // If explicitly failed, show error
+      if (isPaymentFailed && !isPaymentSuccess) {
+        console.log('[ACTIVATION-SUCCESS] Payment FAILED');
         setStatus('error');
         setMessage('Le paiement a échoué. Veuillez réessayer.');
         return;
@@ -63,9 +87,10 @@ export default function ActivationSuccess() {
           body: JSON.stringify({ 
             reference: finalReference,
             state: finalState,
-            bkapayStatus: bkapayStatus,
-            transactionId: transactionId,
-            amount: amount
+            fullCallbackUrl: fullUrl,
+            allParams: allParams,
+            isPaymentSuccess: isPaymentSuccess,
+            isPaymentFailed: isPaymentFailed
           }),
         });
         
