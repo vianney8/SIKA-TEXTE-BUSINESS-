@@ -1601,17 +1601,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: 'Vous devez être connecté', activated: false });
       }
       
+      // CRITICAL SECURITY: gatewayStatus MUST be provided - reject if missing
+      if (!gatewayStatus) {
+        console.log('[ACTIVATION] SECURITY BLOCK: No gatewayStatus provided - possible attack');
+        console.log('[ACTIVATION] Rejecting request - gatewayStatus is REQUIRED');
+        return res.status(400).json({ 
+          message: 'Paramètre de statut manquant. Veuillez réessayer le paiement.',
+          activated: false,
+          error: 'missing_status'
+        });
+      }
+      
       // CRITICAL SECURITY: Verify gateway status indicates SUCCESS
       const successStatuses = ['success', 'successful', 'completed', 'paid', 'approved'];
-      const isValidSuccess = gatewayStatus && successStatuses.some(s => 
+      const isValidSuccess = successStatuses.some(s => 
         gatewayStatus.toLowerCase() === s.toLowerCase()
       );
       
       if (!isValidSuccess) {
         console.log('[ACTIVATION] SECURITY: Gateway status is NOT SUCCESS:', gatewayStatus);
         console.log('[ACTIVATION] Rejecting auto-activation - requires admin verification');
+        
+        // Mark any pending payment as awaiting verification
+        if (sessionUserId) {
+          const userPayments = await db.select().from(bkapayPayments)
+            .where(and(
+              eq(bkapayPayments.userId, sessionUserId),
+              eq(bkapayPayments.status, 'pending')
+            ))
+            .limit(1);
+          
+          if (userPayments[0]) {
+            await db.update(bkapayPayments)
+              .set({ status: 'awaiting_verification' })
+              .where(eq(bkapayPayments.id, userPayments[0].id));
+            console.log('[ACTIVATION] Payment marked as awaiting_verification:', userPayments[0].id);
+          }
+        }
+        
         return res.status(400).json({ 
-          message: 'Le statut du paiement n\'indique pas un succès. Votre paiement sera vérifié manuellement.',
+          message: 'Le paiement n\'a pas été confirmé par BKAPay. Contactez le support si vous avez payé.',
           activated: false,
           awaiting_verification: true
         });
