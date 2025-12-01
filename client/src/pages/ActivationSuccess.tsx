@@ -14,8 +14,70 @@ export default function ActivationSuccess() {
       console.log('[ACTIVATION-SUCCESS] Page loaded');
       console.log('[ACTIVATION-SUCCESS] Full URL:', window.location.href);
       
-      // Get reference from URL or localStorage (optional - backend will find latest pending payment)
       const searchParams = new URLSearchParams(window.location.search);
+      
+      // CRITICAL SECURITY: Check BKAPay payment status from URL parameters
+      // BKAPay returns status in various parameters depending on the result
+      const paymentStatus = searchParams.get('status') || 
+                           searchParams.get('transaction_status') || 
+                           searchParams.get('payment_status') ||
+                           searchParams.get('state');
+      const transactionId = searchParams.get('transaction_id') || 
+                           searchParams.get('trxId') ||
+                           searchParams.get('transactionId');
+      
+      console.log('[ACTIVATION-SUCCESS] BKAPay Status:', paymentStatus);
+      console.log('[ACTIVATION-SUCCESS] Transaction ID:', transactionId);
+      
+      // SECURITY: Only proceed if payment status indicates success
+      // Check for various success indicators from BKAPay
+      const successStatuses = ['success', 'successful', 'completed', 'paid', 'approved', 'SUCCESSFUL', 'SUCCESS', 'COMPLETED', 'PAID'];
+      const failureStatuses = ['failed', 'failure', 'cancelled', 'canceled', 'rejected', 'declined', 'FAILED', 'FAILURE', 'CANCELLED', 'REJECTED'];
+      
+      const isSuccess = paymentStatus && successStatuses.some(s => paymentStatus.toLowerCase() === s.toLowerCase());
+      const isFailure = paymentStatus && failureStatuses.some(s => paymentStatus.toLowerCase() === s.toLowerCase());
+      
+      console.log('[ACTIVATION-SUCCESS] Is Success:', isSuccess, 'Is Failure:', isFailure);
+      
+      // If payment failed, show error immediately - DO NOT call API
+      if (isFailure) {
+        console.log('[ACTIVATION-SUCCESS] Payment FAILED - not activating');
+        setStatus('error');
+        setMessage('Le paiement a échoué ou a été annulé. Veuillez réessayer.');
+        localStorage.removeItem('pendingActivationRef');
+        localStorage.removeItem('pendingActivationTime');
+        return;
+      }
+      
+      // If no status parameter or not a clear success, require admin verification
+      if (!paymentStatus || !isSuccess) {
+        console.log('[ACTIVATION-SUCCESS] No valid success status - requiring verification');
+        setStatus('pending');
+        setMessage('Votre paiement est en cours de vérification. Notre équipe va confirmer votre paiement sous peu.');
+        
+        // Mark payment as awaiting verification (don't auto-activate)
+        try {
+          const reference = searchParams.get('ref') || searchParams.get('reference');
+          await fetch('/api/activation/mark-pending-verification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ 
+              reference: reference || null,
+              gatewayStatus: paymentStatus || 'unknown',
+              transactionId: transactionId || null
+            }),
+          });
+        } catch (e) {
+          console.error('[ACTIVATION-SUCCESS] Error marking pending:', e);
+        }
+        
+        localStorage.removeItem('pendingActivationRef');
+        localStorage.removeItem('pendingActivationTime');
+        return;
+      }
+      
+      // Payment status is SUCCESS - proceed with activation
       let reference = searchParams.get('ref') || searchParams.get('reference');
       
       // Also check localStorage as backup
@@ -35,13 +97,17 @@ export default function ActivationSuccess() {
       console.log('[ACTIVATION-SUCCESS] Reference:', reference || 'none (will use latest pending)');
       
       try {
-        // Call API - it will find latest pending payment if no reference provided
-        console.log('[ACTIVATION-SUCCESS] Calling verify-payment API...');
+        // Call API with verified success status
+        console.log('[ACTIVATION-SUCCESS] Calling verify-payment API with SUCCESS status...');
         const response = await fetch('/api/activation/verify-payment', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ reference: reference || null }),
+          body: JSON.stringify({ 
+            reference: reference || null,
+            gatewayStatus: paymentStatus,
+            transactionId: transactionId
+          }),
         });
         
         const data = await response.json();
