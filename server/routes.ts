@@ -1709,6 +1709,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin endpoint to bulk activate all pending payments
+  app.post('/api/admin/bulk-activate-pending', requireAdmin, async (req: any, res) => {
+    try {
+      console.log('[ADMIN] ===== BULK ACTIVATION START =====');
+      
+      // Get all pending payments with unique users
+      const pendingPayments = await db.select().from(bkapayPayments)
+        .where(or(
+          eq(bkapayPayments.status, 'pending'),
+          eq(bkapayPayments.status, 'awaiting_verification')
+        ))
+        .orderBy(bkapayPayments.createdAt);
+
+      // Group by user to avoid duplicate activations
+      const userPaymentsMap = new Map<string, typeof pendingPayments[0]>();
+      for (const payment of pendingPayments) {
+        if (!userPaymentsMap.has(payment.userId)) {
+          userPaymentsMap.set(payment.userId, payment);
+        }
+      }
+
+      const uniquePayments = Array.from(userPaymentsMap.values());
+      console.log(`[ADMIN] Found ${uniquePayments.length} unique users with pending payments`);
+
+      let activatedCount = 0;
+      const activatedUsers: { id: string; name: string; phone: string }[] = [];
+
+      for (const payment of uniquePayments) {
+        try {
+          // Check if user already has active account
+          const accountStatus = await storage.getAccountStatus(payment.userId);
+          if (accountStatus?.isActive) {
+            console.log(`[ADMIN] User ${payment.userId} already active, skipping`);
+            // Mark payment as completed anyway
+            await db.update(bkapayPayments)
+              .set({ status: 'completed', completedAt: new Date() })
+              .where(eq(bkapayPayments.id, payment.id));
+            continue;
+          }
+
+          // Mark payment as completed
+          await db.update(bkapayPayments)
+            .set({ status: 'completed', completedAt: new Date() })
+            .where(eq(bkapayPayments.id, payment.id));
+
+          // Activate account
+          await storage.activateAccount(payment.userId);
+
+          // Get user info
+          const user = await storage.getUser(payment.userId);
+          
+          activatedCount++;
+          activatedUsers.push({
+            id: payment.userId,
+            name: user?.fullName || `${user?.firstName || ''} ${user?.lastName || ''}`,
+            phone: user?.phone || ''
+          });
+
+          console.log(`[ADMIN] ✓ Activated: ${user?.fullName || payment.userId}`);
+        } catch (userError) {
+          console.error(`[ADMIN] Error activating user ${payment.userId}:`, userError);
+        }
+      }
+
+      // Also mark all other pending payments for same users as completed
+      const userIds = Array.from(userPaymentsMap.keys());
+      for (const userId of userIds) {
+        await db.update(bkapayPayments)
+          .set({ status: 'completed', completedAt: new Date() })
+          .where(and(
+            eq(bkapayPayments.userId, userId),
+            or(
+              eq(bkapayPayments.status, 'pending'),
+              eq(bkapayPayments.status, 'awaiting_verification')
+            )
+          ));
+      }
+
+      console.log(`[ADMIN] ===== BULK ACTIVATION COMPLETE: ${activatedCount} accounts activated =====`);
+
+      res.json({
+        message: `${activatedCount} comptes activés avec succès`,
+        activatedCount,
+        totalPending: uniquePayments.length,
+        activatedUsers
+      });
+    } catch (error) {
+      console.error('[ADMIN] Bulk activation error:', error);
+      res.status(500).json({ message: 'Erreur lors de l\'activation en lot' });
+    }
+  });
+
+  // Admin endpoint to get count of pending activations
+  app.get('/api/admin/pending-activations-count', requireAdmin, async (req: any, res) => {
+    try {
+      const pendingPayments = await db.select().from(bkapayPayments)
+        .where(or(
+          eq(bkapayPayments.status, 'pending'),
+          eq(bkapayPayments.status, 'awaiting_verification')
+        ));
+
+      // Count unique users
+      const uniqueUsers = new Set(pendingPayments.map(p => p.userId));
+
+      res.json({
+        totalPending: pendingPayments.length,
+        uniqueUsers: uniqueUsers.size
+      });
+    } catch (error) {
+      console.error('[ADMIN] Error getting pending count:', error);
+      res.status(500).json({ message: 'Erreur' });
+    }
+  });
+
   // Admin endpoint to approve a payment and activate account
   app.post('/api/admin/approve-activation/:paymentId', requireAdmin, async (req: any, res) => {
     try {
