@@ -1589,56 +1589,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Verify payment and activate account - Auto-activation after BKAPay redirect
-  // SECURITY: Validates state token + user session + recent payment
+  // SECURITY: Requires valid state token + user session + recent payment
   app.post('/api/activation/verify-payment', async (req: any, res) => {
     try {
       const sessionUserId = req.session?.userId;
       const { reference, state } = req.body;
       
-      console.log('[ACTIVATION] ===== AUTO-ACTIVATION WITH STATE TOKEN =====');
+      console.log('[ACTIVATION] ===== SECURE AUTO-ACTIVATION =====');
       console.log('[ACTIVATION] Reference:', reference);
-      console.log('[ACTIVATION] State token:', state);
+      console.log('[ACTIVATION] State token:', state ? 'provided' : 'MISSING');
       console.log('[ACTIVATION] Session user ID:', sessionUserId);
       
       // SECURITY CHECK 1: User must be logged in
       if (!sessionUserId) {
-        console.log('[ACTIVATION] ERROR: No session - user must be logged in');
+        console.log('[ACTIVATION] REJECTED: No session - user must be logged in');
         return res.status(401).json({ message: 'Vous devez être connecté', activated: false });
       }
       
       console.log('[ACTIVATION] ✓ User is logged in');
       
       let payment;
+      let stateValidated = false;
       
-      // SECURITY CHECK 2: Find payment by state token (most secure)
+      // SECURITY CHECK 2: Find payment - state token is REQUIRED for auto-activation
       if (state) {
         console.log('[ACTIVATION] Finding payment by state token...');
         const paymentRecords = await db.select().from(bkapayPayments)
           .where(and(
             eq(bkapayPayments.callbackState, state),
-            eq(bkapayPayments.userId, sessionUserId)
+            eq(bkapayPayments.userId, sessionUserId),
+            eq(bkapayPayments.status, 'pending')
           ));
         payment = paymentRecords[0];
         
         if (payment) {
-          console.log('[ACTIVATION] ✓ Payment found with valid state token');
+          stateValidated = true;
+          console.log('[ACTIVATION] ✓ State token VALIDATED - Payment found');
+        } else {
+          console.log('[ACTIVATION] State token provided but no matching pending payment found');
         }
       }
       
-      // Fallback: Find by reference if state not provided
-      if (!payment && reference) {
-        console.log('[ACTIVATION] Fallback: Finding payment by reference...');
-        const paymentRecords = await db.select().from(bkapayPayments)
-          .where(and(
-            eq(bkapayPayments.reference, reference),
-            eq(bkapayPayments.userId, sessionUserId)
-          ));
-        payment = paymentRecords[0];
-      }
-      
-      // Last fallback: User's latest pending payment
-      if (!payment) {
-        console.log('[ACTIVATION] Fallback: Finding latest pending payment for user...');
+      // If state token was NOT provided or invalid, check for existing pending payment
+      // but DO NOT auto-activate - just inform the user
+      if (!stateValidated) {
+        console.log('[ACTIVATION] Checking if user has any pending payment...');
         const userPayments = await db.select().from(bkapayPayments)
           .where(and(
             eq(bkapayPayments.userId, sessionUserId),
@@ -1646,27 +1641,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ))
           .orderBy(bkapayPayments.createdAt)
           .limit(1);
-        payment = userPayments[0];
-      }
-
-      if (!payment) {
-        console.log('[ACTIVATION] ERROR: No payment found for user');
-        return res.status(404).json({ message: 'Aucun paiement en attente trouvé', activated: false });
-      }
-
-      console.log('[ACTIVATION] Found payment:', payment.id, 'User:', payment.userId, 'Status:', payment.status);
-
-      // Check if already completed
-      if (payment.status === 'completed') {
-        const accountStatus = await storage.getAccountStatus(payment.userId);
+        
+        const pendingPayment = userPayments[0];
+        
+        // Check if user already has an active account
+        const accountStatus = await storage.getAccountStatus(sessionUserId);
         if (accountStatus?.isActive) {
           console.log('[ACTIVATION] Account already active');
           return res.json({ message: 'Compte déjà activé', activated: true, isActive: true });
         }
-        console.log('[ACTIVATION] Payment completed but account not active - activating now...');
-        await storage.activateAccount(payment.userId);
-        return res.json({ message: 'Compte activé avec succès', activated: true, isActive: true });
+        
+        if (pendingPayment) {
+          // Has pending payment but state token missing/invalid - cannot auto-activate
+          console.log('[ACTIVATION] SECURITY: State token missing/invalid - Cannot auto-activate');
+          console.log('[ACTIVATION] Pending payment exists but requires valid state token');
+          
+          return res.json({ 
+            message: 'Paiement en cours de traitement. Veuillez patienter ou contacter le support.',
+            activated: false,
+            awaiting_verification: true
+          });
+        }
+        
+        console.log('[ACTIVATION] No pending payment found');
+        return res.status(404).json({ message: 'Aucun paiement en attente trouvé', activated: false });
       }
+
+      // At this point, state token is validated and payment exists
+      console.log('[ACTIVATION] Found payment:', payment.id, 'User:', payment.userId, 'Status:', payment.status);
 
       // SECURITY CHECK 3: Payment must be recent (within 30 minutes)
       const paymentDate = payment.createdAt ? new Date(payment.createdAt) : new Date();
@@ -1676,7 +1678,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (paymentAge > MAX_PAYMENT_AGE) {
         console.log('[ACTIVATION] Payment too old:', Math.round(paymentAge / 60000), 'minutes');
         await db.update(bkapayPayments)
-          .set({ status: 'awaiting_verification' })
+          .set({ status: 'awaiting_verification', callbackState: null })
           .where(eq(bkapayPayments.id, payment.id));
         
         return res.json({ 
@@ -1688,18 +1690,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // AUTO-ACTIVATION - All security checks passed:
       // 1. User is logged in (verified)
-      // 2. State token matches OR payment belongs to user (verified)
+      // 2. State token VALIDATED (required - no fallback)
       // 3. Payment was initiated recently (verified)
       // 4. User returned from BKAPay redirect (trusted)
       
-      console.log('[ACTIVATION] ✓ All security checks passed - Auto-activating account');
+      console.log('[ACTIVATION] ✓ ALL SECURITY CHECKS PASSED - Auto-activating account');
 
-      // Mark payment as completed and clear state token
+      // Mark payment as completed and clear state token (prevents replay attacks)
       await db.update(bkapayPayments)
         .set({
           status: 'completed',
           completedAt: new Date(),
-          callbackState: null, // Clear state token after use (prevents replay)
+          callbackState: null,
         })
         .where(eq(bkapayPayments.id, payment.id));
 
