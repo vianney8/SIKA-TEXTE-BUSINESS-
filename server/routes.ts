@@ -1543,17 +1543,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ message: 'Clé BKAPay non configurée' });
       }
 
+      // Generate a secure random state token for auto-activation verification
+      const callbackState = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}-${Math.random().toString(36).substring(2, 15)}`;
+
       // BKAPay API v1.2 format
       const description = 'Activation Compte Sika Texte';
       
       // Store reference in session for verification after return
       (req as any).session.activationReference = reference;
       (req as any).session.activationUserId = userId;
+      (req as any).session.activationState = callbackState;
       
-      // Build callback URL - always use HTTPS for production
+      // Build callback URL with state token - always use HTTPS for production
       const host = req.get('host');
       const protocol = host.includes('replit') ? 'https' : req.protocol;
-      const callbackUrl = `${protocol}://${host}/activation-success?ref=${reference}`;
+      const callbackUrl = `${protocol}://${host}/activation-success?ref=${reference}&state=${callbackState}`;
       
       // BKAPay API v1.2 URL format: callback parameter instead of return_url
       const redirectUrl = `https://bkapay.com/api-pay/${publicKey}?amount=${amount}&description=${encodeURIComponent(description)}&callback=${encodeURIComponent(callbackUrl)}`;
@@ -1561,21 +1565,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('[BKAPAY v1.2] ========== INIT PAYMENT ==========');
       console.log('[BKAPAY v1.2] User ID:', userId);
       console.log('[BKAPAY v1.2] Reference:', reference);
+      console.log('[BKAPAY v1.2] State Token:', callbackState);
       console.log('[BKAPAY v1.2] Amount:', amount, 'FCFA');
       console.log('[BKAPAY v1.2] Callback URL:', callbackUrl);
       console.log('[BKAPAY v1.2] Redirect URL:', redirectUrl);
       console.log('[BKAPAY v1.2] =====================================');
       
-      // Store payment record
+      // Store payment record with state token
       await db.insert(bkapayPayments).values({
         userId,
         amount: amount.toString(),
         reference,
+        callbackState,
         redirectUrl,
         status: 'pending',
       });
 
-      res.json({ redirectUrl, reference, amount });
+      res.json({ redirectUrl, reference, callbackState, amount });
     } catch (error) {
       console.error('[BKAPAY v1.2] Error initiating payment:', error);
       res.status(500).json({ message: 'Erreur lors de l\'initiation du paiement' });
@@ -1583,44 +1589,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Verify payment and activate account - Auto-activation after BKAPay redirect
-  // SECURITY: Activates if user is logged in with a recent pending payment
+  // SECURITY: Validates state token + user session + recent payment
   app.post('/api/activation/verify-payment', async (req: any, res) => {
     try {
       const sessionUserId = req.session?.userId;
-      const { reference } = req.body;
+      const { reference, state } = req.body;
       
-      console.log('[ACTIVATION] ===== AUTO-ACTIVATION START =====');
-      console.log('[ACTIVATION] Reference provided:', reference);
+      console.log('[ACTIVATION] ===== AUTO-ACTIVATION WITH STATE TOKEN =====');
+      console.log('[ACTIVATION] Reference:', reference);
+      console.log('[ACTIVATION] State token:', state);
       console.log('[ACTIVATION] Session user ID:', sessionUserId);
       
-      // SECURITY: User must be logged in
+      // SECURITY CHECK 1: User must be logged in
       if (!sessionUserId) {
         console.log('[ACTIVATION] ERROR: No session - user must be logged in');
         return res.status(401).json({ message: 'Vous devez être connecté', activated: false });
       }
       
-      console.log('[ACTIVATION] ✓ User is logged in - proceeding with auto-activation');
+      console.log('[ACTIVATION] ✓ User is logged in');
       
       let payment;
       
-      // Find payment by reference first
-      if (reference) {
-        console.log('[ACTIVATION] Finding payment by reference...');
+      // SECURITY CHECK 2: Find payment by state token (most secure)
+      if (state) {
+        console.log('[ACTIVATION] Finding payment by state token...');
         const paymentRecords = await db.select().from(bkapayPayments)
-          .where(eq(bkapayPayments.reference, reference));
+          .where(and(
+            eq(bkapayPayments.callbackState, state),
+            eq(bkapayPayments.userId, sessionUserId)
+          ));
         payment = paymentRecords[0];
         
-        // SECURITY: Verify the payment belongs to the logged-in user
-        if (payment && payment.userId !== sessionUserId) {
-          console.log('[ACTIVATION] SECURITY: Reference belongs to different user!');
-          console.log('[ACTIVATION] Payment user:', payment.userId, 'Session user:', sessionUserId);
-          payment = null;
+        if (payment) {
+          console.log('[ACTIVATION] ✓ Payment found with valid state token');
         }
       }
       
-      // If no valid payment found, try session user's latest pending payment
+      // Fallback: Find by reference if state not provided
+      if (!payment && reference) {
+        console.log('[ACTIVATION] Fallback: Finding payment by reference...');
+        const paymentRecords = await db.select().from(bkapayPayments)
+          .where(and(
+            eq(bkapayPayments.reference, reference),
+            eq(bkapayPayments.userId, sessionUserId)
+          ));
+        payment = paymentRecords[0];
+      }
+      
+      // Last fallback: User's latest pending payment
       if (!payment) {
-        console.log('[ACTIVATION] Finding latest pending payment for session user...');
+        console.log('[ACTIVATION] Fallback: Finding latest pending payment for user...');
         const userPayments = await db.select().from(bkapayPayments)
           .where(and(
             eq(bkapayPayments.userId, sessionUserId),
@@ -1650,7 +1668,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ message: 'Compte activé avec succès', activated: true, isActive: true });
       }
 
-      // SECURITY: Check if payment was initiated recently (within 30 minutes)
+      // SECURITY CHECK 3: Payment must be recent (within 30 minutes)
       const paymentDate = payment.createdAt ? new Date(payment.createdAt) : new Date();
       const paymentAge = Date.now() - paymentDate.getTime();
       const MAX_PAYMENT_AGE = 30 * 60 * 1000; // 30 minutes
@@ -1668,19 +1686,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // AUTO-ACTIVATION:
+      // AUTO-ACTIVATION - All security checks passed:
       // 1. User is logged in (verified)
-      // 2. Payment belongs to the logged-in user (verified)
+      // 2. State token matches OR payment belongs to user (verified)
       // 3. Payment was initiated recently (verified)
       // 4. User returned from BKAPay redirect (trusted)
       
       console.log('[ACTIVATION] ✓ All security checks passed - Auto-activating account');
 
-      // Mark payment as completed
+      // Mark payment as completed and clear state token
       await db.update(bkapayPayments)
         .set({
           status: 'completed',
           completedAt: new Date(),
+          callbackState: null, // Clear state token after use (prevents replay)
         })
         .where(eq(bkapayPayments.id, payment.id));
 

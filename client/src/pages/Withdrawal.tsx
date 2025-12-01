@@ -256,11 +256,15 @@ export default function Withdrawal() {
         return;
       }
       
-      // Store reference in localStorage for verification after return from BKAPay
+      // Store reference and state token in localStorage for verification after return from BKAPay
       if (data.reference) {
         localStorage.setItem('pendingActivationRef', data.reference);
         localStorage.setItem('pendingActivationTime', Date.now().toString());
         console.log('[BKAPAY v1.2] Stored reference in localStorage:', data.reference);
+      }
+      if (data.callbackState) {
+        localStorage.setItem('pendingActivationState', data.callbackState);
+        console.log('[BKAPAY v1.2] Stored state token in localStorage:', data.callbackState);
       }
       
       toast({

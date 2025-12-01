@@ -11,37 +11,54 @@ export default function ActivationSuccess() {
 
   useEffect(() => {
     const activateAccount = async () => {
-      console.log('[ACTIVATION-SUCCESS] Page loaded - Auto-activating account');
+      console.log('[ACTIVATION-SUCCESS] Page loaded - Auto-activating with state token');
       console.log('[ACTIVATION-SUCCESS] Full URL:', window.location.href);
       
       const searchParams = new URLSearchParams(window.location.search);
       const reference = searchParams.get('ref') || searchParams.get('reference');
+      const state = searchParams.get('state');
+      
+      console.log('[ACTIVATION-SUCCESS] Reference from URL:', reference);
+      console.log('[ACTIVATION-SUCCESS] State token from URL:', state);
       
       // Also check localStorage as backup
       let finalReference = reference;
-      if (!finalReference) {
+      let finalState = state;
+      
+      if (!finalReference || !finalState) {
         const storedRef = localStorage.getItem('pendingActivationRef');
+        const storedState = localStorage.getItem('pendingActivationState');
         const storedTime = localStorage.getItem('pendingActivationTime');
         
-        if (storedRef && storedTime) {
+        if (storedTime) {
           const timeDiff = Date.now() - parseInt(storedTime);
-          if (timeDiff < 30 * 60 * 1000) {
-            finalReference = storedRef;
-            console.log('[ACTIVATION-SUCCESS] Using reference from localStorage:', finalReference);
+          if (timeDiff < 30 * 60 * 1000) { // 30 minutes
+            if (!finalReference && storedRef) {
+              finalReference = storedRef;
+              console.log('[ACTIVATION-SUCCESS] Using reference from localStorage:', finalReference);
+            }
+            if (!finalState && storedState) {
+              finalState = storedState;
+              console.log('[ACTIVATION-SUCCESS] Using state from localStorage:', finalState);
+            }
           }
         }
       }
       
-      console.log('[ACTIVATION-SUCCESS] Reference:', finalReference || 'none (will use latest pending)');
+      console.log('[ACTIVATION-SUCCESS] Final reference:', finalReference || 'none');
+      console.log('[ACTIVATION-SUCCESS] Final state:', finalState || 'none');
       
       try {
-        // Call API for auto-activation
-        console.log('[ACTIVATION-SUCCESS] Calling verify-payment API for auto-activation...');
+        // Call API for auto-activation with state token
+        console.log('[ACTIVATION-SUCCESS] Calling verify-payment API...');
         const response = await fetch('/api/activation/verify-payment', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ reference: finalReference || null }),
+          body: JSON.stringify({ 
+            reference: finalReference || null,
+            state: finalState || null
+          }),
         });
         
         const data = await response.json();
@@ -49,6 +66,7 @@ export default function ActivationSuccess() {
         
         // Clear localStorage
         localStorage.removeItem('pendingActivationRef');
+        localStorage.removeItem('pendingActivationState');
         localStorage.removeItem('pendingActivationTime');
         
         if (data.activated) {
