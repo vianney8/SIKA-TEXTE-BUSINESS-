@@ -1583,14 +1583,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Verify payment and activate account - SECURED BKAPay callback method
-  // Security: Only the user who initiated the payment can activate their account
+  // SECURITY: Only activates if gateway status indicates SUCCESS
   app.post('/api/activation/verify-payment', async (req: any, res) => {
     try {
       const sessionUserId = req.session?.userId;
-      const { reference } = req.body;
+      const { reference, gatewayStatus, transactionId } = req.body;
       
       console.log('[ACTIVATION] ===== VERIFY PAYMENT START =====');
       console.log('[ACTIVATION] Reference provided:', reference);
+      console.log('[ACTIVATION] Gateway Status:', gatewayStatus);
+      console.log('[ACTIVATION] Transaction ID:', transactionId);
       console.log('[ACTIVATION] Session user ID:', sessionUserId);
       
       // SECURITY: User must be logged in
@@ -1598,6 +1600,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('[ACTIVATION] ERROR: No session - user must be logged in');
         return res.status(401).json({ message: 'Vous devez être connecté', activated: false });
       }
+      
+      // CRITICAL SECURITY: Verify gateway status indicates SUCCESS
+      const successStatuses = ['success', 'successful', 'completed', 'paid', 'approved'];
+      const isValidSuccess = gatewayStatus && successStatuses.some(s => 
+        gatewayStatus.toLowerCase() === s.toLowerCase()
+      );
+      
+      if (!isValidSuccess) {
+        console.log('[ACTIVATION] SECURITY: Gateway status is NOT SUCCESS:', gatewayStatus);
+        console.log('[ACTIVATION] Rejecting auto-activation - requires admin verification');
+        return res.status(400).json({ 
+          message: 'Le statut du paiement n\'indique pas un succès. Votre paiement sera vérifié manuellement.',
+          activated: false,
+          awaiting_verification: true
+        });
+      }
+      
+      console.log('[ACTIVATION] ✓ Gateway status validated as SUCCESS');
       
       let payment;
       
@@ -1612,7 +1632,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (payment && payment.userId !== sessionUserId) {
           console.log('[ACTIVATION] SECURITY: Reference belongs to different user!');
           console.log('[ACTIVATION] Payment user:', payment.userId, 'Session user:', sessionUserId);
-          // Don't reveal this is a security check - find user's own payment instead
           payment = null;
         }
       }
@@ -1644,7 +1663,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log('[ACTIVATION] Account already active');
           return res.json({ message: 'Compte déjà activé', activated: true, isActive: true });
         }
-        // Payment completed but account not active - fix it
         console.log('[ACTIVATION] Payment completed but account not active - activating now...');
         await storage.activateAccount(payment.userId);
         return res.json({ message: 'Compte activé avec succès', activated: true, isActive: true });
@@ -1657,13 +1675,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (paymentAge > MAX_PAYMENT_AGE) {
         console.log('[ACTIVATION] Payment too old:', Math.round(paymentAge / 60000), 'minutes');
-        // Mark as awaiting verification for admin review
         await db.update(bkapayPayments)
           .set({ status: 'awaiting_verification' })
           .where(eq(bkapayPayments.id, payment.id));
         
         return res.json({ 
-          message: 'Votre paiement est en cours de vérification. Contactez le support si vous avez payé.',
+          message: 'Votre paiement est en cours de vérification. Contactez le support.',
           activated: false,
           awaiting_verification: true
         });
@@ -1671,12 +1688,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // SECURED ACTIVATION:
       // 1. User is logged in (verified)
-      // 2. Payment belongs to the logged-in user (verified)
-      // 3. Payment was initiated recently (verified)
-      // 4. User is returning from BKAPay redirect (trusted - standard payment gateway behavior)
+      // 2. Gateway status is SUCCESS (verified)
+      // 3. Payment belongs to the logged-in user (verified)
+      // 4. Payment was initiated recently (verified)
       
       console.log('[ACTIVATION] ✓ All security checks passed - Activating account');
-      console.log('[ACTIVATION] Activating account for user:', payment.userId);
+      console.log('[ACTIVATION] Gateway confirmed SUCCESS for user:', payment.userId);
 
       // Mark payment as completed
       await db.update(bkapayPayments)
@@ -1694,6 +1711,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log('[ACTIVATION] ===== ACCOUNT ACTIVATED SUCCESSFULLY =====');
       console.log('[ACTIVATION] User:', payment.userId, 'isActive:', updatedStatus?.isActive);
+      console.log('[ACTIVATION] Gateway Status:', gatewayStatus, 'Transaction ID:', transactionId);
       
       return res.json({
         message: 'Votre paiement a été confirmé et votre compte est activé!',
@@ -1706,6 +1724,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: 'Erreur lors de la vérification du paiement',
         activated: false
       });
+    }
+  });
+
+  // Mark payment as pending verification (for failed/unknown status payments)
+  app.post('/api/activation/mark-pending-verification', async (req: any, res) => {
+    try {
+      const { reference, gatewayStatus, transactionId } = req.body;
+      const sessionUserId = req.session?.userId;
+      
+      console.log('[ACTIVATION] Marking payment as pending verification');
+      console.log('[ACTIVATION] Gateway Status received:', gatewayStatus);
+      console.log('[ACTIVATION] User:', sessionUserId);
+      
+      if (!sessionUserId) {
+        return res.status(401).json({ message: 'Non connecté' });
+      }
+      
+      // Find user's latest pending payment
+      const userPayments = await db.select().from(bkapayPayments)
+        .where(and(
+          eq(bkapayPayments.userId, sessionUserId),
+          eq(bkapayPayments.status, 'pending')
+        ))
+        .orderBy(bkapayPayments.createdAt)
+        .limit(1);
+      
+      const payment = userPayments[0];
+      
+      if (payment) {
+        // Mark as awaiting verification - DO NOT activate
+        await db.update(bkapayPayments)
+          .set({ status: 'awaiting_verification' })
+          .where(eq(bkapayPayments.id, payment.id));
+        
+        console.log('[ACTIVATION] Payment marked as awaiting_verification:', payment.id);
+        console.log('[ACTIVATION] Gateway status was:', gatewayStatus || 'unknown');
+      }
+      
+      res.json({ message: 'Paiement en cours de vérification par notre équipe' });
+    } catch (error) {
+      console.error('[ACTIVATION] Error marking pending:', error);
+      res.status(500).json({ message: 'Erreur' });
     }
   });
 
