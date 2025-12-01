@@ -1589,43 +1589,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Verify payment and activate account - Auto-activation after BKAPay redirect
-  // SECURITY: Requires valid state token + BKAPay API verification with private key
+  // SECURITY: Requires valid state token + status=success from BKAPay
   app.post('/api/activation/verify-payment', async (req: any, res) => {
     try {
       const sessionUserId = req.session?.userId;
-      const { reference, state, fullCallbackUrl, allParams } = req.body;
+      const { state, allParams } = req.body;
       
-      console.log('[ACTIVATION] ===== SECURE BKAPAY VERIFICATION =====');
-      console.log('[ACTIVATION] Full Callback URL:', fullCallbackUrl);
-      console.log('[ACTIVATION] All Params:', JSON.stringify(allParams));
-      console.log('[ACTIVATION] Reference:', reference);
+      console.log('[ACTIVATION] ===== BKAPAY VERIFICATION =====');
       console.log('[ACTIVATION] State:', state);
-      console.log('[ACTIVATION] Session user ID:', sessionUserId);
+      console.log('[ACTIVATION] Params:', JSON.stringify(allParams));
       
-      // SECURITY CHECK 1: User must be logged in
+      // User must be logged in
       if (!sessionUserId) {
-        console.log('[ACTIVATION] REJECTED: No session');
         return res.status(401).json({ message: 'Vous devez être connecté', activated: false });
       }
       
-      // Check if already active
+      // Already active?
       const existingStatus = await storage.getAccountStatus(sessionUserId);
       if (existingStatus?.isActive) {
-        console.log('[ACTIVATION] Account already active');
         return res.json({ message: 'Compte déjà activé', activated: true, isActive: true });
       }
       
-      // SECURITY CHECK 2: State token MUST be provided and valid
+      // State token required (security - prevents URL replay attacks)
       if (!state) {
-        console.log('[ACTIVATION] REJECTED: No state token provided');
-        return res.json({ 
-          message: 'Erreur de sécurité. Veuillez réessayer le paiement.',
-          activated: false
-        });
+        return res.json({ message: 'Token de sécurité manquant. Réessayez le paiement.', activated: false });
       }
       
-      // Find payment by state token (REQUIRED for security)
-      console.log('[ACTIVATION] Finding payment by state token...');
+      // Find payment by state token
       const paymentRecords = await db.select().from(bkapayPayments)
         .where(and(
           eq(bkapayPayments.callbackState, state),
@@ -1635,133 +1625,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const payment = paymentRecords[0];
       
       if (!payment) {
-        console.log('[ACTIVATION] REJECTED: No payment found for state token');
-        
-        // Check if user has any pending payment
-        const userPayments = await db.select().from(bkapayPayments)
-          .where(and(
-            eq(bkapayPayments.userId, sessionUserId),
-            eq(bkapayPayments.status, 'pending')
-          ))
-          .limit(1);
-        
-        if (userPayments[0]) {
-          return res.json({ 
-            message: 'Le token de sécurité ne correspond pas. Veuillez réessayer.',
-            activated: false
-          });
-        }
-        
-        return res.status(404).json({ message: 'Aucun paiement en attente trouvé', activated: false });
+        return res.json({ message: 'Paiement non trouvé. Réessayez.', activated: false });
       }
       
-      console.log('[ACTIVATION] ✓ Found payment by state token:', payment.id);
-
-      // SECURITY CHECK 3: Payment must be recent (within 30 minutes)
-      const paymentDate = payment.createdAt ? new Date(payment.createdAt) : new Date();
-      const paymentAge = Date.now() - paymentDate.getTime();
-      const MAX_PAYMENT_AGE = 30 * 60 * 1000;
-      
-      if (paymentAge > MAX_PAYMENT_AGE) {
-        console.log('[ACTIVATION] REJECTED: Payment too old:', Math.round(paymentAge / 60000), 'minutes');
-        await db.update(bkapayPayments)
-          .set({ status: 'awaiting_verification', callbackState: null })
-          .where(eq(bkapayPayments.id, payment.id));
-        
-        return res.json({ 
-          message: 'Session expirée. Veuillez contacter le support.',
-          activated: false,
-          awaiting_verification: true
-        });
-      }
-      
-      // SECURITY CHECK 4: Verify BKAPay callback parameters
-      // Per BKAPay documentation: callback returns status=success&transactionId=xxx&amount=5000
-      const transactionId = allParams?.transactionId;
+      // Check BKAPay callback status
       const callbackStatus = allParams?.status?.toLowerCase();
-      const callbackAmount = allParams?.amount;
       
-      console.log('[ACTIVATION] BKAPay callback params:');
-      console.log('[ACTIVATION] - status:', callbackStatus);
-      console.log('[ACTIVATION] - transactionId:', transactionId);
-      console.log('[ACTIVATION] - amount:', callbackAmount);
-      
-      // Check if callback indicates failure
-      if (callbackStatus === 'failed' || callbackStatus === 'failure' || callbackStatus === 'cancelled') {
-        console.log('[ACTIVATION] REJECTED: BKAPay callback status is failed');
+      if (callbackStatus === 'failed') {
         await db.update(bkapayPayments)
           .set({ status: 'failed', callbackState: null })
           .where(eq(bkapayPayments.id, payment.id));
-        
-        return res.json({ 
-          message: 'Le paiement a échoué. Veuillez réessayer.',
-          activated: false
-        });
+        return res.json({ message: 'Le paiement a échoué. Réessayez.', activated: false });
       }
       
-      // ACTIVATE if callback shows success AND has transactionId
-      // Per BKAPay v1.2: status=success means payment completed successfully
-      const isSuccess = callbackStatus === 'success';
-      const hasTransactionId = !!transactionId;
-      
-      if (!isSuccess) {
-        console.log('[ACTIVATION] Callback status is not success:', callbackStatus);
-        await db.update(bkapayPayments)
-          .set({ status: 'awaiting_verification' })
-          .where(eq(bkapayPayments.id, payment.id));
-        
-        return res.json({ 
-          message: 'Statut de paiement non confirmé. Veuillez contacter le support.',
-          activated: false,
-          awaiting_verification: true
-        });
+      if (callbackStatus !== 'success') {
+        return res.json({ message: 'Statut de paiement non confirmé.', activated: false });
       }
       
-      if (!hasTransactionId) {
-        console.log('[ACTIVATION] Missing transactionId from BKAPay');
-        await db.update(bkapayPayments)
-          .set({ status: 'awaiting_verification' })
-          .where(eq(bkapayPayments.id, payment.id));
-        
-        return res.json({ 
-          message: 'Transaction ID manquant. Veuillez contacter le support.',
-          activated: false,
-          awaiting_verification: true
-        });
-      }
+      // SUCCESS - Activate account
+      console.log('[ACTIVATION] ✓ status=success - Activating account');
       
-      console.log('[ACTIVATION] ✓ BKAPay callback verified: status=success, transactionId=' + transactionId);
-
-      console.log('[ACTIVATION] ✓ ALL SECURITY CHECKS PASSED - Activating account');
-
-      // Mark payment as completed and clear state token
       await db.update(bkapayPayments)
-        .set({
-          status: 'completed',
-          completedAt: new Date(),
-          callbackState: null,
-        })
+        .set({ status: 'completed', completedAt: new Date(), callbackState: null })
         .where(eq(bkapayPayments.id, payment.id));
 
-      // Activate the account
       await storage.activateAccount(payment.userId);
-
-      const updatedStatus = await storage.getAccountStatus(payment.userId);
       
-      console.log('[ACTIVATION] ===== ACCOUNT ACTIVATED SUCCESSFULLY =====');
-      console.log('[ACTIVATION] User:', payment.userId);
+      console.log('[ACTIVATION] ✓ Account activated for user:', payment.userId);
       
       return res.json({
-        message: 'Votre paiement a été confirmé et votre compte est activé!',
+        message: 'Votre compte est activé!',
         activated: true,
-        isActive: updatedStatus?.isActive
+        isActive: true
       });
     } catch (error) {
-      console.error('[ACTIVATION] ===== ERROR =====', error);
-      res.status(500).json({
-        message: 'Erreur lors de la vérification du paiement',
-        activated: false
-      });
+      console.error('[ACTIVATION] Error:', error);
+      res.status(500).json({ message: 'Erreur. Réessayez.', activated: false });
     }
   });
 
