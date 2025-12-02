@@ -48,8 +48,10 @@ export default function AdminSettings() {
         title: "Paramètres sauvegardés",
         description: "Les liens ont été mis à jour avec succès"
       });
+      // Invalider toutes les requêtes de paramètres
       queryClient.invalidateQueries({ queryKey: ['/api/admin/settings'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
+      // Invalider spécifiquement chaque paramètre
       Object.keys(settings).forEach(key => {
         queryClient.invalidateQueries({ queryKey: [`/api/settings/${key}`] });
       });
@@ -73,6 +75,7 @@ export default function AdminSettings() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Header */}
       <div className="gradient-bg text-primary-foreground">
         <div className="px-6 py-4 flex items-center">
           <Button asChild variant="ghost" size="sm" className="text-primary-foreground hover:bg-white/10">
@@ -80,7 +83,7 @@ export default function AdminSettings() {
               <ArrowLeft className="w-5 h-5" />
             </Link>
           </Button>
-          <h1 className="ml-4 text-lg font-semibold" data-testid="page-title">Paramètres</h1>
+          <h1 className="ml-4 text-lg font-semibold" data-testid="page-title">Paramètres des Liens</h1>
         </div>
       </div>
 

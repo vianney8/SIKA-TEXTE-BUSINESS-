@@ -185,7 +185,6 @@ export const bkapayPayments = pgTable("bkapay_payments", {
   userId: varchar("user_id").notNull().references(() => users.id),
   amount: decimal("amount", { precision: 15, scale: 2 }).notNull().default('3600'),
   reference: varchar("reference").unique(),
-  callbackState: varchar("callback_state"), // Security token for auto-activation
   status: varchar("status").notNull().default('pending'), // 'pending', 'completed', 'failed'
   redirectUrl: text("redirect_url"),
   createdAt: timestamp("created_at").defaultNow(),

@@ -1,69 +1,75 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
-import { CheckCircle, Loader2, XCircle } from "lucide-react";
+import { CheckCircle, Loader2, XCircle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function ActivationSuccess() {
   const [, setLocation] = useLocation();
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
-  const [message, setMessage] = useState('Vérification de votre paiement en cours...');
+  const [status, setStatus] = useState<'loading' | 'success' | 'pending' | 'error'>('loading');
+  const [message, setMessage] = useState('Vérification du paiement en cours...');
 
   useEffect(() => {
     const activateAccount = async () => {
+      console.log('[ACTIVATION-SUCCESS] Page loaded');
+      console.log('[ACTIVATION-SUCCESS] Full URL:', window.location.href);
+      
+      // Get reference from URL or localStorage (optional - backend will find latest pending payment)
       const searchParams = new URLSearchParams(window.location.search);
+      let reference = searchParams.get('ref') || searchParams.get('reference');
       
-      // Get all URL parameters
-      const allParams: Record<string, string> = {};
-      searchParams.forEach((value, key) => {
-        allParams[key] = value;
-      });
-      
-      // Get state token
-      const state = searchParams.get('state');
-      const finalState = state || localStorage.getItem('pendingActivationState');
-      
-      // Check if payment failed
-      const statusParam = searchParams.get('status')?.toLowerCase();
-      if (statusParam === 'failed') {
-        setStatus('error');
-        setMessage('Le paiement a échoué. Veuillez réessayer.');
-        return;
+      // Also check localStorage as backup
+      if (!reference) {
+        const storedRef = localStorage.getItem('pendingActivationRef');
+        const storedTime = localStorage.getItem('pendingActivationTime');
+        
+        if (storedRef && storedTime) {
+          const timeDiff = Date.now() - parseInt(storedTime);
+          if (timeDiff < 30 * 60 * 1000) {
+            reference = storedRef;
+            console.log('[ACTIVATION-SUCCESS] Using reference from localStorage:', reference);
+          }
+        }
       }
       
+      console.log('[ACTIVATION-SUCCESS] Reference:', reference || 'none (will use latest pending)');
+      
       try {
+        // Call API - it will find latest pending payment if no reference provided
         console.log('[ACTIVATION-SUCCESS] Calling verify-payment API...');
         const response = await fetch('/api/activation/verify-payment', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ 
-            state: finalState,
-            allParams: allParams
-          }),
+          body: JSON.stringify({ reference: reference || null }),
         });
         
         const data = await response.json();
         console.log('[ACTIVATION-SUCCESS] API Response:', data);
         
         // Clear localStorage
-        localStorage.removeItem('pendingActivationState');
+        localStorage.removeItem('pendingActivationRef');
+        localStorage.removeItem('pendingActivationTime');
         
         if (data.activated) {
           setStatus('success');
           setMessage('Votre compte a été activé avec succès ! Vous pouvez maintenant effectuer des retraits.');
           
+          // Redirect to withdrawal page after 3 seconds
           setTimeout(() => {
             setLocation('/withdrawal');
           }, 3000);
+        } else if (data.awaiting_verification) {
+          setStatus('pending');
+          setMessage(data.message || 'Votre paiement est en cours de vérification par notre équipe.');
         } else {
           setStatus('error');
-          setMessage(data.message || 'Erreur lors de l\'activation. Veuillez contacter le support.');
+          setMessage(data.message || 'Erreur lors de l\'activation. Contactez le support si vous avez payé.');
         }
       } catch (error) {
         console.error('[ACTIVATION-SUCCESS] Error:', error);
         setStatus('error');
-        setMessage('Erreur de connexion. Veuillez réessayer.');
+        setMessage('Erreur de connexion. Veuillez réessayer ou contacter le support.');
       }
     };
     
@@ -77,7 +83,7 @@ export default function ActivationSuccess() {
           {status === 'loading' && (
             <>
               <Loader2 className="w-16 h-16 mx-auto text-blue-500 animate-spin mb-4" />
-              <h2 className="text-xl font-semibold mb-2">Vérification en cours</h2>
+              <h2 className="text-xl font-semibold mb-2">Traitement en cours</h2>
               <p className="text-gray-600 dark:text-gray-400">{message}</p>
             </>
           )}
@@ -91,9 +97,27 @@ export default function ActivationSuccess() {
               <Button 
                 onClick={() => setLocation('/withdrawal')}
                 className="mt-4 bg-green-600 hover:bg-green-700"
-                data-testid="button-go-withdrawal"
               >
                 Accéder aux retraits
+              </Button>
+            </>
+          )}
+
+          {status === 'pending' && (
+            <>
+              <Clock className="w-16 h-16 mx-auto text-orange-500 mb-4" />
+              <h2 className="text-xl font-semibold text-orange-600 mb-2">Paiement en vérification</h2>
+              <p className="text-gray-600 dark:text-gray-400 mb-4">{message}</p>
+              <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4 mb-4">
+                <p className="text-sm text-orange-800 dark:text-orange-200">
+                  Notre équipe vérifie votre paiement. Votre compte sera activé sous peu si le paiement est confirmé.
+                </p>
+              </div>
+              <Button 
+                onClick={() => setLocation('/')}
+                className="w-full bg-orange-500 hover:bg-orange-600"
+              >
+                Retour à l'accueil
               </Button>
             </>
           )}
@@ -108,14 +132,12 @@ export default function ActivationSuccess() {
                   onClick={() => setLocation('/withdrawal')}
                   variant="outline"
                   className="w-full"
-                  data-testid="button-back-withdrawal"
                 >
                   Retour aux retraits
                 </Button>
                 <Button 
                   onClick={() => window.location.reload()}
                   className="w-full"
-                  data-testid="button-retry"
                 >
                   Réessayer
                 </Button>

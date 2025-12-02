@@ -28,15 +28,6 @@ export default function Activation() {
       return response.json();
     },
     onSuccess: (data: any) => {
-      // Store reference and state token for verification after return from BKAPay
-      if (data.reference) {
-        localStorage.setItem('pendingActivationRef', data.reference);
-        localStorage.setItem('pendingActivationTime', Date.now().toString());
-      }
-      if (data.callbackState) {
-        localStorage.setItem('pendingActivationState', data.callbackState);
-      }
-      
       toast({
         title: "Redirection vers le paiement",
         description: "Vous allez être redirigé vers BKAPay",
