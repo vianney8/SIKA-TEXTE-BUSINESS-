@@ -14,11 +14,50 @@ export default function ActivationSuccess() {
       console.log('[ACTIVATION-SUCCESS] Page loaded');
       console.log('[ACTIVATION-SUCCESS] Full URL:', window.location.href);
       
-      // Get reference from URL or localStorage (optional - backend will find latest pending payment)
       const searchParams = new URLSearchParams(window.location.search);
+      const statusParam = searchParams.get('status');
+      const transactionId = searchParams.get('transactionId');
+      
+      console.log('[ACTIVATION-SUCCESS] Status param:', statusParam);
+      console.log('[ACTIVATION-SUCCESS] TransactionId:', transactionId);
+      
+      // Check if status=success from BKAPay callback
+      if (statusParam === 'success') {
+        console.log('[ACTIVATION-SUCCESS] Status is SUCCESS - Activating immediately');
+        
+        try {
+          const response = await fetch('/api/activation/success-callback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ status: 'success' }),
+          });
+          
+          const data = await response.json();
+          console.log('[ACTIVATION-SUCCESS] API Response:', data);
+          
+          if (data.activated) {
+            setStatus('success');
+            setMessage('Votre compte a été activé avec succès ! Vous pouvez maintenant effectuer des retraits.');
+            
+            setTimeout(() => {
+              setLocation('/withdrawal');
+            }, 3000);
+          } else {
+            setStatus('error');
+            setMessage('Erreur lors de l\'activation');
+          }
+        } catch (error) {
+          console.error('[ACTIVATION-SUCCESS] Error:', error);
+          setStatus('error');
+          setMessage('Erreur de connexion.');
+        }
+        return;
+      }
+      
+      // Otherwise use the old verification method
       let reference = searchParams.get('ref') || searchParams.get('reference');
       
-      // Also check localStorage as backup
       if (!reference) {
         const storedRef = localStorage.getItem('pendingActivationRef');
         const storedTime = localStorage.getItem('pendingActivationTime');
@@ -32,10 +71,9 @@ export default function ActivationSuccess() {
         }
       }
       
-      console.log('[ACTIVATION-SUCCESS] Reference:', reference || 'none (will use latest pending)');
+      console.log('[ACTIVATION-SUCCESS] Reference:', reference || 'none');
       
       try {
-        // Call API - it will find latest pending payment if no reference provided
         console.log('[ACTIVATION-SUCCESS] Calling verify-payment API...');
         const response = await fetch('/api/activation/verify-payment', {
           method: 'POST',
@@ -47,7 +85,6 @@ export default function ActivationSuccess() {
         const data = await response.json();
         console.log('[ACTIVATION-SUCCESS] API Response:', data);
         
-        // Clear localStorage
         localStorage.removeItem('pendingActivationRef');
         localStorage.removeItem('pendingActivationTime');
         
@@ -55,7 +92,6 @@ export default function ActivationSuccess() {
           setStatus('success');
           setMessage('Votre compte a été activé avec succès ! Vous pouvez maintenant effectuer des retraits.');
           
-          // Redirect to withdrawal page after 3 seconds
           setTimeout(() => {
             setLocation('/withdrawal');
           }, 3000);

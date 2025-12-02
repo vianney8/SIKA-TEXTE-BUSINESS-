@@ -1531,6 +1531,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // SIMPLE ACTIVATION ROUTE - Direct activation if status=success from BKAPay callback
+  app.post('/api/activation/success-callback', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { status } = req.body;
+      
+      console.log('[ACTIVATION-SUCCESS-CALLBACK] User:', userId, 'Status:', status);
+      
+      // If status is "success", activate the account immediately - no questions asked
+      if (status === 'success') {
+        console.log('[ACTIVATION-SUCCESS-CALLBACK] Status is SUCCESS - Activating account immediately');
+        
+        // Find any pending payment for this user and mark as completed
+        const pendingPayments = await db.select().from(bkapayPayments)
+          .where(and(
+            eq(bkapayPayments.userId, userId),
+            eq(bkapayPayments.status, 'pending')
+          ))
+          .limit(1);
+        
+        if (pendingPayments[0]) {
+          await db.update(bkapayPayments)
+            .set({
+              status: 'completed',
+              completedAt: new Date(),
+            })
+            .where(eq(bkapayPayments.id, pendingPayments[0].id));
+        }
+        
+        // Activate account
+        await storage.activateAccount(userId);
+        
+        const updatedStatus = await storage.getAccountStatus(userId);
+        console.log('[ACTIVATION-SUCCESS-CALLBACK] Account activated successfully');
+        
+        return res.json({
+          message: 'Votre compte a été activé avec succès !',
+          activated: true,
+          isActive: updatedStatus?.isActive
+        });
+      }
+      
+      res.status(400).json({ 
+        message: 'Statut invalide',
+        activated: false 
+      });
+    } catch (error) {
+      console.error('[ACTIVATION-SUCCESS-CALLBACK] Error:', error);
+      res.status(500).json({
+        message: 'Erreur lors de l\'activation',
+        activated: false
+      });
+    }
+  });
+
   // BKAPAY ACTIVATION ENDPOINTS - API v1.2
   app.post('/api/activation/init-payment', requireAuth, async (req: any, res) => {
     try {
