@@ -46,15 +46,17 @@ export default function AdminSettings() {
     onSuccess: () => {
       toast({
         title: "Paramètres sauvegardés",
-        description: "Les liens ont été mis à jour avec succès"
+        description: "Les paramètres ont été mis à jour avec succès"
       });
-      // Invalider toutes les requêtes de paramètres
+      // Invalider immédiatement tous les caches de paramètres
       queryClient.invalidateQueries({ queryKey: ['/api/admin/settings'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
-      // Invalider spécifiquement chaque paramètre
-      Object.keys(settings).forEach(key => {
-        queryClient.invalidateQueries({ queryKey: [`/api/settings/${key}`] });
-      });
+      // Invalider chaque paramètre spécifiquement
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/activation_amount'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/activation_link'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/whatsapp_group'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/instagram_supervisor'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/telegram_supervisor'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/telegram_group'] });
     },
     onError: (error: any) => {
       toast({

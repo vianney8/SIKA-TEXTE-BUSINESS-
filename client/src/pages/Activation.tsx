@@ -16,8 +16,9 @@ export default function Activation() {
     queryKey: ["/api/activation/status"],
   }) as any;
 
-  const { data: activationAmount } = useQuery({
+  const { data: activationAmount, refetch: refetchActivationAmount } = useQuery({
     queryKey: ["/api/settings/activation_amount"],
+    refetchInterval: 5000, // Refetch every 5 seconds to get latest amount
   }) as any;
 
   const initPaymentMutation = useMutation({
