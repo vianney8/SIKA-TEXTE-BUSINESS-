@@ -1590,7 +1590,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/activation/init-payment', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session.userId;
-      const amount = 3600;
+      
+      // Get configurable activation amount from settings
+      const settings = await storage.getAppSettings();
+      const activationAmountSetting = settings.find(s => s.key === 'activation_amount');
+      const amount = activationAmountSetting ? parseInt(activationAmountSetting.value) : 3600;
+      
       const reference = `ACT-${userId.substring(0, 8)}-${Date.now()}`;
       const publicKey = 'pk_live_5eff0747-2b39-41ca-b286-2be79c5a837a';
       
