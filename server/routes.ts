@@ -1672,17 +1672,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('[ACTIVATION] Could not verify with BKAPay API:', verifyError);
       }
 
-      // If payment verification failed, reject immediately
+      // If payment verification failed, mark as awaiting_verification instead of rejecting
       if (!paymentVerified) {
-        console.log('[ACTIVATION] ✗ PAYMENT VERIFICATION FAILED - Rejecting activation');
+        console.log('[ACTIVATION] Could not auto-verify payment - marking as awaiting_verification for admin review');
         await db.update(bkapayPayments)
-          .set({ status: 'rejected' })
+          .set({ status: 'awaiting_verification' })
           .where(eq(bkapayPayments.id, payment.id));
 
-        return res.status(402).json({ 
-          message: 'Paiement non confirmé. Veuillez vous assurer que vous avez réellement payé via Wave, Orange Money, Moov ou MTN.',
+        return res.status(200).json({ 
+          message: 'Votre paiement est en cours de vérification par notre équipe. Votre compte sera activé sous peu si le paiement est confirmé.',
           error: verifyError,
           activated: false,
+          awaiting_verification: true,
           verified: false
         });
       }
