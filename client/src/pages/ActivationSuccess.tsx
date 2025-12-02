@@ -11,71 +11,24 @@ export default function ActivationSuccess() {
 
   useEffect(() => {
     const activateAccount = async () => {
-      console.log('[ACTIVATION-SUCCESS] Page loaded');
-      console.log('[ACTIVATION-SUCCESS] Full URL:', window.location.href);
-      
-      // Get full URL and all parameters
-      const fullUrl = window.location.href;
       const searchParams = new URLSearchParams(window.location.search);
       
-      // Collect ALL URL parameters for analysis
+      // Get all URL parameters
       const allParams: Record<string, string> = {};
       searchParams.forEach((value, key) => {
         allParams[key] = value;
-        console.log(`[ACTIVATION-SUCCESS] Param: ${key} = ${value}`);
       });
       
-      // Get known parameters
-      const reference = searchParams.get('ref') || searchParams.get('reference');
+      // Get state token
       const state = searchParams.get('state');
+      const finalState = state || localStorage.getItem('pendingActivationState');
       
-      // Detect success indicators in URL (flexible detection)
-      const urlLower = fullUrl.toLowerCase();
-      const successIndicators = ['success', 'successful', 'completed', 'paid', 'approved', 'confirmed', 'ok', 'done'];
-      const failureIndicators = ['failed', 'failure', 'error', 'cancelled', 'canceled', 'rejected', 'declined'];
-      
-      let isPaymentSuccess = successIndicators.some(indicator => urlLower.includes(indicator));
-      let isPaymentFailed = failureIndicators.some(indicator => urlLower.includes(indicator));
-      
-      // Also check specific status parameter values
-      const statusParam = searchParams.get('status') || searchParams.get('Status') || searchParams.get('STATUS');
-      if (statusParam) {
-        const statusLower = statusParam.toLowerCase();
-        if (successIndicators.some(ind => statusLower.includes(ind))) {
-          isPaymentSuccess = true;
-        }
-        if (failureIndicators.some(ind => statusLower.includes(ind))) {
-          isPaymentFailed = true;
-        }
-      }
-      
-      console.log('[ACTIVATION-SUCCESS] Success detected:', isPaymentSuccess);
-      console.log('[ACTIVATION-SUCCESS] Failure detected:', isPaymentFailed);
-      
-      // If explicitly failed, show error
-      if (isPaymentFailed && !isPaymentSuccess) {
-        console.log('[ACTIVATION-SUCCESS] Payment FAILED');
+      // Check if payment failed
+      const statusParam = searchParams.get('status')?.toLowerCase();
+      if (statusParam === 'failed') {
         setStatus('error');
         setMessage('Le paiement a échoué. Veuillez réessayer.');
         return;
-      }
-      
-      // Get backup from localStorage
-      let finalReference = reference;
-      let finalState = state;
-      
-      if (!finalReference || !finalState) {
-        const storedRef = localStorage.getItem('pendingActivationRef');
-        const storedState = localStorage.getItem('pendingActivationState');
-        const storedTime = localStorage.getItem('pendingActivationTime');
-        
-        if (storedTime) {
-          const timeDiff = Date.now() - parseInt(storedTime);
-          if (timeDiff < 30 * 60 * 1000) {
-            if (!finalReference && storedRef) finalReference = storedRef;
-            if (!finalState && storedState) finalState = storedState;
-          }
-        }
       }
       
       try {
@@ -85,12 +38,8 @@ export default function ActivationSuccess() {
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({ 
-            reference: finalReference,
             state: finalState,
-            fullCallbackUrl: fullUrl,
-            allParams: allParams,
-            isPaymentSuccess: isPaymentSuccess,
-            isPaymentFailed: isPaymentFailed
+            allParams: allParams
           }),
         });
         
@@ -98,9 +47,7 @@ export default function ActivationSuccess() {
         console.log('[ACTIVATION-SUCCESS] API Response:', data);
         
         // Clear localStorage
-        localStorage.removeItem('pendingActivationRef');
         localStorage.removeItem('pendingActivationState');
-        localStorage.removeItem('pendingActivationTime');
         
         if (data.activated) {
           setStatus('success');
