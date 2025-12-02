@@ -1592,40 +1592,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // SECURITY: Requires valid state token + status=success from BKAPay
   app.post('/api/activation/verify-payment', async (req: any, res) => {
     try {
-      const sessionUserId = req.session?.userId;
       const { state, allParams } = req.body;
       
       console.log('[ACTIVATION] ===== BKAPAY VERIFICATION =====');
       console.log('[ACTIVATION] State:', state);
       console.log('[ACTIVATION] Params:', JSON.stringify(allParams));
       
-      // User must be logged in
-      if (!sessionUserId) {
-        return res.status(401).json({ message: 'Vous devez être connecté', activated: false });
-      }
-      
-      // Already active?
-      const existingStatus = await storage.getAccountStatus(sessionUserId);
-      if (existingStatus?.isActive) {
-        return res.json({ message: 'Compte déjà activé', activated: true, isActive: true });
-      }
-      
       // State token required (security - prevents URL replay attacks)
       if (!state) {
         return res.json({ message: 'Token de sécurité manquant. Réessayez le paiement.', activated: false });
       }
       
-      // Find payment by state token
+      // Find payment by state token (no session required - BKAPay comes from external redirect)
       const paymentRecords = await db.select().from(bkapayPayments)
         .where(and(
           eq(bkapayPayments.callbackState, state),
-          eq(bkapayPayments.userId, sessionUserId),
           eq(bkapayPayments.status, 'pending')
         ));
       const payment = paymentRecords[0];
       
       if (!payment) {
         return res.json({ message: 'Paiement non trouvé. Réessayez.', activated: false });
+      }
+      
+      // Check if already active
+      const existingStatus = await storage.getAccountStatus(payment.userId);
+      if (existingStatus?.isActive) {
+        return res.json({ message: 'Compte déjà activé', activated: true, isActive: true });
       }
       
       // Check BKAPay callback status
