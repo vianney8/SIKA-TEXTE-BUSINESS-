@@ -23,14 +23,15 @@ export default function ActivationSuccess() {
       
       // Check if status=success from BKAPay callback
       if (statusParam === 'success') {
-        console.log('[ACTIVATION-SUCCESS] Status is SUCCESS - Activating immediately');
+        console.log('[ACTIVATION-SUCCESS] Status is SUCCESS - Calling success-callback to verify with API');
         
         try {
+          // Call success-callback which verifies payment via BKAPay API
           const response = await fetch('/api/activation/success-callback', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ status: 'success' }),
+            body: JSON.stringify({ status: 'success', transactionId }),
           });
           
           const data = await response.json();
@@ -45,12 +46,12 @@ export default function ActivationSuccess() {
             }, 3000);
           } else {
             setStatus('error');
-            setMessage('Erreur lors de l\'activation');
+            setMessage(data.message || 'Paiement non confirmé par BKAPay. Veuillez réessayer.');
           }
         } catch (error) {
           console.error('[ACTIVATION-SUCCESS] Error:', error);
           setStatus('error');
-          setMessage('Erreur de connexion.');
+          setMessage('Erreur de connexion à BKAPay. Veuillez réessayer.');
         }
         return;
       }
