@@ -166,6 +166,23 @@ export default function AdminSettings() {
               </p>
             </div>
 
+            <div className="border-t pt-6">
+              <h3 className="text-lg font-semibold mb-4">Montant d'activation</h3>
+              <Label htmlFor="activation_amount">Montant d'activation (FCFA)</Label>
+              <Input
+                id="activation_amount"
+                type="number"
+                value={settings.activation_amount || '3600'}
+                onChange={(e) => handleInputChange('activation_amount', e.target.value)}
+                placeholder="3600"
+                data-testid="input-activation-amount"
+                min="1"
+              />
+              <p className="text-sm text-muted-foreground mt-1">
+                Montant que les utilisateurs doivent payer pour activer leur compte
+              </p>
+            </div>
+
             <Button 
               onClick={handleSave} 
               disabled={saveSettingsMutation.isPending}

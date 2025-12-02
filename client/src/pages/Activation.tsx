@@ -16,6 +16,10 @@ export default function Activation() {
     queryKey: ["/api/activation/status"],
   }) as any;
 
+  const { data: activationAmount } = useQuery({
+    queryKey: ["/api/settings/activation_amount"],
+  }) as any;
+
   const initPaymentMutation = useMutation({
     mutationFn: async () => {
       setIsProcessing(true);
@@ -101,7 +105,9 @@ export default function Activation() {
           <CardContent className="space-y-6">
             <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
               <p className="text-sm text-gray-700 mb-2 font-semibold">Montant à payer :</p>
-              <div className="text-3xl font-bold text-primary">3 600 FCFA</div>
+              <div className="text-3xl font-bold text-primary">
+                {activationAmount?.value ? parseInt(activationAmount.value).toLocaleString('fr-FR') : '3 600'} FCFA
+              </div>
               <p className="text-xs text-gray-600 mt-2">
                 Activez votre compte pour accéder à toutes les fonctionnalités
               </p>
@@ -129,7 +135,7 @@ export default function Activation() {
             >
               {initPaymentMutation.isPending || isProcessing 
                 ? "Traitement..." 
-                : "Payer 3 600 FCFA"}
+                : `Payer ${activationAmount?.value ? parseInt(activationAmount.value).toLocaleString('fr-FR') : '3 600'} FCFA`}
             </Button>
 
             <p className="text-xs text-center text-gray-500">
