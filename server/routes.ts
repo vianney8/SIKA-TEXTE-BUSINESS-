@@ -1683,50 +1683,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // PRAGMATIC APPROACH: If payment is recent (within 30 minutes) and client is returning from callback
-      // We assume the payment was successful
-      const paymentAge = Date.now() - new Date(payment.createdAt).getTime();
-      const thirtyMinutesMs = 30 * 60 * 1000;
+      console.log('[ACTIVATION] Payment status:', payment.status);
       
-      console.log('[ACTIVATION] Payment age:', paymentAge / 1000, 'seconds');
+      // This endpoint should NOT auto-activate based on time alone
+      // It requires either:
+      // 1. A verified payment from BKAPay API, OR
+      // 2. The client to send status=success via the success-callback endpoint
       
+      // Try to verify with BKAPay API
       let paymentVerified = false;
-
-      // If payment is recent, assume it's successful (client returned from BKAPay callback)
-      if (paymentAge < thirtyMinutesMs) {
-        console.log('[ACTIVATION] Payment is recent and client returned from BKAPay - assuming successful');
-        paymentVerified = true;
-      } else {
-        // Try to verify with BKAPay API for older payments
-        try {
-          const verifyUrl = `https://bkapay.com/api/verify-transaction/${payment.reference}`;
-          console.log('[ACTIVATION] Calling BKAPay verify endpoint:', verifyUrl);
-          
-          const verifyResponse = await fetch(verifyUrl, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${process.env.BKAPAY_API_KEY || ''}`
-            }
-          });
-
-          if (verifyResponse.ok) {
-            const verifyData = await verifyResponse.json();
-            console.log('[ACTIVATION] BKAPay verification response:', verifyData);
-
-            if (verifyData && (
-              verifyData.status === 'success' || 
-              verifyData.status === 'completed' ||
-              verifyData.status === 'approved' ||
-              verifyData.paid === true ||
-              verifyData.isPaid === true
-            )) {
-              paymentVerified = true;
-              console.log('[ACTIVATION] ✓ Payment VERIFIED by BKAPay!');
-            }
+      try {
+        const verifyUrl = `https://bkapay.com/api/verify-transaction/${payment.reference}`;
+        console.log('[ACTIVATION] Calling BKAPay verify endpoint:', verifyUrl);
+        
+        const verifyResponse = await fetch(verifyUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${process.env.BKAPAY_API_KEY || ''}`
           }
-        } catch (apiError: any) {
-          console.log('[ACTIVATION] Could not verify with BKAPay API:', apiError.message);
+        });
+
+        if (verifyResponse.ok) {
+          const verifyData = await verifyResponse.json();
+          console.log('[ACTIVATION] BKAPay verification response:', verifyData);
+
+          if (verifyData && (
+            verifyData.status === 'success' || 
+            verifyData.status === 'completed' ||
+            verifyData.status === 'approved' ||
+            verifyData.paid === true ||
+            verifyData.isPaid === true
+          )) {
+            paymentVerified = true;
+            console.log('[ACTIVATION] ✓ Payment VERIFIED by BKAPay!');
+          }
         }
+      } catch (apiError: any) {
+        console.log('[ACTIVATION] Could not verify with BKAPay API:', apiError.message);
       }
 
       // If payment is verified, activate account
