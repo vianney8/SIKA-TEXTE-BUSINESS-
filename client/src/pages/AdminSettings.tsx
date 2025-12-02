@@ -85,12 +85,47 @@ export default function AdminSettings() {
               <ArrowLeft className="w-5 h-5" />
             </Link>
           </Button>
-          <h1 className="ml-4 text-lg font-semibold" data-testid="page-title">Paramètres des Liens</h1>
+          <h1 className="ml-4 text-lg font-semibold" data-testid="page-title">Paramètres</h1>
         </div>
       </div>
 
-      <div className="p-6">
-        <Card className="max-w-2xl mx-auto">
+      <div className="p-6 space-y-6 max-w-2xl mx-auto">
+        {/* Activation Amount Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Montant d'activation
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <p className="text-sm text-gray-700 mb-2">Montant que les utilisateurs payent pour activer leur compte:</p>
+              <div className="text-3xl font-bold text-primary mb-4">
+                {settings.activation_amount ? parseInt(settings.activation_amount).toLocaleString('fr-FR') : '3 600'} FCFA
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="activation_amount">Modifier le montant (FCFA)</Label>
+              <input
+                id="activation_amount"
+                type="number"
+                value={settings.activation_amount || '3600'}
+                onChange={(e) => handleInputChange('activation_amount', e.target.value)}
+                placeholder="3600"
+                data-testid="input-activation-amount"
+                min="1"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary mt-1"
+              />
+              <p className="text-xs text-gray-600 mt-2">
+                Ce montant s'affichera sur la page d'activation
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Links Settings Card */}
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5" />
@@ -165,23 +200,6 @@ export default function AdminSettings() {
               />
               <p className="text-sm text-muted-foreground mt-1">
                 Lien d'invitation au groupe Telegram
-              </p>
-            </div>
-
-            <div className="border-t pt-6">
-              <h3 className="text-lg font-semibold mb-4">Montant d'activation</h3>
-              <Label htmlFor="activation_amount">Montant d'activation (FCFA)</Label>
-              <Input
-                id="activation_amount"
-                type="number"
-                value={settings.activation_amount || '3600'}
-                onChange={(e) => handleInputChange('activation_amount', e.target.value)}
-                placeholder="3600"
-                data-testid="input-activation-amount"
-                min="1"
-              />
-              <p className="text-sm text-muted-foreground mt-1">
-                Montant que les utilisateurs doivent payer pour activer leur compte
               </p>
             </div>
 

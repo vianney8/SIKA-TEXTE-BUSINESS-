@@ -15,12 +15,12 @@ import {
   adminUpdateBalanceSchema,
   adminUpdatePasswordSchema,
   adminBlockUserSchema,
-  adminCreditAccountSchema
-,
+  adminCreditAccountSchema,
   appSettingUpdateSchema,
   bankCards,
   bkapayPayments,
-  accountStatus
+  accountStatus,
+  appSettings
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import session from "express-session";
@@ -93,6 +93,22 @@ async function requireAdmin(req: any, res: any, next: any) {
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup sessions
   setupSessions(app);
+
+  // Initialize app settings if they don't exist
+  try {
+    const existingSettings = await storage.getAppSettings();
+    const hasActivationAmount = existingSettings.some(s => s.key === 'activation_amount');
+    
+    if (!hasActivationAmount) {
+      await db.insert(appSettings).values({
+        key: 'activation_amount',
+        value: '3600',
+        label: 'Montant d\'activation'
+      }).onConflictDoNothing();
+    }
+  } catch (error) {
+    console.log('Settings already initialized or error:', error);
+  }
 
   // Auth routes
   app.get('/api/auth/user', requireAuth, async (req: any, res) => {
