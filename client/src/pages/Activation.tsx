@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, CheckCircle, Lock } from "lucide-react";
 import { Link } from "wouter";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Activation() {
@@ -16,10 +16,16 @@ export default function Activation() {
     queryKey: ["/api/activation/status"],
   }) as any;
 
-  const { data: activationAmount, refetch: refetchActivationAmount } = useQuery({
+  const { data: activationAmount, refetch: refetchActivationAmount, isLoading } = useQuery({
     queryKey: ["/api/settings/activation_amount"],
-    refetchInterval: 5000, // Refetch every 5 seconds to get latest amount
+    refetchInterval: 2000, // Refetch every 2 seconds to get latest amount
+    staleTime: 0, // Never cache, always consider stale
   }) as any;
+
+  // Refetch on component mount to ensure we get the latest value
+  useEffect(() => {
+    refetchActivationAmount();
+  }, [refetchActivationAmount]);
 
   const initPaymentMutation = useMutation({
     mutationFn: async () => {
@@ -105,12 +111,12 @@ export default function Activation() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
-              <p className="text-sm text-gray-700 mb-2 font-semibold">Montant à payer :</p>
+              <p className="text-sm text-gray-700 mb-2 font-semibold">Coût d'activation :</p>
               <div className="text-3xl font-bold text-primary">
-                {activationAmount?.value ? parseInt(activationAmount.value).toLocaleString('fr-FR') : '3 600'} FCFA
+                {isLoading ? '...' : (activationAmount?.value ? parseInt(activationAmount.value).toLocaleString('fr-FR') : '3 600')} FCFA
               </div>
               <p className="text-xs text-gray-600 mt-2">
-                Activez votre compte pour accéder à toutes les fonctionnalités
+                Paiement unique
               </p>
             </div>
 
@@ -131,12 +137,13 @@ export default function Activation() {
 
             <Button
               onClick={() => initPaymentMutation.mutate()}
-              disabled={initPaymentMutation.isPending || isProcessing}
+              disabled={initPaymentMutation.isPending || isProcessing || isLoading}
               className="w-full bg-gradient-to-r from-primary to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 rounded-xl transition-all"
+              data-testid="button-pay-activation"
             >
-              {initPaymentMutation.isPending || isProcessing 
+              {isLoading ? "Chargement..." : (initPaymentMutation.isPending || isProcessing 
                 ? "Traitement..." 
-                : `Payer ${activationAmount?.value ? parseInt(activationAmount.value).toLocaleString('fr-FR') : '3 600'} FCFA`}
+                : `Payer ${activationAmount?.value ? parseInt(activationAmount.value).toLocaleString('fr-FR') : '3 600'} FCFA`)}
             </Button>
 
             <p className="text-xs text-center text-gray-500">
