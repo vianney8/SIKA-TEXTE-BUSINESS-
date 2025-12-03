@@ -82,6 +82,9 @@ export default function AdminDashboard() {
   const [notifyAllModal, setNotifyAllModal] = useState(false);
   const [notifyAllMessage, setNotifyAllMessage] = useState("");
   
+  // Pending activations modal
+  const [pendingActivationsModal, setPendingActivationsModal] = useState(false);
+  
   // Fetch identity verifications (only when modal is open)
   const { data: identityVerifications } = useQuery({
     queryKey: ['/api/admin/identity-verifications'],
@@ -95,6 +98,51 @@ export default function AdminDashboard() {
     queryKey: ['/api/admin/withdrawals/pending'],
     staleTime: 30000, // Données valides pendant 30 secondes
     refetchOnWindowFocus: false,
+  });
+
+  // Fetch pending activations (only when modal is open)
+  const { data: pendingActivations = [], refetch: refetchPendingActivations } = useQuery<any[]>({
+    queryKey: ['/api/admin/pending-activations'],
+    enabled: pendingActivationsModal,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
+  });
+
+  // Activation approval mutations
+  const approveActivationMutation = useMutation({
+    mutationFn: async (paymentId: string) => {
+      const response = await apiRequest('POST', `/api/admin/approve-activation/${paymentId}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/pending-activations'] });
+      toast({ title: "Compte activé avec succès" });
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Erreur lors de l'activation",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const rejectActivationMutation = useMutation({
+    mutationFn: async (paymentId: string) => {
+      const response = await apiRequest('POST', `/api/admin/reject-activation/${paymentId}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/pending-activations'] });
+      toast({ title: "Paiement rejeté" });
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Erreur lors du rejet",
+        variant: "destructive"
+      });
+    }
   });
 
   // Withdrawal approval mutations
@@ -785,6 +833,14 @@ export default function AdminDashboard() {
                 <Settings className="h-4 w-4 mr-2" />
                 Paramètres
               </a>
+            </Button>
+            <Button
+              onClick={() => setPendingActivationsModal(true)}
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+              data-testid="button-pending-activations"
+            >
+              <DollarSign className="w-4 h-4 mr-2" />
+              Activations
             </Button>
             <Button
               onClick={() => setIdentityModal(true)}
@@ -1600,6 +1656,64 @@ export default function AdminDashboard() {
                 Annuler
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pending Activations Modal */}
+      <Dialog open={pendingActivationsModal} onOpenChange={setPendingActivationsModal}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Activations en Attente de Vérification</DialogTitle>
+            <DialogDescription>
+              Ces utilisateurs ont tenté de payer pour activer leur compte. Vérifiez les paiements dans votre tableau de bord BKAPay avant d'approuver.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {pendingActivations.length === 0 ? (
+              <p className="text-center py-8 text-muted-foreground">
+                Aucune activation en attente
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {pendingActivations.map((payment: any) => (
+                  <div key={payment.id} className="border rounded-lg p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-yellow-50 dark:bg-yellow-900/20">
+                    <div className="flex-1">
+                      <p className="font-medium">{payment.user?.fullName || 'Utilisateur inconnu'}</p>
+                      <p className="text-sm text-muted-foreground">{payment.user?.phone}</p>
+                      <p className="text-sm text-muted-foreground">Référence: {payment.reference}</p>
+                      <p className="text-sm font-semibold text-green-600">{parseFloat(payment.amount).toFixed(0)} FCFA</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(payment.createdAt).toLocaleString('fr-FR')}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="bg-green-600 hover:bg-green-700"
+                        onClick={() => approveActivationMutation.mutate(payment.id)}
+                        disabled={approveActivationMutation.isPending}
+                        data-testid={`button-approve-activation-${payment.id}`}
+                      >
+                        <CheckCircle className="w-4 h-4 mr-1" />
+                        Approuver
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => rejectActivationMutation.mutate(payment.id)}
+                        disabled={rejectActivationMutation.isPending}
+                        data-testid={`button-reject-activation-${payment.id}`}
+                      >
+                        <XCircle className="w-4 h-4 mr-1" />
+                        Rejeter
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
