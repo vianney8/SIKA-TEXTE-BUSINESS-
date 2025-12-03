@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
-import { CheckCircle, Loader2, XCircle } from "lucide-react";
+import { CheckCircle, Loader2, XCircle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function ActivationSuccess() {
@@ -15,80 +15,41 @@ export default function ActivationSuccess() {
       console.log('[ACTIVATION-SUCCESS] Full URL:', window.location.href);
       
       const searchParams = new URLSearchParams(window.location.search);
+      
+      // Capture ALL parameters from BKAPay callback
+      const allParams: Record<string, string> = {};
+      searchParams.forEach((value, key) => {
+        allParams[key] = value;
+      });
+      console.log('[ACTIVATION-SUCCESS] All callback params:', JSON.stringify(allParams));
+      
       const statusParam = searchParams.get('status');
       const refParam = searchParams.get('ref');
-      const transactionId = searchParams.get('transactionId');
+      const transactionId = searchParams.get('transactionId') || searchParams.get('transaction_id');
+      const paymentStatus = searchParams.get('payment_status');
+      const code = searchParams.get('code');
       
-      console.log('[ACTIVATION-SUCCESS] Status param:', statusParam);
-      console.log('[ACTIVATION-SUCCESS] Ref param:', refParam);
+      console.log('[ACTIVATION-SUCCESS] Status:', statusParam);
+      console.log('[ACTIVATION-SUCCESS] Ref:', refParam);
       console.log('[ACTIVATION-SUCCESS] TransactionId:', transactionId);
+      console.log('[ACTIVATION-SUCCESS] Payment Status:', paymentStatus);
+      console.log('[ACTIVATION-SUCCESS] Code:', code);
       
-      // Check if user is coming from BKAPay (has ref parameter) OR has status=success
-      if (statusParam === 'success' || refParam) {
-        console.log('[ACTIVATION-SUCCESS] Payment received from BKAPay - Activating account immediately');
-        
-        try {
-          // Call success-callback to activate account
-          const response = await fetch('/api/activation/success-callback', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ status: 'success', transactionId, reference: refParam }),
-          });
-          
-          console.log('[ACTIVATION-SUCCESS] API Response status:', response.status);
-          const data = await response.json();
-          console.log('[ACTIVATION-SUCCESS] API Response data:', data);
-          
-          if (response.ok && data.activated) {
-            setStatus('success');
-            setMessage('Votre compte a été activé avec succès ! Vous pouvez maintenant effectuer des retraits.');
-            
-            setTimeout(() => {
-              setLocation('/withdrawal');
-            }, 3000);
-          } else {
-            console.error('[ACTIVATION-SUCCESS] Activation failed:', data);
-            setStatus('error');
-            setMessage(data.message || 'Paiement confirmé mais activation échouée. Contactez le support.');
-          }
-        } catch (error) {
-          console.error('[ACTIVATION-SUCCESS] Error:', error);
-          setStatus('error');
-          setMessage('Erreur de connexion. Veuillez contacter le support si vous avez payé.');
-        }
-        return;
-      }
-      
-      // Otherwise use the old verification method
-      let reference = searchParams.get('ref') || searchParams.get('reference');
-      
-      if (!reference) {
-        const storedRef = localStorage.getItem('pendingActivationRef');
-        const storedTime = localStorage.getItem('pendingActivationTime');
-        
-        if (storedRef && storedTime) {
-          const timeDiff = Date.now() - parseInt(storedTime);
-          if (timeDiff < 30 * 60 * 1000) {
-            reference = storedRef;
-            console.log('[ACTIVATION-SUCCESS] Using reference from localStorage:', reference);
-          }
-        }
-      }
-      
-      console.log('[ACTIVATION-SUCCESS] Reference:', reference || 'none');
-      
+      // Send ALL parameters to backend for verification
       try {
-        console.log('[ACTIVATION-SUCCESS] Calling verify-payment API...');
-        const response = await fetch('/api/activation/verify-payment', {
+        const response = await fetch('/api/activation/verify-bkapay-callback', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ reference: reference || null }),
+          body: JSON.stringify({ 
+            params: allParams,
+            fullUrl: window.location.href
+          }),
         });
         
+        console.log('[ACTIVATION-SUCCESS] API Response status:', response.status);
         const data = await response.json();
-        console.log('[ACTIVATION-SUCCESS] API Response:', data);
+        console.log('[ACTIVATION-SUCCESS] API Response data:', data);
         
         localStorage.removeItem('pendingActivationRef');
         localStorage.removeItem('pendingActivationTime');
@@ -100,14 +61,17 @@ export default function ActivationSuccess() {
           setTimeout(() => {
             setLocation('/withdrawal');
           }, 3000);
+        } else if (data.awaiting_verification) {
+          setStatus('pending');
+          setMessage(data.message || 'Votre paiement est en cours de vérification...');
         } else {
           setStatus('error');
-          setMessage(data.message || 'Erreur lors de l\'activation. Contactez le support si vous avez payé.');
+          setMessage(data.message || 'Paiement non confirmé. Si vous avez payé, contactez le support.');
         }
       } catch (error) {
         console.error('[ACTIVATION-SUCCESS] Error:', error);
         setStatus('error');
-        setMessage('Erreur de connexion. Veuillez réessayer ou contacter le support.');
+        setMessage('Erreur de connexion. Veuillez réessayer.');
       }
     };
     
@@ -138,6 +102,32 @@ export default function ActivationSuccess() {
               >
                 Accéder aux retraits
               </Button>
+            </>
+          )}
+
+          {status === 'pending' && (
+            <>
+              <Clock className="w-16 h-16 mx-auto text-orange-500 mb-4" />
+              <h2 className="text-xl font-semibold text-orange-600 mb-2">Vérification en cours</h2>
+              <p className="text-gray-600 dark:text-gray-400 mb-4">{message}</p>
+              <p className="text-sm text-gray-500 mb-4">
+                Si vous avez effectué le paiement, votre compte sera activé automatiquement.
+              </p>
+              <div className="space-y-2">
+                <Button 
+                  onClick={() => window.location.reload()}
+                  className="w-full bg-orange-600 hover:bg-orange-700"
+                >
+                  Vérifier à nouveau
+                </Button>
+                <Button 
+                  onClick={() => setLocation('/withdrawal')}
+                  variant="outline"
+                  className="w-full"
+                >
+                  Retour
+                </Button>
+              </div>
             </>
           )}
           
