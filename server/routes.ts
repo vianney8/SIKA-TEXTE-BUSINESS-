@@ -1547,78 +1547,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // SIMPLE ACTIVATION ROUTE - Direct activation if status=success from BKAPay callback
+  // CALLBACK FROM BKAPAY - DO NOT ACTIVATE AUTOMATICALLY
+  // Just mark payment as awaiting_verification - admin must validate
   app.post('/api/activation/success-callback', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session.userId;
-      const { status } = req.body;
+      const { status, reference } = req.body;
       
-      console.log('[ACTIVATION-SUCCESS-CALLBACK] ===== START =====');
-      console.log('[ACTIVATION-SUCCESS-CALLBACK] User ID:', userId);
-      console.log('[ACTIVATION-SUCCESS-CALLBACK] Status:', status);
+      console.log('[ACTIVATION-CALLBACK] ===== START =====');
+      console.log('[ACTIVATION-CALLBACK] User ID:', userId);
+      console.log('[ACTIVATION-CALLBACK] Status from redirect:', status);
+      console.log('[ACTIVATION-CALLBACK] Reference:', reference);
       
-      // If status is "success", activate the account immediately - no questions asked
-      if (status === 'success') {
-        console.log('[ACTIVATION-SUCCESS-CALLBACK] Status is SUCCESS - Activating account immediately');
+      // Find pending payment for this user
+      const pendingPayments = await db.select().from(bkapayPayments)
+        .where(and(
+          eq(bkapayPayments.userId, userId),
+          eq(bkapayPayments.status, 'pending')
+        ))
+        .orderBy(desc(bkapayPayments.createdAt))
+        .limit(1);
+      
+      if (pendingPayments.length > 0) {
+        // Mark as awaiting_verification - NOT completed
+        // Admin must verify and approve manually, or webhook must confirm
+        await db.update(bkapayPayments)
+          .set({ status: 'awaiting_verification' })
+          .where(eq(bkapayPayments.id, pendingPayments[0].id));
         
-        try {
-          // Mark any pending or awaiting_verification payments as completed
-          const pendingPayments = await db.select().from(bkapayPayments)
-            .where(and(
-              eq(bkapayPayments.userId, userId),
-              or(
-                eq(bkapayPayments.status, 'pending'),
-                eq(bkapayPayments.status, 'awaiting_verification')
-              )
-            ))
-            .limit(1);
-          
-          console.log('[ACTIVATION-SUCCESS-CALLBACK] Found pending/awaiting payments:', pendingPayments.length);
-          
-          if (pendingPayments.length > 0) {
-            await db.update(bkapayPayments)
-              .set({
-                status: 'completed',
-                completedAt: new Date(),
-              })
-              .where(eq(bkapayPayments.id, pendingPayments[0].id));
-            console.log('[ACTIVATION-SUCCESS-CALLBACK] Payment marked as completed');
-          }
-        } catch (paymentError) {
-          console.log('[ACTIVATION-SUCCESS-CALLBACK] Payment update error (not critical):', paymentError);
-        }
-        
-        try {
-          // Activate account
-          console.log('[ACTIVATION-SUCCESS-CALLBACK] Activating account for user:', userId);
-          await storage.activateAccount(userId);
-          
-          const updatedStatus = await storage.getAccountStatus(userId);
-          console.log('[ACTIVATION-SUCCESS-CALLBACK] Account activated successfully, isActive:', updatedStatus?.isActive);
-          
-          return res.json({
-            message: 'Votre compte a été activé avec succès !',
-            activated: true,
-            isActive: updatedStatus?.isActive
-          });
-        } catch (activationError) {
-          console.error('[ACTIVATION-SUCCESS-CALLBACK] Activation error:', activationError);
-          return res.status(500).json({
-            message: 'Erreur lors de l\'activation du compte',
-            activated: false
-          });
-        }
+        console.log('[ACTIVATION-CALLBACK] Payment marked as awaiting_verification (NOT activated)');
       }
       
-      console.log('[ACTIVATION-SUCCESS-CALLBACK] Invalid status:', status);
-      res.status(400).json({ 
-        message: 'Statut invalide',
-        activated: false 
+      // DO NOT ACTIVATE ACCOUNT - just inform user payment is being verified
+      console.log('[ACTIVATION-CALLBACK] Returning awaiting_verification status (no activation)');
+      return res.json({
+        message: 'Votre paiement est en cours de vérification. Votre compte sera activé automatiquement une fois le paiement confirmé.',
+        activated: false,
+        awaiting_verification: true
       });
     } catch (error) {
-      console.error('[ACTIVATION-SUCCESS-CALLBACK] ===== ERROR =====', error);
+      console.error('[ACTIVATION-CALLBACK] ===== ERROR =====', error);
       res.status(500).json({
-        message: 'Erreur serveur lors de l\'activation',
+        message: 'Erreur serveur',
         activated: false
       });
     }
@@ -1765,30 +1735,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('[ACTIVATION] Could not verify with BKAPay API:', apiError.message);
       }
 
-      // ALWAYS activate account when user comes back from BKAPay with a pending payment
-      // BKAPay only redirects to callback URL if payment is successful
-      // So if we have a pending payment and user is here, payment was successful
-      console.log('[ACTIVATION] BKAPay redirect detected - Activating account immediately (no API verification needed)');
-      console.log('[ACTIVATION] Marking payment as completed...');
-      
-      await db.update(bkapayPayments)
-        .set({
-          status: 'completed',
-          completedAt: new Date(),
-        })
-        .where(eq(bkapayPayments.id, payment.id));
+      // If BKAPay API verified the payment, activate account
+      if (paymentVerified) {
+        console.log('[ACTIVATION] BKAPay API confirmed payment - activating account');
+        
+        await db.update(bkapayPayments)
+          .set({
+            status: 'completed',
+            completedAt: new Date(),
+          })
+          .where(eq(bkapayPayments.id, payment.id));
 
-      const targetUserId = payment.userId;
-      console.log('[ACTIVATION] Activating account for user:', targetUserId);
-      await storage.activateAccount(targetUserId);
+        const targetUserId = payment.userId;
+        await storage.activateAccount(targetUserId);
+        const updatedStatus = await storage.getAccountStatus(targetUserId);
+        
+        console.log('[ACTIVATION] ===== ACCOUNT ACTIVATED VIA API =====');
+        return res.json({
+          message: 'Votre paiement a été confirmé et votre compte est activé!',
+          activated: true,
+          isActive: updatedStatus?.isActive
+        });
+      }
 
-      const updatedStatus = await storage.getAccountStatus(targetUserId);
+      // Payment NOT verified by API - mark as awaiting_verification
+      // DO NOT ACTIVATE - admin must verify manually or webhook must confirm
+      console.log('[ACTIVATION] Payment NOT verified - marking as awaiting_verification');
       
-      console.log('[ACTIVATION] ===== ACCOUNT ACTIVATED SUCCESSFULLY =====');
+      if (payment.status === 'pending') {
+        await db.update(bkapayPayments)
+          .set({ status: 'awaiting_verification' })
+          .where(eq(bkapayPayments.id, payment.id));
+      }
+      
       return res.json({
-        message: 'Votre paiement a été confirmé et votre compte est activé!',
-        activated: true,
-        isActive: updatedStatus?.isActive
+        message: 'Votre paiement est en cours de vérification. Votre compte sera activé automatiquement une fois le paiement confirmé.',
+        activated: false,
+        awaiting_verification: true
       });
     } catch (error) {
       console.error('[ACTIVATION] ===== ERROR =====', error);
