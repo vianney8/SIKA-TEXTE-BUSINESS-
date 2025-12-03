@@ -1594,6 +1594,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // BKAPAY WEBHOOK - Receives payment confirmations from BKAPay
+  // This is the ONLY way to automatically activate an account (other than admin approval)
+  app.post('/api/bkapay/webhook', async (req, res) => {
+    try {
+      console.log('[BKAPAY-WEBHOOK] ===== WEBHOOK RECEIVED =====');
+      console.log('[BKAPAY-WEBHOOK] Body:', JSON.stringify(req.body, null, 2));
+      console.log('[BKAPAY-WEBHOOK] Headers:', JSON.stringify(req.headers, null, 2));
+      
+      const { reference, status, transaction_id, amount } = req.body;
+      
+      if (!reference) {
+        console.log('[BKAPAY-WEBHOOK] No reference provided');
+        return res.status(400).json({ error: 'Reference required' });
+      }
+      
+      // Find payment by reference
+      const payments = await db.select().from(bkapayPayments)
+        .where(eq(bkapayPayments.reference, reference));
+      const payment = payments[0];
+      
+      if (!payment) {
+        console.log('[BKAPAY-WEBHOOK] Payment not found for reference:', reference);
+        return res.status(404).json({ error: 'Payment not found' });
+      }
+      
+      console.log('[BKAPAY-WEBHOOK] Found payment:', payment.id, 'Status:', status);
+      
+      // Check if payment is confirmed
+      const isConfirmed = status === 'success' || status === 'completed' || status === 'approved' || status === 'paid';
+      
+      if (isConfirmed) {
+        console.log('[BKAPAY-WEBHOOK] Payment CONFIRMED - Activating account');
+        
+        // Mark payment as completed
+        await db.update(bkapayPayments)
+          .set({
+            status: 'completed',
+            completedAt: new Date(),
+          })
+          .where(eq(bkapayPayments.id, payment.id));
+        
+        // Activate user account
+        await storage.activateAccount(payment.userId);
+        
+        console.log('[BKAPAY-WEBHOOK] ===== ACCOUNT ACTIVATED VIA WEBHOOK =====');
+        return res.json({ success: true, message: 'Account activated' });
+      } else {
+        console.log('[BKAPAY-WEBHOOK] Payment not confirmed, status:', status);
+        return res.json({ success: false, message: 'Payment not confirmed' });
+      }
+    } catch (error) {
+      console.error('[BKAPAY-WEBHOOK] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // BKAPAY ACTIVATION ENDPOINTS - API v1.2
   app.post('/api/activation/init-payment', requireAuth, async (req: any, res) => {
     try {
