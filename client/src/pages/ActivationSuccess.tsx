@@ -16,28 +16,31 @@ export default function ActivationSuccess() {
       
       const searchParams = new URLSearchParams(window.location.search);
       const statusParam = searchParams.get('status');
+      const refParam = searchParams.get('ref');
       const transactionId = searchParams.get('transactionId');
       
       console.log('[ACTIVATION-SUCCESS] Status param:', statusParam);
+      console.log('[ACTIVATION-SUCCESS] Ref param:', refParam);
       console.log('[ACTIVATION-SUCCESS] TransactionId:', transactionId);
       
-      // Check if status=success from BKAPay callback
-      if (statusParam === 'success') {
-        console.log('[ACTIVATION-SUCCESS] Status is SUCCESS - Calling success-callback to verify with API');
+      // Check if user is coming from BKAPay (has ref parameter) OR has status=success
+      if (statusParam === 'success' || refParam) {
+        console.log('[ACTIVATION-SUCCESS] Payment received from BKAPay - Activating account immediately');
         
         try {
-          // Call success-callback which verifies payment via BKAPay API
+          // Call success-callback to activate account
           const response = await fetch('/api/activation/success-callback', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ status: 'success', transactionId }),
+            body: JSON.stringify({ status: 'success', transactionId, reference: refParam }),
           });
           
+          console.log('[ACTIVATION-SUCCESS] API Response status:', response.status);
           const data = await response.json();
-          console.log('[ACTIVATION-SUCCESS] API Response:', data);
+          console.log('[ACTIVATION-SUCCESS] API Response data:', data);
           
-          if (data.activated) {
+          if (response.ok && data.activated) {
             setStatus('success');
             setMessage('Votre compte a été activé avec succès ! Vous pouvez maintenant effectuer des retraits.');
             
@@ -45,13 +48,14 @@ export default function ActivationSuccess() {
               setLocation('/withdrawal');
             }, 3000);
           } else {
+            console.error('[ACTIVATION-SUCCESS] Activation failed:', data);
             setStatus('error');
-            setMessage(data.message || 'Paiement non confirmé par BKAPay. Veuillez réessayer.');
+            setMessage(data.message || 'Paiement confirmé mais activation échouée. Contactez le support.');
           }
         } catch (error) {
           console.error('[ACTIVATION-SUCCESS] Error:', error);
           setStatus('error');
-          setMessage('Erreur de connexion à BKAPay. Veuillez réessayer.');
+          setMessage('Erreur de connexion. Veuillez contacter le support si vous avez payé.');
         }
         return;
       }

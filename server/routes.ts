@@ -1553,50 +1553,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.session.userId;
       const { status } = req.body;
       
-      console.log('[ACTIVATION-SUCCESS-CALLBACK] User:', userId, 'Status:', status);
+      console.log('[ACTIVATION-SUCCESS-CALLBACK] ===== START =====');
+      console.log('[ACTIVATION-SUCCESS-CALLBACK] User ID:', userId);
+      console.log('[ACTIVATION-SUCCESS-CALLBACK] Status:', status);
       
       // If status is "success", activate the account immediately - no questions asked
       if (status === 'success') {
         console.log('[ACTIVATION-SUCCESS-CALLBACK] Status is SUCCESS - Activating account immediately');
         
-        // Find any pending payment for this user and mark as completed
-        const pendingPayments = await db.select().from(bkapayPayments)
-          .where(and(
-            eq(bkapayPayments.userId, userId),
-            eq(bkapayPayments.status, 'pending')
-          ))
-          .limit(1);
-        
-        if (pendingPayments[0]) {
-          await db.update(bkapayPayments)
-            .set({
-              status: 'completed',
-              completedAt: new Date(),
-            })
-            .where(eq(bkapayPayments.id, pendingPayments[0].id));
+        try {
+          // Mark any pending payments as completed
+          const pendingPayments = await db.select().from(bkapayPayments)
+            .where(and(
+              eq(bkapayPayments.userId, userId),
+              eq(bkapayPayments.status, 'pending')
+            ))
+            .limit(1);
+          
+          console.log('[ACTIVATION-SUCCESS-CALLBACK] Found pending payments:', pendingPayments.length);
+          
+          if (pendingPayments.length > 0) {
+            await db.update(bkapayPayments)
+              .set({
+                status: 'completed',
+                completedAt: new Date(),
+              })
+              .where(eq(bkapayPayments.id, pendingPayments[0].id));
+            console.log('[ACTIVATION-SUCCESS-CALLBACK] Payment marked as completed');
+          }
+        } catch (paymentError) {
+          console.log('[ACTIVATION-SUCCESS-CALLBACK] Payment update error (not critical):', paymentError);
         }
         
-        // Activate account
-        await storage.activateAccount(userId);
-        
-        const updatedStatus = await storage.getAccountStatus(userId);
-        console.log('[ACTIVATION-SUCCESS-CALLBACK] Account activated successfully');
-        
-        return res.json({
-          message: 'Votre compte a été activé avec succès !',
-          activated: true,
-          isActive: updatedStatus?.isActive
-        });
+        try {
+          // Activate account
+          console.log('[ACTIVATION-SUCCESS-CALLBACK] Activating account for user:', userId);
+          await storage.activateAccount(userId);
+          
+          const updatedStatus = await storage.getAccountStatus(userId);
+          console.log('[ACTIVATION-SUCCESS-CALLBACK] Account activated successfully, isActive:', updatedStatus?.isActive);
+          
+          return res.json({
+            message: 'Votre compte a été activé avec succès !',
+            activated: true,
+            isActive: updatedStatus?.isActive
+          });
+        } catch (activationError) {
+          console.error('[ACTIVATION-SUCCESS-CALLBACK] Activation error:', activationError);
+          return res.status(500).json({
+            message: 'Erreur lors de l\'activation du compte',
+            activated: false
+          });
+        }
       }
       
+      console.log('[ACTIVATION-SUCCESS-CALLBACK] Invalid status:', status);
       res.status(400).json({ 
         message: 'Statut invalide',
         activated: false 
       });
     } catch (error) {
-      console.error('[ACTIVATION-SUCCESS-CALLBACK] Error:', error);
+      console.error('[ACTIVATION-SUCCESS-CALLBACK] ===== ERROR =====', error);
       res.status(500).json({
-        message: 'Erreur lors de l\'activation',
+        message: 'Erreur serveur lors de l\'activation',
         activated: false
       });
     }
