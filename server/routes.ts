@@ -1646,7 +1646,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const amountMatches = callbackAmount === expectedAmount;
       
       // 3. Payment must be recent (within last 1 hour)
-      const paymentAge = Date.now() - new Date(payment.createdAt).getTime();
+      const paymentAge = payment.createdAt ? Date.now() - new Date(payment.createdAt).getTime() : Infinity;
       const isRecent = paymentAge < 60 * 60 * 1000; // 1 hour
       
       // 4. Payment must still be pending
