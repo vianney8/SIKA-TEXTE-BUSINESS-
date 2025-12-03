@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
-import { CheckCircle, Loader2, XCircle, Clock } from "lucide-react";
+import { CheckCircle, Loader2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function ActivationSuccess() {
@@ -47,14 +47,10 @@ export default function ActivationSuccess() {
             setTimeout(() => {
               setLocation('/withdrawal');
             }, 3000);
-          } else if (data.awaiting_verification) {
-            // Payment is awaiting admin verification
-            setStatus('pending');
-            setMessage(data.message || 'Votre paiement est en cours de vérification. Votre compte sera activé après confirmation par notre équipe.');
           } else {
             console.error('[ACTIVATION-SUCCESS] Activation failed:', data);
             setStatus('error');
-            setMessage(data.message || 'Erreur lors de l\'activation. Contactez le support si vous avez payé.');
+            setMessage(data.message || 'Paiement confirmé mais activation échouée. Contactez le support.');
           }
         } catch (error) {
           console.error('[ACTIVATION-SUCCESS] Error:', error);
@@ -104,9 +100,6 @@ export default function ActivationSuccess() {
           setTimeout(() => {
             setLocation('/withdrawal');
           }, 3000);
-        } else if (data.awaiting_verification) {
-          setStatus('pending');
-          setMessage(data.message || 'Votre paiement est en cours de vérification. Votre compte sera activé après confirmation par notre équipe.');
         } else {
           setStatus('error');
           setMessage(data.message || 'Erreur lors de l\'activation. Contactez le support si vous avez payé.');
