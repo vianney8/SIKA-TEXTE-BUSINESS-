@@ -1764,26 +1764,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // BKAPAY WEBHOOK v1.3 - Receives payment confirmations from BKAPay with signature verification
+  // BKAPAY WEBHOOK v1.3 - Receives payment confirmations from BKAPay with HMAC-SHA256 signature verification
   // URL configurée dans BKAPay: https://sikatexte.site/api/webhook/bkapay
+  // Documentation: https://bkapay.com/documentation/v1.3
   // This is the ONLY way to automatically activate an account (100% secure with signature)
   app.post('/api/webhook/bkapay', async (req, res) => {
     try {
+      const crypto = require('crypto');
+      
       console.log('[BKAPAY-WEBHOOK-v1.3] ===== WEBHOOK RECEIVED =====');
       console.log('[BKAPAY-WEBHOOK-v1.3] Body:', JSON.stringify(req.body, null, 2));
       console.log('[BKAPAY-WEBHOOK-v1.3] Headers:', JSON.stringify(req.headers, null, 2));
       
-      // Get signature from headers (BKAPay sends signature in header)
-      const signature = req.headers['x-bkapay-signature'] || req.headers['bkapay-signature'] || req.body.signature;
+      // BKAPay v1.3 sends signature in X-BKApay-Signature header (HMAC-SHA256)
+      const signature = req.headers['x-bkapay-signature'] as string;
+      const event = req.headers['x-bkapay-event'] as string;
+      const timestamp = req.headers['x-bkapay-timestamp'] as string;
       const signatureSecret = process.env.BKAPAY_SIGNATURE_SECRET;
       
-      console.log('[BKAPAY-WEBHOOK-v1.3] Signature from request:', signature);
+      console.log('[BKAPAY-WEBHOOK-v1.3] X-BKApay-Signature:', signature);
+      console.log('[BKAPAY-WEBHOOK-v1.3] X-BKApay-Event:', event);
+      console.log('[BKAPAY-WEBHOOK-v1.3] X-BKApay-Timestamp:', timestamp);
       console.log('[BKAPAY-WEBHOOK-v1.3] Signature secret configured:', !!signatureSecret);
       
-      // SECURITY: Verify signature if secret is configured
+      // SECURITY: Verify HMAC-SHA256 signature (as per BKAPay v1.3 documentation)
       if (signatureSecret && signature) {
-        // Create HMAC signature from request body
-        const crypto = require('crypto');
         const payload = JSON.stringify(req.body);
         const expectedSignature = crypto
           .createHmac('sha256', signatureSecret)
@@ -1793,43 +1798,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('[BKAPAY-WEBHOOK-v1.3] Expected signature:', expectedSignature);
         console.log('[BKAPAY-WEBHOOK-v1.3] Received signature:', signature);
         
-        // Compare signatures (timing-safe comparison)
-        const isValidSignature = crypto.timingSafeEqual(
-          Buffer.from(signature, 'hex'),
-          Buffer.from(expectedSignature, 'hex')
-        ).catch ? signature === expectedSignature : true;
-        
         if (signature !== expectedSignature) {
           console.log('[BKAPAY-WEBHOOK-v1.3] ✗ INVALID SIGNATURE - Rejecting webhook');
-          return res.status(401).json({ error: 'Invalid signature' });
+          return res.status(401).json({ error: 'Signature invalide' });
         }
         
-        console.log('[BKAPAY-WEBHOOK-v1.3] ✓ Signature VERIFIED');
+        console.log('[BKAPAY-WEBHOOK-v1.3] ✓ Signature VERIFIED - Request is authentic');
       } else if (signatureSecret && !signature) {
-        // If we have a secret configured but no signature was provided, log warning but continue
-        // Some BKAPay versions might not send signature yet
         console.log('[BKAPAY-WEBHOOK-v1.3] WARNING: No signature provided but secret is configured');
+        // Continue anyway for backwards compatibility
       }
       
-      const { reference, status, transaction_id, transactionId, amount } = req.body;
-      const txId = transaction_id || transactionId;
+      // BKAPay v1.3 webhook payload structure
+      const { 
+        event: bodyEvent,
+        transactionId, 
+        externalReference,
+        amount, 
+        fee,
+        netAmount,
+        currency,
+        status, 
+        customerName,
+        customerEmail, 
+        customerPhone,
+        country,
+        operator,
+        description,
+        timestamp: payloadTimestamp
+      } = req.body;
       
-      if (!reference) {
-        console.log('[BKAPAY-WEBHOOK-v1.3] No reference provided');
-        return res.status(400).json({ error: 'Reference required' });
+      const webhookEvent = event || bodyEvent;
+      
+      console.log('[BKAPAY-WEBHOOK-v1.3] Event:', webhookEvent);
+      console.log('[BKAPAY-WEBHOOK-v1.3] Transaction ID:', transactionId);
+      console.log('[BKAPAY-WEBHOOK-v1.3] External Reference:', externalReference);
+      console.log('[BKAPAY-WEBHOOK-v1.3] Amount:', amount, currency);
+      console.log('[BKAPAY-WEBHOOK-v1.3] Status:', status);
+      console.log('[BKAPAY-WEBHOOK-v1.3] Customer:', customerName, customerEmail, customerPhone);
+      console.log('[BKAPAY-WEBHOOK-v1.3] Operator:', operator, 'Country:', country);
+      console.log('[BKAPAY-WEBHOOK-v1.3] Description:', description);
+      
+      // Find payment by externalReference (if provided) or by searching in description
+      let payment = null;
+      
+      if (externalReference) {
+        const payments = await db.select().from(bkapayPayments)
+          .where(eq(bkapayPayments.reference, externalReference));
+        payment = payments[0];
       }
       
-      // Find payment by reference
-      const payments = await db.select().from(bkapayPayments)
-        .where(eq(bkapayPayments.reference, reference));
-      const payment = payments[0];
+      // If not found by externalReference, try to extract reference from description
+      if (!payment && description) {
+        // Description might contain our reference like "Activation Compte Sika Texte" or the reference itself
+        const refMatch = description.match(/ACT-[a-zA-Z0-9]+-\d+/);
+        if (refMatch) {
+          const payments = await db.select().from(bkapayPayments)
+            .where(eq(bkapayPayments.reference, refMatch[0]));
+          payment = payments[0];
+        }
+      }
+      
+      // If still not found, try to find by amount and pending status for recent payments
+      if (!payment && amount) {
+        const recentPayments = await db.select().from(bkapayPayments)
+          .where(and(
+            eq(bkapayPayments.amount, amount.toString()),
+            or(
+              eq(bkapayPayments.status, 'pending'),
+              eq(bkapayPayments.status, 'awaiting_verification')
+            )
+          ))
+          .orderBy(desc(bkapayPayments.createdAt))
+          .limit(1);
+        payment = recentPayments[0];
+      }
       
       if (!payment) {
-        console.log('[BKAPAY-WEBHOOK-v1.3] Payment not found for reference:', reference);
+        console.log('[BKAPAY-WEBHOOK-v1.3] Payment not found');
+        console.log('[BKAPAY-WEBHOOK-v1.3] Searched with externalReference:', externalReference);
+        console.log('[BKAPAY-WEBHOOK-v1.3] Searched with description:', description);
         return res.status(404).json({ error: 'Payment not found' });
       }
       
-      console.log('[BKAPAY-WEBHOOK-v1.3] Found payment:', payment.id, 'Status:', status);
+      console.log('[BKAPAY-WEBHOOK-v1.3] Found payment:', payment.id, 'User:', payment.userId);
       
       // Verify amount matches
       const expectedAmount = parseFloat(payment.amount);
@@ -1843,16 +1895,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if payment is already processed
       if (payment.status === 'completed') {
         console.log('[BKAPAY-WEBHOOK-v1.3] Payment already completed');
-        return res.json({ success: true, message: 'Already processed' });
+        return res.json({ received: true, message: 'Already processed' });
       }
       
-      // Check if payment is confirmed
-      const isConfirmed = status === 'success' || status === 'completed' || status === 'approved' || status === 'paid';
+      // Check if payment is confirmed (BKAPay v1.3: event=payment.completed, status=completed)
+      const isCompleted = webhookEvent === 'payment.completed' || status === 'completed' || status === 'success';
+      const isFailed = webhookEvent === 'payment.failed' || status === 'failed';
       
-      if (isConfirmed) {
+      if (isCompleted) {
         console.log('[BKAPAY-WEBHOOK-v1.3] ✓ Payment CONFIRMED - Activating account');
         
-        // Mark payment as completed with transaction ID
+        // Mark payment as completed with transaction details
         await db.update(bkapayPayments)
           .set({
             status: 'completed',
@@ -1865,21 +1918,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         console.log('[BKAPAY-WEBHOOK-v1.3] ===== ACCOUNT ACTIVATED VIA SECURE WEBHOOK =====');
         console.log('[BKAPAY-WEBHOOK-v1.3] User ID:', payment.userId);
-        console.log('[BKAPAY-WEBHOOK-v1.3] Transaction ID:', txId);
-        console.log('[BKAPAY-WEBHOOK-v1.3] Amount:', amount);
+        console.log('[BKAPAY-WEBHOOK-v1.3] Transaction ID:', transactionId);
+        console.log('[BKAPAY-WEBHOOK-v1.3] Amount:', amount, currency);
+        console.log('[BKAPAY-WEBHOOK-v1.3] Operator:', operator);
+        console.log('[BKAPAY-WEBHOOK-v1.3] Customer:', customerName, customerPhone);
         
-        return res.json({ success: true, message: 'Account activated' });
+        return res.json({ received: true, message: 'Account activated' });
+      } else if (isFailed) {
+        console.log('[BKAPAY-WEBHOOK-v1.3] ✗ Payment FAILED');
+        
+        await db.update(bkapayPayments)
+          .set({ status: 'failed' })
+          .where(eq(bkapayPayments.id, payment.id));
+        
+        return res.json({ received: true, message: 'Payment failed recorded' });
       } else {
-        console.log('[BKAPAY-WEBHOOK-v1.3] Payment not confirmed, status:', status);
-        
-        // Update payment status to failed if explicitly failed
-        if (status === 'failed' || status === 'cancelled' || status === 'rejected') {
-          await db.update(bkapayPayments)
-            .set({ status: 'failed' })
-            .where(eq(bkapayPayments.id, payment.id));
-        }
-        
-        return res.json({ success: false, message: 'Payment not confirmed' });
+        console.log('[BKAPAY-WEBHOOK-v1.3] Unknown event/status:', webhookEvent, status);
+        return res.json({ received: true, message: 'Event received' });
       }
     } catch (error) {
       console.error('[BKAPAY-WEBHOOK-v1.3] Error:', error);
@@ -1915,8 +1970,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ message: 'Clé BKAPay non configurée' });
       }
 
-      // BKAPay API v1.3 format
-      const description = 'Activation Compte Sika Texte';
+      // BKAPay API v1.3 format - Include reference in description for webhook matching
+      const description = `Activation Sika Texte ${reference}`;
       
       // Store reference in session for verification after return
       (req as any).session.activationReference = reference;
