@@ -1683,10 +1683,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // No clear indication either way - mark as awaiting verification
-      // This happens if user comes back without status params (e.g., closes browser during payment)
-      console.log('[BKAPAY-VERIFY] ? UNCLEAR STATUS - Marking as awaiting verification');
+      // No clear status from callback params - Check with BKAPay API directly
+      console.log('[BKAPAY-VERIFY] ? NO STATUS PARAMS - Checking with BKAPay API...');
       
+      // Try to verify payment status directly with BKAPay
+      if (transactionId) {
+        try {
+          const verifyUrl = `https://bkapay.com/api/verify-transaction/${transactionId}`;
+          console.log('[BKAPAY-VERIFY] Calling BKAPay API:', verifyUrl);
+          
+          const apiResponse = await fetch(verifyUrl, {
+            headers: {
+              'Authorization': `Bearer ${process.env.BKAPAY_API_KEY || ''}`
+            }
+          });
+          
+          const apiData = await apiResponse.json();
+          console.log('[BKAPAY-VERIFY] BKAPay API Response:', JSON.stringify(apiData));
+          
+          // Check if payment is confirmed in API response
+          if (apiData.status === 'completed' || apiData.status === 'success') {
+            console.log('[BKAPAY-VERIFY] ✓ BKAPay API CONFIRMS PAYMENT - Activating account');
+            
+            await db.update(bkapayPayments)
+              .set({
+                status: 'completed',
+                completedAt: new Date(),
+              })
+              .where(eq(bkapayPayments.id, payment.id));
+            
+            await storage.activateAccount(userId);
+            
+            return res.json({
+              message: 'Votre paiement a été confirmé et votre compte est activé!',
+              activated: true,
+              isActive: (await storage.getAccountStatus(userId))?.isActive
+            });
+          }
+        } catch (apiError) {
+          console.log('[BKAPAY-VERIFY] Could not verify with API:', apiError);
+        }
+      }
+      
+      // Still not confirmed - mark as awaiting and return pending status
       if (payment.status === 'pending') {
         await db.update(bkapayPayments)
           .set({ status: 'awaiting_verification' })
