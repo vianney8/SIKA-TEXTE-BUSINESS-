@@ -10,8 +10,13 @@ export default function ActivationSuccess() {
   const [message, setMessage] = useState('Vérification du paiement en cours...');
 
   useEffect(() => {
-    const activateAccount = async () => {
-      console.log('[ACTIVATION-SUCCESS] Page loaded');
+    let pollInterval: NodeJS.Timeout | null = null;
+    let isComponent = true; // Track if component is mounted
+    
+    const activateAccount = async (isRetry = false) => {
+      if (!isComponent) return;
+      
+      console.log('[ACTIVATION-SUCCESS]', isRetry ? 'Polling...' : 'Initial verification');
       console.log('[ACTIVATION-SUCCESS] Full URL:', window.location.href);
       
       const searchParams = new URLSearchParams(window.location.search);
@@ -21,19 +26,10 @@ export default function ActivationSuccess() {
       searchParams.forEach((value, key) => {
         allParams[key] = value;
       });
-      console.log('[ACTIVATION-SUCCESS] All callback params:', JSON.stringify(allParams));
       
-      const statusParam = searchParams.get('status');
-      const refParam = searchParams.get('ref');
-      const transactionId = searchParams.get('transactionId') || searchParams.get('transaction_id');
-      const paymentStatus = searchParams.get('payment_status');
-      const code = searchParams.get('code');
-      
-      console.log('[ACTIVATION-SUCCESS] Status:', statusParam);
-      console.log('[ACTIVATION-SUCCESS] Ref:', refParam);
-      console.log('[ACTIVATION-SUCCESS] TransactionId:', transactionId);
-      console.log('[ACTIVATION-SUCCESS] Payment Status:', paymentStatus);
-      console.log('[ACTIVATION-SUCCESS] Code:', code);
+      if (!isRetry) {
+        console.log('[ACTIVATION-SUCCESS] All callback params:', JSON.stringify(allParams));
+      }
       
       // Send ALL parameters to backend for verification
       try {
@@ -47,35 +43,62 @@ export default function ActivationSuccess() {
           }),
         });
         
+        if (!isComponent) return;
+        
         console.log('[ACTIVATION-SUCCESS] API Response status:', response.status);
         const data = await response.json();
         console.log('[ACTIVATION-SUCCESS] API Response data:', data);
         
-        localStorage.removeItem('pendingActivationRef');
-        localStorage.removeItem('pendingActivationTime');
-        
         if (data.activated) {
+          // ACTIVATED! Clear polling and show success
+          if (pollInterval) clearInterval(pollInterval);
+          
+          localStorage.removeItem('pendingActivationRef');
+          localStorage.removeItem('pendingActivationTime');
+          
           setStatus('success');
           setMessage('Votre compte a été activé avec succès ! Vous pouvez maintenant effectuer des retraits.');
           
           setTimeout(() => {
-            setLocation('/withdrawal');
+            if (isComponent) setLocation('/withdrawal');
           }, 3000);
         } else if (data.awaiting_verification) {
+          // Still waiting - set up polling if not already running
           setStatus('pending');
           setMessage(data.message || 'Votre paiement est en cours de vérification...');
+          
+          if (!isRetry && !pollInterval) {
+            console.log('[ACTIVATION-SUCCESS] Setting up polling every 2 seconds...');
+            // Start polling for activation
+            pollInterval = setInterval(() => {
+              activateAccount(true);
+            }, 2000);
+          }
         } else {
+          // ERROR - stop polling if any
+          if (pollInterval) clearInterval(pollInterval);
+          
           setStatus('error');
           setMessage(data.message || 'Paiement non confirmé. Si vous avez payé, contactez le support.');
         }
       } catch (error) {
         console.error('[ACTIVATION-SUCCESS] Error:', error);
-        setStatus('error');
-        setMessage('Erreur de connexion. Veuillez réessayer.');
+        if (isComponent) {
+          setStatus('error');
+          setMessage('Erreur de connexion. Veuillez réessayer.');
+        }
+        if (pollInterval) clearInterval(pollInterval);
       }
     };
     
+    // Initial check
     activateAccount();
+    
+    // Cleanup on unmount
+    return () => {
+      isComponent = false;
+      if (pollInterval) clearInterval(pollInterval);
+    };
   }, [setLocation]);
 
   return (
