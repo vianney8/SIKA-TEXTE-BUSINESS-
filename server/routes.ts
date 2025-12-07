@@ -1731,17 +1731,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // BKAPAY WEBHOOK v1.3 - Receives payment confirmations from BKAPay with HMAC-SHA256 signature verification
-  // URL configurée dans BKAPay: https://sikatexte.site/api/webhook/bkapay
+  // BKAPAY WEBHOOK v1.3 - Automatic account activation via secure webhook
+  // IMPORTANT: This URL MUST be configured in BKAPay Dashboard:
+  //   1. Go to Dashboard → Clés API
+  //   2. Click your public key (pk_live_...)
+  //   3. Click "Configurer un callback"
+  //   4. Enter this URL: https://sikatexte.site/api/webhook/bkapay
+  //   5. Copy the secret and set as BKAPAY_SIGNATURE_SECRET env variable
   // Documentation: https://bkapay.com/documentation/v1.3
-  // This is the ONLY way to automatically activate an account (100% secure with signature)
   app.post('/api/webhook/bkapay', async (req, res) => {
     try {
       const crypto = require('crypto');
       
       console.log('[BKAPAY-WEBHOOK-v1.3] ===== WEBHOOK RECEIVED =====');
+      console.log('[BKAPAY-WEBHOOK-v1.3] Headers:', {
+        'x-bkapay-signature': req.headers['x-bkapay-signature'],
+        'x-bkapay-event': req.headers['x-bkapay-event'],
+        'x-bkapay-timestamp': req.headers['x-bkapay-timestamp']
+      });
       console.log('[BKAPAY-WEBHOOK-v1.3] Body:', JSON.stringify(req.body, null, 2));
-      console.log('[BKAPAY-WEBHOOK-v1.3] Headers:', JSON.stringify(req.headers, null, 2));
       
       // BKAPay v1.3 sends signature in X-BKApay-Signature header (HMAC-SHA256)
       const signature = req.headers['x-bkapay-signature'] as string;
@@ -1868,14 +1876,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ received: true, message: 'Already processed' });
       }
       
-      // Check if payment is confirmed (BKAPay v1.3: event=payment.completed, status=completed)
-      const isCompleted = webhookEvent === 'payment.completed' || status === 'completed' || status === 'success';
+      // According to BKAPay v1.3 docs: event=payment.completed, status=completed
+      const isCompleted = (webhookEvent === 'payment.completed' || status === 'completed') && status !== 'failed';
       const isFailed = webhookEvent === 'payment.failed' || status === 'failed';
       
       if (isCompleted) {
-        console.log('[BKAPAY-WEBHOOK-v1.3] ✓ Payment CONFIRMED - Activating account');
+        console.log('[BKAPAY-WEBHOOK-v1.3] ✓ PAYMENT CONFIRMED (event=payment.completed, status=completed)');
+        console.log('[BKAPAY-WEBHOOK-v1.3] Activating account automatically...');
         
-        // Mark payment as completed with transaction details
+        // Mark payment as completed
         await db.update(bkapayPayments)
           .set({
             status: 'completed',
@@ -1883,28 +1892,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
           })
           .where(eq(bkapayPayments.id, payment.id));
         
-        // Activate user account
-        await storage.activateAccount(payment.userId);
+        // ACTIVATE ACCOUNT - This is the key automatic activation
+        const accountStatus = await storage.activateAccount(payment.userId);
         
-        console.log('[BKAPAY-WEBHOOK-v1.3] ===== ACCOUNT ACTIVATED VIA SECURE WEBHOOK =====');
-        console.log('[BKAPAY-WEBHOOK-v1.3] User ID:', payment.userId);
-        console.log('[BKAPAY-WEBHOOK-v1.3] Transaction ID:', transactionId);
-        console.log('[BKAPAY-WEBHOOK-v1.3] Amount:', amount, currency);
-        console.log('[BKAPAY-WEBHOOK-v1.3] Operator:', operator);
-        console.log('[BKAPAY-WEBHOOK-v1.3] Customer:', customerName, customerPhone);
+        console.log('[BKAPAY-WEBHOOK-v1.3] ');
+        console.log('[BKAPAY-WEBHOOK-v1.3] ╔════════════════════════════════════════╗');
+        console.log('[BKAPAY-WEBHOOK-v1.3] ║  ✓ ACCOUNT AUTOMATICALLY ACTIVATED     ║');
+        console.log('[BKAPAY-WEBHOOK-v1.3] ╠════════════════════════════════════════╣');
+        console.log('[BKAPAY-WEBHOOK-v1.3] ║ User ID:', payment.userId);
+        console.log('[BKAPAY-WEBHOOK-v1.3] ║ Transaction:', transactionId);
+        console.log('[BKAPAY-WEBHOOK-v1.3] ║ Amount:', amount, currency);
+        console.log('[BKAPAY-WEBHOOK-v1.3] ║ Operator:', operator);
+        console.log('[BKAPAY-WEBHOOK-v1.3] ║ Customer:', customerName, customerPhone);
+        console.log('[BKAPAY-WEBHOOK-v1.3] ╚════════════════════════════════════════╝');
         
-        return res.json({ received: true, message: 'Account activated' });
+        return res.json({ 
+          received: true, 
+          message: 'Account activated successfully',
+          activated: true,
+          userId: payment.userId
+        });
       } else if (isFailed) {
-        console.log('[BKAPAY-WEBHOOK-v1.3] ✗ Payment FAILED');
+        console.log('[BKAPAY-WEBHOOK-v1.3] ✗ PAYMENT FAILED - Not activating');
         
         await db.update(bkapayPayments)
           .set({ status: 'failed' })
           .where(eq(bkapayPayments.id, payment.id));
         
-        return res.json({ received: true, message: 'Payment failed recorded' });
+        return res.json({ 
+          received: true, 
+          message: 'Payment failed',
+          activated: false
+        });
       } else {
-        console.log('[BKAPAY-WEBHOOK-v1.3] Unknown event/status:', webhookEvent, status);
-        return res.json({ received: true, message: 'Event received' });
+        console.log('[BKAPAY-WEBHOOK-v1.3] ? UNKNOWN EVENT - event:', webhookEvent, 'status:', status);
+        return res.json({ 
+          received: true, 
+          message: 'Event received but not processed',
+          activated: false
+        });
       }
     } catch (error) {
       console.error('[BKAPAY-WEBHOOK-v1.3] Error:', error);
