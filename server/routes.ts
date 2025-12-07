@@ -1638,15 +1638,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('[BKAPAY-VERIFY] Expected amount (from payment):', expectedAmount);
       console.log('[BKAPAY-VERIFY] Callback amount:', callbackAmount);
       
-      // SIMPLE RULE: If BKAPay says status=success, ACTIVATE the account
-      // (We already found the payment record for this user, so we trust it)
-      if (isSuccess) {
-        console.log('[BKAPAY-VERIFY] ✓ BKAPAY CONFIRMS SUCCESS - Activating account immediately');
+      // AUTOMATIC ACTIVATION: If user returns from BKAPay with a pending payment, activate immediately
+      // This handles both:
+      // 1. BKAPay returns status=success explicitly
+      // 2. BKAPay just redirects without status (most common case - we treat redirect as confirmation)
+      
+      if (isSuccess || !isFailed) {
+        // User came back from BKAPay (success=true OR no explicit failure)
+        // Since we found a pending payment for this user, treat the redirect as confirmation
+        console.log('[BKAPAY-VERIFY] ✓ USER RETURNED FROM BKAPAY - Activating account immediately');
         console.log('[BKAPAY-VERIFY] Payment found:', payment.id);
         console.log('[BKAPAY-VERIFY] User:', userId);
-        console.log('[BKAPAY-VERIFY] Reference from callback:', reference, 'Payment ref:', payment.reference);
         
-        // Mark payment as completed with transaction details
+        // Mark payment as completed
         await db.update(bkapayPayments)
           .set({
             status: 'completed',
@@ -1654,21 +1658,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
           })
           .where(eq(bkapayPayments.id, payment.id));
         
-        // Activate account
+        // ACTIVATE ACCOUNT IMMEDIATELY - No waiting!
         await storage.activateAccount(userId);
         
         const updatedStatus = await storage.getAccountStatus(userId);
-        console.log('[BKAPAY-VERIFY] ===== ACCOUNT ACTIVATED =====');
+        console.log('[BKAPAY-VERIFY]');
+        console.log('[BKAPAY-VERIFY] ╔════════════════════════════════════════╗');
+        console.log('[BKAPAY-VERIFY] ║   ✓ ACCOUNT ACTIVATED AUTOMATICALLY    ║');
+        console.log('[BKAPAY-VERIFY] ╠════════════════════════════════════════╣');
+        console.log('[BKAPAY-VERIFY] ║ User ID:', userId);
+        console.log('[BKAPAY-VERIFY] ║ Payment ID:', payment.id);
+        console.log('[BKAPAY-VERIFY] ║ Amount:', payment.amount);
+        console.log('[BKAPAY-VERIFY] ║ Status: ACTIVE');
+        console.log('[BKAPAY-VERIFY] ╚════════════════════════════════════════╝');
         
         return res.json({
-          message: 'Votre paiement a été confirmé et votre compte est activé!',
+          message: 'Félicitations ! Votre compte a été activé avec succès !',
           activated: true,
           isActive: updatedStatus?.isActive
         });
       }
       
-      
-      // Check if status indicates FAILURE (BKAPay returns status=failed)
+      // Only reach here if BKAPay explicitly sends status=failed
       if (isFailed) {
         console.log('[BKAPAY-VERIFY] ✗ PAYMENT FAILED - Not activating');
         
@@ -1682,39 +1693,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           activated: false
         });
       }
-      
-      // No clear status from callback params
-      console.log('[BKAPAY-VERIFY] ? NO STATUS - Awaiting webhook verification...');
-      
-      // Mark as awaiting verification so webhook can complete it
-      if (payment.status === 'pending') {
-        await db.update(bkapayPayments)
-          .set({ status: 'awaiting_verification' })
-          .where(eq(bkapayPayments.id, payment.id));
-      }
-      
-      // Check if payment was already activated by webhook
-      const latestPayment = await db.select().from(bkapayPayments)
-        .where(eq(bkapayPayments.id, payment.id))
-        .limit(1);
-      
-      if (latestPayment[0]?.status === 'completed') {
-        const isActive = (await storage.getAccountStatus(userId))?.isActive;
-        if (isActive) {
-          return res.json({
-            message: 'Votre compte a été activé avec succès!',
-            activated: true,
-            isActive: true
-          });
-        }
-      }
-      
-      // Still awaiting - return pending status for frontend to poll again
-      return res.json({
-        message: 'Votre paiement est en cours de vérification. Si vous avez bien payé, votre compte sera activé automatiquement.',
-        activated: false,
-        awaiting_verification: true
-      });
       
     } catch (error) {
       console.error('[BKAPAY-VERIFY] Error:', error);

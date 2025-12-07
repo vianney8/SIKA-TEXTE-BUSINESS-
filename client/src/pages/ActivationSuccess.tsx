@@ -6,32 +6,25 @@ import { Button } from "@/components/ui/button";
 
 export default function ActivationSuccess() {
   const [, setLocation] = useLocation();
-  const [status, setStatus] = useState<'loading' | 'success' | 'pending' | 'error'>('loading');
-  const [message, setMessage] = useState('Vérification du paiement en cours...');
+  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
-    let pollInterval: NodeJS.Timeout | null = null;
-    let isComponent = true; // Track if component is mounted
+    let isComponent = true;
     
-    const activateAccount = async (isRetry = false) => {
+    const verifyActivation = async () => {
       if (!isComponent) return;
       
-      console.log('[ACTIVATION-SUCCESS]', isRetry ? 'Polling...' : 'Initial verification');
-      console.log('[ACTIVATION-SUCCESS] Full URL:', window.location.href);
+      console.log('[ACTIVATION-SUCCESS] Verifying payment and activating account...');
       
       const searchParams = new URLSearchParams(window.location.search);
-      
-      // Capture ALL parameters from BKAPay callback
       const allParams: Record<string, string> = {};
       searchParams.forEach((value, key) => {
         allParams[key] = value;
       });
       
-      if (!isRetry) {
-        console.log('[ACTIVATION-SUCCESS] All callback params:', JSON.stringify(allParams));
-      }
+      console.log('[ACTIVATION-SUCCESS] Callback params:', JSON.stringify(allParams));
       
-      // Send ALL parameters to backend for verification
       try {
         const response = await fetch('/api/activation/verify-bkapay-callback', {
           method: 'POST',
@@ -45,41 +38,21 @@ export default function ActivationSuccess() {
         
         if (!isComponent) return;
         
-        console.log('[ACTIVATION-SUCCESS] API Response status:', response.status);
         const data = await response.json();
-        console.log('[ACTIVATION-SUCCESS] API Response data:', data);
+        console.log('[ACTIVATION-SUCCESS] Response:', data);
         
         if (data.activated) {
-          // ACTIVATED! Clear polling and show success
-          if (pollInterval) clearInterval(pollInterval);
-          
-          localStorage.removeItem('pendingActivationRef');
-          localStorage.removeItem('pendingActivationTime');
-          
+          // ACCOUNT ACTIVATED! Show success and redirect
           setStatus('success');
-          setMessage('Votre compte a été activé avec succès ! Vous pouvez maintenant effectuer des retraits.');
+          setMessage(data.message || 'Votre compte a été activé avec succès !');
           
           setTimeout(() => {
             if (isComponent) setLocation('/withdrawal');
-          }, 3000);
-        } else if (data.awaiting_verification) {
-          // Still waiting - set up polling if not already running
-          setStatus('pending');
-          setMessage(data.message || 'Votre paiement est en cours de vérification...');
-          
-          if (!isRetry && !pollInterval) {
-            console.log('[ACTIVATION-SUCCESS] Setting up polling every 2 seconds...');
-            // Start polling for activation
-            pollInterval = setInterval(() => {
-              activateAccount(true);
-            }, 2000);
-          }
+          }, 2000);
         } else {
-          // ERROR - stop polling if any
-          if (pollInterval) clearInterval(pollInterval);
-          
+          // Activation failed
           setStatus('error');
-          setMessage(data.message || 'Paiement non confirmé. Si vous avez payé, contactez le support.');
+          setMessage(data.message || 'Impossible d\'activer le compte. Veuillez réessayer.');
         }
       } catch (error) {
         console.error('[ACTIVATION-SUCCESS] Error:', error);
@@ -87,17 +60,15 @@ export default function ActivationSuccess() {
           setStatus('error');
           setMessage('Erreur de connexion. Veuillez réessayer.');
         }
-        if (pollInterval) clearInterval(pollInterval);
       }
     };
     
-    // Initial check
-    activateAccount();
+    // Verify activation immediately when page loads
+    verifyActivation();
     
     // Cleanup on unmount
     return () => {
       isComponent = false;
-      if (pollInterval) clearInterval(pollInterval);
     };
   }, [setLocation]);
 
@@ -128,31 +99,6 @@ export default function ActivationSuccess() {
             </>
           )}
 
-          {status === 'pending' && (
-            <>
-              <Clock className="w-16 h-16 mx-auto text-orange-500 mb-4" />
-              <h2 className="text-xl font-semibold text-orange-600 mb-2">Vérification en cours</h2>
-              <p className="text-gray-600 dark:text-gray-400 mb-4">{message}</p>
-              <p className="text-sm text-gray-500 mb-4">
-                Si vous avez effectué le paiement, votre compte sera activé automatiquement.
-              </p>
-              <div className="space-y-2">
-                <Button 
-                  onClick={() => window.location.reload()}
-                  className="w-full bg-orange-600 hover:bg-orange-700"
-                >
-                  Vérifier à nouveau
-                </Button>
-                <Button 
-                  onClick={() => setLocation('/withdrawal')}
-                  variant="outline"
-                  className="w-full"
-                >
-                  Retour
-                </Button>
-              </div>
-            </>
-          )}
           
           {status === 'error' && (
             <>
