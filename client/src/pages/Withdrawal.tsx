@@ -76,101 +76,11 @@ export default function Withdrawal() {
     queryKey: ['/api/withdrawal'],
   });
 
-  // Verify payment after returning from BKAPay - runs on component mount
+  // With direct link payment, just refresh data on mount
   useEffect(() => {
-    const verifyPaymentIfNeeded = async () => {
-      const searchParams = new URLSearchParams(window.location.search);
-      let reference = searchParams.get('ref') || searchParams.get('reference');
-      
-      // If no reference in URL, check localStorage (BKAPay may not preserve URL params)
-      if (!reference) {
-        const storedRef = localStorage.getItem('pendingActivationRef');
-        const storedTime = localStorage.getItem('pendingActivationTime');
-        
-        if (storedRef && storedTime) {
-          const timeDiff = Date.now() - parseInt(storedTime);
-          // Only use stored reference if it's less than 30 minutes old
-          if (timeDiff < 30 * 60 * 1000) {
-            reference = storedRef;
-            console.log('[RETURN] Using reference from localStorage:', reference);
-          } else {
-            // Clear old data
-            localStorage.removeItem('pendingActivationRef');
-            localStorage.removeItem('pendingActivationTime');
-          }
-        }
-      }
-      
-      if (!reference) {
-        console.log('[RETURN] No payment reference found');
-        return;
-      }
-      
-      console.log('[RETURN] ========== PAYMENT VERIFICATION ==========');
-      console.log('[RETURN] Reference:', reference);
-      console.log('[RETURN] Full URL:', window.location.href);
-      console.log('[RETURN] Calling verify-payment API...');
-      
-      try {
-        const response = await fetch('/api/activation/verify-payment', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ reference }),
-        });
-        
-        const data = await response.json();
-        console.log('[RETURN] API Response:', data);
-        console.log('[RETURN] HTTP Status:', response.status);
-        
-        // Clear localStorage after verification attempt
-        localStorage.removeItem('pendingActivationRef');
-        localStorage.removeItem('pendingActivationTime');
-        
-        if (data.activated) {
-          console.log('[RETURN] SUCCESS - Account activated!');
-          toast({
-            title: "Félicitations !",
-            description: "Votre compte a été activé avec succès. Vous pouvez maintenant effectuer des retraits.",
-          });
-          
-          // Clean up URL immediately
-          window.history.replaceState({}, document.title, '/withdrawal');
-          
-          // Refresh data to show activated state
-          await new Promise(resolve => setTimeout(resolve, 500));
-          refetchWithdrawalData();
-        } else {
-          console.log('[RETURN] Activation response:', data.message);
-          toast({
-            title: "Information",
-            description: data.message || "Vérification du paiement en cours...",
-          });
-          
-          // Clean URL and refresh anyway
-          window.history.replaceState({}, document.title, '/withdrawal');
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          refetchWithdrawalData();
-        }
-      } catch (error) {
-        console.error('[RETURN] Verification error:', error);
-        toast({
-          title: "Erreur",
-          description: "Erreur lors de la vérification. Veuillez contacter le support.",
-          variant: "destructive",
-        });
-        
-        // Clean URL and try refresh
-        window.history.replaceState({}, document.title, '/withdrawal');
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        refetchWithdrawalData();
-      }
-      
-      console.log('[RETURN] ==========================================');
-    };
-    
-    verifyPaymentIfNeeded();
-  }, [refetchWithdrawalData, toast]);
+    console.log('[WITHDRAWAL] Component mounted - using direct payment link');
+    refetchWithdrawalData();
+  }, []);
 
   const { data: bankCard, isLoading: isBankCardLoading } = useQuery<BankCardData | null>({
     queryKey: ['/api/bank-card'],
