@@ -161,32 +161,58 @@ export default function AdminSettings() {
               </p>
             </div>
 
-            <div>
-              <Label htmlFor="instagram_supervisor">Compte Instagram Service Client</Label>
-              <Input
-                id="instagram_supervisor"
-                value={settings.instagram_supervisor || ''}
-                onChange={(e) => handleInputChange('instagram_supervisor', e.target.value)}
-                placeholder="sikacustomer_service"
-                data-testid="input-instagram-supervisor"
-              />
-              <p className="text-sm text-muted-foreground mt-1">
-                Nom d'utilisateur Instagram (sans @)
-              </p>
+            <div className="space-y-4">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Label htmlFor="instagram_supervisor">Compte Instagram Service Client</Label>
+                  <button
+                    type="button"
+                    onClick={() => handleInputChange('instagram_supervisor_enabled', settings.instagram_supervisor_enabled === 'true' ? 'false' : 'true')}
+                    className={`p-1 rounded transition-colors ${settings.instagram_supervisor_enabled === 'true' ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-700'}`}
+                    data-testid="toggle-instagram-enabled"
+                    title={settings.instagram_supervisor_enabled === 'true' ? 'Désactiver' : 'Activer'}
+                  >
+                    🔓
+                  </button>
+                </div>
+                <Input
+                  id="instagram_supervisor"
+                  value={settings.instagram_supervisor || ''}
+                  onChange={(e) => handleInputChange('instagram_supervisor', e.target.value)}
+                  placeholder="sikacustomer_service"
+                  data-testid="input-instagram-supervisor"
+                />
+                <p className="text-sm text-muted-foreground mt-1">
+                  Nom d'utilisateur Instagram (sans @) - {settings.instagram_supervisor_enabled === 'true' ? '✓ Activé' : '✗ Désactivé'}
+                </p>
+              </div>
             </div>
 
-            <div>
-              <Label htmlFor="telegram_supervisor">Superviseur Telegram</Label>
-              <Input
-                id="telegram_supervisor"
-                value={settings.telegram_supervisor || ''}
-                onChange={(e) => handleInputChange('telegram_supervisor', e.target.value)}
-                placeholder="@SIKAcustomer_service"
-                data-testid="input-telegram-supervisor"
-              />
-              <p className="text-sm text-muted-foreground mt-1">
-                Nom d'utilisateur du superviseur Telegram
-              </p>
+            <div className="space-y-4">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Label htmlFor="telegram_supervisor">Superviseur Telegram</Label>
+                  <button
+                    type="button"
+                    onClick={() => handleInputChange('telegram_supervisor_enabled', settings.telegram_supervisor_enabled === 'true' ? 'false' : 'true')}
+                    className={`p-1 rounded transition-colors ${settings.telegram_supervisor_enabled === 'true' ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-700'}`}
+                    data-testid="toggle-telegram-enabled"
+                    title={settings.telegram_supervisor_enabled === 'true' ? 'Désactiver' : 'Activer'}
+                  >
+                    🔓
+                  </button>
+                </div>
+                <Input
+                  id="telegram_supervisor"
+                  value={settings.telegram_supervisor || ''}
+                  onChange={(e) => handleInputChange('telegram_supervisor', e.target.value)}
+                  placeholder="@SIKAcustomer_service"
+                  data-testid="input-telegram-supervisor"
+                />
+                <p className="text-sm text-muted-foreground mt-1">
+                  Nom d'utilisateur du superviseur Telegram - {settings.telegram_supervisor_enabled === 'true' ? '✓ Activé' : '✗ Désactivé'}
+                </p>
+              </div>
             </div>
 
             <div>

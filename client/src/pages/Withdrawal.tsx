@@ -66,6 +66,11 @@ export default function Withdrawal() {
   const { data: activationLink } = useAppSetting('activation_link');
   const { data: telegramSupervisor } = useAppSetting('telegram_supervisor');
   const { data: instagramSupervisor } = useAppSetting('instagram_supervisor');
+  const { data: instagramEnabled } = useAppSetting('instagram_supervisor_enabled');
+  const { data: telegramEnabled } = useAppSetting('telegram_supervisor_enabled');
+
+  const isInstagramActive = instagramEnabled !== 'false';
+  const isTelegramActive = telegramEnabled !== 'false';
 
   const { data: withdrawalData, refetch: refetchWithdrawalData } = useQuery<WithdrawalData>({
     queryKey: ['/api/withdrawal'],
@@ -646,42 +651,67 @@ export default function Withdrawal() {
                 Contactez notre service client
               </p>
               <div className="space-y-2">
-                <Button 
-                  asChild
-                  variant="outline"
-                  className="w-full border-purple-300 hover:bg-purple-100 dark:border-purple-600 dark:hover:bg-purple-900"
-                  data-testid="button-contact-instagram"
-                >
-                  <a 
-                    href={`https://www.instagram.com/${instagramSupervisor || 'sikacustomer_service'}`}
-                    target="_blank" 
-                    rel="noopener noreferrer"
+                {isInstagramActive ? (
+                  <Button 
+                    asChild
+                    variant="outline"
+                    className="w-full border-purple-300 hover:bg-purple-100 dark:border-purple-600 dark:hover:bg-purple-900"
+                    data-testid="button-contact-instagram"
+                  >
+                    <a 
+                      href={`https://www.instagram.com/${instagramSupervisor || 'sikacustomer_service'}`}
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                    >
+                      <FaInstagram className="w-4 h-4 mr-2" />
+                      Service client Instagram
+                    </a>
+                  </Button>
+                ) : (
+                  <Button 
+                    disabled
+                    variant="outline"
+                    className="w-full border-purple-300 dark:border-purple-600 opacity-50"
+                    data-testid="button-contact-instagram-disabled"
                   >
                     <FaInstagram className="w-4 h-4 mr-2" />
-                    Service client Instagram
-                  </a>
-                </Button>
-                <Button 
-                  asChild
-                  variant="outline"
-                  className="w-full border-blue-300 hover:bg-blue-100 dark:border-blue-600 dark:hover:bg-blue-900"
-                  data-testid="button-contact-telegram"
-                >
-                  <a 
-                    href={
-                      telegramSupervisor?.startsWith('@') 
-                        ? `https://t.me/${telegramSupervisor.slice(1)}` 
-                        : telegramSupervisor?.startsWith('https://') 
-                          ? telegramSupervisor 
-                          : `https://t.me/${telegramSupervisor || 'SIKAcustomer_service'}`
-                    } 
-                    target="_blank" 
-                    rel="noopener noreferrer"
+                    Service client Instagram (Indisponible)
+                  </Button>
+                )}
+                
+                {isTelegramActive ? (
+                  <Button 
+                    asChild
+                    variant="outline"
+                    className="w-full border-blue-300 hover:bg-blue-100 dark:border-blue-600 dark:hover:bg-blue-900"
+                    data-testid="button-contact-telegram"
+                  >
+                    <a 
+                      href={
+                        telegramSupervisor?.startsWith('@') 
+                          ? `https://t.me/${telegramSupervisor.slice(1)}` 
+                          : telegramSupervisor?.startsWith('https://') 
+                            ? telegramSupervisor 
+                            : `https://t.me/${telegramSupervisor || 'SIKAcustomer_service'}`
+                      } 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                    >
+                      <FaTelegram className="w-4 h-4 mr-2" />
+                      Service client Telegram
+                    </a>
+                  </Button>
+                ) : (
+                  <Button 
+                    disabled
+                    variant="outline"
+                    className="w-full border-blue-300 dark:border-blue-600 opacity-50"
+                    data-testid="button-contact-telegram-disabled"
                   >
                     <FaTelegram className="w-4 h-4 mr-2" />
-                    Service client Telegram
-                  </a>
-                </Button>
+                    Service client Telegram (Indisponible)
+                  </Button>
+                )}
               </div>
             </div>
           </CardContent>

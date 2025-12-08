@@ -8,14 +8,26 @@ import { useAppSetting } from "@/hooks/useAppSettings";
 export default function Assistance() {
   const { data: instagramSupport } = useAppSetting('instagram_supervisor');
   const { data: telegramSupervisor } = useAppSetting('telegram_supervisor');
+  const { data: instagramEnabled } = useAppSetting('instagram_supervisor_enabled');
+  const { data: telegramEnabled } = useAppSetting('telegram_supervisor_enabled');
+
+  const isInstagramActive = instagramEnabled !== 'false';
+  const isTelegramActive = telegramEnabled !== 'false';
 
   const handleInstagramContact = () => {
+    if (!isInstagramActive) {
+      alert('Ce service client n\'est pas disponible pour le moment. Veuillez contacter Telegram.');
+      return;
+    }
     const instagramUrl = `https://www.instagram.com/${instagramSupport || 'sikacustomer_service'}`;
     window.open(instagramUrl, '_blank', 'noopener,noreferrer');
   };
 
   const handleTelegramContact = () => {
-    // Telegram contact for provider - convert @handle to https://t.me/handle
+    if (!isTelegramActive) {
+      alert('Ce service client n\'est pas disponible pour le moment. Veuillez contacter Instagram.');
+      return;
+    }
     const telegramHandle = telegramSupervisor || "@sikatexte_support";
     const telegramUrl = telegramHandle.startsWith('@') 
       ? `https://t.me/${telegramHandle.slice(1)}` 
