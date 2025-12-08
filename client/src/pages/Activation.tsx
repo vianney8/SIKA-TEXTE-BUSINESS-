@@ -98,18 +98,30 @@ export default function Activation() {
               </div>
             </div>
 
-            <Button
-              onClick={handlePayNow}
-              disabled={!activationLink}
-              className="w-full bg-gradient-to-r from-primary to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 rounded-xl transition-all"
-              data-testid="button-pay-activation"
-            >
-              Payer 3 600 FCFA
-            </Button>
+            {!activationLink || activationLink === 'https:/' ? (
+              <div className="bg-red-100 border border-red-300 rounded-lg p-4">
+                <p className="text-sm text-red-700">
+                  ⚠️ Le lien de paiement n'a pas été configuré correctement par l'administrateur.
+                </p>
+                <p className="text-xs text-red-600 mt-2">
+                  Veuillez contacter le support pour configurer le lien BKAPay.
+                </p>
+              </div>
+            ) : (
+              <>
+                <Button
+                  onClick={handlePayNow}
+                  className="w-full bg-gradient-to-r from-primary to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 rounded-xl transition-all"
+                  data-testid="button-pay-activation"
+                >
+                  Payer 3 600 FCFA
+                </Button>
 
-            <p className="text-xs text-center text-gray-500">
-              Vous serez redirigé vers BKAPay pour sécuriser votre paiement
-            </p>
+                <p className="text-xs text-center text-gray-500">
+                  Vous serez redirigé vers BKAPay pour sécuriser votre paiement
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
