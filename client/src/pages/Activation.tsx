@@ -1,61 +1,24 @@
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, CheckCircle, Lock } from "lucide-react";
 import { Link } from "wouter";
-import { useState, useEffect } from "react";
-import { useToast } from "@/hooks/use-toast";
+import { useAppSetting } from "@/hooks/useAppSettings";
 
 export default function Activation() {
   const { user } = useAuth();
-  const { toast } = useToast();
-  const [isProcessing, setIsProcessing] = useState(false);
+  const { data: activationLink } = useAppSetting('activation_link');
 
   const { data: activationStatus } = useQuery({
     queryKey: ["/api/activation/status"],
   }) as any;
 
-  const { data: activationAmount, refetch: refetchActivationAmount, isLoading } = useQuery({
-    queryKey: ["/api/settings/activation_amount"],
-    refetchInterval: 2000, // Refetch every 2 seconds to get latest amount
-    staleTime: 0, // Never cache, always consider stale
-  }) as any;
-
-  // Refetch on component mount to ensure we get the latest value
-  useEffect(() => {
-    refetchActivationAmount();
-  }, [refetchActivationAmount]);
-
-  const initPaymentMutation = useMutation({
-    mutationFn: async () => {
-      setIsProcessing(true);
-      const response = await fetch("/api/activation/init-payment", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      });
-      if (!response.ok) throw new Error("Erreur lors de l'initiation du paiement");
-      return response.json();
-    },
-    onSuccess: (data: any) => {
-      toast({
-        title: "Redirection vers le paiement",
-        description: "Vous allez être redirigé vers BKAPay",
-      });
-      setTimeout(() => {
-        window.location.href = data.redirectUrl;
-      }, 1000);
-    },
-    onError: (error) => {
-      toast({
-        title: "Erreur",
-        description: "Impossible d'initier le paiement",
-        variant: "destructive",
-      });
-      setIsProcessing(false);
-    },
-  });
+  const handlePayNow = () => {
+    if (activationLink) {
+      window.location.href = activationLink;
+    }
+  };
 
   if (activationStatus && activationStatus.isActive) {
     return (
@@ -113,7 +76,7 @@ export default function Activation() {
             <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
               <p className="text-sm text-gray-700 mb-2 font-semibold">Coût d'activation :</p>
               <div className="text-3xl font-bold text-primary">
-                {isLoading ? '...' : (activationAmount?.value ? parseInt(activationAmount.value).toLocaleString('fr-FR') : '3 600')} FCFA
+                3 600 FCFA
               </div>
               <p className="text-xs text-gray-600 mt-2">
                 Paiement unique
@@ -136,14 +99,12 @@ export default function Activation() {
             </div>
 
             <Button
-              onClick={() => initPaymentMutation.mutate()}
-              disabled={initPaymentMutation.isPending || isProcessing || isLoading}
+              onClick={handlePayNow}
+              disabled={!activationLink}
               className="w-full bg-gradient-to-r from-primary to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 rounded-xl transition-all"
               data-testid="button-pay-activation"
             >
-              {isLoading ? "Chargement..." : (initPaymentMutation.isPending || isProcessing 
-                ? "Traitement..." 
-                : `Payer ${activationAmount?.value ? parseInt(activationAmount.value).toLocaleString('fr-FR') : '3 600'} FCFA`)}
+              Payer 3 600 FCFA
             </Button>
 
             <p className="text-xs text-center text-gray-500">
