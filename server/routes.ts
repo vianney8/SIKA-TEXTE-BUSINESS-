@@ -1607,6 +1607,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Process return from BKAPay - Activate account when user returns after payment
+  app.post('/api/activation/process-return', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { reference, status, transactionId, amount } = req.body;
+      
+      console.log('[ACTIVATION-RETURN] ===== PROCESSING PAYMENT RETURN =====');
+      console.log('[ACTIVATION-RETURN] User:', userId);
+      console.log('[ACTIVATION-RETURN] Reference:', reference);
+      console.log('[ACTIVATION-RETURN] Status:', status);
+      console.log('[ACTIVATION-RETURN] TransactionId:', transactionId);
+      console.log('[ACTIVATION-RETURN] Amount:', amount);
+      
+      if (!reference) {
+        return res.status(400).json({ message: 'Référence manquante', activated: false });
+      }
+
+      // Find the payment record
+      const payments = await db.select().from(bkapayPayments)
+        .where(eq(bkapayPayments.reference, reference));
+      const payment = payments[0];
+
+      if (!payment) {
+        console.log('[ACTIVATION-RETURN] Payment not found for reference:', reference);
+        return res.status(404).json({ message: 'Paiement non trouvé', activated: false });
+      }
+
+      // Check if user owns this payment
+      if (payment.userId !== userId) {
+        console.log('[ACTIVATION-RETURN] User mismatch:', payment.userId, '!=', userId);
+        return res.status(403).json({ message: 'Accès non autorisé', activated: false });
+      }
+
+      // Check if already completed
+      if (payment.status === 'completed') {
+        console.log('[ACTIVATION-RETURN] Payment already completed');
+        // Still return success as account should be active
+        const accountStat = await storage.getAccountStatus(userId);
+        return res.json({ 
+          message: 'Paiement déjà traité', 
+          activated: accountStat?.isActive || false,
+          alreadyProcessed: true
+        });
+      }
+
+      // If status is failed from BKAPay, mark as failed
+      if (status === 'failed') {
+        await db.update(bkapayPayments)
+          .set({ status: 'failed' })
+          .where(eq(bkapayPayments.id, payment.id));
+        return res.status(400).json({ message: 'Le paiement a échoué', activated: false });
+      }
+
+      // Process successful payment - Credit balance and activate account
+      console.log('[ACTIVATION-RETURN] Processing successful payment...');
+      
+      const paymentAmount = parseFloat(payment.amount);
+
+      // Mark payment as completed
+      await db.update(bkapayPayments)
+        .set({
+          status: 'completed',
+          completedAt: new Date(),
+        })
+        .where(eq(bkapayPayments.id, payment.id));
+
+      // Credit user balance
+      await storage.updateUserBalance(userId, paymentAmount);
+
+      // Create transaction record
+      await storage.createTransaction({
+        userId: userId,
+        type: 'recharge',
+        amount: paymentAmount.toString(),
+        description: 'Dépôt via BKAPay',
+        status: 'completed',
+        reference: reference,
+        operator: 'BKAPay'
+      });
+
+      // Activate account
+      await storage.activateAccount(userId);
+
+      console.log('[ACTIVATION-RETURN] ╔════════════════════════════════════════╗');
+      console.log('[ACTIVATION-RETURN] ║  ✓ ACCOUNT ACTIVATED SUCCESSFULLY      ║');
+      console.log('[ACTIVATION-RETURN] ║  User:', userId);
+      console.log('[ACTIVATION-RETURN] ║  Amount:', paymentAmount, 'FCFA');
+      console.log('[ACTIVATION-RETURN] ╚════════════════════════════════════════╝');
+
+      return res.json({ 
+        message: 'Compte activé avec succès', 
+        activated: true,
+        balanceCredited: paymentAmount
+      });
+
+    } catch (error) {
+      console.error('[ACTIVATION-RETURN] Error:', error);
+      res.status(500).json({ message: 'Erreur lors du traitement', activated: false });
+    }
+  });
+
   // BKAPAY WEBHOOK v1.3 - Automatic account activation via secure webhook
   // IMPORTANT: This URL MUST be configured in BKAPay Dashboard:
   //   1. Go to Dashboard → Clés API
