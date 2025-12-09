@@ -1547,7 +1547,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // ACTIVATION ENDPOINTS REMOVED - Using direct link payment now
+  // BKAPAY v1.3 - Activation Payment API
+  // Creates payment record and redirects to BKAPay payment page
+  app.post('/api/activation/init-payment', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: 'Utilisateur non trouvé' });
+      }
+      
+      // Check if account is already active
+      const statusResult = await db.select().from(accountStatus).where(eq(accountStatus.userId, userId));
+      if (statusResult.length > 0 && statusResult[0].isActive) {
+        return res.status(400).json({ message: 'Votre compte est déjà activé' });
+      }
+      
+      // Get activation amount from settings
+      const settings = await storage.getAppSettings();
+      const activationSetting = settings.find(s => s.key === 'activation_amount');
+      const activationAmount = parseInt(activationSetting?.value || '3600');
+      
+      // Generate unique reference
+      const reference = `ACT-${userId.substring(0, 8)}-${Date.now()}`;
+      
+      // Create pending payment record
+      await db.insert(bkapayPayments).values({
+        id: crypto.randomUUID(),
+        userId: userId,
+        amount: activationAmount.toString(),
+        reference: reference,
+        status: 'pending',
+        createdAt: new Date()
+      });
+      
+      // Build BKAPay redirect URL as per v1.3 documentation
+      const publicKey = process.env.BKAPAY_PUBLIC_KEY;
+      if (!publicKey) {
+        return res.status(500).json({ message: 'Clé API BKAPay non configurée' });
+      }
+      
+      const callbackUrl = encodeURIComponent(`${req.protocol}://${req.get('host')}/activation-success?ref=${reference}`);
+      const description = encodeURIComponent(`Activation compte SIKA TEXTE - ${user.firstName || user.fullName || 'Utilisateur'}`);
+      
+      const redirectUrl = `https://bkapay.com/api-pay/${publicKey}?amount=${activationAmount}&description=${description}&callback=${callbackUrl}`;
+      
+      console.log('[BKAPAY-INIT] Created payment:', { reference, amount: activationAmount, userId });
+      console.log('[BKAPAY-INIT] Redirect URL:', redirectUrl);
+      
+      res.json({ 
+        redirectUrl,
+        reference,
+        amount: activationAmount
+      });
+    } catch (error) {
+      console.error('[BKAPAY-INIT] Error:', error);
+      res.status(500).json({ message: 'Erreur lors de l\'initiation du paiement' });
+    }
+  });
 
   // BKAPAY WEBHOOK v1.3 - Automatic account activation via secure webhook
   // IMPORTANT: This URL MUST be configured in BKAPay Dashboard:
