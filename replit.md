@@ -87,8 +87,8 @@ Preferred communication style: Simple, everyday language.
   3. Backend creates payment record and returns BKAPay redirect URL
   4. User is redirected to BKAPay payment page
   5. After payment, user returns to /activation-success with status params
-  6. BKAPay sends webhook to /api/webhook/bkapay for automatic activation
-- **Webhook Actions**: Credits 3600 FCFA to user balance, creates transaction in history, activates account
+  6. BKAPay sends webhook to /api/webhook/bkapay for deposit processing
+- **Webhook Actions**: Credits 3600 FCFA to user balance, creates transaction in history (as a deposit/recharge - does NOT activate account)
 - **Environment Variables**:
   - BKAPAY_PUBLIC_KEY: Public API key for initiating payments
   - BKAPAY_SIGNATURE_SECRET: Secret for HMAC-SHA256 webhook signature verification

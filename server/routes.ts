@@ -1755,18 +1755,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userId: payment.userId,
           type: 'recharge',
           amount: activationAmount.toString(),
-          description: `Activation de compte SIKA TEXTE via BKAPay`,
+          description: `Dépôt via BKAPay`,
           status: 'completed',
           reference: payment.reference,
           operator: operator || 'BKAPay'
         });
         
-        // ACTIVATE ACCOUNT - This is the key automatic activation
-        await storage.activateAccount(payment.userId);
-        
         console.log('[BKAPAY-WEBHOOK-v1.3] ');
         console.log('[BKAPAY-WEBHOOK-v1.3] ╔════════════════════════════════════════╗');
-        console.log('[BKAPAY-WEBHOOK-v1.3] ║  ✓ ACCOUNT ACTIVATED + BALANCE CREDITED ║');
+        console.log('[BKAPAY-WEBHOOK-v1.3] ║  ✓ BALANCE CREDITED (DEPOSIT)          ║');
         console.log('[BKAPAY-WEBHOOK-v1.3] ╠════════════════════════════════════════╣');
         console.log('[BKAPAY-WEBHOOK-v1.3] ║ User ID:', payment.userId);
         console.log('[BKAPAY-WEBHOOK-v1.3] ║ Transaction:', transactionId);
@@ -1777,8 +1774,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         return res.json({ 
           received: true, 
-          message: 'Account activated and balance credited successfully',
-          activated: true,
+          message: 'Balance credited successfully',
           balanceCredited: activationAmount,
           userId: payment.userId
         });
@@ -1846,16 +1842,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
         .where(eq(bkapayPayments.id, paymentId));
 
-      // Activate the user's account
-      await storage.activateAccount(payment.userId);
+      // Credit the user's balance with the payment amount
+      const paymentAmount = parseFloat(payment.amount);
+      await storage.updateUserBalance(payment.userId, paymentAmount);
+      
+      // Create transaction record
+      await storage.createTransaction({
+        userId: payment.userId,
+        type: 'recharge',
+        amount: paymentAmount.toString(),
+        description: 'Dépôt via BKAPay (approuvé par admin)',
+        status: 'completed',
+        reference: payment.reference,
+        operator: 'BKAPay'
+      });
 
       // Get user info for response
       const user = await storage.getUser(payment.userId);
 
-      console.log('[ADMIN] Activation approved for user:', payment.userId);
+      console.log('[ADMIN] Payment approved - balance credited for user:', payment.userId);
       
       res.json({ 
-        message: 'Compte activé avec succès',
+        message: 'Dépôt crédité avec succès',
+        balanceCredited: paymentAmount,
         user: {
           id: user?.id,
           fullName: user?.fullName || `${user?.firstName} ${user?.lastName}`,
@@ -2096,27 +2105,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Payment verified - proceed with activation
-      console.log('[CALLBACK SECURITY] ✓ Payment verified - Activating account...');
+      // Payment verified - credit balance
+      console.log('[CALLBACK SECURITY] ✓ Payment verified - Crediting balance...');
       
       await db.update(bkapayPayments).set({ 
         status: 'completed',
         completedAt: new Date(),
       }).where(eq(bkapayPayments.reference, reference));
 
-      await storage.activateAccount(paymentRecord.userId);
+      // Credit user balance with payment amount
+      const depositAmount = parseFloat(paymentRecord.amount);
+      await storage.updateUserBalance(paymentRecord.userId, depositAmount);
 
       await storage.createTransaction({
         userId: paymentRecord.userId,
-        type: 'deposit',
-        amount: '0',
-        description: 'Activation de compte - Paiement BKAPay vérifié',
+        type: 'recharge',
+        amount: depositAmount.toString(),
+        description: 'Dépôt via BKAPay',
         status: 'completed',
         reference: transactionId || reference,
+        operator: 'BKAPay'
       });
 
-      console.log('[CALLBACK SECURITY] ===== ACCOUNT ACTIVATED (VERIFIED) =====');
-      return res.json({ message: 'Compte activé avec succès', activated: true, verified: true });
+      console.log('[CALLBACK SECURITY] ===== BALANCE CREDITED (VERIFIED) =====');
+      return res.json({ message: 'Dépôt crédité avec succès', balanceCredited: depositAmount, verified: true });
       
     } catch (error) {
       console.error('[CALLBACK SECURITY] Error processing callback:', error);

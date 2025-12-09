@@ -26,7 +26,7 @@ export default function ActivationSuccess() {
     
     if (paymentStatus === 'success') {
       setStatus('success');
-      setMessage(`Paiement de ${amount || '3600'} FCFA confirmé ! Votre compte est maintenant actif.`);
+      setMessage(`Dépôt de ${amount || '3600'} FCFA crédité sur votre compte !`);
       
       queryClient.invalidateQueries({ queryKey: ['/api/user/balance'] });
       queryClient.invalidateQueries({ queryKey: ['/api/transactions'] });
@@ -47,7 +47,7 @@ export default function ActivationSuccess() {
       localStorage.removeItem('pendingActivationTime');
     } else {
       setStatus('pending');
-      setMessage('Paiement en cours de traitement. Votre compte sera activé automatiquement.');
+      setMessage('Paiement en cours de traitement. Votre solde sera crédité automatiquement.');
       
       queryClient.invalidateQueries({ queryKey: ['/api/user/balance'] });
       queryClient.invalidateQueries({ queryKey: ['/api/transactions'] });
