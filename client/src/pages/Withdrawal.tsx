@@ -139,27 +139,56 @@ export default function Withdrawal() {
     },
   });
 
-  // Direct payment link - no API call needed
-  const handlePayActivation = () => {
-    if (!activationLink) {
+  // BKAPay v1.3 API - initiate payment and redirect
+  const [isPaymentLoading, setIsPaymentLoading] = useState(false);
+  
+  const handlePayActivation = async () => {
+    setIsPaymentLoading(true);
+    try {
+      console.log('[BKAPAY v1.3] Initiating activation payment...');
+      
+      const response = await fetch("/api/activation/init-payment", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[BKAPAY v1.3] Init payment failed:', response.status, errorData);
+        throw new Error(errorData.message || "Erreur lors de l'initiation du paiement");
+      }
+      
+      const data = await response.json();
+      console.log('[BKAPAY v1.3] Payment init response:', data);
+      
+      if (!data.redirectUrl) {
+        throw new Error("URL de paiement non reçue");
+      }
+      
+      // Store reference in localStorage for verification after return
+      if (data.reference) {
+        localStorage.setItem('pendingActivationRef', data.reference);
+        localStorage.setItem('pendingActivationTime', Date.now().toString());
+        console.log('[BKAPAY v1.3] Stored reference:', data.reference);
+      }
+      
+      toast({
+        title: "Redirection vers BKAPay",
+        description: `Paiement de ${data.amount} FCFA en cours...`,
+      });
+      
+      // Redirect to BKAPay payment page
+      window.location.href = data.redirectUrl;
+    } catch (error: any) {
+      console.error('[BKAPAY v1.3] Payment error:', error);
       toast({
         title: "Erreur",
-        description: "Lien de paiement non configuré",
+        description: error.message || "Impossible d'initier le paiement",
         variant: "destructive",
       });
-      return;
+      setIsPaymentLoading(false);
     }
-    
-    if (activationLink === 'https:/' || !activationLink.includes('bkapay')) {
-      toast({
-        title: "Erreur",
-        description: "Lien de paiement invalide. Veuillez contacter le support.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    window.location.href = activationLink;
   };
 
   const handleWithdraw = () => {
@@ -255,11 +284,12 @@ export default function Withdrawal() {
                   <Button 
                     data-testid="button-external-payment"
                     onClick={handlePayActivation}
+                    disabled={isPaymentLoading}
                     size="lg" 
                     className="w-full bg-gradient-to-r from-primary to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold"
                   >
                     <ExternalLink className="w-5 h-5 mr-2" />
-                    Payer l'activation en ligne
+                    {isPaymentLoading ? "Chargement..." : "Payer l'activation en ligne"}
                   </Button>
 
                   <div className="bg-orange-50 dark:bg-orange-900 p-4 rounded-lg">

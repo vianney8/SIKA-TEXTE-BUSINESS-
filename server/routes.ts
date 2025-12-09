@@ -1729,8 +1729,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // According to BKAPay v1.3 docs: event=payment.completed, status=completed
-      const isCompleted = (webhookEvent === 'payment.completed' || status === 'completed') && status !== 'failed';
-      const isFailed = webhookEvent === 'payment.failed' || status === 'failed';
+      const isCompleted = (event === 'payment.completed' || status === 'completed') && status !== 'failed';
+      const isFailed = event === 'payment.failed' || status === 'failed';
       
       if (isCompleted) {
         console.log('[BKAPAY-WEBHOOK-v1.3] ✓ PAYMENT CONFIRMED (event=payment.completed, status=completed)');
@@ -1795,7 +1795,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           activated: false
         });
       } else {
-        console.log('[BKAPAY-WEBHOOK-v1.3] ? UNKNOWN EVENT - event:', webhookEvent, 'status:', status);
+        console.log('[BKAPAY-WEBHOOK-v1.3] ? UNKNOWN EVENT - event:', event, 'status:', status);
         return res.json({ 
           received: true, 
           message: 'Event received but not processed',
