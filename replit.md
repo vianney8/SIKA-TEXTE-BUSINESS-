@@ -78,3 +78,18 @@ Preferred communication style: Simple, everyday language.
 - **Tailwind CSS**: Utility-first CSS framework for rapid UI development
 - **class-variance-authority**: Type-safe component variant management
 - **clsx**: Conditional class name utility for dynamic styling
+
+### Payment Integration - BKAPay v1.3
+- **Integration Type**: API-based with redirect flow and webhooks
+- **Flow**: 
+  1. User clicks "Payer l'activation en ligne" on Withdrawal page
+  2. Frontend calls POST /api/activation/init-payment
+  3. Backend creates payment record and returns BKAPay redirect URL
+  4. User is redirected to BKAPay payment page
+  5. After payment, user returns to /activation-success with status params
+  6. BKAPay sends webhook to /api/webhook/bkapay for automatic activation
+- **Webhook Actions**: Credits 3600 FCFA to user balance, creates transaction in history, activates account
+- **Environment Variables**:
+  - BKAPAY_PUBLIC_KEY: Public API key for initiating payments
+  - BKAPAY_SIGNATURE_SECRET: Secret for HMAC-SHA256 webhook signature verification
+- **Webhook URL**: https://sikatexte.site/api/webhook/bkapay (configure in BKAPay dashboard)
