@@ -1734,7 +1734,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (isCompleted) {
         console.log('[BKAPAY-WEBHOOK-v1.3] ✓ PAYMENT CONFIRMED (event=payment.completed, status=completed)');
-        console.log('[BKAPAY-WEBHOOK-v1.3] Activating account automatically...');
+        console.log('[BKAPAY-WEBHOOK-v1.3] Activating account and crediting balance...');
+        
+        // Get the activation amount for crediting
+        const activationAmount = parseFloat(payment.amount);
         
         // Mark payment as completed
         await db.update(bkapayPayments)
@@ -1744,24 +1747,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
           })
           .where(eq(bkapayPayments.id, payment.id));
         
+        // CREDIT USER BALANCE with activation amount (e.g., 3600 FCFA)
+        await storage.updateUserBalance(payment.userId, activationAmount);
+        
+        // CREATE TRANSACTION in user history - visible as a recharge/deposit
+        await storage.createTransaction({
+          userId: payment.userId,
+          type: 'recharge',
+          amount: activationAmount.toString(),
+          description: `Activation de compte SIKA TEXTE via BKAPay`,
+          status: 'completed',
+          reference: payment.reference,
+          operator: operator || 'BKAPay'
+        });
+        
         // ACTIVATE ACCOUNT - This is the key automatic activation
-        const accountStatus = await storage.activateAccount(payment.userId);
+        await storage.activateAccount(payment.userId);
         
         console.log('[BKAPAY-WEBHOOK-v1.3] ');
         console.log('[BKAPAY-WEBHOOK-v1.3] ╔════════════════════════════════════════╗');
-        console.log('[BKAPAY-WEBHOOK-v1.3] ║  ✓ ACCOUNT AUTOMATICALLY ACTIVATED     ║');
+        console.log('[BKAPAY-WEBHOOK-v1.3] ║  ✓ ACCOUNT ACTIVATED + BALANCE CREDITED ║');
         console.log('[BKAPAY-WEBHOOK-v1.3] ╠════════════════════════════════════════╣');
         console.log('[BKAPAY-WEBHOOK-v1.3] ║ User ID:', payment.userId);
         console.log('[BKAPAY-WEBHOOK-v1.3] ║ Transaction:', transactionId);
-        console.log('[BKAPAY-WEBHOOK-v1.3] ║ Amount:', amount, currency);
+        console.log('[BKAPAY-WEBHOOK-v1.3] ║ Amount Credited:', activationAmount, 'FCFA');
         console.log('[BKAPAY-WEBHOOK-v1.3] ║ Operator:', operator);
         console.log('[BKAPAY-WEBHOOK-v1.3] ║ Customer:', customerName, customerPhone);
         console.log('[BKAPAY-WEBHOOK-v1.3] ╚════════════════════════════════════════╝');
         
         return res.json({ 
           received: true, 
-          message: 'Account activated successfully',
+          message: 'Account activated and balance credited successfully',
           activated: true,
+          balanceCredited: activationAmount,
           userId: payment.userId
         });
       } else if (isFailed) {
