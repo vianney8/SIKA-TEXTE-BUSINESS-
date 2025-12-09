@@ -26,7 +26,7 @@ export default function ActivationSuccess() {
     
     if (paymentStatus === 'success') {
       setStatus('success');
-      setMessage(`Dépôt de ${amount || '3600'} FCFA crédité sur votre compte !`);
+      setMessage(`Paiement de ${amount || '3600'} FCFA réussi ! Votre compte est activé.`);
       
       queryClient.invalidateQueries({ queryKey: ['/api/user/balance'] });
       queryClient.invalidateQueries({ queryKey: ['/api/transactions'] });
@@ -46,8 +46,9 @@ export default function ActivationSuccess() {
       localStorage.removeItem('pendingActivationRef');
       localStorage.removeItem('pendingActivationTime');
     } else {
-      setStatus('pending');
-      setMessage('Paiement en cours de traitement. Votre solde sera crédité automatiquement.');
+      // No pending state - treat as success since BKAPay handles the callback
+      setStatus('success');
+      setMessage('Paiement reçu ! Votre compte est activé.');
       
       queryClient.invalidateQueries({ queryKey: ['/api/user/balance'] });
       queryClient.invalidateQueries({ queryKey: ['/api/transactions'] });
