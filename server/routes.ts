@@ -1608,13 +1608,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Process return from BKAPay - Activate account when user returns after payment
-  app.post('/api/activation/process-return', requireAuth, async (req: any, res) => {
+  // No auth required - uses payment reference to identify user
+  app.post('/api/activation/process-return', async (req: any, res) => {
     try {
-      const userId = req.session.userId;
       const { reference, status, transactionId, amount } = req.body;
       
       console.log('[ACTIVATION-RETURN] ===== PROCESSING PAYMENT RETURN =====');
-      console.log('[ACTIVATION-RETURN] User:', userId);
       console.log('[ACTIVATION-RETURN] Reference:', reference);
       console.log('[ACTIVATION-RETURN] Status:', status);
       console.log('[ACTIVATION-RETURN] TransactionId:', transactionId);
@@ -1624,7 +1623,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Référence manquante', activated: false });
       }
 
-      // Find the payment record
+      // Find the payment record by reference
       const payments = await db.select().from(bkapayPayments)
         .where(eq(bkapayPayments.reference, reference));
       const payment = payments[0];
@@ -1633,12 +1632,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('[ACTIVATION-RETURN] Payment not found for reference:', reference);
         return res.status(404).json({ message: 'Paiement non trouvé', activated: false });
       }
-
-      // Check if user owns this payment
-      if (payment.userId !== userId) {
-        console.log('[ACTIVATION-RETURN] User mismatch:', payment.userId, '!=', userId);
-        return res.status(403).json({ message: 'Accès non autorisé', activated: false });
-      }
+      
+      const userId = payment.userId;
+      console.log('[ACTIVATION-RETURN] User from payment:', userId);
 
       // Check if already completed
       if (payment.status === 'completed') {
