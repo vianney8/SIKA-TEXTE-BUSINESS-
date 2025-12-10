@@ -41,7 +41,8 @@ export default function ActivationSuccess() {
       console.log('[ACTIVATION-SUCCESS] All URL params:', allParams);
       console.log('[ACTIVATION-SUCCESS] Parsed values:', { ref, paymentStatus, transactionId, amount, storedRef });
       
-      setDebugInfo(`URL: ${window.location.href}\nParams: ${JSON.stringify(allParams)}`);
+      const referenceToUse = ref || storedRef;
+      setDebugInfo(`URL: ${window.location.href}\nParams bruts: ${JSON.stringify(allParams)}\nRef corrigée: ${ref}\nRef localStorage: ${storedRef}\nRef utilisée: ${referenceToUse}`);
       
       if (paymentStatus === 'failed') {
         setStatus('failed');
@@ -49,8 +50,6 @@ export default function ActivationSuccess() {
         return;
       }
 
-      // Use ref from URL or fallback to localStorage
-      const referenceToUse = ref || storedRef;
       console.log('[ACTIVATION-SUCCESS] Reference to use:', referenceToUse);
 
       if (!referenceToUse) {
