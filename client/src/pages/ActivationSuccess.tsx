@@ -9,16 +9,32 @@ export default function ActivationSuccess() {
   const [, setLocation] = useLocation();
   const [status, setStatus] = useState<'loading' | 'success' | 'failed'>('loading');
   const [message, setMessage] = useState('Activation de votre compte...');
+  const [debugInfo, setDebugInfo] = useState('');
   
   const urlParams = new URLSearchParams(window.location.search);
-  const ref = urlParams.get('ref');
-  const paymentStatus = urlParams.get('status');
-  const transactionId = urlParams.get('transactionId');
+  
+  // Log all URL parameters for debugging
+  const allParams: Record<string, string> = {};
+  urlParams.forEach((value, key) => {
+    allParams[key] = value;
+  });
+  
+  // Try multiple possible parameter names for reference
+  const ref = urlParams.get('ref') || urlParams.get('reference') || urlParams.get('order_id') || urlParams.get('transaction_id');
+  const paymentStatus = urlParams.get('status') || urlParams.get('payment_status');
+  const transactionId = urlParams.get('transactionId') || urlParams.get('transaction_id') || urlParams.get('tx_id');
   const amount = urlParams.get('amount');
+  
+  // Fallback to localStorage if no ref in URL
+  const storedRef = localStorage.getItem('pendingActivationRef');
 
   useEffect(() => {
     const activateAccount = async () => {
-      console.log('[ACTIVATION-SUCCESS] Processing payment callback:', { ref, paymentStatus, transactionId, amount });
+      console.log('[ACTIVATION-SUCCESS] Full URL:', window.location.href);
+      console.log('[ACTIVATION-SUCCESS] All URL params:', allParams);
+      console.log('[ACTIVATION-SUCCESS] Parsed values:', { ref, paymentStatus, transactionId, amount, storedRef });
+      
+      setDebugInfo(`URL: ${window.location.href}\nParams: ${JSON.stringify(allParams)}`);
       
       if (paymentStatus === 'failed') {
         setStatus('failed');
@@ -26,9 +42,13 @@ export default function ActivationSuccess() {
         return;
       }
 
-      if (!ref) {
+      // Use ref from URL or fallback to localStorage
+      const referenceToUse = ref || storedRef;
+      console.log('[ACTIVATION-SUCCESS] Reference to use:', referenceToUse);
+
+      if (!referenceToUse) {
         setStatus('failed');
-        setMessage('Référence de paiement manquante.');
+        setMessage('Référence de paiement manquante. Veuillez contacter le support.');
         return;
       }
 
@@ -38,7 +58,7 @@ export default function ActivationSuccess() {
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({ 
-            reference: ref,
+            reference: referenceToUse,
             status: paymentStatus || 'success',
             transactionId,
             amount
@@ -75,7 +95,7 @@ export default function ActivationSuccess() {
     };
 
     activateAccount();
-  }, [ref, paymentStatus, transactionId, amount, setLocation]);
+  }, [ref, paymentStatus, transactionId, amount, storedRef, setLocation]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center p-4">
@@ -103,6 +123,13 @@ export default function ActivationSuccess() {
           )}
           
           <p className="text-gray-600 dark:text-gray-400 mb-4">{message}</p>
+          
+          {status === 'failed' && debugInfo && (
+            <details className="text-left mb-4 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs">
+              <summary className="cursor-pointer text-gray-500">Détails techniques (pour le support)</summary>
+              <pre className="mt-2 whitespace-pre-wrap break-all text-gray-600 dark:text-gray-400">{debugInfo}</pre>
+            </details>
+          )}
           
           {status === 'success' && (
             <p className="text-sm text-gray-500 mb-4">Redirection automatique...</p>
