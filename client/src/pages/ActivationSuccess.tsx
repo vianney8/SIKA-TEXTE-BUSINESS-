@@ -20,7 +20,14 @@ export default function ActivationSuccess() {
   });
   
   // Try multiple possible parameter names for reference
-  const ref = urlParams.get('ref') || urlParams.get('reference') || urlParams.get('order_id') || urlParams.get('transaction_id');
+  let ref = urlParams.get('ref') || urlParams.get('reference') || urlParams.get('order_id') || urlParams.get('transaction_id');
+  
+  // Fix: BKAPay appends ?status=... which breaks our ref parameter
+  // If ref contains ?, extract only the part before it
+  if (ref && ref.includes('?')) {
+    ref = ref.split('?')[0];
+  }
+  
   const paymentStatus = urlParams.get('status') || urlParams.get('payment_status');
   const transactionId = urlParams.get('transactionId') || urlParams.get('transaction_id') || urlParams.get('tx_id');
   const amount = urlParams.get('amount');
