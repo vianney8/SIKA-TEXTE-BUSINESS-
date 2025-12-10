@@ -1588,13 +1588,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ message: 'Clé API BKAPay non configurée' });
       }
       
-      const callbackUrl = encodeURIComponent(`${req.protocol}://${req.get('host')}/activation-success?ref=${reference}`);
+      // Always use HTTPS for callback (Replit runs behind proxy)
+      const host = req.get('host');
+      const baseCallbackUrl = `https://${host}/activation-success?ref=${reference}`;
+      const callbackUrl = encodeURIComponent(baseCallbackUrl);
       const description = encodeURIComponent(`Activation compte SIKA TEXTE - ${user.firstName || user.fullName || 'Utilisateur'}`);
       
       const redirectUrl = `https://bkapay.com/api-pay/${publicKey}?amount=${activationAmount}&description=${description}&callback=${callbackUrl}`;
       
-      console.log('[BKAPAY-INIT] Created payment:', { reference, amount: activationAmount, userId });
-      console.log('[BKAPAY-INIT] Redirect URL:', redirectUrl);
+      console.log('[BKAPAY-INIT] ===== PAYMENT INITIATED =====');
+      console.log('[BKAPAY-INIT] User ID:', userId);
+      console.log('[BKAPAY-INIT] Reference:', reference);
+      console.log('[BKAPAY-INIT] Amount:', activationAmount);
+      console.log('[BKAPAY-INIT] Callback URL (raw):', baseCallbackUrl);
+      console.log('[BKAPAY-INIT] Callback URL (encoded):', callbackUrl);
+      console.log('[BKAPAY-INIT] Full Redirect URL:', redirectUrl);
       
       res.json({ 
         redirectUrl,
