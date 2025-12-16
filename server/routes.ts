@@ -302,8 +302,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { recipientPhone, amount, message } = transferSchema.parse(req.body);
       
       // Check if sender's account is activated
-      const sender = await storage.getUser(userId);
-      if (!sender?.isActivated) {
+      const accountStatus = await storage.getAccountStatus(userId);
+      if (!accountStatus?.isActive) {
         return res.status(403).json({ 
           message: "Votre compte n'est pas activé. Veuillez activer votre compte pour effectuer des transferts.",
           requiresActivation: true
