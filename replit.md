@@ -79,17 +79,18 @@ Preferred communication style: Simple, everyday language.
 - **class-variance-authority**: Type-safe component variant management
 - **clsx**: Conditional class name utility for dynamic styling
 
-### Payment Integration - BKAPay v1.3
-- **Integration Type**: API-based with redirect flow and webhooks
+### Payment Integration - Lygos API
+- **Integration Type**: REST API with redirect flow
+- **API Base URL**: https://api.lygosapp.com/v1/
 - **Flow**: 
   1. User clicks "Payer l'activation en ligne" on Withdrawal page
   2. Frontend calls POST /api/activation/init-payment
-  3. Backend creates payment record and returns BKAPay redirect URL
-  4. User is redirected to BKAPay payment page
-  5. After payment, user returns to /activation-success with status params
-  6. BKAPay sends webhook to /api/webhook/bkapay for deposit processing
-- **Webhook Actions**: Credits 3600 FCFA to user balance, creates transaction in history (as a deposit/recharge - does NOT activate account)
+  3. Backend calls Lygos API (POST /v1/gateway) to create payment gateway
+  4. Backend creates local payment record and returns Lygos payment link
+  5. User is redirected to Lygos payment page
+  6. After payment, Lygos redirects user to success_url or failure_url
+  7. /activation-success page calls /api/activation/process-return to complete activation
+- **Activation Actions**: Credits payment amount to user balance, creates transaction in history, activates account
 - **Environment Variables**:
-  - BKAPAY_PUBLIC_KEY: Public API key for initiating payments
-  - BKAPAY_SIGNATURE_SECRET: Secret for HMAC-SHA256 webhook signature verification
-- **Webhook URL**: https://sikatexte.site/api/webhook/bkapay (configure in BKAPay dashboard)
+  - LYGOS_API_KEY: API key for Lygos authentication (header: api-key)
+- **Documentation**: https://docs.lygosapp.com/api-reference/introduction

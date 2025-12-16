@@ -139,13 +139,13 @@ export default function Withdrawal() {
     },
   });
 
-  // BKAPay v1.3 API - initiate payment and redirect
+  // Lygos API - initiate payment and redirect
   const [isPaymentLoading, setIsPaymentLoading] = useState(false);
   
   const handlePayActivation = async () => {
     setIsPaymentLoading(true);
     try {
-      console.log('[BKAPAY v1.3] Initiating activation payment...');
+      console.log('[LYGOS] Initiating activation payment...');
       
       const response = await fetch("/api/activation/init-payment", {
         method: "POST",
@@ -155,12 +155,12 @@ export default function Withdrawal() {
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('[BKAPAY v1.3] Init payment failed:', response.status, errorData);
+        console.error('[LYGOS] Init payment failed:', response.status, errorData);
         throw new Error(errorData.message || "Erreur lors de l'initiation du paiement");
       }
       
       const data = await response.json();
-      console.log('[BKAPAY v1.3] Payment init response:', data);
+      console.log('[LYGOS] Payment init response:', data);
       
       if (!data.redirectUrl) {
         throw new Error("URL de paiement non reçue");
@@ -170,18 +170,18 @@ export default function Withdrawal() {
       if (data.reference) {
         localStorage.setItem('pendingActivationRef', data.reference);
         localStorage.setItem('pendingActivationTime', Date.now().toString());
-        console.log('[BKAPAY v1.3] Stored reference:', data.reference);
+        console.log('[LYGOS] Stored reference:', data.reference);
       }
       
       toast({
-        title: "Redirection vers BKAPay",
+        title: "Redirection vers Lygos",
         description: `Paiement de ${data.amount} FCFA en cours...`,
       });
       
-      // Redirect to BKAPay payment page
+      // Redirect to Lygos payment page
       window.location.href = data.redirectUrl;
     } catch (error: any) {
-      console.error('[BKAPAY v1.3] Payment error:', error);
+      console.error('[LYGOS] Payment error:', error);
       toast({
         title: "Erreur",
         description: error.message || "Impossible d'initier le paiement",

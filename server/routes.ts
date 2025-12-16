@@ -1547,8 +1547,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // BKAPAY v1.3 - Activation Payment API
-  // Creates payment record and redirects to BKAPay payment page
+  // LYGOS API - Activation Payment
+  // Creates payment gateway via Lygos API and returns payment link
   app.post('/api/activation/init-payment', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session.userId;
@@ -1569,7 +1569,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const activationSetting = settings.find(s => s.key === 'activation_amount');
       const activationAmount = parseInt(activationSetting?.value || '3600');
       
-      // Generate unique reference
+      // Generate unique reference/order_id
       const reference = `ACT-${userId.substring(0, 8)}-${Date.now()}`;
       
       // Create pending payment record
@@ -1582,50 +1582,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdAt: new Date()
       });
       
-      // Build BKAPay redirect URL as per v1.3 documentation
-      const publicKey = process.env.BKAPAY_PUBLIC_KEY;
-      if (!publicKey) {
-        return res.status(500).json({ message: 'Clé API BKAPay non configurée' });
+      // Check Lygos API key
+      const lygosApiKey = process.env.LYGOS_API_KEY;
+      if (!lygosApiKey) {
+        return res.status(500).json({ message: 'Clé API Lygos non configurée' });
       }
       
-      // Always use HTTPS for callback (Replit runs behind proxy)
+      // Build callback URLs (always use HTTPS) - URL encode the reference
       const host = req.get('host');
-      const baseCallbackUrl = `https://${host}/activation-success?ref=${reference}`;
-      const callbackUrl = encodeURIComponent(baseCallbackUrl);
-      const description = encodeURIComponent(`Activation compte SIKA TEXTE - ${user.firstName || user.fullName || 'Utilisateur'}`);
+      const encodedRef = encodeURIComponent(reference);
+      const successUrl = `https://${host}/activation-success?ref=${encodedRef}&status=success`;
+      const failureUrl = `https://${host}/activation-success?ref=${encodedRef}&status=failed`;
       
-      const redirectUrl = `https://bkapay.com/api-pay/${publicKey}?amount=${activationAmount}&description=${description}&callback=${callbackUrl}`;
+      console.log('[LYGOS-INIT] ===== PAYMENT INITIATED =====');
+      console.log('[LYGOS-INIT] User ID:', userId);
+      console.log('[LYGOS-INIT] Reference:', reference);
+      console.log('[LYGOS-INIT] Amount:', activationAmount);
+      console.log('[LYGOS-INIT] Success URL:', successUrl);
+      console.log('[LYGOS-INIT] Failure URL:', failureUrl);
       
-      console.log('[BKAPAY-INIT] ===== PAYMENT INITIATED =====');
-      console.log('[BKAPAY-INIT] User ID:', userId);
-      console.log('[BKAPAY-INIT] Reference:', reference);
-      console.log('[BKAPAY-INIT] Amount:', activationAmount);
-      console.log('[BKAPAY-INIT] Callback URL (raw):', baseCallbackUrl);
-      console.log('[BKAPAY-INIT] Callback URL (encoded):', callbackUrl);
-      console.log('[BKAPAY-INIT] Full Redirect URL:', redirectUrl);
+      // Call Lygos API to create payment gateway
+      const lygosResponse = await fetch('https://api.lygosapp.com/v1/gateway', {
+        method: 'POST',
+        headers: {
+          'api-key': lygosApiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          amount: activationAmount,
+          shop_name: 'SIKA TEXTE',
+          message: `Activation compte - ${user.firstName || user.fullName || 'Utilisateur'}`,
+          success_url: successUrl,
+          failure_url: failureUrl,
+          order_id: reference
+        })
+      });
+      
+      if (!lygosResponse.ok) {
+        const errorText = await lygosResponse.text();
+        console.error('[LYGOS-INIT] API Error:', lygosResponse.status, errorText);
+        return res.status(500).json({ message: 'Erreur lors de la création du paiement Lygos' });
+      }
+      
+      const lygosData = await lygosResponse.json();
+      console.log('[LYGOS-INIT] Lygos Response:', lygosData);
+      
+      // Validate Lygos response - ensure link exists
+      if (!lygosData.link) {
+        console.error('[LYGOS-INIT] Invalid Lygos response - missing link:', lygosData);
+        return res.status(502).json({ message: 'Réponse invalide de Lygos - lien de paiement manquant' });
+      }
+      
+      // Update payment record with Lygos gateway link
+      await db.update(bkapayPayments)
+        .set({ redirectUrl: lygosData.link })
+        .where(eq(bkapayPayments.reference, reference));
       
       res.json({ 
-        redirectUrl,
+        redirectUrl: lygosData.link,
         reference,
-        amount: activationAmount
+        amount: activationAmount,
+        gatewayId: lygosData.id
       });
     } catch (error) {
-      console.error('[BKAPAY-INIT] Error:', error);
+      console.error('[LYGOS-INIT] Error:', error);
       res.status(500).json({ message: 'Erreur lors de l\'initiation du paiement' });
     }
   });
 
-  // Process return from BKAPay - Activate account when user returns after payment
+  // Process return from Lygos - Activate account when user returns after payment
   // No auth required - uses payment reference to identify user
   app.post('/api/activation/process-return', async (req: any, res) => {
     try {
       const { reference, status, transactionId, amount } = req.body;
       
-      console.log('[ACTIVATION-RETURN] ===== PROCESSING PAYMENT RETURN =====');
-      console.log('[ACTIVATION-RETURN] Reference:', reference);
-      console.log('[ACTIVATION-RETURN] Status:', status);
-      console.log('[ACTIVATION-RETURN] TransactionId:', transactionId);
-      console.log('[ACTIVATION-RETURN] Amount:', amount);
+      console.log('[LYGOS-RETURN] ===== PROCESSING PAYMENT RETURN =====');
+      console.log('[LYGOS-RETURN] Reference:', reference);
+      console.log('[LYGOS-RETURN] Status:', status);
+      console.log('[LYGOS-RETURN] TransactionId:', transactionId);
+      console.log('[LYGOS-RETURN] Amount:', amount);
       
       if (!reference) {
         return res.status(400).json({ message: 'Référence manquante', activated: false });
@@ -1637,16 +1672,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const payment = payments[0];
 
       if (!payment) {
-        console.log('[ACTIVATION-RETURN] Payment not found for reference:', reference);
+        console.log('[LYGOS-RETURN] Payment not found for reference:', reference);
         return res.status(404).json({ message: 'Paiement non trouvé', activated: false });
       }
       
       const userId = payment.userId;
-      console.log('[ACTIVATION-RETURN] User from payment:', userId);
+      console.log('[LYGOS-RETURN] User from payment:', userId);
 
       // Check if already completed
       if (payment.status === 'completed') {
-        console.log('[ACTIVATION-RETURN] Payment already completed');
+        console.log('[LYGOS-RETURN] Payment already completed');
         // Still return success as account should be active
         const accountStat = await storage.getAccountStatus(userId);
         return res.json({ 
@@ -1665,7 +1700,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Process successful payment - Credit balance and activate account
-      console.log('[ACTIVATION-RETURN] Processing successful payment...');
+      console.log('[LYGOS-RETURN] Processing successful payment...');
       
       const paymentAmount = parseFloat(payment.amount);
 
@@ -1685,20 +1720,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId: userId,
         type: 'recharge',
         amount: paymentAmount.toString(),
-        description: 'Dépôt via BKAPay',
+        description: 'Dépôt via Lygos',
         status: 'completed',
         reference: reference,
-        operator: 'BKAPay'
+        operator: 'Lygos'
       });
 
       // Activate account
       await storage.activateAccount(userId);
 
-      console.log('[ACTIVATION-RETURN] ╔════════════════════════════════════════╗');
-      console.log('[ACTIVATION-RETURN] ║  ✓ ACCOUNT ACTIVATED SUCCESSFULLY      ║');
-      console.log('[ACTIVATION-RETURN] ║  User:', userId);
-      console.log('[ACTIVATION-RETURN] ║  Amount:', paymentAmount, 'FCFA');
-      console.log('[ACTIVATION-RETURN] ╚════════════════════════════════════════╝');
+      console.log('[LYGOS-RETURN] ╔════════════════════════════════════════╗');
+      console.log('[LYGOS-RETURN] ║  ✓ ACCOUNT ACTIVATED SUCCESSFULLY      ║');
+      console.log('[LYGOS-RETURN] ║  User:', userId);
+      console.log('[LYGOS-RETURN] ║  Amount:', paymentAmount, 'FCFA');
+      console.log('[LYGOS-RETURN] ╚════════════════════════════════════════╝');
 
       return res.json({ 
         message: 'Compte activé avec succès', 
@@ -1707,7 +1742,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
     } catch (error) {
-      console.error('[ACTIVATION-RETURN] Error:', error);
+      console.error('[LYGOS-RETURN] Error:', error);
       res.status(500).json({ message: 'Erreur lors du traitement', activated: false });
     }
   });
