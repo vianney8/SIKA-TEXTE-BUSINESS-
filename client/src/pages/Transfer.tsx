@@ -10,8 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { ArrowLeft, ArrowUpRight } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, AlertTriangle } from "lucide-react";
 import { Link, useLocation } from "wouter";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 type TransferForm = {
   recipientPhone: string;
@@ -23,6 +24,7 @@ export default function Transfer() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [activationRequired, setActivationRequired] = useState(false);
 
   const form = useForm<TransferForm>({
     resolver: zodResolver(transferSchema),
@@ -34,9 +36,11 @@ export default function Transfer() {
 
   const transferMutation = useMutation({
     mutationFn: async (data: TransferForm) => {
-      return await apiRequest("POST", "/api/transactions/transfer", data);
+      const response = await apiRequest("POST", "/api/transactions/transfer", data);
+      return response;
     },
     onSuccess: () => {
+      setActivationRequired(false);
       toast({
         title: "Transfert effectué",
         description: "Votre transfert a été effectué avec succès",
@@ -45,16 +49,24 @@ export default function Transfer() {
       queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
       setLocation("/");
     },
-    onError: (error: Error) => {
-      toast({
-        title: "Erreur",
-        description: error.message || "Erreur lors du transfert",
-        variant: "destructive",
-      });
+    onError: (error: any) => {
+      // Check if it's an activation required error
+      if (error.message?.includes("activé") || error.requiresActivation) {
+        setActivationRequired(true);
+      } else {
+        setActivationRequired(false);
+        toast({
+          title: "Erreur",
+          description: error.message || "Erreur lors du transfert",
+          variant: "destructive",
+        });
+      }
     },
   });
 
   const onSubmit = (data: TransferForm) => {
+    // Reset activation required state before each submission
+    setActivationRequired(false);
     transferMutation.mutate(data);
   };
 
@@ -79,6 +91,25 @@ export default function Transfer() {
               <ArrowUpRight className="text-primary mr-3" size={24} />
               <h2 className="text-xl font-bold">Envoyer de l'argent</h2>
             </div>
+
+            {activationRequired && (
+              <Alert variant="destructive" className="mb-4" data-testid="alert-activation-required">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Compte non activé</AlertTitle>
+                <AlertDescription className="mt-2">
+                  <p className="mb-3">Votre compte n'est pas activé. Vous devez activer votre compte pour effectuer des transferts.</p>
+                  <Button 
+                    asChild 
+                    variant="outline" 
+                    size="sm"
+                    className="border-red-300 text-red-700 hover:bg-red-50"
+                    data-testid="button-go-activate"
+                  >
+                    <Link href="/withdrawal">Activer mon compte</Link>
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
 
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
