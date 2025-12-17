@@ -301,15 +301,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.session.userId;
       const { recipientPhone, amount, message } = transferSchema.parse(req.body);
       
-      // Check if sender's account is activated
-      const accountStatus = await storage.getAccountStatus(userId);
-      if (!accountStatus?.isActive) {
-        return res.status(403).json({ 
-          message: "Votre compte n'est pas activé. Veuillez activer votre compte pour effectuer des transferts.",
-          requiresActivation: true
-        });
-      }
-      
       // Check if recipient exists in SIKA TEXTE system
       const recipient = await storage.getUserByPhone(recipientPhone);
       if (!recipient) {
