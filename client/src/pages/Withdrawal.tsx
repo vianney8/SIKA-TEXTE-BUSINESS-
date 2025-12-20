@@ -139,11 +139,13 @@ export default function Withdrawal() {
     },
   });
 
-  // Lygos API - initiate payment and redirect
-  const [isPaymentLoading, setIsPaymentLoading] = useState(false);
+  // Payment gateways - Lygos and BKAPay
+  const [isLygosLoading, setIsLygosLoading] = useState(false);
+  const [isBkapayLoading, setIsBkapayLoading] = useState(false);
   
-  const handlePayActivation = async () => {
-    setIsPaymentLoading(true);
+  // Lygos payment handler
+  const handlePayLygos = async () => {
+    setIsLygosLoading(true);
     try {
       console.log('[LYGOS] Initiating activation payment...');
       
@@ -166,11 +168,9 @@ export default function Withdrawal() {
         throw new Error("URL de paiement non reçue");
       }
       
-      // Store reference in localStorage for verification after return
       if (data.reference) {
         localStorage.setItem('pendingActivationRef', data.reference);
         localStorage.setItem('pendingActivationTime', Date.now().toString());
-        console.log('[LYGOS] Stored reference:', data.reference);
       }
       
       toast({
@@ -178,7 +178,6 @@ export default function Withdrawal() {
         description: `Paiement de ${data.amount} FCFA en cours...`,
       });
       
-      // Redirect to Lygos payment page
       window.location.href = data.redirectUrl;
     } catch (error: any) {
       console.error('[LYGOS] Payment error:', error);
@@ -187,7 +186,54 @@ export default function Withdrawal() {
         description: error.message || "Impossible d'initier le paiement",
         variant: "destructive",
       });
-      setIsPaymentLoading(false);
+      setIsLygosLoading(false);
+    }
+  };
+
+  // BKAPay payment handler
+  const handlePayBkapay = async () => {
+    setIsBkapayLoading(true);
+    try {
+      console.log('[BKAPAY] Initiating activation payment...');
+      
+      const response = await fetch("/api/activation/init-payment-bkapay", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[BKAPAY] Init payment failed:', response.status, errorData);
+        throw new Error(errorData.message || "Erreur lors de l'initiation du paiement");
+      }
+      
+      const data = await response.json();
+      console.log('[BKAPAY] Payment init response:', data);
+      
+      if (!data.redirectUrl) {
+        throw new Error("URL de paiement non reçue");
+      }
+      
+      if (data.reference) {
+        localStorage.setItem('pendingActivationRef', data.reference);
+        localStorage.setItem('pendingActivationTime', Date.now().toString());
+      }
+      
+      toast({
+        title: "Redirection vers BKAPay",
+        description: `Paiement de ${data.amount} FCFA en cours...`,
+      });
+      
+      window.location.href = data.redirectUrl;
+    } catch (error: any) {
+      console.error('[BKAPAY] Payment error:', error);
+      toast({
+        title: "Erreur",
+        description: error.message || "Impossible d'initier le paiement",
+        variant: "destructive",
+      });
+      setIsBkapayLoading(false);
     }
   };
 
@@ -281,15 +327,30 @@ export default function Withdrawal() {
                 </div>
 
                 <div className="space-y-4">
+                  <p className="text-sm text-slate-600 dark:text-slate-400 font-medium text-center mb-2">
+                    Choisissez votre mode de paiement :
+                  </p>
+                  
                   <Button 
-                    data-testid="button-external-payment"
-                    onClick={handlePayActivation}
-                    disabled={isPaymentLoading}
+                    data-testid="button-payment-lygos"
+                    onClick={handlePayLygos}
+                    disabled={isLygosLoading || isBkapayLoading}
                     size="lg" 
-                    className="w-full bg-gradient-to-r from-primary to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold"
+                    className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold"
                   >
-                    <ExternalLink className="w-5 h-5 mr-2" />
-                    {isPaymentLoading ? "Chargement..." : "Payer l'activation en ligne"}
+                    <CreditCard className="w-5 h-5 mr-2" />
+                    {isLygosLoading ? "Chargement..." : "Passerelle 1 - Lygos"}
+                  </Button>
+                  
+                  <Button 
+                    data-testid="button-payment-bkapay"
+                    onClick={handlePayBkapay}
+                    disabled={isLygosLoading || isBkapayLoading}
+                    size="lg" 
+                    className="w-full bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white font-semibold"
+                  >
+                    <Smartphone className="w-5 h-5 mr-2" />
+                    {isBkapayLoading ? "Chargement..." : "Passerelle 2 - BKAPay"}
                   </Button>
 
                   <div className="bg-orange-50 dark:bg-orange-900 p-4 rounded-lg">

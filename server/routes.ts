@@ -1650,6 +1650,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // BKAPAY v1.3 - Activation Payment via URL Redirect
+  // Uses simple URL redirection (no API call needed)
+  app.post('/api/activation/init-payment-bkapay', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: 'Utilisateur non trouvé' });
+      }
+      
+      // Check if account is already active
+      const statusResult = await db.select().from(accountStatus).where(eq(accountStatus.userId, userId));
+      if (statusResult.length > 0 && statusResult[0].isActive) {
+        return res.status(400).json({ message: 'Votre compte est déjà activé' });
+      }
+      
+      // Get activation amount from settings
+      const settings = await storage.getAppSettings();
+      const activationSetting = settings.find(s => s.key === 'activation_amount');
+      const activationAmount = parseInt(activationSetting?.value || '3600');
+      
+      // Generate unique reference/order_id
+      const reference = `ACT-${userId.substring(0, 8)}-${Date.now()}`;
+      
+      // Get BKAPay public key
+      const bkapayPublicKey = process.env.BKAPAY_PUBLIC_KEY;
+      if (!bkapayPublicKey) {
+        return res.status(500).json({ message: 'Clé API BKAPay non configurée' });
+      }
+      
+      // Create pending payment record
+      await db.insert(bkapayPayments).values({
+        id: crypto.randomUUID(),
+        userId: userId,
+        amount: activationAmount.toString(),
+        reference: reference,
+        status: 'pending',
+        createdAt: new Date()
+      });
+      
+      // Build callback URL (always use HTTPS)
+      // BKAPay v1.3 returns with ?status=success&transactionId=xxx&amount=xxx
+      const host = req.get('host');
+      const encodedRef = encodeURIComponent(reference);
+      const callbackUrl = `https://${host}/activation-success?ref=${encodedRef}`;
+      const description = `Activation compte SIKA TEXTE - ${reference}`;
+      
+      // BKAPay v1.3 simple redirect URL format - all params must be URL encoded
+      const bkapayUrl = `https://bkapay.com/api-pay/${bkapayPublicKey}?amount=${encodeURIComponent(activationAmount.toString())}&description=${encodeURIComponent(description)}&callback=${encodeURIComponent(callbackUrl)}`;
+      
+      console.log('[BKAPAY-INIT] ===== PAYMENT INITIATED =====');
+      console.log('[BKAPAY-INIT] User ID:', userId);
+      console.log('[BKAPAY-INIT] Reference:', reference);
+      console.log('[BKAPAY-INIT] Amount:', activationAmount);
+      console.log('[BKAPAY-INIT] Redirect URL:', bkapayUrl);
+      
+      // Update payment record with redirect URL
+      await db.update(bkapayPayments)
+        .set({ redirectUrl: bkapayUrl })
+        .where(eq(bkapayPayments.reference, reference));
+      
+      res.json({ 
+        redirectUrl: bkapayUrl,
+        reference,
+        amount: activationAmount,
+        gateway: 'bkapay'
+      });
+    } catch (error) {
+      console.error('[BKAPAY-INIT] Error:', error);
+      res.status(500).json({ message: 'Erreur lors de l\'initiation du paiement' });
+    }
+  });
+
   // Process return from Lygos - Activate account when user returns after payment
   // No auth required - uses payment reference to identify user
   app.post('/api/activation/process-return', async (req: any, res) => {
