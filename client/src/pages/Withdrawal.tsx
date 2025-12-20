@@ -74,8 +74,8 @@ export default function Withdrawal() {
 
   const isInstagramActive = instagramEnabled !== 'false';
   const isTelegramActive = telegramEnabled !== 'false';
-  const isBkapayActive = bkapayEnabled !== 'false';
-  const isLygosActive = lygosEnabled !== 'false';
+  const isBkapayActive = bkapayEnabled === undefined || bkapayEnabled === '' || bkapayEnabled !== 'false';
+  const isLygosActive = lygosEnabled === undefined || lygosEnabled === '' || lygosEnabled !== 'false';
 
   const { data: withdrawalData, refetch: refetchWithdrawalData } = useQuery<WithdrawalData>({
     queryKey: ['/api/withdrawal'],
