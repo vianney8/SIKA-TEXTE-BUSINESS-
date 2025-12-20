@@ -79,26 +79,13 @@ Preferred communication style: Simple, everyday language.
 - **class-variance-authority**: Type-safe component variant management
 - **clsx**: Conditional class name utility for dynamic styling
 
-### Payment Integration - Dual Gateway (Lygos + BKAPay)
+### Payment Integration - Dual Gateway (BKAPay + Lygos)
 The application supports two payment gateways for account activation:
 
-#### Passerelle 1 - Lygos API
-- **Integration Type**: REST API with redirect flow
-- **API Base URL**: https://api.lygosapp.com/v1/
-- **Flow**: 
-  1. User clicks "Passerelle 1 - Lygos" on Withdrawal page
-  2. Frontend calls POST /api/activation/init-payment
-  3. Backend calls Lygos API (POST /v1/gateway) to create payment gateway
-  4. User is redirected to Lygos payment page
-  5. After payment, Lygos redirects user to /activation-success with ref & status
-  6. /activation-success page calls /api/activation/process-return to complete activation
-- **Environment Variables**: LYGOS_API_KEY
-- **Documentation**: https://docs.lygosapp.com/api-reference/introduction
-
-#### Passerelle 2 - BKAPay v1.3
+#### Passerelle 1 - BKAPay v1.3
 - **Integration Type**: URL redirect + Webhook
 - **Flow**: 
-  1. User clicks "Passerelle 2 - BKAPay" on Withdrawal page
+  1. User clicks "Passerelle 1 - BKAPay" on Withdrawal page
   2. Frontend calls POST /api/activation/init-payment-bkapay
   3. Backend generates BKAPay redirect URL with public key
   4. User is redirected to BKAPay payment page
@@ -107,6 +94,19 @@ The application supports two payment gateways for account activation:
 - **Environment Variables**: BKAPAY_PUBLIC_KEY, BKAPAY_SIGNATURE_SECRET
 - **Webhook URL**: https://sikatexte.site/api/webhook/bkapay
 - **Documentation**: https://bkapay.com/documentation/v1.3
+
+#### Passerelle 2 - Lygos API
+- **Integration Type**: REST API with redirect flow
+- **API Base URL**: https://api.lygosapp.com/v1/
+- **Flow**: 
+  1. User clicks "Passerelle 2 - Lygos" on Withdrawal page
+  2. Frontend calls POST /api/activation/init-payment
+  3. Backend calls Lygos API (POST /v1/gateway) to create payment gateway
+  4. User is redirected to Lygos payment page
+  5. After payment, Lygos redirects user to /activation-success with ref & status
+  6. /activation-success page calls /api/activation/process-return to complete activation
+- **Environment Variables**: LYGOS_API_KEY
+- **Documentation**: https://docs.lygosapp.com/api-reference/introduction
 
 #### Activation Actions (Both Gateways)
 - Credits payment amount to user balance

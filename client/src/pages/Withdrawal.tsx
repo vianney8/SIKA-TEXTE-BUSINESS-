@@ -332,17 +332,6 @@ export default function Withdrawal() {
                   </p>
                   
                   <Button 
-                    data-testid="button-payment-lygos"
-                    onClick={handlePayLygos}
-                    disabled={isLygosLoading || isBkapayLoading}
-                    size="lg" 
-                    className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold"
-                  >
-                    <CreditCard className="w-5 h-5 mr-2" />
-                    {isLygosLoading ? "Chargement..." : "Passerelle 1 - Lygos"}
-                  </Button>
-                  
-                  <Button 
                     data-testid="button-payment-bkapay"
                     onClick={handlePayBkapay}
                     disabled={isLygosLoading || isBkapayLoading}
@@ -350,7 +339,18 @@ export default function Withdrawal() {
                     className="w-full bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white font-semibold"
                   >
                     <Smartphone className="w-5 h-5 mr-2" />
-                    {isBkapayLoading ? "Chargement..." : "Passerelle 2 - BKAPay"}
+                    {isBkapayLoading ? "Chargement..." : "Passerelle 1 - BKAPay"}
+                  </Button>
+                  
+                  <Button 
+                    data-testid="button-payment-lygos"
+                    onClick={handlePayLygos}
+                    disabled={isLygosLoading || isBkapayLoading}
+                    size="lg" 
+                    className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold"
+                  >
+                    <CreditCard className="w-5 h-5 mr-2" />
+                    {isLygosLoading ? "Chargement..." : "Passerelle 2 - Lygos"}
                   </Button>
 
                   <div className="bg-orange-50 dark:bg-orange-900 p-4 rounded-lg">
