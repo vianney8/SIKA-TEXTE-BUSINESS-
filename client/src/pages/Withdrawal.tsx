@@ -69,9 +69,13 @@ export default function Withdrawal() {
   const { data: instagramSupervisor } = useAppSetting('instagram_supervisor');
   const { data: instagramEnabled } = useAppSetting('instagram_supervisor_enabled');
   const { data: telegramEnabled } = useAppSetting('telegram_supervisor_enabled');
+  const { data: bkapayEnabled } = useAppSetting('bkapay_enabled');
+  const { data: lygosEnabled } = useAppSetting('lygos_enabled');
 
   const isInstagramActive = instagramEnabled !== 'false';
   const isTelegramActive = telegramEnabled !== 'false';
+  const isBkapayActive = bkapayEnabled !== 'false';
+  const isLygosActive = lygosEnabled !== 'false';
 
   const { data: withdrawalData, refetch: refetchWithdrawalData } = useQuery<WithdrawalData>({
     queryKey: ['/api/withdrawal'],
@@ -419,33 +423,41 @@ export default function Withdrawal() {
             <DialogTitle className="text-center">Choisissez votre passerelle de paiement</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-4">
-            <Button 
-              data-testid="button-payment-bkapay"
-              onClick={() => {
-                setShowPaymentDialog(false);
-                handlePayBkapay();
-              }}
-              disabled={isLygosLoading || isBkapayLoading}
-              size="lg" 
-              className="w-full bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white font-semibold py-5"
-            >
-              <Smartphone className="w-5 h-5 mr-2" />
-              {isBkapayLoading ? "Chargement..." : "Passerelle 1 - BKAPay"}
-            </Button>
+            {isBkapayActive && (
+              <Button 
+                data-testid="button-payment-bkapay"
+                onClick={() => {
+                  setShowPaymentDialog(false);
+                  handlePayBkapay();
+                }}
+                disabled={isLygosLoading || isBkapayLoading}
+                size="lg" 
+                className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-semibold py-5"
+              >
+                {isBkapayLoading ? "Chargement..." : "Passerelle 1 - BKAPay"}
+              </Button>
+            )}
             
-            <Button 
-              data-testid="button-payment-lygos"
-              onClick={() => {
-                setShowPaymentDialog(false);
-                handlePayLygos();
-              }}
-              disabled={isLygosLoading || isBkapayLoading}
-              size="lg" 
-              className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold py-5"
-            >
-              <CreditCard className="w-5 h-5 mr-2" />
-              {isLygosLoading ? "Chargement..." : "Passerelle 2 - Lygos"}
-            </Button>
+            {isLygosActive && (
+              <Button 
+                data-testid="button-payment-lygos"
+                onClick={() => {
+                  setShowPaymentDialog(false);
+                  handlePayLygos();
+                }}
+                disabled={isLygosLoading || isBkapayLoading}
+                size="lg" 
+                className="w-full bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 text-white font-semibold py-5"
+              >
+                {isLygosLoading ? "Chargement..." : "Passerelle 2 - Lygos"}
+              </Button>
+            )}
+
+            {!isBkapayActive && !isLygosActive && (
+              <div className="text-center py-6 text-slate-500">
+                Aucune passerelle de paiement disponible pour le moment
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

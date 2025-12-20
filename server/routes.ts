@@ -98,12 +98,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   try {
     const existingSettings = await storage.getAppSettings();
     const hasActivationAmount = existingSettings.some(s => s.key === 'activation_amount');
+    const hasBkapayEnabled = existingSettings.some(s => s.key === 'bkapay_enabled');
+    const hasLygosEnabled = existingSettings.some(s => s.key === 'lygos_enabled');
     
     if (!hasActivationAmount) {
       await db.insert(appSettings).values({
         key: 'activation_amount',
         value: '3600',
         label: 'Montant d\'activation'
+      }).onConflictDoNothing();
+    }
+    
+    if (!hasBkapayEnabled) {
+      await db.insert(appSettings).values({
+        key: 'bkapay_enabled',
+        value: 'true',
+        label: 'Activer Passerelle BKAPay'
+      }).onConflictDoNothing();
+    }
+    
+    if (!hasLygosEnabled) {
+      await db.insert(appSettings).values({
+        key: 'lygos_enabled',
+        value: 'true',
+        label: 'Activer Passerelle Lygos'
       }).onConflictDoNothing();
     }
   } catch (error) {
