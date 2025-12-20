@@ -61,6 +61,7 @@ export default function Withdrawal() {
   const { toast } = useToast();
   const [amount, setAmount] = useState("");
   const [showSupervisorDialog, setShowSupervisorDialog] = useState(false);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   
   // Récupérer les liens dynamiques depuis les paramètres admin
   const { data: activationLink } = useAppSetting('activation_link');
@@ -327,30 +328,14 @@ export default function Withdrawal() {
                 </div>
 
                 <div className="space-y-4">
-                  <p className="text-sm text-slate-600 dark:text-slate-400 font-medium text-center mb-2">
-                    Choisissez votre mode de paiement :
-                  </p>
-                  
                   <Button 
-                    data-testid="button-payment-bkapay"
-                    onClick={handlePayBkapay}
-                    disabled={isLygosLoading || isBkapayLoading}
+                    data-testid="button-pay-activation"
+                    onClick={() => setShowPaymentDialog(true)}
                     size="lg" 
-                    className="w-full bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white font-semibold"
+                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-6 text-lg"
                   >
-                    <Smartphone className="w-5 h-5 mr-2" />
-                    {isBkapayLoading ? "Chargement..." : "Passerelle 1 - BKAPay"}
-                  </Button>
-                  
-                  <Button 
-                    data-testid="button-payment-lygos"
-                    onClick={handlePayLygos}
-                    disabled={isLygosLoading || isBkapayLoading}
-                    size="lg" 
-                    className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold"
-                  >
-                    <CreditCard className="w-5 h-5 mr-2" />
-                    {isLygosLoading ? "Chargement..." : "Passerelle 2 - Lygos"}
+                    <CreditCard className="w-6 h-6 mr-2" />
+                    Payer l'activation en ligne
                   </Button>
 
                   <div className="bg-orange-50 dark:bg-orange-900 p-4 rounded-lg">
@@ -422,6 +407,44 @@ export default function Withdrawal() {
                 <FaTelegram className="w-5 h-5 mr-2" />
                 Superviseur Telegram
               </a>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment Gateway Selection Dialog */}
+      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-center">Choisissez votre passerelle de paiement</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <Button 
+              data-testid="button-payment-bkapay"
+              onClick={() => {
+                setShowPaymentDialog(false);
+                handlePayBkapay();
+              }}
+              disabled={isLygosLoading || isBkapayLoading}
+              size="lg" 
+              className="w-full bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white font-semibold py-5"
+            >
+              <Smartphone className="w-5 h-5 mr-2" />
+              {isBkapayLoading ? "Chargement..." : "Passerelle 1 - BKAPay"}
+            </Button>
+            
+            <Button 
+              data-testid="button-payment-lygos"
+              onClick={() => {
+                setShowPaymentDialog(false);
+                handlePayLygos();
+              }}
+              disabled={isLygosLoading || isBkapayLoading}
+              size="lg" 
+              className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold py-5"
+            >
+              <CreditCard className="w-5 h-5 mr-2" />
+              {isLygosLoading ? "Chargement..." : "Passerelle 2 - Lygos"}
             </Button>
           </div>
         </DialogContent>
