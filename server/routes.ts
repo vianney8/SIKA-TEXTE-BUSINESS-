@@ -1607,10 +1607,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Build callback URLs (always use HTTPS) - URL encode the reference
-      const host = req.get('host');
+      // Use production domain for callback URLs (required by Lygos API)
+      const domain = process.env.APP_DOMAIN || 'sikatexte.site';
       const encodedRef = encodeURIComponent(reference);
-      const successUrl = `https://${host}/activation-success?ref=${encodedRef}&status=success`;
-      const failureUrl = `https://${host}/activation-success?ref=${encodedRef}&status=failed`;
+      const successUrl = `https://${domain}/activation-success?ref=${encodedRef}&status=success`;
+      const failureUrl = `https://${domain}/activation-success?ref=${encodedRef}&status=failed`;
       
       console.log('[LYGOS-INIT] ===== PAYMENT INITIATED =====');
       console.log('[LYGOS-INIT] User ID:', userId);
