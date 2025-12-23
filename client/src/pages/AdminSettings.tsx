@@ -60,6 +60,9 @@ export default function AdminSettings() {
       queryClient.invalidateQueries({ queryKey: ['/api/settings/bkapay_enabled'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/lygos_enabled'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/leekpay_enabled'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/bkapay_name'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/lygos_name'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/leekpay_name'] });
     },
     onError: (error: any) => {
       toast({
@@ -257,85 +260,124 @@ export default function AdminSettings() {
               Activez ou désactivez les passerelles de paiement disponibles pour l'activation des comptes utilisateurs.
             </p>
 
-            {/* BKAPay Toggle */}
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-orange-500 to-red-600 flex items-center justify-center text-white font-bold text-sm">
-                  1
+            {/* BKAPay */}
+            <div className="space-y-3 p-4 border rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-orange-500 to-red-600 flex items-center justify-center text-white font-bold text-sm">
+                    1
+                  </div>
+                  <div>
+                    <p className="font-medium">BKAPay</p>
+                    <p className="text-sm text-muted-foreground">
+                      {settings.bkapay_enabled !== 'false' ? '✓ Activé' : '✗ Désactivé'}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-medium">Passerelle 1 - BKAPay</p>
-                  <p className="text-sm text-muted-foreground">
-                    {settings.bkapay_enabled !== 'false' ? '✓ Activé' : '✗ Désactivé'}
-                  </p>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => handleInputChange('bkapay_enabled', settings.bkapay_enabled === 'false' ? 'true' : 'false')}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    settings.bkapay_enabled !== 'false' 
+                      ? 'bg-green-500 hover:bg-green-600 text-white' 
+                      : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
+                  }`}
+                  data-testid="toggle-bkapay-enabled"
+                >
+                  {settings.bkapay_enabled !== 'false' ? 'Activé' : 'Désactivé'}
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => handleInputChange('bkapay_enabled', settings.bkapay_enabled === 'false' ? 'true' : 'false')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  settings.bkapay_enabled !== 'false' 
-                    ? 'bg-green-500 hover:bg-green-600 text-white' 
-                    : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
-                }`}
-                data-testid="toggle-bkapay-enabled"
-              >
-                {settings.bkapay_enabled !== 'false' ? 'Activé' : 'Désactivé'}
-              </button>
+              <div>
+                <Label htmlFor="bkapay_name" className="text-sm">Nom personnalisé</Label>
+                <Input
+                  id="bkapay_name"
+                  value={settings.bkapay_name || 'Passerelle 1 - BKAPay'}
+                  onChange={(e) => handleInputChange('bkapay_name', e.target.value)}
+                  placeholder="Passerelle 1 - BKAPay"
+                  data-testid="input-bkapay-name"
+                  className="mt-1"
+                />
+              </div>
             </div>
 
-            {/* Lygos Toggle */}
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-blue-700 flex items-center justify-center text-white font-bold text-sm">
-                  2
+            {/* Lygos */}
+            <div className="space-y-3 p-4 border rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-blue-700 flex items-center justify-center text-white font-bold text-sm">
+                    2
+                  </div>
+                  <div>
+                    <p className="font-medium">Lygos</p>
+                    <p className="text-sm text-muted-foreground">
+                      {settings.lygos_enabled !== 'false' ? '✓ Activé' : '✗ Désactivé'}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-medium">Passerelle 2 - Lygos</p>
-                  <p className="text-sm text-muted-foreground">
-                    {settings.lygos_enabled !== 'false' ? '✓ Activé' : '✗ Désactivé'}
-                  </p>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => handleInputChange('lygos_enabled', settings.lygos_enabled === 'false' ? 'true' : 'false')}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    settings.lygos_enabled !== 'false' 
+                      ? 'bg-green-500 hover:bg-green-600 text-white' 
+                      : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
+                  }`}
+                  data-testid="toggle-lygos-enabled"
+                >
+                  {settings.lygos_enabled !== 'false' ? 'Activé' : 'Désactivé'}
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => handleInputChange('lygos_enabled', settings.lygos_enabled === 'false' ? 'true' : 'false')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  settings.lygos_enabled !== 'false' 
-                    ? 'bg-green-500 hover:bg-green-600 text-white' 
-                    : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
-                }`}
-                data-testid="toggle-lygos-enabled"
-              >
-                {settings.lygos_enabled !== 'false' ? 'Activé' : 'Désactivé'}
-              </button>
+              <div>
+                <Label htmlFor="lygos_name" className="text-sm">Nom personnalisé</Label>
+                <Input
+                  id="lygos_name"
+                  value={settings.lygos_name || 'Passerelle 2 - Lygos'}
+                  onChange={(e) => handleInputChange('lygos_name', e.target.value)}
+                  placeholder="Passerelle 2 - Lygos"
+                  data-testid="input-lygos-name"
+                  className="mt-1"
+                />
+              </div>
             </div>
 
-            {/* LeekPay Toggle */}
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-green-500 to-teal-600 flex items-center justify-center text-white font-bold text-sm">
-                  3
+            {/* LeekPay */}
+            <div className="space-y-3 p-4 border rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-green-500 to-teal-600 flex items-center justify-center text-white font-bold text-sm">
+                    3
+                  </div>
+                  <div>
+                    <p className="font-medium">LeekPay</p>
+                    <p className="text-sm text-muted-foreground">
+                      {settings.leekpay_enabled !== 'false' ? '✓ Activé' : '✗ Désactivé'}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-medium">Passerelle 3 - LeekPay</p>
-                  <p className="text-sm text-muted-foreground">
-                    {settings.leekpay_enabled !== 'false' ? '✓ Activé' : '✗ Désactivé'}
-                  </p>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => handleInputChange('leekpay_enabled', settings.leekpay_enabled === 'false' ? 'true' : 'false')}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    settings.leekpay_enabled !== 'false' 
+                      ? 'bg-green-500 hover:bg-green-600 text-white' 
+                      : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
+                  }`}
+                  data-testid="toggle-leekpay-enabled"
+                >
+                  {settings.leekpay_enabled !== 'false' ? 'Activé' : 'Désactivé'}
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => handleInputChange('leekpay_enabled', settings.leekpay_enabled === 'false' ? 'true' : 'false')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  settings.leekpay_enabled !== 'false' 
-                    ? 'bg-green-500 hover:bg-green-600 text-white' 
-                    : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
-                }`}
-                data-testid="toggle-leekpay-enabled"
-              >
-                {settings.leekpay_enabled !== 'false' ? 'Activé' : 'Désactivé'}
-              </button>
+              <div>
+                <Label htmlFor="leekpay_name" className="text-sm">Nom personnalisé</Label>
+                <Input
+                  id="leekpay_name"
+                  value={settings.leekpay_name || 'Passerelle 3 - LeekPay'}
+                  onChange={(e) => handleInputChange('leekpay_name', e.target.value)}
+                  placeholder="Passerelle 3 - LeekPay"
+                  data-testid="input-leekpay-name"
+                  className="mt-1"
+                />
+              </div>
             </div>
 
             <Button 

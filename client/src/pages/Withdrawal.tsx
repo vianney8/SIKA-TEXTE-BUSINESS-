@@ -72,6 +72,9 @@ export default function Withdrawal() {
   const { data: bkapayEnabled } = useAppSetting('bkapay_enabled');
   const { data: lygosEnabled } = useAppSetting('lygos_enabled');
   const { data: leekpayEnabled } = useAppSetting('leekpay_enabled');
+  const { data: bkapayName } = useAppSetting('bkapay_name');
+  const { data: lygosName } = useAppSetting('lygos_name');
+  const { data: leekpayName } = useAppSetting('leekpay_name');
 
   const isInstagramActive = instagramEnabled !== 'false';
   const isTelegramActive = telegramEnabled !== 'false';
@@ -484,7 +487,7 @@ export default function Withdrawal() {
                 size="lg" 
                 className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-semibold py-5"
               >
-                {isBkapayLoading ? "Chargement..." : "Passerelle 1 - BKAPay"}
+                {isBkapayLoading ? "Chargement..." : bkapayName || "Passerelle 1 - BKAPay"}
               </Button>
             )}
             
@@ -499,7 +502,7 @@ export default function Withdrawal() {
                 size="lg" 
                 className="w-full bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 text-white font-semibold py-5"
               >
-                {isLygosLoading ? "Chargement..." : "Passerelle 2 - Lygos"}
+                {isLygosLoading ? "Chargement..." : lygosName || "Passerelle 2 - Lygos"}
               </Button>
             )}
             
@@ -514,7 +517,7 @@ export default function Withdrawal() {
                 size="lg" 
                 className="w-full bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white font-semibold py-5"
               >
-                {isLeekpayLoading ? "Chargement..." : "Passerelle 3 - LeekPay"}
+                {isLeekpayLoading ? "Chargement..." : leekpayName || "Passerelle 3 - LeekPay"}
               </Button>
             )}
 
