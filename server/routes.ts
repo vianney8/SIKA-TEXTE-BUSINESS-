@@ -124,6 +124,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         label: 'Activer Passerelle Lygos'
       }).onConflictDoNothing();
     }
+    
+    const hasLeekpayEnabled = existingSettings.some(s => s.key === 'leekpay_enabled');
+    if (!hasLeekpayEnabled) {
+      await db.insert(appSettings).values({
+        key: 'leekpay_enabled',
+        value: 'true',
+        label: 'Activer Passerelle LeekPay'
+      }).onConflictDoNothing();
+    }
   } catch (error) {
     console.log('Settings already initialized or error:', error);
   }
@@ -1740,6 +1749,147 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('[BKAPAY-INIT] Error:', error);
       res.status(500).json({ message: 'Erreur lors de l\'initiation du paiement' });
+    }
+  });
+
+  // LEEKPAY - Activation Payment via API REST
+  // Uses REST API to create payment link
+  app.post('/api/activation/init-payment-leekpay', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: 'Utilisateur non trouvé' });
+      }
+      
+      // Check if account is already active
+      const statusResult = await db.select().from(accountStatus).where(eq(accountStatus.userId, userId));
+      if (statusResult.length > 0 && statusResult[0].isActive) {
+        return res.status(400).json({ message: 'Votre compte est déjà activé' });
+      }
+      
+      // Get activation amount from settings
+      const settings = await storage.getAppSettings();
+      const activationSetting = settings.find(s => s.key === 'activation_amount');
+      const activationAmount = parseInt(activationSetting?.value || '3600');
+      
+      // Generate unique reference/order_id
+      const reference = `ACT-${userId.substring(0, 8)}-${Date.now()}`;
+      
+      // Get LeekPay secret key
+      const leekpaySecretKey = process.env.LEEKPAY_SECRET_KEY;
+      if (!leekpaySecretKey) {
+        return res.status(500).json({ message: 'Clé API LeekPay non configurée' });
+      }
+      
+      // Create pending payment record
+      await db.insert(bkapayPayments).values({
+        id: crypto.randomUUID(),
+        userId: userId,
+        amount: activationAmount.toString(),
+        reference: reference,
+        status: 'pending',
+        createdAt: new Date()
+      });
+      
+      // Build return URL
+      const domain = process.env.APP_DOMAIN || 'sikatexte.site';
+      const encodedRef = encodeURIComponent(reference);
+      const returnUrl = `https://${domain}/activation-success?ref=${encodedRef}&status=success`;
+      
+      console.log('[LEEKPAY-INIT] ===== PAYMENT INITIATED =====');
+      console.log('[LEEKPAY-INIT] User ID:', userId);
+      console.log('[LEEKPAY-INIT] Reference:', reference);
+      console.log('[LEEKPAY-INIT] Amount:', activationAmount);
+      console.log('[LEEKPAY-INIT] Return URL:', returnUrl);
+      
+      // Call LeekPay API to create checkout
+      const leekpayResponse = await fetch('https://leekpay.fr/api/v1/checkout', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${leekpaySecretKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          amount: activationAmount,
+          currency: 'XOF',
+          description: `Activation compte SIKA TEXTE - ${user.firstName || user.fullName || 'Utilisateur'}`,
+          return_url: returnUrl,
+          customer_email: user.email || undefined
+        })
+      });
+      
+      if (!leekpayResponse.ok) {
+        const errorText = await leekpayResponse.text();
+        console.error('[LEEKPAY-INIT] API Error:', leekpayResponse.status, errorText);
+        return res.status(500).json({ message: 'Erreur lors de la création du paiement LeekPay' });
+      }
+      
+      const leekpayData = await leekpayResponse.json();
+      console.log('[LEEKPAY-INIT] LeekPay Response:', leekpayData);
+      
+      // Validate LeekPay response
+      if (!leekpayData.success || !leekpayData.data?.payment_url) {
+        console.error('[LEEKPAY-INIT] Invalid LeekPay response:', leekpayData);
+        return res.status(502).json({ message: 'Réponse invalide de LeekPay - lien de paiement manquant' });
+      }
+      
+      // Update payment record with LeekPay gateway link
+      await db.update(bkapayPayments)
+        .set({ redirectUrl: leekpayData.data.payment_url })
+        .where(eq(bkapayPayments.reference, reference));
+      
+      res.json({ 
+        redirectUrl: leekpayData.data.payment_url,
+        reference,
+        amount: activationAmount,
+        paymentId: leekpayData.data.payment_id,
+        gateway: 'leekpay'
+      });
+    } catch (error) {
+      console.error('[LEEKPAY-INIT] Error:', error);
+      res.status(500).json({ message: 'Erreur lors de l\'initiation du paiement' });
+    }
+  });
+
+  // LeekPay Webhook - Receive payment notifications
+  app.post('/api/webhook/leekpay', async (req: any, res) => {
+    try {
+      const signature = req.headers['x-leekpay-signature'];
+      const payload = JSON.stringify(req.body);
+      
+      console.log('[LEEKPAY-WEBHOOK] ===== WEBHOOK RECEIVED =====');
+      console.log('[LEEKPAY-WEBHOOK] Signature:', signature);
+      console.log('[LEEKPAY-WEBHOOK] Payload:', payload);
+      
+      // Verify signature using public key
+      const leekpayPublicKey = process.env.LEEKPAY_PUBLIC_KEY;
+      if (leekpayPublicKey && signature) {
+        const crypto = require('crypto');
+        const expectedSignature = crypto.createHmac('sha256', leekpayPublicKey).update(payload).digest('hex');
+        
+        if (signature !== expectedSignature) {
+          console.error('[LEEKPAY-WEBHOOK] Invalid signature');
+          return res.status(401).json({ message: 'Invalid signature' });
+        }
+      }
+      
+      const { event, transaction } = req.body;
+      
+      if (event === 'payment.success' && transaction) {
+        console.log('[LEEKPAY-WEBHOOK] Payment success:', transaction.id);
+        
+        // Find payment by description or other means
+        // Note: LeekPay doesn't return our reference directly, so we may need to match by amount/time
+        // For now, just log the webhook
+        console.log('[LEEKPAY-WEBHOOK] Transaction details:', transaction);
+      }
+      
+      res.status(200).json({ message: 'OK' });
+    } catch (error) {
+      console.error('[LEEKPAY-WEBHOOK] Error:', error);
+      res.status(500).json({ message: 'Webhook processing error' });
     }
   });
 
