@@ -57,6 +57,9 @@ export default function AdminSettings() {
       queryClient.invalidateQueries({ queryKey: ['/api/settings/instagram_supervisor'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/telegram_supervisor'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/telegram_group'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/bkapay_enabled'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/lygos_enabled'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/leekpay_enabled'] });
     },
     onError: (error: any) => {
       toast({
@@ -237,6 +240,112 @@ export default function AdminSettings() {
             >
               <Save className="h-4 w-4 mr-2" />
               {saveSettingsMutation.isPending ? "Sauvegarde..." : "Sauvegarder les Paramètres"}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Payment Gateways Settings Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Passerelles de Paiement
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <p className="text-sm text-muted-foreground">
+              Activez ou désactivez les passerelles de paiement disponibles pour l'activation des comptes utilisateurs.
+            </p>
+
+            {/* BKAPay Toggle */}
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-orange-500 to-red-600 flex items-center justify-center text-white font-bold text-sm">
+                  1
+                </div>
+                <div>
+                  <p className="font-medium">Passerelle 1 - BKAPay</p>
+                  <p className="text-sm text-muted-foreground">
+                    {settings.bkapay_enabled !== 'false' ? '✓ Activé' : '✗ Désactivé'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleInputChange('bkapay_enabled', settings.bkapay_enabled === 'false' ? 'true' : 'false')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  settings.bkapay_enabled !== 'false' 
+                    ? 'bg-green-500 hover:bg-green-600 text-white' 
+                    : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
+                }`}
+                data-testid="toggle-bkapay-enabled"
+              >
+                {settings.bkapay_enabled !== 'false' ? 'Activé' : 'Désactivé'}
+              </button>
+            </div>
+
+            {/* Lygos Toggle */}
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-blue-700 flex items-center justify-center text-white font-bold text-sm">
+                  2
+                </div>
+                <div>
+                  <p className="font-medium">Passerelle 2 - Lygos</p>
+                  <p className="text-sm text-muted-foreground">
+                    {settings.lygos_enabled !== 'false' ? '✓ Activé' : '✗ Désactivé'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleInputChange('lygos_enabled', settings.lygos_enabled === 'false' ? 'true' : 'false')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  settings.lygos_enabled !== 'false' 
+                    ? 'bg-green-500 hover:bg-green-600 text-white' 
+                    : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
+                }`}
+                data-testid="toggle-lygos-enabled"
+              >
+                {settings.lygos_enabled !== 'false' ? 'Activé' : 'Désactivé'}
+              </button>
+            </div>
+
+            {/* LeekPay Toggle */}
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-green-500 to-teal-600 flex items-center justify-center text-white font-bold text-sm">
+                  3
+                </div>
+                <div>
+                  <p className="font-medium">Passerelle 3 - LeekPay</p>
+                  <p className="text-sm text-muted-foreground">
+                    {settings.leekpay_enabled !== 'false' ? '✓ Activé' : '✗ Désactivé'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleInputChange('leekpay_enabled', settings.leekpay_enabled === 'false' ? 'true' : 'false')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  settings.leekpay_enabled !== 'false' 
+                    ? 'bg-green-500 hover:bg-green-600 text-white' 
+                    : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
+                }`}
+                data-testid="toggle-leekpay-enabled"
+              >
+                {settings.leekpay_enabled !== 'false' ? 'Activé' : 'Désactivé'}
+              </button>
+            </div>
+
+            <Button 
+              onClick={handleSave} 
+              disabled={saveSettingsMutation.isPending}
+              className="w-full"
+              data-testid="button-save-gateways"
+            >
+              <Save className="h-4 w-4 mr-2" />
+              {saveSettingsMutation.isPending ? "Sauvegarde..." : "Sauvegarder les Passerelles"}
             </Button>
           </CardContent>
         </Card>
