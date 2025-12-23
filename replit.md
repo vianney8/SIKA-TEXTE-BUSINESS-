@@ -79,8 +79,8 @@ Preferred communication style: Simple, everyday language.
 - **class-variance-authority**: Type-safe component variant management
 - **clsx**: Conditional class name utility for dynamic styling
 
-### Payment Integration - Dual Gateway (BKAPay + Lygos)
-The application supports two payment gateways for account activation:
+### Payment Integration - Triple Gateway (BKAPay + Lygos + LeekPay)
+The application supports three payment gateways for account activation:
 
 #### Passerelle 1 - BKAPay v1.3
 - **Integration Type**: URL redirect + Webhook
@@ -108,7 +108,22 @@ The application supports two payment gateways for account activation:
 - **Environment Variables**: LYGOS_API_KEY
 - **Documentation**: https://docs.lygosapp.com/api-reference/introduction
 
-#### Activation Actions (Both Gateways)
+#### Passerelle 3 - LeekPay API
+- **Integration Type**: REST API with redirect flow
+- **API Base URL**: https://leekpay.fr/api/v1/
+- **Flow**: 
+  1. User clicks "Passerelle 3 - LeekPay" on Withdrawal page
+  2. Frontend calls POST /api/activation/init-payment-leekpay
+  3. Backend calls LeekPay API (POST /api/v1/checkout) to create payment gateway
+  4. User is redirected to LeekPay payment page
+  5. After payment, LeekPay redirects user to /activation-success with ref & status
+  6. /activation-success page calls /api/activation/process-return to complete activation
+  7. LeekPay also sends webhook to /api/webhook/leekpay for server-side verification
+- **Environment Variables**: LEEKPAY_SECRET_KEY (sk_live_xxx), LEEKPAY_PUBLIC_KEY (pk_live_xxx)
+- **Webhook URL**: https://sikatexte.site/api/webhook/leekpay
+- **Documentation**: https://www.leekpay.me/docs
+
+#### Activation Actions (All Gateways)
 - Credits payment amount to user balance
 - Creates transaction in user history
 - Activates user account
