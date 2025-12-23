@@ -71,11 +71,13 @@ export default function Withdrawal() {
   const { data: telegramEnabled } = useAppSetting('telegram_supervisor_enabled');
   const { data: bkapayEnabled } = useAppSetting('bkapay_enabled');
   const { data: lygosEnabled } = useAppSetting('lygos_enabled');
+  const { data: leekpayEnabled } = useAppSetting('leekpay_enabled');
 
   const isInstagramActive = instagramEnabled !== 'false';
   const isTelegramActive = telegramEnabled !== 'false';
   const isBkapayActive = bkapayEnabled === undefined || bkapayEnabled === '' || bkapayEnabled !== 'false';
   const isLygosActive = lygosEnabled === undefined || lygosEnabled === '' || lygosEnabled !== 'false';
+  const isLeekpayActive = leekpayEnabled === undefined || leekpayEnabled === '' || leekpayEnabled !== 'false';
 
   const { data: withdrawalData, refetch: refetchWithdrawalData } = useQuery<WithdrawalData>({
     queryKey: ['/api/withdrawal'],
@@ -144,9 +146,10 @@ export default function Withdrawal() {
     },
   });
 
-  // Payment gateways - Lygos and BKAPay
+  // Payment gateways - Lygos, BKAPay and LeekPay
   const [isLygosLoading, setIsLygosLoading] = useState(false);
   const [isBkapayLoading, setIsBkapayLoading] = useState(false);
+  const [isLeekpayLoading, setIsLeekpayLoading] = useState(false);
   
   // Lygos payment handler
   const handlePayLygos = async () => {
@@ -239,6 +242,53 @@ export default function Withdrawal() {
         variant: "destructive",
       });
       setIsBkapayLoading(false);
+    }
+  };
+
+  // LeekPay payment handler
+  const handlePayLeekpay = async () => {
+    setIsLeekpayLoading(true);
+    try {
+      console.log('[LEEKPAY] Initiating activation payment...');
+      
+      const response = await fetch("/api/activation/init-payment-leekpay", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[LEEKPAY] Init payment failed:', response.status, errorData);
+        throw new Error(errorData.message || "Erreur lors de l'initiation du paiement");
+      }
+      
+      const data = await response.json();
+      console.log('[LEEKPAY] Payment init response:', data);
+      
+      if (!data.redirectUrl) {
+        throw new Error("URL de paiement non reçue");
+      }
+      
+      if (data.reference) {
+        localStorage.setItem('pendingActivationRef', data.reference);
+        localStorage.setItem('pendingActivationTime', Date.now().toString());
+      }
+      
+      toast({
+        title: "Redirection vers LeekPay",
+        description: `Paiement de ${data.amount} FCFA en cours...`,
+      });
+      
+      window.location.href = data.redirectUrl;
+    } catch (error: any) {
+      console.error('[LEEKPAY] Payment error:', error);
+      toast({
+        title: "Erreur",
+        description: error.message || "Impossible d'initier le paiement",
+        variant: "destructive",
+      });
+      setIsLeekpayLoading(false);
     }
   };
 
@@ -430,7 +480,7 @@ export default function Withdrawal() {
                   setShowPaymentDialog(false);
                   handlePayBkapay();
                 }}
-                disabled={isLygosLoading || isBkapayLoading}
+                disabled={isLygosLoading || isBkapayLoading || isLeekpayLoading}
                 size="lg" 
                 className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-semibold py-5"
               >
@@ -445,15 +495,30 @@ export default function Withdrawal() {
                   setShowPaymentDialog(false);
                   handlePayLygos();
                 }}
-                disabled={isLygosLoading || isBkapayLoading}
+                disabled={isLygosLoading || isBkapayLoading || isLeekpayLoading}
                 size="lg" 
                 className="w-full bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 text-white font-semibold py-5"
               >
                 {isLygosLoading ? "Chargement..." : "Passerelle 2 - Lygos"}
               </Button>
             )}
+            
+            {isLeekpayActive && (
+              <Button 
+                data-testid="button-payment-leekpay"
+                onClick={() => {
+                  setShowPaymentDialog(false);
+                  handlePayLeekpay();
+                }}
+                disabled={isLygosLoading || isBkapayLoading || isLeekpayLoading}
+                size="lg" 
+                className="w-full bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white font-semibold py-5"
+              >
+                {isLeekpayLoading ? "Chargement..." : "Passerelle 3 - LeekPay"}
+              </Button>
+            )}
 
-            {!isBkapayActive && !isLygosActive && (
+            {!isBkapayActive && !isLygosActive && !isLeekpayActive && (
               <div className="text-center py-6 text-slate-500">
                 Aucune passerelle de paiement disponible pour le moment
               </div>
