@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, MessageCircle, Headphones, Download, Send, Loader2, Image, X, User, Sparkles, Pencil, Check, Shield, Clock, ChevronDown } from "lucide-react";
+import { ArrowLeft, MessageCircle, Headphones, Download, Send, Loader2, Image, X, User, Sparkles, Pencil, Check, Shield, Clock, ChevronDown, CheckCheck } from "lucide-react";
 import { Link } from "wouter";
 import { FaInstagram, FaWhatsapp } from "react-icons/fa";
 import { useAppSetting } from "@/hooks/useAppSettings";
@@ -517,9 +517,14 @@ export default function Assistance() {
                             </p>
                           ) : null}
                         </div>
-                        <p className={`text-[10px] mt-1.5 px-1 ${isUser ? 'text-right' : 'text-left'} text-slate-400`}>
-                          {formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true, locale: fr })}
-                        </p>
+                        <div className={`flex items-center gap-1 mt-1.5 px-1 ${isUser ? 'justify-end' : 'justify-start'}`}>
+                          <p className="text-[10px] text-slate-400">
+                            {formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true, locale: fr })}
+                          </p>
+                          {isUser && (
+                            <CheckCheck className={`w-3.5 h-3.5 ${msg.isRead ? 'text-blue-500' : 'text-slate-400'}`} />
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
