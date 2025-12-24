@@ -136,10 +136,13 @@ export interface IStorage {
 
   // Support messages
   getUserSupportMessages(userId: string): Promise<SupportMessage[]>;
-  createSupportMessage(userId: string, message: string, senderType: 'user' | 'admin'): Promise<SupportMessage>;
+  createSupportMessage(userId: string, message: string, senderType: 'user' | 'admin', imageUrl?: string): Promise<SupportMessage>;
   getAllConversations(): Promise<{ userId: string; user: User; lastMessage: SupportMessage; unreadCount: number }[]>;
   markMessagesAsRead(userId: string, senderType: 'user' | 'admin'): Promise<void>;
   getUnreadMessagesCount(userId: string): Promise<number>;
+  updateSupportMessage(messageId: string, newMessage: string): Promise<SupportMessage | null>;
+  deleteSupportMessage(messageId: string): Promise<boolean>;
+  deleteConversation(userId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1772,25 +1775,59 @@ export class DatabaseStorage implements IStorage {
 
   async getUserSupportMessages(userId: string): Promise<SupportMessage[]> {
     const result = await db.select().from(supportMessages)
-      .where(eq(supportMessages.userId, userId))
+      .where(and(
+        eq(supportMessages.userId, userId),
+        eq(supportMessages.isDeleted, false)
+      ))
       .orderBy(supportMessages.createdAt);
     return result;
   }
 
-  async createSupportMessage(userId: string, message: string, senderType: 'user' | 'admin'): Promise<SupportMessage> {
+  async createSupportMessage(userId: string, message: string, senderType: 'user' | 'admin', imageUrl?: string): Promise<SupportMessage> {
     const result = await db.insert(supportMessages).values({
       userId,
       message,
       senderType,
-      isRead: false
+      imageUrl: imageUrl || null,
+      isRead: false,
+      isDeleted: false
     }).returning();
     
     return result[0];
   }
 
+  async updateSupportMessage(messageId: string, newMessage: string): Promise<SupportMessage | null> {
+    const result = await db.update(supportMessages)
+      .set({ message: newMessage, updatedAt: new Date() })
+      .where(and(
+        eq(supportMessages.id, messageId),
+        eq(supportMessages.senderType, 'admin')
+      ))
+      .returning();
+    return result.length > 0 ? result[0] : null;
+  }
+
+  async deleteSupportMessage(messageId: string): Promise<boolean> {
+    const result = await db.update(supportMessages)
+      .set({ isDeleted: true })
+      .where(and(
+        eq(supportMessages.id, messageId),
+        eq(supportMessages.senderType, 'admin')
+      ))
+      .returning();
+    return result.length > 0;
+  }
+
+  async deleteConversation(userId: string): Promise<void> {
+    await db.delete(supportMessages)
+      .where(eq(supportMessages.userId, userId));
+  }
+
   async getAllConversations(): Promise<{ userId: string; user: User; lastMessage: SupportMessage; unreadCount: number }[]> {
-    // Get all unique user IDs with support messages
-    const allMessages = await db.select().from(supportMessages).orderBy(desc(supportMessages.createdAt));
+    // Get all unique user IDs with support messages (excluding deleted)
+    const allMessages = await db.select().from(supportMessages)
+      .where(eq(supportMessages.isDeleted, false))
+      .orderBy(desc(supportMessages.createdAt));
     
     const conversationMap = new Map<string, { lastMessage: SupportMessage; unreadCount: number }>();
     

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, MessageCircle, Headphones, Download, Send, Loader2 } from "lucide-react";
+import { ArrowLeft, MessageCircle, Headphones, Download, Send, Loader2, Image, X } from "lucide-react";
 import { Link } from "wouter";
 import { FaInstagram } from "react-icons/fa";
 import { useAppSetting } from "@/hooks/useAppSettings";
@@ -15,16 +15,50 @@ interface SupportMessage {
   id: string;
   userId: string;
   message: string;
+  imageUrl?: string;
   senderType: 'user' | 'admin';
   isRead: boolean;
   createdAt: string;
+}
+
+function renderMessageWithLinks(text: string, isUserMessage: boolean): JSX.Element {
+  if (!text) return <></>;
+  
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+  
+  return (
+    <>
+      {parts.map((part, index) => {
+        if (urlRegex.test(part)) {
+          urlRegex.lastIndex = 0;
+          return (
+            <a
+              key={index}
+              href={part}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`underline break-all ${isUserMessage ? 'text-emerald-100 hover:text-white' : 'text-blue-600 hover:text-blue-800 dark:text-blue-400'}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {part}
+            </a>
+          );
+        }
+        return <span key={index}>{part}</span>;
+      })}
+    </>
+  );
 }
 
 export default function Assistance() {
   const { data: instagramSupport } = useAppSetting('instagram_supervisor');
   const [newMessage, setNewMessage] = useState("");
   const [showChat, setShowChat] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
   const { data: messages = [], isLoading: messagesLoading } = useQuery<SupportMessage[]>({
@@ -33,12 +67,13 @@ export default function Assistance() {
   });
 
   const sendMessageMutation = useMutation({
-    mutationFn: async (message: string) => {
-      return apiRequest('POST', '/api/support/messages', { message });
+    mutationFn: async ({ message, imageUrl }: { message: string; imageUrl?: string }) => {
+      return apiRequest('POST', '/api/support/messages', { message, imageUrl });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/support/messages'] });
       setNewMessage("");
+      setSelectedImage(null);
     }
   });
 
@@ -57,8 +92,40 @@ export default function Assistance() {
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (newMessage.trim()) {
-      sendMessageMutation.mutate(newMessage.trim());
+    if (newMessage.trim() || selectedImage) {
+      sendMessageMutation.mutate({ message: newMessage.trim(), imageUrl: selectedImage || undefined });
+    }
+  };
+
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Veuillez sélectionner une image');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('L\'image ne doit pas dépasser 5 Mo');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setSelectedImage(reader.result as string);
+        setIsUploading(false);
+      };
+      reader.onerror = () => {
+        alert('Erreur lors du chargement de l\'image');
+        setIsUploading(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Error processing image:', error);
+      setIsUploading(false);
     }
   };
 
@@ -158,7 +225,21 @@ export default function Assistance() {
                               : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-bl-md'
                           }`}
                         >
-                          <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
+                          {msg.imageUrl && (
+                            <a href={msg.imageUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                              <img 
+                                src={msg.imageUrl} 
+                                alt="Image partagée" 
+                                className="max-w-full rounded-lg mb-2 cursor-pointer hover:opacity-90 transition-opacity"
+                                style={{ maxHeight: '200px' }}
+                              />
+                            </a>
+                          )}
+                          {msg.message && (
+                            <p className="text-sm whitespace-pre-wrap">
+                              {renderMessageWithLinks(msg.message, msg.senderType === 'user')}
+                            </p>
+                          )}
                           <p className={`text-xs mt-1 ${msg.senderType === 'user' ? 'text-emerald-100' : 'text-muted-foreground'}`}>
                             {formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true, locale: fr })}
                           </p>
@@ -169,7 +250,44 @@ export default function Assistance() {
                   <div ref={messagesEndRef} />
                 </div>
 
+                {selectedImage && (
+                  <div className="px-4 py-2 border-t bg-slate-100 dark:bg-slate-800">
+                    <div className="relative inline-block">
+                      <img 
+                        src={selectedImage} 
+                        alt="Image sélectionnée" 
+                        className="h-16 rounded-lg"
+                      />
+                      <button
+                        onClick={() => setSelectedImage(null)}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                        data-testid="button-remove-image"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <form onSubmit={handleSendMessage} className="p-4 border-t flex gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageSelect}
+                    className="hidden"
+                    data-testid="input-file-image"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading || sendMessageMutation.isPending}
+                    data-testid="button-attach-image"
+                  >
+                    {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Image className="w-4 h-4" />}
+                  </Button>
                   <Input
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
@@ -181,7 +299,7 @@ export default function Assistance() {
                   <Button
                     type="submit"
                     size="icon"
-                    disabled={!newMessage.trim() || sendMessageMutation.isPending}
+                    disabled={(!newMessage.trim() && !selectedImage) || sendMessageMutation.isPending}
                     className="bg-emerald-600 hover:bg-emerald-700"
                     data-testid="button-send-message"
                   >

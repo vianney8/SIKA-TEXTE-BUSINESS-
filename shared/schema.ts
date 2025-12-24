@@ -175,9 +175,12 @@ export const supportMessages = pgTable("support_messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),
   message: text("message").notNull(),
+  imageUrl: text("image_url"),
   senderType: varchar("sender_type").notNull().default('user'), // 'user' or 'admin'
   isRead: boolean("is_read").notNull().default(false),
+  isDeleted: boolean("is_deleted").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const bkapayPayments = pgTable("bkapay_payments", {

@@ -2566,13 +2566,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/support/messages', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session.userId;
-      const { message } = req.body;
+      const { message, imageUrl } = req.body;
       
-      if (!message || message.trim().length === 0) {
+      if ((!message || message.trim().length === 0) && !imageUrl) {
         return res.status(400).json({ message: 'Le message ne peut pas être vide' });
       }
       
-      const newMessage = await storage.createSupportMessage(userId, message.trim(), 'user');
+      const newMessage = await storage.createSupportMessage(userId, message?.trim() || '', 'user', imageUrl);
       res.json(newMessage);
     } catch (error) {
       console.error('Error sending support message:', error);
@@ -2621,21 +2621,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Send a reply (admin)
+  // Send a reply (admin) - supports text and image
   app.post('/api/admin/support/messages/:userId', requireAdmin, async (req: any, res) => {
     try {
       const { userId } = req.params;
+      const { message, imageUrl } = req.body;
+      
+      if ((!message || message.trim().length === 0) && !imageUrl) {
+        return res.status(400).json({ message: 'Le message ne peut pas être vide' });
+      }
+      
+      const newMessage = await storage.createSupportMessage(userId, message?.trim() || '', 'admin', imageUrl);
+      res.json(newMessage);
+    } catch (error) {
+      console.error('Error sending admin message:', error);
+      res.status(500).json({ message: 'Erreur lors de l\'envoi du message' });
+    }
+  });
+
+  // Update a message (admin only)
+  app.patch('/api/admin/support/messages/:messageId', requireAdmin, async (req: any, res) => {
+    try {
+      const { messageId } = req.params;
       const { message } = req.body;
       
       if (!message || message.trim().length === 0) {
         return res.status(400).json({ message: 'Le message ne peut pas être vide' });
       }
       
-      const newMessage = await storage.createSupportMessage(userId, message.trim(), 'admin');
-      res.json(newMessage);
+      const updatedMessage = await storage.updateSupportMessage(messageId, message.trim());
+      if (!updatedMessage) {
+        return res.status(404).json({ message: 'Message non trouvé ou vous ne pouvez modifier que vos propres messages' });
+      }
+      res.json(updatedMessage);
     } catch (error) {
-      console.error('Error sending admin message:', error);
-      res.status(500).json({ message: 'Erreur lors de l\'envoi du message' });
+      console.error('Error updating message:', error);
+      res.status(500).json({ message: 'Erreur lors de la modification du message' });
+    }
+  });
+
+  // Delete a message (admin only - can only delete admin messages)
+  app.delete('/api/admin/support/messages/:messageId', requireAdmin, async (req: any, res) => {
+    try {
+      const { messageId } = req.params;
+      const deleted = await storage.deleteSupportMessage(messageId);
+      if (!deleted) {
+        return res.status(404).json({ message: 'Message non trouvé ou vous ne pouvez supprimer que vos propres messages' });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting message:', error);
+      res.status(500).json({ message: 'Erreur lors de la suppression du message' });
+    }
+  });
+
+  // Delete entire conversation (admin only)
+  app.delete('/api/admin/support/conversations/:userId', requireAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      await storage.deleteConversation(userId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+      res.status(500).json({ message: 'Erreur lors de la suppression de la conversation' });
     }
   });
 
