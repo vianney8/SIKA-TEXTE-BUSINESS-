@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ArrowLeft, MessageCircle, Send, Loader2, User, Search, Image, X, Edit2, Trash2, MoreVertical } from "lucide-react";
+import { ArrowLeft, MessageCircle, Send, Loader2, User, Search, Image, X, Edit2, Trash2, MoreVertical, CheckCheck } from "lucide-react";
 import { Link } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { formatDistanceToNow } from "date-fns";
@@ -333,10 +333,15 @@ export default function AdminMessages() {
                     {renderMessageWithLinks(msg.message, msg.senderType === 'admin')}
                   </p>
                 )}
-                <p className={`text-xs mt-1 ${msg.senderType === 'admin' ? 'text-emerald-100' : 'text-muted-foreground'}`}>
-                  {formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true, locale: fr })}
-                  {msg.updatedAt && msg.updatedAt !== msg.createdAt && ' (modifié)'}
-                </p>
+                <div className={`flex items-center gap-1 mt-1 ${msg.senderType === 'admin' ? 'justify-end' : 'justify-start'}`}>
+                  <p className={`text-xs ${msg.senderType === 'admin' ? 'text-emerald-100' : 'text-muted-foreground'}`}>
+                    {formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true, locale: fr })}
+                    {msg.updatedAt && msg.updatedAt !== msg.createdAt && ' (modifié)'}
+                  </p>
+                  {msg.senderType === 'admin' && (
+                    <CheckCheck className={`w-3.5 h-3.5 ${msg.isRead ? 'text-blue-300' : 'text-emerald-200'}`} />
+                  )}
+                </div>
               </div>
             </div>
           </div>
