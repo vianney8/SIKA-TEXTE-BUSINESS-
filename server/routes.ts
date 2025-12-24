@@ -2544,6 +2544,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============ CHAT EN LIGNE / SUPPORT MESSAGES ============
+  
+  // Get user's chat messages
+  app.get('/api/support/messages', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const messages = await storage.getUserSupportMessages(userId);
+      
+      // Mark admin messages as read when user fetches them
+      await storage.markMessagesAsRead(userId, 'admin');
+      
+      res.json(messages);
+    } catch (error) {
+      console.error('Error fetching support messages:', error);
+      res.status(500).json({ message: 'Erreur lors de la récupération des messages' });
+    }
+  });
+
+  // Send a message (user)
+  app.post('/api/support/messages', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { message } = req.body;
+      
+      if (!message || message.trim().length === 0) {
+        return res.status(400).json({ message: 'Le message ne peut pas être vide' });
+      }
+      
+      const newMessage = await storage.createSupportMessage(userId, message.trim(), 'user');
+      res.json(newMessage);
+    } catch (error) {
+      console.error('Error sending support message:', error);
+      res.status(500).json({ message: 'Erreur lors de l\'envoi du message' });
+    }
+  });
+
+  // Get unread messages count for user
+  app.get('/api/support/unread-count', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const count = await storage.getUnreadMessagesCount(userId);
+      res.json({ count });
+    } catch (error) {
+      console.error('Error fetching unread count:', error);
+      res.status(500).json({ message: 'Erreur' });
+    }
+  });
+
+  // ============ ADMIN CHAT ROUTES ============
+  
+  // Get all conversations (admin)
+  app.get('/api/admin/support/conversations', requireAdmin, async (req: any, res) => {
+    try {
+      const conversations = await storage.getAllConversations();
+      res.json(conversations);
+    } catch (error) {
+      console.error('Error fetching conversations:', error);
+      res.status(500).json({ message: 'Erreur lors de la récupération des conversations' });
+    }
+  });
+
+  // Get messages for a specific user (admin)
+  app.get('/api/admin/support/messages/:userId', requireAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const messages = await storage.getUserSupportMessages(userId);
+      
+      // Mark user messages as read when admin fetches them
+      await storage.markMessagesAsRead(userId, 'user');
+      
+      res.json(messages);
+    } catch (error) {
+      console.error('Error fetching user messages:', error);
+      res.status(500).json({ message: 'Erreur lors de la récupération des messages' });
+    }
+  });
+
+  // Send a reply (admin)
+  app.post('/api/admin/support/messages/:userId', requireAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const { message } = req.body;
+      
+      if (!message || message.trim().length === 0) {
+        return res.status(400).json({ message: 'Le message ne peut pas être vide' });
+      }
+      
+      const newMessage = await storage.createSupportMessage(userId, message.trim(), 'admin');
+      res.json(newMessage);
+    } catch (error) {
+      console.error('Error sending admin message:', error);
+      res.status(500).json({ message: 'Erreur lors de l\'envoi du message' });
+    }
+  });
+
   // Initialiser les paramètres par défaut
   storage.initializeDefaultSettings().catch(console.error);
 
