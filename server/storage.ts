@@ -1810,7 +1810,9 @@ export class DatabaseStorage implements IStorage {
     
     // Get user details for each conversation
     const conversations = [];
-    for (const [userId, data] of conversationMap) {
+    const entries = Array.from(conversationMap.entries());
+    for (let i = 0; i < entries.length; i++) {
+      const [userId, data] = entries[i];
       const user = await this.getUser(userId);
       if (user) {
         conversations.push({

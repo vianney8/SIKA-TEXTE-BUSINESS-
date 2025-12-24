@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle, XCircle, Settings } from "lucide-react";
+import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle, XCircle, Settings, MessageCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 
@@ -786,11 +786,17 @@ export default function AdminDashboard() {
                 Paramètres
               </a>
             </Button>
+            <Button asChild className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              <a href="/admin/messages" data-testid="button-admin-messages">
+                <MessageCircle className="h-4 w-4 mr-2" />
+                Messages
+              </a>
+            </Button>
             <Button
               onClick={() => setIdentityModal(true)}
               className="bg-green-600 hover:bg-green-700 text-white"
             >
-              <Users className="w-4 h-4 mr-2" />
+              <Users className="w-4 w-4 mr-2" />
               Cartes ID
             </Button>
             <Button
