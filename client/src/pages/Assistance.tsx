@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, MessageCircle, Headphones, Download, Send, Loader2, Image, X, User, Sparkles, Pencil, Trash2, Check } from "lucide-react";
+import { ArrowLeft, MessageCircle, Headphones, Download, Send, Loader2, Image, X, User, Sparkles, Pencil, Check } from "lucide-react";
 import { Link } from "wouter";
 import { FaInstagram } from "react-icons/fa";
 import { useAppSetting } from "@/hooks/useAppSettings";
@@ -92,14 +92,6 @@ export default function Assistance() {
     }
   });
 
-  const deleteMessageMutation = useMutation({
-    mutationFn: async (messageId: string) => {
-      return apiRequest('DELETE', `/api/support/messages/${messageId}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/support/messages'] });
-    }
-  });
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -171,11 +163,6 @@ export default function Assistance() {
     setEditingText("");
   };
 
-  const handleDeleteMessage = (messageId: string) => {
-    if (confirm('Voulez-vous vraiment supprimer ce message ?')) {
-      deleteMessageMutation.mutate(messageId);
-    }
-  };
 
   const handlePaste = async (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
@@ -439,13 +426,6 @@ export default function Assistance() {
                               data-testid={`button-edit-${msg.id}`}
                             >
                               <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteMessage(msg.id)}
-                              className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-500"
-                              data-testid={`button-delete-${msg.id}`}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         )}

@@ -2614,23 +2614,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Delete user's own message
-  app.delete('/api/support/messages/:messageId', requireAuth, async (req: any, res) => {
-    try {
-      const userId = req.session.userId;
-      const { messageId } = req.params;
-      
-      const deleted = await storage.deleteUserSupportMessage(messageId, userId);
-      if (!deleted) {
-        return res.status(404).json({ message: 'Message non trouvé ou vous ne pouvez supprimer que vos propres messages' });
-      }
-      res.json({ success: true });
-    } catch (error) {
-      console.error('Error deleting user message:', error);
-      res.status(500).json({ message: 'Erreur lors de la suppression du message' });
-    }
-  });
-
   // ============ ADMIN CHAT ROUTES ============
   
   // Get all conversations (admin)

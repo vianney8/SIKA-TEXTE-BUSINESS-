@@ -93,9 +93,17 @@ export default function AdminDashboard() {
   // Fetch pending withdrawals
   const { data: pendingWithdrawals = [] } = useQuery<any[]>({
     queryKey: ['/api/admin/withdrawals/pending'],
-    staleTime: 30000, // Données valides pendant 30 secondes
+    staleTime: 30000,
     refetchOnWindowFocus: false,
   });
+
+  // Fetch unread messages count
+  const { data: conversations = [] } = useQuery<any[]>({
+    queryKey: ['/api/admin/support/conversations'],
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
+  });
+  const totalUnreadMessages = conversations.reduce((sum: number, c: any) => sum + (c.unreadCount || 0), 0);
 
   // Withdrawal approval mutations
   const approveWithdrawalMutation = useMutation({
@@ -786,10 +794,15 @@ export default function AdminDashboard() {
                 Paramètres
               </a>
             </Button>
-            <Button asChild className="bg-emerald-600 hover:bg-emerald-700 text-white">
+            <Button asChild className="bg-emerald-600 hover:bg-emerald-700 text-white relative">
               <a href="/admin/messages" data-testid="button-admin-messages">
                 <MessageCircle className="h-4 w-4 mr-2" />
                 Messages
+                {totalUnreadMessages > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
+                    {totalUnreadMessages}
+                  </span>
+                )}
               </a>
             </Button>
             <Button
