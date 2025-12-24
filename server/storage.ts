@@ -137,6 +137,9 @@ export interface IStorage {
   // Support messages
   getUserSupportMessages(userId: string): Promise<SupportMessage[]>;
   createSupportMessage(userId: string, message: string, senderType: 'user' | 'admin'): Promise<SupportMessage>;
+  getAllConversations(): Promise<{ userId: string; user: User; lastMessage: SupportMessage; unreadCount: number }[]>;
+  markMessagesAsRead(userId: string, senderType: 'user' | 'admin'): Promise<void>;
+  getUnreadMessagesCount(userId: string): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1783,6 +1786,67 @@ export class DatabaseStorage implements IStorage {
     }).returning();
     
     return result[0];
+  }
+
+  async getAllConversations(): Promise<{ userId: string; user: User; lastMessage: SupportMessage; unreadCount: number }[]> {
+    // Get all unique user IDs with support messages
+    const allMessages = await db.select().from(supportMessages).orderBy(desc(supportMessages.createdAt));
+    
+    const conversationMap = new Map<string, { lastMessage: SupportMessage; unreadCount: number }>();
+    
+    for (const msg of allMessages) {
+      if (!conversationMap.has(msg.userId)) {
+        // Count unread messages from users for this conversation
+        const unreadCount = allMessages.filter(
+          m => m.userId === msg.userId && m.senderType === 'user' && !m.isRead
+        ).length;
+        
+        conversationMap.set(msg.userId, {
+          lastMessage: msg,
+          unreadCount
+        });
+      }
+    }
+    
+    // Get user details for each conversation
+    const conversations = [];
+    for (const [userId, data] of conversationMap) {
+      const user = await this.getUser(userId);
+      if (user) {
+        conversations.push({
+          userId,
+          user,
+          lastMessage: data.lastMessage,
+          unreadCount: data.unreadCount
+        });
+      }
+    }
+    
+    // Sort by last message date
+    conversations.sort((a, b) => 
+      new Date(b.lastMessage.createdAt!).getTime() - new Date(a.lastMessage.createdAt!).getTime()
+    );
+    
+    return conversations;
+  }
+
+  async markMessagesAsRead(userId: string, senderType: 'user' | 'admin'): Promise<void> {
+    await db.update(supportMessages)
+      .set({ isRead: true })
+      .where(and(
+        eq(supportMessages.userId, userId),
+        eq(supportMessages.senderType, senderType)
+      ));
+  }
+
+  async getUnreadMessagesCount(userId: string): Promise<number> {
+    const result = await db.select().from(supportMessages)
+      .where(and(
+        eq(supportMessages.userId, userId),
+        eq(supportMessages.senderType, 'admin'),
+        eq(supportMessages.isRead, false)
+      ));
+    return result.length;
   }
 }
 
