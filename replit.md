@@ -127,3 +127,29 @@ The application supports three payment gateways for account activation:
 - Credits payment amount to user balance
 - Creates transaction in user history
 - Activates user account
+
+### Chat Support System
+The application includes a real-time chat support system for customer assistance:
+
+#### Features
+- **Real-time messaging**: Users can send messages to admin from the Assistance page
+- **Clickable links**: URLs in messages are automatically converted to clickable links
+- **Image support**: Users and admin can send photos (base64 encoded, max 5MB)
+- **Admin message management**: Admin can edit or delete their own messages
+- **Conversation clearing**: Admin can clear entire conversation history for a user
+- **Unread indicators**: Badge showing number of unread messages
+
+#### Security
+- Admin can only modify/delete their own messages (senderType = 'admin')
+- Soft delete for messages (isDeleted flag) - deleted messages are filtered from all queries
+- Protected routes with requireAuth and requireAdmin middleware
+
+#### API Endpoints
+- `GET /api/support/messages` - Get user's chat messages
+- `POST /api/support/messages` - Send message from user (with optional imageUrl)
+- `GET /api/admin/support/conversations` - Get all conversations (admin)
+- `GET /api/admin/support/messages/:userId` - Get messages for specific user (admin)
+- `POST /api/admin/support/messages/:userId` - Send reply (admin)
+- `PATCH /api/admin/support/messages/:messageId` - Edit admin message
+- `DELETE /api/admin/support/messages/:messageId` - Delete admin message
+- `DELETE /api/admin/support/conversations/:userId` - Clear conversation history
