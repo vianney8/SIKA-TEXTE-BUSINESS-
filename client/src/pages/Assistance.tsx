@@ -59,6 +59,7 @@ export default function Assistance() {
   const [isUploading, setIsUploading] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
+  const [viewingImage, setViewingImage] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
@@ -414,20 +415,20 @@ export default function Assistance() {
                         )}
                         
                         {msg.imageUrl && (
-                          <a 
-                            href={msg.imageUrl} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            onClick={(e) => e.stopPropagation()}
-                            className="block mb-2"
+                          <div 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setViewingImage(msg.imageUrl!);
+                            }}
+                            className="block mb-2 cursor-pointer"
                           >
                             <img 
                               src={msg.imageUrl} 
                               alt="Image partagée" 
-                              className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                              className="max-w-full rounded-lg hover:opacity-90 transition-opacity"
                               style={{ maxHeight: '200px' }}
                             />
-                          </a>
+                          </div>
                         )}
                         
                         {isEditing ? (
@@ -544,6 +545,28 @@ export default function Assistance() {
           </form>
         </div>
       </div>
+
+      {viewingImage && (
+        <div 
+          className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setViewingImage(null)}
+          data-testid="image-lightbox"
+        >
+          <button
+            onClick={() => setViewingImage(null)}
+            className="absolute top-4 right-4 text-white hover:text-gray-300 p-2 rounded-full bg-black/50 hover:bg-black/70 transition-colors"
+            data-testid="button-close-lightbox"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img 
+            src={viewingImage} 
+            alt="Image en grand" 
+            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }
