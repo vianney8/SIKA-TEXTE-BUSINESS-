@@ -471,15 +471,15 @@ export default function AdminMessages() {
                         {(conv.user.fullName || conv.user.firstName || 'U')[0].toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <p className="font-medium truncate">
-                            {conv.user.fullName || `${conv.user.firstName} ${conv.user.lastName}`}
-                          </p>
+                        <div className="flex items-center gap-2">
                           {conv.unreadCount > 0 && (
-                            <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+                            <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse">
                               {conv.unreadCount}
                             </span>
                           )}
+                          <p className="font-medium truncate flex-1">
+                            {conv.user.fullName || `${conv.user.firstName} ${conv.user.lastName}`}
+                          </p>
                         </div>
                         <p className="text-sm text-muted-foreground truncate">
                           {conv.user.phone || conv.user.email}
