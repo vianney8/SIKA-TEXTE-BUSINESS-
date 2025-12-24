@@ -2,39 +2,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, MessageCircle, Users, Headphones, Download } from "lucide-react";
 import { Link } from "wouter";
-import { FaInstagram, FaTelegram } from "react-icons/fa";
+import { FaInstagram } from "react-icons/fa";
 import { useAppSetting } from "@/hooks/useAppSettings";
 
 export default function Assistance() {
   const { data: instagramSupport } = useAppSetting('instagram_supervisor');
-  const { data: telegramSupervisor } = useAppSetting('telegram_supervisor');
-  const { data: instagramEnabled } = useAppSetting('instagram_supervisor_enabled');
-  const { data: telegramEnabled } = useAppSetting('telegram_supervisor_enabled');
-
-  const isInstagramActive = instagramEnabled !== 'false';
-  const isTelegramActive = telegramEnabled !== 'false';
 
   const handleInstagramContact = () => {
-    if (!isInstagramActive) {
-      alert('Ce service client n\'est pas disponible pour le moment. Veuillez contacter Telegram.');
-      return;
-    }
     const instagramUrl = `https://www.instagram.com/${instagramSupport || 'sikacustomer_service'}`;
     window.open(instagramUrl, '_blank', 'noopener,noreferrer');
-  };
-
-  const handleTelegramContact = () => {
-    if (!isTelegramActive) {
-      alert('Ce service client n\'est pas disponible pour le moment. Veuillez contacter Instagram.');
-      return;
-    }
-    const telegramHandle = telegramSupervisor || "@sikatexte_support";
-    const telegramUrl = telegramHandle.startsWith('@') 
-      ? `https://t.me/${telegramHandle.slice(1)}` 
-      : telegramHandle.startsWith('https://') 
-        ? telegramHandle 
-        : `https://t.me/${telegramHandle}`;
-    window.open(telegramUrl, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -133,36 +109,6 @@ export default function Assistance() {
             </CardContent>
           </Card>
 
-          {/* Telegram Contact */}
-          <Card className="hover:shadow-lg transition-all duration-300">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-3">
-                <div className="bg-blue-100 dark:bg-blue-900 p-2 rounded-full">
-                  <FaTelegram className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold">Contact Service client Telegram</h3>
-                  <p className="text-sm text-muted-foreground font-normal">
-                    Support technique et administratif
-                  </p>
-                </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">
-                Pour des questions techniques spécifiques, des problèmes de compte ou 
-                pour contacter directement notre équipe de support technique.
-              </p>
-              <Button 
-                onClick={handleTelegramContact}
-                className="w-full bg-blue-500 hover:bg-blue-600 text-white"
-                data-testid="button-telegram-contact"
-              >
-                <MessageCircle className="w-4 h-4 mr-2" />
-                Contacter sur Telegram
-              </Button>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Additional Help Info */}

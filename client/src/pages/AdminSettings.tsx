@@ -55,8 +55,6 @@ export default function AdminSettings() {
       queryClient.invalidateQueries({ queryKey: ['/api/settings/activation_link'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/whatsapp_group'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/instagram_supervisor'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/settings/telegram_supervisor'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/settings/telegram_group'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/bkapay_enabled'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/lygos_enabled'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/leekpay_enabled'] });
@@ -192,47 +190,6 @@ export default function AdminSettings() {
                   Nom d'utilisateur Instagram (sans @) - {settings.instagram_supervisor_enabled === 'true' ? '✓ Activé' : '✗ Désactivé'}
                 </p>
               </div>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <Label htmlFor="telegram_supervisor">Superviseur Telegram</Label>
-                  <button
-                    type="button"
-                    onClick={() => handleInputChange('telegram_supervisor_enabled', settings.telegram_supervisor_enabled === 'true' ? 'false' : 'true')}
-                    className={`p-1 rounded transition-colors ${settings.telegram_supervisor_enabled === 'true' ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-700'}`}
-                    data-testid="toggle-telegram-enabled"
-                    title={settings.telegram_supervisor_enabled === 'true' ? 'Désactiver' : 'Activer'}
-                  >
-                    🔓
-                  </button>
-                </div>
-                <Input
-                  id="telegram_supervisor"
-                  value={settings.telegram_supervisor || ''}
-                  onChange={(e) => handleInputChange('telegram_supervisor', e.target.value)}
-                  placeholder="@SIKAcustomer_service"
-                  data-testid="input-telegram-supervisor"
-                />
-                <p className="text-sm text-muted-foreground mt-1">
-                  Nom d'utilisateur du superviseur Telegram - {settings.telegram_supervisor_enabled === 'true' ? '✓ Activé' : '✗ Désactivé'}
-                </p>
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="telegram_group">Groupe Telegram</Label>
-              <Input
-                id="telegram_group"
-                value={settings.telegram_group || ''}
-                onChange={(e) => handleInputChange('telegram_group', e.target.value)}
-                placeholder="https://t.me/..."
-                data-testid="input-telegram-group"
-              />
-              <p className="text-sm text-muted-foreground mt-1">
-                Lien d'invitation au groupe Telegram
-              </p>
             </div>
 
             <Button 

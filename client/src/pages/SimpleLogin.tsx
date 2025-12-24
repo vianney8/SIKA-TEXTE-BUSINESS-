@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { Lock, Phone, Eye, EyeOff, XCircle } from "lucide-react";
-import { FaInstagram, FaTelegram } from "react-icons/fa";
+import { FaInstagram } from "react-icons/fa";
 import { useAppSetting } from "@/hooks/useAppSettings";
 
 // Country codes for supported countries
@@ -32,7 +32,6 @@ export default function SimpleLogin() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const { data: instagramSupervisor } = useAppSetting("instagram_supervisor");
-  const { data: telegramSupervisor } = useAppSetting("telegram_supervisor");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -260,21 +259,6 @@ export default function SimpleLogin() {
             >
               <FaInstagram className="w-5 h-5" />
               Contacter via Instagram
-            </Button>
-            <Button
-              onClick={() => {
-                const telegram = telegramSupervisor?.startsWith('@') 
-                  ? `https://t.me/${telegramSupervisor.slice(1)}` 
-                  : telegramSupervisor?.startsWith('https://') 
-                    ? telegramSupervisor 
-                    : `https://t.me/${telegramSupervisor || 'SIKAcustomer_service'}`;
-                window.open(telegram, "_blank");
-              }}
-              className="w-full bg-blue-500 hover:bg-blue-600 text-white flex items-center justify-center gap-2"
-              data-testid="button-telegram"
-            >
-              <FaTelegram className="w-5 h-5" />
-              Contacter via Telegram
             </Button>
           </div>
         </DialogContent>
