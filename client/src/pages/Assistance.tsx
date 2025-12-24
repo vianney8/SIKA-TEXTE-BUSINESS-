@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, MessageCircle, Headphones, Download, Send, Loader2, Image, X } from "lucide-react";
+import { ArrowLeft, MessageCircle, Headphones, Download, Send, Loader2, Image, X, User, Sparkles } from "lucide-react";
 import { Link } from "wouter";
 import { FaInstagram } from "react-icons/fa";
 import { useAppSetting } from "@/hooks/useAppSettings";
@@ -38,7 +38,7 @@ function renderMessageWithLinks(text: string, isUserMessage: boolean): JSX.Eleme
               href={part}
               target="_blank"
               rel="noopener noreferrer"
-              className={`underline break-all ${isUserMessage ? 'text-emerald-100 hover:text-white' : 'text-blue-600 hover:text-blue-800 dark:text-blue-400'}`}
+              className={`underline break-all ${isUserMessage ? 'text-blue-100 hover:text-white' : 'text-blue-600 hover:text-blue-800 dark:text-blue-400'}`}
               onClick={(e) => e.stopPropagation()}
             >
               {part}
@@ -63,7 +63,8 @@ export default function Assistance() {
 
   const { data: messages = [], isLoading: messagesLoading } = useQuery<SupportMessage[]>({
     queryKey: ['/api/support/messages'],
-    refetchInterval: 5000,
+    refetchInterval: showChat ? 3000 : false,
+    enabled: showChat,
   });
 
   const sendMessageMutation = useMutation({
@@ -82,8 +83,10 @@ export default function Assistance() {
   };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (showChat) {
+      scrollToBottom();
+    }
+  }, [messages, showChat]);
 
   const handleInstagramContact = () => {
     const instagramUrl = `https://www.instagram.com/${instagramSupport || 'sikacustomer_service'}`;
@@ -130,7 +133,7 @@ export default function Assistance() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-20">
       <div className="gradient-bg text-primary-foreground">
         <div className="px-6 py-4 flex items-center">
           <Button asChild variant="ghost" size="sm" className="text-primary-foreground hover:bg-white/10">
@@ -156,164 +159,6 @@ export default function Assistance() {
         </div>
 
         <div className="space-y-4">
-          <Card 
-            className="border-2 border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950 cursor-pointer hover:shadow-lg transition-all duration-300"
-            onClick={() => setShowChat(!showChat)}
-            data-testid="card-chat-online"
-          >
-            <CardHeader>
-              <CardTitle className="flex items-center gap-3">
-                <div className="bg-gradient-to-br from-emerald-600 to-teal-600 p-2 rounded-full">
-                  <MessageCircle className="w-6 h-6 text-white" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold">Chat en ligne</h3>
-                  <p className="text-sm text-muted-foreground font-normal">
-                    Discutez directement avec notre équipe
-                  </p>
-                </div>
-                <div className="bg-emerald-500 text-white text-xs px-2 py-1 rounded-full">
-                  En ligne
-                </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">
-                Envoyez un message instantané à notre service client. Nous vous répondrons dans les plus brefs délais.
-              </p>
-              <Button 
-                className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white"
-                data-testid="button-open-chat"
-              >
-                <MessageCircle className="w-4 h-4 mr-2" />
-                {showChat ? "Fermer le chat" : "Ouvrir le chat"}
-              </Button>
-            </CardContent>
-          </Card>
-
-          {showChat && (
-            <Card className="border-2 border-emerald-300 dark:border-emerald-700" data-testid="chat-container">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <MessageCircle className="w-5 h-5 text-emerald-600" />
-                  Chat avec le support
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="h-80 overflow-y-auto p-4 bg-slate-50 dark:bg-slate-900 space-y-3" data-testid="chat-messages">
-                  {messagesLoading ? (
-                    <div className="flex items-center justify-center h-full">
-                      <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
-                    </div>
-                  ) : messages.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
-                      <MessageCircle className="w-12 h-12 mb-3 opacity-50" />
-                      <p>Aucun message pour le moment</p>
-                      <p className="text-sm">Envoyez votre premier message !</p>
-                    </div>
-                  ) : (
-                    messages.map((msg) => (
-                      <div
-                        key={msg.id}
-                        className={`flex ${msg.senderType === 'user' ? 'justify-end' : 'justify-start'}`}
-                        data-testid={`message-${msg.id}`}
-                      >
-                        <div
-                          className={`max-w-[80%] rounded-2xl px-4 py-2 ${
-                            msg.senderType === 'user'
-                              ? 'bg-emerald-600 text-white rounded-br-md'
-                              : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-bl-md'
-                          }`}
-                        >
-                          {msg.imageUrl && (
-                            <a href={msg.imageUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
-                              <img 
-                                src={msg.imageUrl} 
-                                alt="Image partagée" 
-                                className="max-w-full rounded-lg mb-2 cursor-pointer hover:opacity-90 transition-opacity"
-                                style={{ maxHeight: '200px' }}
-                              />
-                            </a>
-                          )}
-                          {msg.message && (
-                            <p className="text-sm whitespace-pre-wrap">
-                              {renderMessageWithLinks(msg.message, msg.senderType === 'user')}
-                            </p>
-                          )}
-                          <p className={`text-xs mt-1 ${msg.senderType === 'user' ? 'text-emerald-100' : 'text-muted-foreground'}`}>
-                            {formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true, locale: fr })}
-                          </p>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                  <div ref={messagesEndRef} />
-                </div>
-
-                {selectedImage && (
-                  <div className="px-4 py-2 border-t bg-slate-100 dark:bg-slate-800">
-                    <div className="relative inline-block">
-                      <img 
-                        src={selectedImage} 
-                        alt="Image sélectionnée" 
-                        className="h-16 rounded-lg"
-                      />
-                      <button
-                        onClick={() => setSelectedImage(null)}
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
-                        data-testid="button-remove-image"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                <form onSubmit={handleSendMessage} className="p-4 border-t flex gap-2">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageSelect}
-                    className="hidden"
-                    data-testid="input-file-image"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploading || sendMessageMutation.isPending}
-                    data-testid="button-attach-image"
-                  >
-                    {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Image className="w-4 h-4" />}
-                  </Button>
-                  <Input
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Écrivez votre message..."
-                    className="flex-1"
-                    disabled={sendMessageMutation.isPending}
-                    data-testid="input-chat-message"
-                  />
-                  <Button
-                    type="submit"
-                    size="icon"
-                    disabled={(!newMessage.trim() && !selectedImage) || sendMessageMutation.isPending}
-                    className="bg-emerald-600 hover:bg-emerald-700"
-                    data-testid="button-send-message"
-                  >
-                    {sendMessageMutation.isPending ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Send className="w-4 h-4" />
-                    )}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          )}
-
           <Card className="border-2 border-purple-200 dark:border-purple-800 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950 dark:to-pink-950">
             <CardHeader>
               <CardTitle className="flex items-center gap-3">
@@ -392,6 +237,216 @@ export default function Assistance() {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      {showChat && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 animate-in fade-in duration-200"
+          onClick={() => setShowChat(false)}
+        />
+      )}
+
+      <div 
+        className={`fixed bottom-0 left-0 right-0 z-50 transition-transform duration-300 ease-out ${
+          showChat ? 'translate-y-0' : 'translate-y-[calc(100%-60px)]'
+        }`}
+      >
+        <div 
+          className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-3 flex items-center justify-between cursor-pointer shadow-lg"
+          onClick={() => setShowChat(!showChat)}
+          data-testid="chat-header-toggle"
+        >
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 border-2 border-blue-600 rounded-full"></span>
+            </div>
+            <div>
+              <h3 className="font-semibold text-sm">Support SIKA TEXTE</h3>
+              <p className="text-xs text-blue-100">En ligne • Répond généralement en quelques minutes</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {!showChat && messages.filter(m => m.senderType === 'admin' && !m.isRead).length > 0 && (
+              <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full font-medium">
+                {messages.filter(m => m.senderType === 'admin' && !m.isRead).length}
+              </span>
+            )}
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="text-white hover:bg-white/20 h-8 w-8"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowChat(!showChat);
+              }}
+            >
+              {showChat ? <X className="w-5 h-5" /> : <MessageCircle className="w-5 h-5" />}
+            </Button>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-700">
+          <div 
+            className="h-[50vh] overflow-y-auto p-4 space-y-4"
+            style={{ 
+              backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%239C92AC\' fill-opacity=\'0.05\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
+              backgroundColor: '#f8fafc'
+            }}
+            data-testid="chat-messages"
+          >
+            {messagesLoading ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">Chargement des messages...</p>
+                </div>
+              </div>
+            ) : messages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <div className="w-20 h-20 rounded-full bg-gradient-to-r from-blue-100 to-indigo-100 flex items-center justify-center mb-4">
+                  <MessageCircle className="w-10 h-10 text-blue-600" />
+                </div>
+                <h3 className="font-semibold text-lg mb-1">Bienvenue sur le chat !</h3>
+                <p className="text-sm text-muted-foreground max-w-xs">
+                  Notre équipe est là pour vous aider. Posez votre question et nous vous répondrons rapidement.
+                </p>
+              </div>
+            ) : (
+              messages.map((msg, index) => {
+                const isUser = msg.senderType === 'user';
+                const showAvatar = index === 0 || messages[index - 1]?.senderType !== msg.senderType;
+                
+                return (
+                  <div
+                    key={msg.id}
+                    className={`flex items-end gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
+                    data-testid={`message-${msg.id}`}
+                  >
+                    {showAvatar ? (
+                      <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center ${
+                        isUser 
+                          ? 'bg-gradient-to-r from-blue-500 to-indigo-500' 
+                          : 'bg-gradient-to-r from-emerald-500 to-teal-500'
+                      }`}>
+                        {isUser ? (
+                          <User className="w-4 h-4 text-white" />
+                        ) : (
+                          <Sparkles className="w-4 h-4 text-white" />
+                        )}
+                      </div>
+                    ) : (
+                      <div className="w-8" />
+                    )}
+                    
+                    <div className={`max-w-[75%] ${isUser ? 'items-end' : 'items-start'}`}>
+                      <div
+                        className={`rounded-2xl px-4 py-2.5 shadow-sm ${
+                          isUser
+                            ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-br-md'
+                            : 'bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-slate-700 rounded-bl-md'
+                        }`}
+                      >
+                        {msg.imageUrl && (
+                          <a 
+                            href={msg.imageUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            onClick={(e) => e.stopPropagation()}
+                            className="block mb-2"
+                          >
+                            <img 
+                              src={msg.imageUrl} 
+                              alt="Image partagée" 
+                              className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                              style={{ maxHeight: '200px' }}
+                            />
+                          </a>
+                        )}
+                        {msg.message && (
+                          <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                            {renderMessageWithLinks(msg.message, isUser)}
+                          </p>
+                        )}
+                      </div>
+                      <p className={`text-[10px] mt-1 px-1 ${isUser ? 'text-right' : 'text-left'} text-gray-400`}>
+                        {formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true, locale: fr })}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {selectedImage && (
+            <div className="px-4 py-2 border-t border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
+              <div className="relative inline-block">
+                <img 
+                  src={selectedImage} 
+                  alt="Image sélectionnée" 
+                  className="h-16 rounded-lg shadow-sm"
+                />
+                <button
+                  onClick={() => setSelectedImage(null)}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 shadow-md transition-colors"
+                  data-testid="button-remove-image"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          <form 
+            onSubmit={handleSendMessage} 
+            className="p-3 border-t border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center gap-2"
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageSelect}
+              className="hidden"
+              data-testid="input-file-image"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading || sendMessageMutation.isPending}
+              className="text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 h-10 w-10 rounded-full flex-shrink-0"
+              data-testid="button-attach-image"
+            >
+              {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Image className="w-5 h-5" />}
+            </Button>
+            <Input
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder="Écrivez votre message..."
+              className="flex-1 rounded-full border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 focus:bg-white dark:focus:bg-slate-700 transition-colors"
+              disabled={sendMessageMutation.isPending}
+              data-testid="input-chat-message"
+            />
+            <Button
+              type="submit"
+              size="icon"
+              disabled={(!newMessage.trim() && !selectedImage) || sendMessageMutation.isPending}
+              className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 h-10 w-10 rounded-full flex-shrink-0 shadow-md"
+              data-testid="button-send-message"
+            >
+              {sendMessageMutation.isPending ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Send className="w-5 h-5" />
+              )}
+            </Button>
+          </form>
+        </div>
       </div>
     </div>
   );
