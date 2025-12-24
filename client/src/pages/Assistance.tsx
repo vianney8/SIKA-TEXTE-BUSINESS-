@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, MessageCircle, Headphones, Download, Send, Loader2, Image, X, User, Sparkles, Pencil, Check, Shield, Clock, Phone, Mail, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, MessageCircle, Headphones, Download, Send, Loader2, Image, X, User, Sparkles, Pencil, Check, Shield, Clock, ChevronDown } from "lucide-react";
 import { Link } from "wouter";
 import { FaInstagram, FaWhatsapp } from "react-icons/fa";
 import { useAppSetting } from "@/hooks/useAppSettings";
@@ -59,7 +59,6 @@ export default function Assistance() {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   const [viewingImage, setViewingImage] = useState<string | null>(null);
-  const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
@@ -192,24 +191,6 @@ export default function Assistance() {
     }
   };
 
-  const faqItems = [
-    {
-      question: "Comment activer mon compte ?",
-      answer: "Pour activer votre compte, rendez-vous dans la section 'Retrait' et suivez les instructions pour effectuer le paiement d'activation via l'une de nos passerelles de paiement sécurisées."
-    },
-    {
-      question: "Comment effectuer un retrait ?",
-      answer: "Une fois votre compte activé, allez dans 'Retrait', saisissez le montant souhaité et votre numéro de téléphone. Notre équipe traitera votre demande dans les plus brefs délais."
-    },
-    {
-      question: "Comment parrainer quelqu'un ?",
-      answer: "Partagez votre code de parrainage unique disponible dans votre tableau de bord. Lorsque votre filleul s'inscrit avec ce code et active son compte, vous recevez une commission."
-    },
-    {
-      question: "Combien de temps pour recevoir un retrait ?",
-      answer: "Les retraits sont généralement traités sous 24 à 48 heures ouvrables. Vous recevrez une notification une fois le transfert effectué."
-    }
-  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 pb-24">
@@ -306,37 +287,6 @@ export default function Assistance() {
             </div>
             <ChevronDown className="w-5 h-5 rotate-[-90deg]" />
           </button>
-        </div>
-
-        {/* FAQ Section */}
-        <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
-            Questions Fréquentes
-          </h3>
-          
-          <div className="bg-white dark:bg-slate-800/50 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden divide-y divide-slate-100 dark:divide-slate-700">
-            {faqItems.map((item, index) => (
-              <div key={index}>
-                <button
-                  onClick={() => setExpandedFaq(expandedFaq === index ? null : index)}
-                  className="w-full p-4 flex items-center justify-between text-left hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
-                  data-testid={`faq-${index}`}
-                >
-                  <span className="font-medium text-slate-800 dark:text-white text-sm pr-4">{item.question}</span>
-                  {expandedFaq === index ? (
-                    <ChevronUp className="w-5 h-5 text-slate-400 flex-shrink-0" />
-                  ) : (
-                    <ChevronDown className="w-5 h-5 text-slate-400 flex-shrink-0" />
-                  )}
-                </button>
-                {expandedFaq === index && (
-                  <div className="px-4 pb-4 text-sm text-slate-600 dark:text-slate-400 animate-in slide-in-from-top-2 duration-200">
-                    {item.answer}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
         </div>
 
         {/* Download Instagram Card */}
