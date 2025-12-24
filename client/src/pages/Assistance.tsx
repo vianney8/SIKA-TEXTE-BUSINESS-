@@ -567,8 +567,21 @@ export default function Assistance() {
                             </p>
                           ) : null}
                         </div>
-                        <p className={`text-[10px] mt-1.5 px-1 ${isUser ? 'text-right' : 'text-left'} text-slate-400`}>
+                        <p className={`text-[10px] mt-1.5 px-1 flex items-center gap-1.5 ${isUser ? 'justify-end' : 'justify-start'} text-slate-400`}>
                           {formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true, locale: fr })}
+                          {isUser && (
+                            <span className={`flex items-center ${msg.isRead ? 'text-blue-500' : 'text-slate-400'}`}>
+                              {msg.isRead ? (
+                                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                  <path d="M2 12l5 5L20 4M9 12l5 5L20 4" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                              ) : (
+                                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                  <path d="M5 12l5 5L20 4" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                              )}
+                            </span>
+                          )}
                         </p>
                       </div>
                     </div>
