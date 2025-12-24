@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, MessageCircle, Headphones, Download, Send, Loader2, Image, X, User, Sparkles } from "lucide-react";
+import { ArrowLeft, MessageCircle, Headphones, Download, Send, Loader2, Image, X, User, Sparkles, Pencil, Trash2, Check } from "lucide-react";
 import { Link } from "wouter";
 import { FaInstagram } from "react-icons/fa";
 import { useAppSetting } from "@/hooks/useAppSettings";
@@ -57,6 +57,8 @@ export default function Assistance() {
   const [showChat, setShowChat] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
@@ -75,6 +77,26 @@ export default function Assistance() {
       queryClient.invalidateQueries({ queryKey: ['/api/support/messages'] });
       setNewMessage("");
       setSelectedImage(null);
+    }
+  });
+
+  const editMessageMutation = useMutation({
+    mutationFn: async ({ messageId, message }: { messageId: string; message: string }) => {
+      return apiRequest('PATCH', `/api/support/messages/${messageId}`, { message });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/support/messages'] });
+      setEditingMessageId(null);
+      setEditingText("");
+    }
+  });
+
+  const deleteMessageMutation = useMutation({
+    mutationFn: async (messageId: string) => {
+      return apiRequest('DELETE', `/api/support/messages/${messageId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/support/messages'] });
     }
   });
 
@@ -129,6 +151,28 @@ export default function Assistance() {
     } catch (error) {
       console.error('Error processing image:', error);
       setIsUploading(false);
+    }
+  };
+
+  const handleStartEdit = (msg: SupportMessage) => {
+    setEditingMessageId(msg.id);
+    setEditingText(msg.message);
+  };
+
+  const handleSaveEdit = () => {
+    if (editingMessageId && editingText.trim()) {
+      editMessageMutation.mutate({ messageId: editingMessageId, message: editingText.trim() });
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditingText("");
+  };
+
+  const handleDeleteMessage = (messageId: string) => {
+    if (confirm('Voulez-vous vraiment supprimer ce message ?')) {
+      deleteMessageMutation.mutate(messageId);
     }
   };
 
@@ -318,6 +362,7 @@ export default function Assistance() {
               messages.map((msg, index) => {
                 const isUser = msg.senderType === 'user';
                 const showAvatar = index === 0 || messages[index - 1]?.senderType !== msg.senderType;
+                const isEditing = editingMessageId === msg.id;
                 
                 return (
                   <div
@@ -343,12 +388,31 @@ export default function Assistance() {
                     
                     <div className={`max-w-[75%] ${isUser ? 'items-end' : 'items-start'}`}>
                       <div
-                        className={`rounded-2xl px-4 py-2.5 shadow-sm ${
+                        className={`rounded-2xl px-4 py-2.5 shadow-sm relative group ${
                           isUser
                             ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-br-md'
                             : 'bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-slate-700 rounded-bl-md'
                         }`}
                       >
+                        {isUser && !isEditing && (
+                          <div className="absolute -top-8 right-0 hidden group-hover:flex items-center gap-1 bg-white dark:bg-slate-700 rounded-lg shadow-md px-1 py-0.5">
+                            <button
+                              onClick={() => handleStartEdit(msg)}
+                              className="p-1 hover:bg-gray-100 dark:hover:bg-slate-600 rounded text-gray-600 dark:text-gray-300"
+                              data-testid={`button-edit-${msg.id}`}
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteMessage(msg.id)}
+                              className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-500"
+                              data-testid={`button-delete-${msg.id}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+                        
                         {msg.imageUrl && (
                           <a 
                             href={msg.imageUrl} 
@@ -365,11 +429,43 @@ export default function Assistance() {
                             />
                           </a>
                         )}
-                        {msg.message && (
+                        
+                        {isEditing ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={editingText}
+                              onChange={(e) => setEditingText(e.target.value)}
+                              className="flex-1 bg-white/20 rounded px-2 py-1 text-sm text-white placeholder-white/70 border border-white/30 focus:outline-none focus:border-white/50"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveEdit();
+                                if (e.key === 'Escape') handleCancelEdit();
+                              }}
+                            />
+                            <button
+                              onClick={handleSaveEdit}
+                              disabled={editMessageMutation.isPending}
+                              className="p-1 hover:bg-white/20 rounded"
+                            >
+                              {editMessageMutation.isPending ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Check className="w-4 h-4" />
+                              )}
+                            </button>
+                            <button
+                              onClick={handleCancelEdit}
+                              className="p-1 hover:bg-white/20 rounded"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : msg.message ? (
                           <p className="text-sm whitespace-pre-wrap leading-relaxed">
                             {renderMessageWithLinks(msg.message, isUser)}
                           </p>
-                        )}
+                        ) : null}
                       </div>
                       <p className={`text-[10px] mt-1 px-1 ${isUser ? 'text-right' : 'text-left'} text-gray-400`}>
                         {formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true, locale: fr })}

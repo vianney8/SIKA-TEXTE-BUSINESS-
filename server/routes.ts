@@ -2592,6 +2592,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Edit user's own message
+  app.patch('/api/support/messages/:messageId', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { messageId } = req.params;
+      const { message } = req.body;
+      
+      if (!message || message.trim().length === 0) {
+        return res.status(400).json({ message: 'Le message ne peut pas être vide' });
+      }
+      
+      const updatedMessage = await storage.updateUserSupportMessage(messageId, userId, message.trim());
+      if (!updatedMessage) {
+        return res.status(404).json({ message: 'Message non trouvé ou vous ne pouvez modifier que vos propres messages' });
+      }
+      res.json(updatedMessage);
+    } catch (error) {
+      console.error('Error updating user message:', error);
+      res.status(500).json({ message: 'Erreur lors de la modification du message' });
+    }
+  });
+
+  // Delete user's own message
+  app.delete('/api/support/messages/:messageId', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { messageId } = req.params;
+      
+      const deleted = await storage.deleteUserSupportMessage(messageId, userId);
+      if (!deleted) {
+        return res.status(404).json({ message: 'Message non trouvé ou vous ne pouvez supprimer que vos propres messages' });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting user message:', error);
+      res.status(500).json({ message: 'Erreur lors de la suppression du message' });
+    }
+  });
+
   // ============ ADMIN CHAT ROUTES ============
   
   // Get all conversations (admin)

@@ -141,7 +141,9 @@ export interface IStorage {
   markMessagesAsRead(userId: string, senderType: 'user' | 'admin'): Promise<void>;
   getUnreadMessagesCount(userId: string): Promise<number>;
   updateSupportMessage(messageId: string, newMessage: string): Promise<SupportMessage | null>;
+  updateUserSupportMessage(messageId: string, userId: string, newMessage: string): Promise<SupportMessage | null>;
   deleteSupportMessage(messageId: string): Promise<boolean>;
+  deleteUserSupportMessage(messageId: string, userId: string): Promise<boolean>;
   deleteConversation(userId: string): Promise<void>;
 }
 
@@ -1813,6 +1815,30 @@ export class DatabaseStorage implements IStorage {
       .where(and(
         eq(supportMessages.id, messageId),
         eq(supportMessages.senderType, 'admin')
+      ))
+      .returning();
+    return result.length > 0;
+  }
+
+  async updateUserSupportMessage(messageId: string, userId: string, newMessage: string): Promise<SupportMessage | null> {
+    const result = await db.update(supportMessages)
+      .set({ message: newMessage, updatedAt: new Date() })
+      .where(and(
+        eq(supportMessages.id, messageId),
+        eq(supportMessages.userId, userId),
+        eq(supportMessages.senderType, 'user')
+      ))
+      .returning();
+    return result.length > 0 ? result[0] : null;
+  }
+
+  async deleteUserSupportMessage(messageId: string, userId: string): Promise<boolean> {
+    const result = await db.update(supportMessages)
+      .set({ isDeleted: true })
+      .where(and(
+        eq(supportMessages.id, messageId),
+        eq(supportMessages.userId, userId),
+        eq(supportMessages.senderType, 'user')
       ))
       .returning();
     return result.length > 0;
