@@ -55,6 +55,7 @@ export default function AdminSettings() {
       queryClient.invalidateQueries({ queryKey: ['/api/settings/activation_link'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/whatsapp_group'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/instagram_supervisor'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/telegram_group'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/bkapay_enabled'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/lygos_enabled'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/leekpay_enabled'] });
@@ -190,6 +191,20 @@ export default function AdminSettings() {
                   Nom d'utilisateur Instagram (sans @) - {settings.instagram_supervisor_enabled === 'true' ? '✓ Activé' : '✗ Désactivé'}
                 </p>
               </div>
+            </div>
+
+            <div>
+              <Label htmlFor="telegram_group">Groupe Telegram (Dashboard)</Label>
+              <Input
+                id="telegram_group"
+                value={settings.telegram_group || ''}
+                onChange={(e) => handleInputChange('telegram_group', e.target.value)}
+                placeholder="https://t.me/..."
+                data-testid="input-telegram-group"
+              />
+              <p className="text-sm text-muted-foreground mt-1">
+                Lien d'invitation au groupe Telegram affiché sur le dashboard
+              </p>
             </div>
 
             <Button 
