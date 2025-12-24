@@ -367,7 +367,7 @@ export default function Assistance() {
           <div className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 px-4 py-2">
             <p className="text-xs text-amber-800 dark:text-amber-200 text-center flex items-center justify-center gap-1">
               <span className="text-amber-600">🔒</span>
-              <strong>Confidentialité :</strong> Les captures d'écran de cette conversation sont strictement interdites.
+              Pour des raisons de sécurité, les captures d'écran de cette conversation sont strictement interdites.
             </p>
           </div>
           <div 
