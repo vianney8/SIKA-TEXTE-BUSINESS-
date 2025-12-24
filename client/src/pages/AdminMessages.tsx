@@ -386,26 +386,13 @@ export default function AdminMessages() {
         >
           {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Image className="w-4 h-4" />}
         </Button>
-        <textarea
+        <Input
           value={newMessage}
-          onChange={(e) => {
-            setNewMessage(e.target.value);
-            e.target.style.height = 'auto';
-            e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              if (newMessage.trim() || selectedImage) {
-                handleSendMessage(e as any);
-              }
-            }
-          }}
-          placeholder="Shift+Entrée pour aller à la ligne"
-          className="flex-1 min-h-[40px] max-h-[120px] resize-none rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 overflow-y-auto"
+          onChange={(e) => setNewMessage(e.target.value)}
+          placeholder="Répondre au client..."
+          className="flex-1"
           disabled={sendMessageMutation.isPending}
           data-testid="input-admin-message"
-          rows={1}
         />
         <Button
           type="submit"

@@ -577,27 +577,14 @@ export default function Assistance() {
               >
                 {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Image className="w-5 h-5" />}
               </Button>
-              <textarea
+              <Input
                 value={newMessage}
-                onChange={(e) => {
-                  setNewMessage(e.target.value);
-                  e.target.style.height = 'auto';
-                  e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
-                }}
+                onChange={(e) => setNewMessage(e.target.value)}
                 onPaste={handlePaste}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    if (newMessage.trim() || selectedImage) {
-                      handleSendMessage(e as any);
-                    }
-                  }
-                }}
-                placeholder="Shift+Entrée pour aller à la ligne"
-                className="flex-1 min-h-[44px] max-h-[120px] resize-none rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 focus:bg-white dark:focus:bg-slate-700 transition-colors px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 overflow-y-auto"
+                placeholder="Écrivez votre message..."
+                className="flex-1 rounded-xl border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 focus:bg-white dark:focus:bg-slate-700 transition-colors h-11"
                 disabled={sendMessageMutation.isPending}
                 data-testid="input-chat-message"
-                rows={1}
               />
               <Button
                 type="submit"
