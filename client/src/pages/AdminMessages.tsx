@@ -206,6 +206,36 @@ export default function AdminMessages() {
     }
   };
 
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        e.preventDefault();
+        const file = items[i].getAsFile();
+        if (file) {
+          if (file.size > 5 * 1024 * 1024) {
+            toast({ title: "Erreur", description: "L'image ne doit pas dépasser 5 Mo", variant: "destructive" });
+            return;
+          }
+          setIsUploading(true);
+          const reader = new FileReader();
+          reader.onload = () => {
+            setSelectedImage(reader.result as string);
+            setIsUploading(false);
+          };
+          reader.onerror = () => {
+            toast({ title: "Erreur", description: "Erreur lors du chargement de l'image", variant: "destructive" });
+            setIsUploading(false);
+          };
+          reader.readAsDataURL(file);
+        }
+        break;
+      }
+    }
+  };
+
   const handleEditMessage = (msg: SupportMessage) => {
     setEditingMessage(msg);
     setEditText(msg.message);

@@ -177,6 +177,36 @@ export default function Assistance() {
     }
   };
 
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        e.preventDefault();
+        const file = items[i].getAsFile();
+        if (file) {
+          if (file.size > 5 * 1024 * 1024) {
+            alert('L\'image ne doit pas dépasser 5 Mo');
+            return;
+          }
+          setIsUploading(true);
+          const reader = new FileReader();
+          reader.onload = () => {
+            setSelectedImage(reader.result as string);
+            setIsUploading(false);
+          };
+          reader.onerror = () => {
+            alert('Erreur lors du chargement de l\'image');
+            setIsUploading(false);
+          };
+          reader.readAsDataURL(file);
+        }
+        break;
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background pb-20">
       <div className="gradient-bg text-primary-foreground">
@@ -524,7 +554,8 @@ export default function Assistance() {
             <Input
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="Écrivez votre message..."
+              onPaste={handlePaste}
+              placeholder="Écrivez ou collez une image..."
               className="flex-1 rounded-full border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 focus:bg-white dark:focus:bg-slate-700 transition-colors"
               disabled={sendMessageMutation.isPending}
               data-testid="input-chat-message"
