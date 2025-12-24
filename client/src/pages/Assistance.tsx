@@ -364,8 +364,14 @@ export default function Assistance() {
         </div>
 
         <div className="bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-700">
+          <div className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 px-4 py-2">
+            <p className="text-xs text-amber-800 dark:text-amber-200 text-center flex items-center justify-center gap-1">
+              <span className="text-amber-600">🔒</span>
+              <strong>Confidentialité :</strong> Les captures d'écran de cette conversation sont strictement interdites.
+            </p>
+          </div>
           <div 
-            className="h-[50vh] overflow-y-auto p-4 space-y-4"
+            className="h-[calc(50vh-40px)] overflow-y-auto p-4 space-y-4"
             style={{ 
               backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%239C92AC\' fill-opacity=\'0.05\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
               backgroundColor: '#f8fafc'
