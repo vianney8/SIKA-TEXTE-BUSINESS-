@@ -1,21 +1,69 @@
+import { useState, useRef, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, MessageCircle, Users, Headphones, Download } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { ArrowLeft, MessageCircle, Headphones, Download, Send, Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { FaInstagram } from "react-icons/fa";
 import { useAppSetting } from "@/hooks/useAppSettings";
+import { apiRequest } from "@/lib/queryClient";
+import { formatDistanceToNow } from "date-fns";
+import { fr } from "date-fns/locale";
+
+interface SupportMessage {
+  id: string;
+  userId: string;
+  message: string;
+  senderType: 'user' | 'admin';
+  isRead: boolean;
+  createdAt: string;
+}
 
 export default function Assistance() {
   const { data: instagramSupport } = useAppSetting('instagram_supervisor');
+  const [newMessage, setNewMessage] = useState("");
+  const [showChat, setShowChat] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
+
+  const { data: messages = [], isLoading: messagesLoading } = useQuery<SupportMessage[]>({
+    queryKey: ['/api/support/messages'],
+    refetchInterval: 5000,
+  });
+
+  const sendMessageMutation = useMutation({
+    mutationFn: async (message: string) => {
+      return apiRequest('POST', '/api/support/messages', { message });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/support/messages'] });
+      setNewMessage("");
+    }
+  });
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   const handleInstagramContact = () => {
     const instagramUrl = `https://www.instagram.com/${instagramSupport || 'sikacustomer_service'}`;
     window.open(instagramUrl, '_blank', 'noopener,noreferrer');
   };
 
+  const handleSendMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newMessage.trim()) {
+      sendMessageMutation.mutate(newMessage.trim());
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <div className="gradient-bg text-primary-foreground">
         <div className="px-6 py-4 flex items-center">
           <Button asChild variant="ghost" size="sm" className="text-primary-foreground hover:bg-white/10">
@@ -30,7 +78,6 @@ export default function Assistance() {
       </div>
 
       <div className="p-6">
-        {/* Introduction */}
         <div className="text-center mb-8">
           <div className="bg-gradient-to-r from-primary to-accent w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center">
             <Headphones className="w-8 h-8 text-white" />
@@ -41,9 +88,114 @@ export default function Assistance() {
           </p>
         </div>
 
-        {/* Contact Options */}
         <div className="space-y-4">
-          {/* Instagram Download Card */}
+          <Card 
+            className="border-2 border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950 cursor-pointer hover:shadow-lg transition-all duration-300"
+            onClick={() => setShowChat(!showChat)}
+            data-testid="card-chat-online"
+          >
+            <CardHeader>
+              <CardTitle className="flex items-center gap-3">
+                <div className="bg-gradient-to-br from-emerald-600 to-teal-600 p-2 rounded-full">
+                  <MessageCircle className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold">Chat en ligne</h3>
+                  <p className="text-sm text-muted-foreground font-normal">
+                    Discutez directement avec notre équipe
+                  </p>
+                </div>
+                <div className="bg-emerald-500 text-white text-xs px-2 py-1 rounded-full">
+                  En ligne
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-4">
+                Envoyez un message instantané à notre service client. Nous vous répondrons dans les plus brefs délais.
+              </p>
+              <Button 
+                className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white"
+                data-testid="button-open-chat"
+              >
+                <MessageCircle className="w-4 h-4 mr-2" />
+                {showChat ? "Fermer le chat" : "Ouvrir le chat"}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {showChat && (
+            <Card className="border-2 border-emerald-300 dark:border-emerald-700" data-testid="chat-container">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <MessageCircle className="w-5 h-5 text-emerald-600" />
+                  Chat avec le support
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="h-80 overflow-y-auto p-4 bg-slate-50 dark:bg-slate-900 space-y-3" data-testid="chat-messages">
+                  {messagesLoading ? (
+                    <div className="flex items-center justify-center h-full">
+                      <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+                    </div>
+                  ) : messages.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
+                      <MessageCircle className="w-12 h-12 mb-3 opacity-50" />
+                      <p>Aucun message pour le moment</p>
+                      <p className="text-sm">Envoyez votre premier message !</p>
+                    </div>
+                  ) : (
+                    messages.map((msg) => (
+                      <div
+                        key={msg.id}
+                        className={`flex ${msg.senderType === 'user' ? 'justify-end' : 'justify-start'}`}
+                        data-testid={`message-${msg.id}`}
+                      >
+                        <div
+                          className={`max-w-[80%] rounded-2xl px-4 py-2 ${
+                            msg.senderType === 'user'
+                              ? 'bg-emerald-600 text-white rounded-br-md'
+                              : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-bl-md'
+                          }`}
+                        >
+                          <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
+                          <p className={`text-xs mt-1 ${msg.senderType === 'user' ? 'text-emerald-100' : 'text-muted-foreground'}`}>
+                            {formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true, locale: fr })}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
+
+                <form onSubmit={handleSendMessage} className="p-4 border-t flex gap-2">
+                  <Input
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder="Écrivez votre message..."
+                    className="flex-1"
+                    disabled={sendMessageMutation.isPending}
+                    data-testid="input-chat-message"
+                  />
+                  <Button
+                    type="submit"
+                    size="icon"
+                    disabled={!newMessage.trim() || sendMessageMutation.isPending}
+                    className="bg-emerald-600 hover:bg-emerald-700"
+                    data-testid="button-send-message"
+                  >
+                    {sendMessageMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          )}
+
           <Card className="border-2 border-purple-200 dark:border-purple-800 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950 dark:to-pink-950">
             <CardHeader>
               <CardTitle className="flex items-center gap-3">
@@ -78,7 +230,6 @@ export default function Assistance() {
             </CardContent>
           </Card>
 
-          {/* Instagram Contact */}
           <Card className="hover:shadow-lg transition-all duration-300">
             <CardHeader>
               <CardTitle className="flex items-center gap-3">
@@ -108,10 +259,8 @@ export default function Assistance() {
               </Button>
             </CardContent>
           </Card>
-
         </div>
 
-        {/* Additional Help Info */}
         <Card className="mt-6 bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700">
           <CardContent className="p-6">
             <h4 className="font-semibold mb-3 flex items-center gap-2">
