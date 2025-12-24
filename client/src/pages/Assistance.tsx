@@ -579,7 +579,11 @@ export default function Assistance() {
               </Button>
               <textarea
                 value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
+                onChange={(e) => {
+                  setNewMessage(e.target.value);
+                  e.target.style.height = 'auto';
+                  e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+                }}
                 onPaste={handlePaste}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
@@ -589,8 +593,8 @@ export default function Assistance() {
                     }
                   }
                 }}
-                placeholder="Écrivez votre message... (Shift+Entrée pour aller à la ligne)"
-                className="flex-1 min-h-[44px] max-h-[120px] resize-none rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 focus:bg-white dark:focus:bg-slate-700 transition-colors px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Shift+Entrée pour aller à la ligne"
+                className="flex-1 min-h-[44px] max-h-[120px] resize-none rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 focus:bg-white dark:focus:bg-slate-700 transition-colors px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 overflow-y-auto"
                 disabled={sendMessageMutation.isPending}
                 data-testid="input-chat-message"
                 rows={1}
