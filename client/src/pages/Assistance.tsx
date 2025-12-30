@@ -52,6 +52,8 @@ function renderMessageWithLinks(text: string, isUserMessage: boolean): JSX.Eleme
 
 export default function Assistance() {
   const { data: instagramSupport } = useAppSetting('instagram_supervisor');
+  const { data: chatEnabledData } = useAppSetting('chat_enabled');
+  const isChatEnabled = chatEnabledData !== 'false';
   const [newMessage, setNewMessage] = useState("");
   const [showChat, setShowChat] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -254,23 +256,42 @@ export default function Assistance() {
           </h3>
           
           {/* Chat En Ligne - Primary */}
-          <button
-            onClick={() => setShowChat(true)}
-            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl p-4 flex items-center gap-4 shadow-lg shadow-blue-500/25 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
-            data-testid="button-open-chat"
-          >
-            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-              <MessageCircle className="w-6 h-6" />
+          {isChatEnabled ? (
+            <button
+              onClick={() => setShowChat(true)}
+              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl p-4 flex items-center gap-4 shadow-lg shadow-blue-500/25 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
+              data-testid="button-open-chat"
+            >
+              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                <MessageCircle className="w-6 h-6" />
+              </div>
+              <div className="flex-1 text-left">
+                <h4 className="font-semibold">Chat En Ligne</h4>
+                <p className="text-sm text-blue-100">Discutez avec notre équipe en temps réel</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                <span className="text-xs bg-white/20 px-2 py-1 rounded-full">En ligne</span>
+              </div>
+            </button>
+          ) : (
+            <div
+              className="w-full bg-gradient-to-r from-slate-400 to-slate-500 text-white rounded-2xl p-4 flex items-center gap-4 shadow-lg opacity-80 cursor-not-allowed"
+              data-testid="chat-disabled"
+            >
+              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                <MessageCircle className="w-6 h-6" />
+              </div>
+              <div className="flex-1 text-left">
+                <h4 className="font-semibold">Chat En Ligne</h4>
+                <p className="text-sm text-slate-200">Indisponible en raison du nombre de messages</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 bg-red-400 rounded-full"></span>
+                <span className="text-xs bg-white/20 px-2 py-1 rounded-full">Hors ligne</span>
+              </div>
             </div>
-            <div className="flex-1 text-left">
-              <h4 className="font-semibold">Chat En Ligne</h4>
-              <p className="text-sm text-blue-100">Discutez avec notre équipe en temps réel</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-              <span className="text-xs bg-white/20 px-2 py-1 rounded-full">En ligne</span>
-            </div>
-          </button>
+          )}
 
           {/* Instagram */}
           <button
@@ -604,8 +625,8 @@ export default function Assistance() {
         </div>
       </div>
 
-      {/* Floating Chat Button (when chat is closed) */}
-      {!showChat && (
+      {/* Floating Chat Button (when chat is closed and enabled) */}
+      {!showChat && isChatEnabled && (
         <button
           onClick={() => setShowChat(true)}
           className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full shadow-2xl shadow-blue-500/40 flex items-center justify-center text-white hover:scale-110 transition-transform z-50 group"

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle, XCircle, Settings, MessageCircle } from "lucide-react";
+import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle, XCircle, Settings, MessageCircle, MessageSquareOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 
@@ -104,6 +104,35 @@ export default function AdminDashboard() {
     refetchOnWindowFocus: false,
   });
   const totalUnreadMessages = conversations.reduce((sum: number, c: any) => sum + (c.unreadCount || 0), 0);
+
+  // Chat enabled status
+  const { data: chatEnabledData } = useQuery<{ value: string }>({
+    queryKey: ['/api/settings/chat_enabled'],
+    staleTime: 10000,
+  });
+  const isChatEnabled = chatEnabledData?.value !== 'false';
+
+  // Toggle chat mutation
+  const toggleChatMutation = useMutation({
+    mutationFn: async () => {
+      const newValue = isChatEnabled ? 'false' : 'true';
+      return apiRequest('PUT', '/api/admin/settings/chat_enabled', { value: newValue });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/chat_enabled'] });
+      toast({ 
+        title: isChatEnabled ? "Chat désactivé" : "Chat activé",
+        description: isChatEnabled ? "Les utilisateurs ne peuvent plus envoyer de messages" : "Les utilisateurs peuvent à nouveau envoyer des messages"
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible de modifier le statut du chat",
+        variant: "destructive"
+      });
+    }
+  });
 
   // Withdrawal approval mutations
   const approveWithdrawalMutation = useMutation({
@@ -804,6 +833,24 @@ export default function AdminDashboard() {
                   </span>
                 )}
               </a>
+            </Button>
+            <Button
+              onClick={() => toggleChatMutation.mutate()}
+              disabled={toggleChatMutation.isPending}
+              className={`${isChatEnabled ? 'bg-orange-500 hover:bg-orange-600' : 'bg-green-500 hover:bg-green-600'} text-white`}
+              data-testid="button-toggle-chat"
+            >
+              {isChatEnabled ? (
+                <>
+                  <MessageSquareOff className="h-4 w-4 mr-2" />
+                  Désactiver Chat
+                </>
+              ) : (
+                <>
+                  <MessageCircle className="h-4 w-4 mr-2" />
+                  Activer Chat
+                </>
+              )}
             </Button>
             <Button
               onClick={() => setIdentityModal(true)}

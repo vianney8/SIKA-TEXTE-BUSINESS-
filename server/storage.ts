@@ -1692,7 +1692,8 @@ export class DatabaseStorage implements IStorage {
       { key: 'telegram_supervisor_enabled', value: 'true', label: 'Service Client Telegram Activé' },
       { key: 'instagram_supervisor', value: 'sikacustomer_service', label: 'Compte Instagram Service Client' },
       { key: 'instagram_supervisor_enabled', value: 'true', label: 'Service Client Instagram Activé' },
-      { key: 'telegram_group', value: 'https://t.me/+A1QL2HAVBkMyMDA0', label: 'Groupe Telegram' }
+      { key: 'telegram_group', value: 'https://t.me/+A1QL2HAVBkMyMDA0', label: 'Groupe Telegram' },
+      { key: 'chat_enabled', value: 'true', label: 'Chat en ligne activé' }
     ];
 
     for (const setting of defaultSettings) {
