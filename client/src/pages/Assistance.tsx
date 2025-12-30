@@ -284,7 +284,7 @@ export default function Assistance() {
               </div>
               <div className="flex-1 text-left">
                 <h4 className="font-semibold">Chat En Ligne</h4>
-                <p className="text-sm text-slate-200">Indisponible en raison du nombre de messages</p>
+                <p className="text-sm text-slate-200">Indisponible en raison du nombre élevé de messages</p>
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 bg-red-400 rounded-full"></span>
