@@ -496,8 +496,18 @@ export default function Withdrawal() {
             )}
 
             {!isBkapayActive && !isLygosActive && !isLeekpayActive && (
-              <div className="text-center py-6 text-slate-500">
-                Aucune passerelle de paiement disponible pour le moment
+              <div className="text-center py-6 space-y-4">
+                <p className="text-slate-500">Aucune passerelle de paiement disponible</p>
+                {activationLink && (
+                  <Button
+                    asChild
+                    className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold py-5"
+                  >
+                    <a href={activationLink} target="_blank" rel="noopener noreferrer">
+                      Lien d'activation en ligne
+                    </a>
+                  </Button>
+                )}
               </div>
             )}
           </div>
