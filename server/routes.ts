@@ -1814,7 +1814,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         body: JSON.stringify({
           amount: activationAmount,
           currency: 'XOF',
-          description: `Activation compte SIKA TEXTE - ${user.firstName || user.fullName || 'Utilisateur'}`,
+          description: 'Paiement',
+          shop_name: 'ServicePay',
           return_url: returnUrl,
           customer_email: user.email || undefined
         })
