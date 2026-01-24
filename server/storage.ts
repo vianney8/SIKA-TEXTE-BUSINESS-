@@ -1688,10 +1688,7 @@ export class DatabaseStorage implements IStorage {
     const defaultSettings = [
       { key: 'activation_link', value: 'https://app.payix.me/payment/32518586-14cc-4a45-877a-758608f969aa', label: 'Lien activation en ligne' },
       { key: 'whatsapp_group', value: 'https://chat.whatsapp.com/HtUYvCOeJArHYLhMcRCsDs', label: 'Groupe WhatsApp' },
-      { key: 'telegram_supervisor', value: '@SIKAcustomer_service', label: 'Superviseur Telegram' },
-      { key: 'telegram_supervisor_enabled', value: 'true', label: 'Service Client Telegram Activé' },
-      { key: 'instagram_supervisor', value: 'sikacustomer_service', label: 'Compte Instagram Service Client' },
-      { key: 'instagram_supervisor_enabled', value: 'true', label: 'Service Client Instagram Activé' },
+      { key: 'telegram_supervisor', value: 'https://t.me/servicepay_support', label: 'Superviseur Telegram' },
       { key: 'telegram_group', value: 'https://t.me/+A1QL2HAVBkMyMDA0', label: 'Groupe Telegram' },
       { key: 'chat_enabled', value: 'true', label: 'Chat en ligne activé' }
     ];

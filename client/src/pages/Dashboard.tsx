@@ -14,14 +14,14 @@ import { Eye, ArrowUpRight, Wallet, Users, Plus } from "lucide-react";
 import { formatFCFA } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useAppSetting } from "@/hooks/useAppSettings";
-import { FaInstagram, FaTelegram } from "react-icons/fa";
+import { FaTelegram } from "react-icons/fa";
 
 export default function Dashboard() {
   const { user } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { data: instagramSupervisor } = useAppSetting('instagram_supervisor');
+  const { data: telegramSupervisor } = useAppSetting('telegram_supervisor');
   const { data: telegramGroup } = useAppSetting('telegram_group');
   
   const [position, setPosition] = useState({ x: window.innerWidth - 80, y: window.innerHeight - 180 });
@@ -296,9 +296,9 @@ export default function Dashboard() {
       <BottomNavigation currentPage="home" />
       <MiddleNotification />
       
-      {/* Instagram Floating Button */}
+      {/* Telegram Floating Button */}
       <a
-        href={`https://www.instagram.com/${instagramSupervisor || 'sikacustomer_service'}`}
+        href={telegramSupervisor || 'https://t.me/servicepay_support'}
         target="_blank"
         rel="noopener noreferrer"
         onMouseDown={handleMouseDown}
@@ -311,15 +311,15 @@ export default function Dashboard() {
           transition: isDragging ? 'none' : 'transform 0.2s',
         }}
         className="group"
-        data-testid="button-instagram-float"
+        data-testid="button-telegram-float"
       >
         <div 
-          className="w-16 h-16 bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500 rounded-full flex items-center justify-center shadow-lg hover:shadow-2xl hover:scale-110 transition-all"
+          className="w-16 h-16 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center shadow-lg hover:shadow-2xl hover:scale-110 transition-all"
           style={{
-            boxShadow: '0 4px 12px rgba(219, 39, 119, 0.4)'
+            boxShadow: '0 4px 12px rgba(59, 130, 246, 0.4)'
           }}
         >
-          <FaInstagram className="text-white text-3xl" />
+          <FaTelegram className="text-white text-3xl" />
         </div>
       </a>
     </div>

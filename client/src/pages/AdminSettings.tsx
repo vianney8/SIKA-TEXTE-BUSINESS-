@@ -54,7 +54,7 @@ export default function AdminSettings() {
       queryClient.invalidateQueries({ queryKey: ['/api/settings/activation_amount'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/activation_link'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/whatsapp_group'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/settings/instagram_supervisor'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/telegram_supervisor'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/telegram_group'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/bkapay_enabled'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/lygos_enabled'] });
@@ -166,31 +166,18 @@ export default function AdminSettings() {
               </p>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <Label htmlFor="instagram_supervisor">Compte Instagram Service Client</Label>
-                  <button
-                    type="button"
-                    onClick={() => handleInputChange('instagram_supervisor_enabled', settings.instagram_supervisor_enabled === 'true' ? 'false' : 'true')}
-                    className={`p-1 rounded transition-colors ${settings.instagram_supervisor_enabled === 'true' ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-700'}`}
-                    data-testid="toggle-instagram-enabled"
-                    title={settings.instagram_supervisor_enabled === 'true' ? 'Désactiver' : 'Activer'}
-                  >
-                    🔓
-                  </button>
-                </div>
-                <Input
-                  id="instagram_supervisor"
-                  value={settings.instagram_supervisor || ''}
-                  onChange={(e) => handleInputChange('instagram_supervisor', e.target.value)}
-                  placeholder="sikacustomer_service"
-                  data-testid="input-instagram-supervisor"
-                />
-                <p className="text-sm text-muted-foreground mt-1">
-                  Nom d'utilisateur Instagram (sans @) - {settings.instagram_supervisor_enabled === 'true' ? '✓ Activé' : '✗ Désactivé'}
-                </p>
-              </div>
+            <div>
+              <Label htmlFor="telegram_supervisor">Superviseur Telegram (Bouton flottant)</Label>
+              <Input
+                id="telegram_supervisor"
+                value={settings.telegram_supervisor || ''}
+                onChange={(e) => handleInputChange('telegram_supervisor', e.target.value)}
+                placeholder="https://t.me/username"
+                data-testid="input-telegram-supervisor"
+              />
+              <p className="text-sm text-muted-foreground mt-1">
+                Lien Telegram du superviseur (bouton flottant sur l'accueil)
+              </p>
             </div>
 
             <div>
