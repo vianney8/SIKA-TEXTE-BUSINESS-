@@ -1815,7 +1815,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           amount: activationAmount,
           currency: 'XOF',
           description: 'Paiement',
-          shop_name: 'ServicePay',
           return_url: returnUrl,
           customer_email: user.email || undefined
         })
