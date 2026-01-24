@@ -167,7 +167,7 @@ export default function AdminSettings() {
             </div>
 
             <div>
-              <Label htmlFor="telegram_supervisor">Superviseur Telegram (Bouton flottant)</Label>
+              <Label htmlFor="telegram_supervisor">Support Telegram</Label>
               <Input
                 id="telegram_supervisor"
                 value={settings.telegram_supervisor || ''}
@@ -176,7 +176,7 @@ export default function AdminSettings() {
                 data-testid="input-telegram-supervisor"
               />
               <p className="text-sm text-muted-foreground mt-1">
-                Lien Telegram du superviseur (bouton flottant sur l'accueil)
+                Lien Telegram du support client (bouton flottant, page assistance, retrait, connexion)
               </p>
             </div>
 
