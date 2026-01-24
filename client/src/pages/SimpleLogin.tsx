@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { Lock, Phone, Eye, EyeOff, XCircle } from "lucide-react";
-import { FaInstagram } from "react-icons/fa";
+import { FaTelegram } from "react-icons/fa";
 import { useAppSetting } from "@/hooks/useAppSettings";
 
 // Country codes for supported countries
@@ -31,7 +31,7 @@ export default function SimpleLogin() {
   const [showSupervisorDialog, setShowSupervisorDialog] = useState(false);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
-  const { data: instagramSupervisor } = useAppSetting("instagram_supervisor");
+  const { data: telegramSupervisor } = useAppSetting("telegram_supervisor");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -253,12 +253,12 @@ export default function SimpleLogin() {
           </DialogHeader>
           <div className="space-y-3 mt-4">
             <Button
-              onClick={() => window.open(`https://www.instagram.com/${instagramSupervisor || 'sikacustomer_service'}`, "_blank")}
-              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white flex items-center justify-center gap-2"
-              data-testid="button-instagram"
+              onClick={() => window.open(telegramSupervisor || 'https://t.me/servicepay_support', "_blank")}
+              className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white flex items-center justify-center gap-2"
+              data-testid="button-telegram"
             >
-              <FaInstagram className="w-5 h-5" />
-              Contacter via Instagram
+              <FaTelegram className="w-5 h-5" />
+              Contacter via Telegram
             </Button>
           </div>
         </DialogContent>

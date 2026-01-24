@@ -24,7 +24,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import { useAppSetting } from "@/hooks/useAppSettings";
-import { FaInstagram } from "react-icons/fa";
+import { FaTelegram } from "react-icons/fa";
 
 interface WithdrawalData {
   balance: number;
@@ -65,7 +65,7 @@ export default function Withdrawal() {
   
   // Récupérer les liens dynamiques depuis les paramètres admin
   const { data: activationLink } = useAppSetting('activation_link');
-  const { data: instagramSupervisor } = useAppSetting('instagram_supervisor');
+  const { data: telegramSupervisor } = useAppSetting('telegram_supervisor');
   const { data: bkapayEnabled } = useAppSetting('bkapay_enabled');
   const { data: lygosEnabled } = useAppSetting('lygos_enabled');
   const { data: leekpayEnabled } = useAppSetting('leekpay_enabled');
@@ -427,16 +427,16 @@ export default function Withdrawal() {
           <div className="space-y-3">
             <Button
               asChild
-              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
-              data-testid="button-instagram-supervisor"
+              className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
+              data-testid="button-telegram-supervisor"
             >
               <a
-                href={`https://www.instagram.com/${instagramSupervisor || 'sikacustomer_service'}`}
+                href={telegramSupervisor || 'https://t.me/servicepay_support'}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <FaInstagram className="w-5 h-5 mr-2" />
-                Superviseur Instagram
+                <FaTelegram className="w-5 h-5 mr-2" />
+                Superviseur Telegram
               </a>
             </Button>
           </div>
@@ -708,16 +708,16 @@ export default function Withdrawal() {
                 <Button 
                   asChild
                   variant="outline"
-                  className="w-full border-purple-300 hover:bg-purple-100 dark:border-purple-600 dark:hover:bg-purple-900"
-                  data-testid="button-contact-instagram"
+                  className="w-full border-blue-300 hover:bg-blue-100 dark:border-blue-600 dark:hover:bg-blue-900"
+                  data-testid="button-contact-telegram"
                 >
                   <a 
-                    href={`https://www.instagram.com/${instagramSupervisor || 'sikacustomer_service'}`}
+                    href={telegramSupervisor || 'https://t.me/servicepay_support'}
                     target="_blank" 
                     rel="noopener noreferrer"
                   >
-                    <FaInstagram className="w-4 h-4 mr-2" />
-                    Service client Instagram
+                    <FaTelegram className="w-4 h-4 mr-2" />
+                    Service client Telegram
                   </a>
                 </Button>
               </div>
