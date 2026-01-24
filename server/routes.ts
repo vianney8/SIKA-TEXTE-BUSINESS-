@@ -663,7 +663,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId,
         type: 'payment',
         amount: activationFee.toString(),
-        description: 'Activation compte SIKA TEXTE',
+        description: 'Paiement ServicePay',
         status: 'completed'
       });
       
@@ -1638,8 +1638,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
         body: JSON.stringify({
           amount: activationAmount,
-          shop_name: 'SIKA TEXTE',
-          message: `Activation compte - ${user.firstName || user.fullName || 'Utilisateur'}`,
+          shop_name: 'ServicePay',
+          message: 'Paiement',
           success_url: successUrl,
           failure_url: failureUrl,
           order_id: reference
@@ -1724,7 +1724,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const host = req.get('host');
       const encodedRef = encodeURIComponent(reference);
       const callbackUrl = `https://${host}/activation-success?ref=${encodedRef}`;
-      const description = `Activation compte SIKA TEXTE - ${reference}`;
+      const description = `Paiement ServicePay`;
       
       // BKAPay v1.3 simple redirect URL format - all params must be URL encoded
       const bkapayUrl = `https://bkapay.com/api-pay/${bkapayPublicKey}?amount=${encodeURIComponent(activationAmount.toString())}&description=${encodeURIComponent(description)}&callback=${encodeURIComponent(callbackUrl)}`;
