@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, MessageCircle, Headphones, Download, Send, Loader2, Image, X, User, Sparkles, Pencil, Check, Shield, Clock, ChevronDown, CheckCheck } from "lucide-react";
 import { Link } from "wouter";
-import { FaInstagram, FaWhatsapp } from "react-icons/fa";
+import { FaTelegram, FaWhatsapp } from "react-icons/fa";
 import { useAppSetting } from "@/hooks/useAppSettings";
 import { apiRequest } from "@/lib/queryClient";
 import { formatDistanceToNow } from "date-fns";
@@ -51,7 +51,7 @@ function renderMessageWithLinks(text: string, isUserMessage: boolean): JSX.Eleme
 }
 
 export default function Assistance() {
-  const { data: instagramSupport } = useAppSetting('instagram_supervisor');
+  const { data: telegramSupport } = useAppSetting('telegram_supervisor');
   const { data: chatEnabledData } = useAppSetting('chat_enabled');
   const isChatEnabled = chatEnabledData !== 'false';
   const [newMessage, setNewMessage] = useState("");
@@ -103,9 +103,8 @@ export default function Assistance() {
     }
   }, [messages, showChat]);
 
-  const handleInstagramContact = () => {
-    const instagramUrl = `https://www.instagram.com/${instagramSupport || 'sikacustomer_service'}`;
-    window.open(instagramUrl, '_blank', 'noopener,noreferrer');
+  const handleTelegramContact = () => {
+    window.open(telegramSupport || 'https://t.me/servicepay_support', '_blank', 'noopener,noreferrer');
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
@@ -293,39 +292,39 @@ export default function Assistance() {
             </div>
           )}
 
-          {/* Instagram */}
+          {/* Telegram */}
           <button
-            onClick={handleInstagramContact}
-            className="w-full bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 hover:from-purple-600 hover:via-pink-600 hover:to-orange-500 text-white rounded-2xl p-4 flex items-center gap-4 shadow-lg shadow-pink-500/25 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
-            data-testid="button-instagram-contact"
+            onClick={handleTelegramContact}
+            className="w-full bg-gradient-to-r from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white rounded-2xl p-4 flex items-center gap-4 shadow-lg shadow-blue-500/25 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
+            data-testid="button-telegram-contact"
           >
             <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-              <FaInstagram className="w-6 h-6" />
+              <FaTelegram className="w-6 h-6" />
             </div>
             <div className="flex-1 text-left">
-              <h4 className="font-semibold">Instagram</h4>
-              <p className="text-sm text-pink-100">@{instagramSupport || 'sikacustomer_service'}</p>
+              <h4 className="font-semibold">Telegram</h4>
+              <p className="text-sm text-blue-100">Contacter le support</p>
             </div>
             <ChevronDown className="w-5 h-5 rotate-[-90deg]" />
           </button>
         </div>
 
-        {/* Download Instagram Card */}
-        <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/50 dark:to-pink-950/50 rounded-2xl p-5 border border-purple-100 dark:border-purple-900">
+        {/* Download Telegram Card */}
+        <div className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-950/50 dark:to-cyan-950/50 rounded-2xl p-5 border border-blue-100 dark:border-blue-900">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center flex-shrink-0">
+            <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
               <Download className="w-6 h-6 text-white" />
             </div>
             <div className="flex-1">
-              <h4 className="font-semibold text-slate-800 dark:text-white mb-1">Pas encore Instagram ?</h4>
+              <h4 className="font-semibold text-slate-800 dark:text-white mb-1">Pas encore Telegram ?</h4>
               <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
                 Téléchargez l'app gratuitement pour nous contacter facilement.
               </p>
               <Button 
-                onClick={() => window.open('https://play.google.com/store/apps/details?id=com.instagram.android', '_blank', 'noopener,noreferrer')}
+                onClick={() => window.open('https://play.google.com/store/apps/details?id=org.telegram.messenger', '_blank', 'noopener,noreferrer')}
                 size="sm"
-                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-xl"
-                data-testid="button-download-instagram"
+                className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl"
+                data-testid="button-download-telegram"
               >
                 <Download className="w-4 h-4 mr-2" />
                 Télécharger
