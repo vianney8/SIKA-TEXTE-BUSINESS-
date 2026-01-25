@@ -1629,7 +1629,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('[LYGOS-INIT] Success URL:', successUrl);
       console.log('[LYGOS-INIT] Failure URL:', failureUrl);
       
-      // Call Lygos API to create payment gateway
+      // Call Lygos API to create payment gateway with timeout
+      const lygosController = new AbortController();
+      const lygosTimeout = setTimeout(() => lygosController.abort(), 15000);
+      
       const lygosResponse = await fetch('https://api.lygosapp.com/v1/gateway', {
         method: 'POST',
         headers: {
@@ -1643,8 +1646,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           success_url: successUrl,
           failure_url: failureUrl,
           order_id: reference
-        })
+        }),
+        signal: lygosController.signal
       });
+      
+      clearTimeout(lygosTimeout);
       
       if (!lygosResponse.ok) {
         const errorText = await lygosResponse.text();
@@ -1804,7 +1810,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('[LEEKPAY-INIT] Amount:', activationAmount);
       console.log('[LEEKPAY-INIT] Return URL:', returnUrl);
       
-      // Call LeekPay API to create checkout
+      // Call LeekPay API to create checkout with timeout
+      const leekpayController = new AbortController();
+      const leekpayTimeout = setTimeout(() => leekpayController.abort(), 15000);
+      
       const leekpayResponse = await fetch('https://leekpay.fr/api/v1/checkout', {
         method: 'POST',
         headers: {
@@ -1817,8 +1826,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           description: 'Paiement',
           return_url: returnUrl,
           customer_email: user.email || undefined
-        })
+        }),
+        signal: leekpayController.signal
       });
+      
+      clearTimeout(leekpayTimeout);
       
       if (!leekpayResponse.ok) {
         const errorText = await leekpayResponse.text();
