@@ -1631,7 +1631,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Call Lygos API to create payment gateway with timeout
       const lygosController = new AbortController();
-      const lygosTimeout = setTimeout(() => lygosController.abort(), 15000);
+      const lygosTimeout = setTimeout(() => lygosController.abort(), 5000);
       
       const lygosResponse = await fetch('https://api.lygosapp.com/v1/gateway', {
         method: 'POST',
@@ -1812,7 +1812,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Call LeekPay API to create checkout with timeout
       const leekpayController = new AbortController();
-      const leekpayTimeout = setTimeout(() => leekpayController.abort(), 15000);
+      const leekpayTimeout = setTimeout(() => leekpayController.abort(), 5000);
       
       const leekpayResponse = await fetch('https://leekpay.fr/api/v1/checkout', {
         method: 'POST',
