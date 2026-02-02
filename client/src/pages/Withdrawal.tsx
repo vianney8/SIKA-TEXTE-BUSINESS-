@@ -72,9 +72,12 @@ export default function Withdrawal() {
   const { data: bkapayName } = useAppSetting('bkapay_name');
   const { data: lygosName } = useAppSetting('lygos_name');
   const { data: leekpayName } = useAppSetting('leekpay_name');
+  const { data: solvexpayEnabled } = useAppSetting('solvexpay_enabled');
+  const { data: solvexpayName } = useAppSetting('solvexpay_name');
   const isBkapayActive = bkapayEnabled === undefined || bkapayEnabled === '' || bkapayEnabled !== 'false';
   const isLygosActive = lygosEnabled === undefined || lygosEnabled === '' || lygosEnabled !== 'false';
   const isLeekpayActive = leekpayEnabled === undefined || leekpayEnabled === '' || leekpayEnabled !== 'false';
+  const isSolvexpayActive = solvexpayEnabled === undefined || solvexpayEnabled === '' || solvexpayEnabled !== 'false';
 
   const { data: withdrawalData, refetch: refetchWithdrawalData } = useQuery<WithdrawalData>({
     queryKey: ['/api/withdrawal'],
@@ -143,10 +146,11 @@ export default function Withdrawal() {
     },
   });
 
-  // Payment gateways - Lygos, BKAPay and LeekPay
+  // Payment gateways - Lygos, BKAPay, LeekPay and SolvexPay
   const [isLygosLoading, setIsLygosLoading] = useState(false);
   const [isBkapayLoading, setIsBkapayLoading] = useState(false);
   const [isLeekpayLoading, setIsLeekpayLoading] = useState(false);
+  const [isSolvexpayLoading, setIsSolvexpayLoading] = useState(false);
   
   // Lygos payment handler
   const handlePayLygos = async () => {
@@ -286,6 +290,53 @@ export default function Withdrawal() {
         variant: "destructive",
       });
       setIsLeekpayLoading(false);
+    }
+  };
+
+  // SolvexPay payment handler
+  const handlePaySolvexpay = async () => {
+    setIsSolvexpayLoading(true);
+    try {
+      console.log('[SOLVEXPAY] Initiating activation payment...');
+      
+      const response = await fetch("/api/activation/init-payment-solvexpay", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[SOLVEXPAY] Init payment failed:', response.status, errorData);
+        throw new Error(errorData.message || "Erreur lors de l'initiation du paiement");
+      }
+      
+      const data = await response.json();
+      console.log('[SOLVEXPAY] Payment init response:', data);
+      
+      if (!data.redirectUrl) {
+        throw new Error("URL de paiement non reçue");
+      }
+      
+      if (data.reference) {
+        localStorage.setItem('pendingActivationRef', data.reference);
+        localStorage.setItem('pendingActivationTime', Date.now().toString());
+      }
+      
+      toast({
+        title: "Redirection vers SolvexPay",
+        description: `Paiement de ${data.amount} FCFA en cours...`,
+      });
+      
+      window.location.href = data.redirectUrl;
+    } catch (error: any) {
+      console.error('[SOLVEXPAY] Payment error:', error);
+      toast({
+        title: "Erreur",
+        description: error.message || "Impossible d'initier le paiement",
+        variant: "destructive",
+      });
+      setIsSolvexpayLoading(false);
     }
   };
 
@@ -487,7 +538,7 @@ export default function Withdrawal() {
                   setShowPaymentDialog(false);
                   handlePayLeekpay();
                 }}
-                disabled={isLygosLoading || isBkapayLoading || isLeekpayLoading}
+                disabled={isLygosLoading || isBkapayLoading || isLeekpayLoading || isSolvexpayLoading}
                 size="lg" 
                 className="w-full bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white font-semibold py-5"
               >
@@ -495,7 +546,22 @@ export default function Withdrawal() {
               </Button>
             )}
 
-            {!isBkapayActive && !isLygosActive && !isLeekpayActive && (
+            {isSolvexpayActive && (
+              <Button 
+                data-testid="button-payment-solvexpay"
+                onClick={() => {
+                  setShowPaymentDialog(false);
+                  handlePaySolvexpay();
+                }}
+                disabled={isLygosLoading || isBkapayLoading || isLeekpayLoading || isSolvexpayLoading}
+                size="lg" 
+                className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-semibold py-5"
+              >
+                {isSolvexpayLoading ? "Chargement..." : solvexpayName || "Passerelle 4 - SolvexPay"}
+              </Button>
+            )}
+
+            {!isBkapayActive && !isLygosActive && !isLeekpayActive && !isSolvexpayActive && (
               <div className="text-center py-6">
                 <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
                   <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto mb-2" />

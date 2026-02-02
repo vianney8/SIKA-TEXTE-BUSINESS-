@@ -1865,6 +1865,114 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // SOLVEXPAY - Activation Payment via SendavaPay API
+  app.post('/api/activation/init-payment-solvexpay', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: 'Utilisateur non trouvé' });
+      }
+      
+      // Check if account is already active
+      const statusResult = await db.select().from(accountStatus).where(eq(accountStatus.userId, userId));
+      if (statusResult.length > 0 && statusResult[0].isActive) {
+        return res.status(400).json({ message: 'Votre compte est déjà activé' });
+      }
+      
+      // Get activation amount from settings
+      const settings = await storage.getAppSettings();
+      const activationSetting = settings.find(s => s.key === 'activation_amount');
+      const activationAmount = parseInt(activationSetting?.value || '3600');
+      
+      // Generate unique reference/order_id
+      const reference = `ACT-${userId.substring(0, 8)}-${Date.now()}`;
+      
+      // Get SolvexPay secret key
+      const solvexpaySecretKey = process.env.SOLVEXPAY_SECRET_KEY;
+      if (!solvexpaySecretKey) {
+        return res.status(500).json({ message: 'Clé API SolvexPay non configurée' });
+      }
+      
+      // Create pending payment record
+      await db.insert(bkapayPayments).values({
+        id: crypto.randomUUID(),
+        userId: userId,
+        amount: activationAmount.toString(),
+        reference: reference,
+        status: 'pending',
+        createdAt: new Date()
+      });
+      
+      // Build return URL
+      const domain = process.env.APP_DOMAIN || 'sikatexte.site';
+      const encodedRef = encodeURIComponent(reference);
+      const returnUrl = `https://${domain}/activation-success?ref=${encodedRef}&status=success`;
+      
+      console.log('[SOLVEXPAY-INIT] ===== PAYMENT INITIATED =====');
+      console.log('[SOLVEXPAY-INIT] User ID:', userId);
+      console.log('[SOLVEXPAY-INIT] Reference:', reference);
+      console.log('[SOLVEXPAY-INIT] Amount:', activationAmount);
+      console.log('[SOLVEXPAY-INIT] Return URL:', returnUrl);
+      
+      // Call SendavaPay API to create payment with timeout
+      const solvexpayController = new AbortController();
+      const solvexpayTimeout = setTimeout(() => solvexpayController.abort(), 10000);
+      
+      const solvexpayResponse = await fetch('https://sendavapay.com/api/v1/create-payment', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${solvexpaySecretKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          amount: activationAmount,
+          currency: 'XOF',
+          description: 'SolvexPay',
+          externalReference: reference,
+          customerEmail: user.email || undefined,
+          customerPhone: user.phone || undefined,
+          redirectUrl: returnUrl
+        }),
+        signal: solvexpayController.signal
+      });
+      
+      clearTimeout(solvexpayTimeout);
+      
+      if (!solvexpayResponse.ok) {
+        const errorText = await solvexpayResponse.text();
+        console.error('[SOLVEXPAY-INIT] API Error:', solvexpayResponse.status, errorText);
+        return res.status(500).json({ message: 'Erreur lors de la création du paiement SolvexPay' });
+      }
+      
+      const solvexpayData = await solvexpayResponse.json();
+      console.log('[SOLVEXPAY-INIT] SolvexPay Response:', solvexpayData);
+      
+      // Validate SolvexPay response
+      if (!solvexpayData.success || !solvexpayData.data?.paymentUrl) {
+        console.error('[SOLVEXPAY-INIT] Invalid SolvexPay response:', solvexpayData);
+        return res.status(502).json({ message: 'Réponse invalide de SolvexPay - lien de paiement manquant' });
+      }
+      
+      // Update payment record with SolvexPay gateway link
+      await db.update(bkapayPayments)
+        .set({ redirectUrl: solvexpayData.data.paymentUrl })
+        .where(eq(bkapayPayments.reference, reference));
+      
+      res.json({ 
+        redirectUrl: solvexpayData.data.paymentUrl,
+        reference,
+        amount: activationAmount,
+        paymentReference: solvexpayData.data.reference,
+        gateway: 'solvexpay'
+      });
+    } catch (error) {
+      console.error('[SOLVEXPAY-INIT] Error:', error);
+      res.status(500).json({ message: 'Erreur lors de l\'initiation du paiement' });
+    }
+  });
+
   // LeekPay Webhook - Receive payment notifications
   app.post('/api/webhook/leekpay', async (req: any, res) => {
     try {
