@@ -26,6 +26,29 @@ import { Link } from "wouter";
 import { useAppSetting } from "@/hooks/useAppSettings";
 import { FaTelegram } from "react-icons/fa";
 
+const renderTextWithLinks = (text: string) => {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+  
+  return parts.map((part, index) => {
+    if (urlRegex.test(part)) {
+      urlRegex.lastIndex = 0;
+      return (
+        <a 
+          key={index}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:text-blue-800 underline font-medium"
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+};
+
 interface WithdrawalData {
   balance: number;
   isAccountActive: boolean;
@@ -622,7 +645,7 @@ export default function Withdrawal() {
                 <Alert key={notification.id} className="border-red-500 bg-red-50 dark:bg-red-950">
                   <AlertTriangle className="h-4 w-4 text-red-600" />
                   <AlertDescription className="text-red-800 dark:text-red-200">
-                    <strong>Alerte :</strong> {notification.message}
+                    <strong>Alerte :</strong> {renderTextWithLinks(notification.message)}
                   </AlertDescription>
                 </Alert>
               ))}
