@@ -86,6 +86,19 @@ export default function ActivationSuccess() {
           setTimeout(() => {
             setLocation('/withdrawal');
           }, 3000);
+        } else if (response.status === 202 && data.pending) {
+          console.log('[ACTIVATION-SUCCESS] Payment still pending, retrying in 5 seconds...');
+          setMessage('Le paiement est en cours de traitement. Vérification automatique...');
+          setTimeout(() => {
+            activateAccount();
+          }, 5000);
+          return;
+        } else if (data.alreadyProcessed && data.activated) {
+          setStatus('success');
+          setMessage('Votre compte est déjà activé !');
+          setTimeout(() => {
+            setLocation('/withdrawal');
+          }, 2000);
         } else {
           setStatus('failed');
           setMessage(data.message || 'Erreur lors de l\'activation. Contactez le support.');
