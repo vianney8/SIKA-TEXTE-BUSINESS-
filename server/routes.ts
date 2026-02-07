@@ -1973,129 +1973,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // SOLVEXPAY/SendavaPay Webhook - Automatic account activation
-  // Webhook URL: https://sikatexte.site/api/webhook/solvexpay
-  // Configure in SendavaPay Dashboard
-  app.post('/api/webhook/solvexpay', async (req, res) => {
-    try {
-      const crypto = require('crypto');
-      
-      console.log('[SOLVEXPAY-WEBHOOK] ===== WEBHOOK RECEIVED =====');
-      console.log('[SOLVEXPAY-WEBHOOK] Headers:', JSON.stringify(req.headers));
-      console.log('[SOLVEXPAY-WEBHOOK] Body:', JSON.stringify(req.body, null, 2));
-      
-      const signature = req.headers['x-sendavapay-signature'] as string;
-      const event = req.headers['x-sendavapay-event'] as string || req.body.event;
-      const solvexpaySecretKey = process.env.SOLVEXPAY_SECRET_KEY;
-      
-      console.log('[SOLVEXPAY-WEBHOOK] Event:', event);
-      console.log('[SOLVEXPAY-WEBHOOK] Signature present:', !!signature);
-      
-      const paymentData = req.body.data || req.body;
-      const sendavaReference = paymentData.reference;
-      
-      if (!sendavaReference) {
-        console.error('[SOLVEXPAY-WEBHOOK] No reference in webhook data');
-        return res.status(400).json({ message: 'Missing reference' });
-      }
-      
-      console.log('[SOLVEXPAY-WEBHOOK] SendavaPay reference:', sendavaReference);
-      
-      if (event === 'payment.completed' || event === 'payment.success') {
-        // Verify payment via SendavaPay API to get externalReference (our internal ref)
-        const verifyResponse = await fetch('https://sendavapay.com/api/v1/verify-payment', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${solvexpaySecretKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ reference: sendavaReference })
-        });
-        
-        const verifyData = await verifyResponse.json();
-        console.log('[SOLVEXPAY-WEBHOOK] Verify response:', JSON.stringify(verifyData, null, 2));
-        
-        if (!verifyData.success || verifyData.data?.status !== 'completed') {
-          console.log('[SOLVEXPAY-WEBHOOK] Payment not confirmed as completed');
-          return res.status(200).json({ received: true, processed: false });
-        }
-        
-        // Get our internal reference from externalReference
-        const internalReference = verifyData.data.externalReference;
-        console.log('[SOLVEXPAY-WEBHOOK] Internal reference:', internalReference);
-        
-        if (!internalReference) {
-          console.error('[SOLVEXPAY-WEBHOOK] No externalReference found');
-          return res.status(200).json({ received: true, processed: false });
-        }
-        
-        // Find payment record by our internal reference
-        const payments = await db.select().from(bkapayPayments)
-          .where(eq(bkapayPayments.reference, internalReference));
-        const payment = payments[0];
-        
-        if (!payment) {
-          console.error('[SOLVEXPAY-WEBHOOK] Payment not found for reference:', internalReference);
-          return res.status(200).json({ received: true, processed: false });
-        }
-        
-        // Check if already completed
-        if (payment.status === 'completed') {
-          console.log('[SOLVEXPAY-WEBHOOK] Payment already completed');
-          return res.status(200).json({ received: true, alreadyProcessed: true });
-        }
-        
-        const userId = payment.userId;
-        const paymentAmount = parseFloat(payment.amount);
-        
-        // Mark payment as completed
-        await db.update(bkapayPayments)
-          .set({ status: 'completed', completedAt: new Date() })
-          .where(eq(bkapayPayments.id, payment.id));
-        
-        // Credit user balance
-        await storage.updateUserBalance(userId, paymentAmount);
-        
-        // Create transaction record
-        await storage.createTransaction({
-          userId: userId,
-          type: 'recharge',
-          amount: paymentAmount.toString(),
-          description: 'Dépôt via SolvexPay',
-          status: 'completed',
-          reference: internalReference,
-          operator: 'SolvexPay'
-        });
-        
-        // Activate account
-        await storage.activateAccount(userId);
-        
-        console.log('[SOLVEXPAY-WEBHOOK] ╔════════════════════════════════════════╗');
-        console.log('[SOLVEXPAY-WEBHOOK] ║  ✓ ACCOUNT ACTIVATED VIA WEBHOOK       ║');
-        console.log('[SOLVEXPAY-WEBHOOK] ║  User:', userId);
-        console.log('[SOLVEXPAY-WEBHOOK] ║  Amount:', paymentAmount, 'FCFA');
-        console.log('[SOLVEXPAY-WEBHOOK] ╚════════════════════════════════════════╝');
-        
-        return res.status(200).json({ received: true, processed: true });
-      }
-      
-      if (event === 'payment.failed') {
-        // Try to find and mark payment as failed
-        if (paymentData.externalReference) {
-          await db.update(bkapayPayments)
-            .set({ status: 'failed' })
-            .where(eq(bkapayPayments.reference, paymentData.externalReference));
-        }
-        console.log('[SOLVEXPAY-WEBHOOK] Payment failed event processed');
-      }
-      
-      res.status(200).json({ received: true });
-    } catch (error) {
-      console.error('[SOLVEXPAY-WEBHOOK] Error:', error);
-      res.status(200).json({ received: true, error: 'Processing error' });
-    }
-  });
-
   // LeekPay Webhook - Receive payment notifications
   app.post('/api/webhook/leekpay', async (req: any, res) => {
     try {
@@ -2177,7 +2054,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // If status is failed, mark as failed
+      // If status is failed from BKAPay, mark as failed
       if (status === 'failed') {
         await db.update(bkapayPayments)
           .set({ status: 'failed' })
@@ -2185,74 +2062,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Le paiement a échoué', activated: false });
       }
 
-      // Detect if this is a SolvexPay payment (redirectUrl contains sendavapay)
-      const isSolvexpayPayment = !!(payment.redirectUrl && payment.redirectUrl.includes('sendavapay'));
-      let gatewayName = 'Lygos';
-      
-      if (isSolvexpayPayment && payment.redirectUrl) {
-        gatewayName = 'SolvexPay';
-        console.log('[PROCESS-RETURN] SolvexPay payment detected, verifying with SendavaPay API...');
-        
-        // Verify payment with SendavaPay API before activating
-        const solvexpaySecretKey = process.env.SOLVEXPAY_SECRET_KEY;
-        if (solvexpaySecretKey) {
-          try {
-            // Extract SendavaPay reference from the payment URL (e.g. https://sendavapay.com/pay/api/pay_xxx)
-            const urlObj = new URL(payment.redirectUrl);
-            const pathParts = urlObj.pathname.split('/').filter(p => p.length > 0);
-            const sendavaRef = pathParts[pathParts.length - 1];
-            
-            console.log('[PROCESS-RETURN] Verifying SendavaPay ref:', sendavaRef);
-            
-            const verifyController = new AbortController();
-            const verifyTimeout = setTimeout(() => verifyController.abort(), 10000);
-            
-            const verifyResponse = await fetch('https://sendavapay.com/api/v1/verify-payment', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${solvexpaySecretKey}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({ reference: sendavaRef }),
-              signal: verifyController.signal
-            });
-            
-            clearTimeout(verifyTimeout);
-            
-            const verifyData = await verifyResponse.json();
-            console.log('[PROCESS-RETURN] SendavaPay verify result:', JSON.stringify(verifyData));
-            
-            if (verifyData.success && verifyData.data?.status === 'completed') {
-              console.log('[PROCESS-RETURN] SendavaPay payment CONFIRMED as completed');
-            } else if (verifyData.success && verifyData.data?.status === 'pending') {
-              console.log('[PROCESS-RETURN] SendavaPay payment still PENDING');
-              return res.status(202).json({ 
-                message: 'Le paiement est encore en cours de traitement. Veuillez patienter.',
-                activated: false,
-                pending: true
-              });
-            } else if (verifyData.success && verifyData.data?.status === 'failed') {
-              console.log('[PROCESS-RETURN] SendavaPay payment FAILED');
-              await db.update(bkapayPayments)
-                .set({ status: 'failed' })
-                .where(eq(bkapayPayments.id, payment.id));
-              return res.status(400).json({ message: 'Le paiement a échoué', activated: false });
-            } else {
-              console.log('[PROCESS-RETURN] SendavaPay payment status unknown:', verifyData.data?.status);
-              return res.status(202).json({ 
-                message: 'Vérification du paiement en cours. Veuillez patienter.',
-                activated: false,
-                pending: true
-              });
-            }
-          } catch (verifyError: any) {
-            console.error('[PROCESS-RETURN] SendavaPay verify error (continuing anyway):', verifyError.message);
-          }
-        }
-      }
-
       // Process successful payment - Credit balance and activate account
-      console.log('[PROCESS-RETURN] Processing successful payment via', gatewayName);
+      console.log('[LYGOS-RETURN] Processing successful payment...');
       
       const paymentAmount = parseFloat(payment.amount);
 
@@ -2272,10 +2083,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId: userId,
         type: 'recharge',
         amount: paymentAmount.toString(),
-        description: `Dépôt via ${gatewayName}`,
+        description: 'Dépôt via Lygos',
         status: 'completed',
         reference: reference,
-        operator: gatewayName
+        operator: 'Lygos'
       });
 
       // Activate account
