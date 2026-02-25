@@ -2069,8 +2069,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Credit balance
       const user = await storage.getUser(userId);
       if (user) {
-        const newBalance = (user.balance || 0) + activationAmount;
-        await storage.updateUserBalance(userId, newBalance);
+        await storage.updateUserBalance(userId, activationAmount);
 
         // Record transaction
         await storage.createTransaction({
