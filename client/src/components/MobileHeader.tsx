@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Menu, Bell, Eye, EyeOff, Plus } from "lucide-react";
+import { Menu, Bell, Eye, EyeOff, TrendingUp, Shield } from "lucide-react";
 import { Link } from "wouter";
 import { formatFCFA } from "@/lib/utils";
 import { useState } from "react";
@@ -14,78 +14,115 @@ interface MobileHeaderProps {
 export default function MobileHeader({ user, balance, onMenuToggle, onPointage }: MobileHeaderProps) {
   const [isBalanceVisible, setIsBalanceVisible] = useState(true);
 
+  const initials = (() => {
+    if (user?.firstName && user?.lastName) return `${user.firstName[0]}${user.lastName[0]}`;
+    if (user?.fullName) return user.fullName.split(' ').map((w: string) => w[0]).join('').slice(0, 2);
+    return 'U';
+  })();
+
+  const displayName = user?.firstName && user?.lastName
+    ? `${user.firstName} ${user.lastName}`
+    : user?.fullName || 'Utilisateur';
+
   return (
-    <header className="sticky top-0 z-50 bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 text-white shadow-lg">
-      {/* Top Navigation Bar */}
-      <div className="px-4 py-2 flex justify-between items-center backdrop-blur-sm bg-white/5">
-        <Button 
-          variant="ghost" 
-          size="sm" 
+    <header className="sticky top-0 z-50" style={{ background: 'linear-gradient(135deg, #0a0f2c 0%, #1a1f5e 40%, #0d1b4b 100%)' }}>
+      {/* Top bar */}
+      <div className="px-4 pt-4 pb-2 flex justify-between items-center">
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={onMenuToggle}
-          className="text-white hover:bg-white/20 transition-colors"
+          className="text-white hover:bg-white/10 transition-colors p-2 rounded-xl"
           data-testid="button-menu"
         >
-          <Menu size={24} strokeWidth={2.5} />
+          <Menu size={22} strokeWidth={2.5} />
         </Button>
-        
-        <div className="flex-1 flex justify-center">
-          <div className="text-base font-bold tracking-wide truncate max-w-xs text-center" data-testid="text-username">
-            {user?.firstName && user?.lastName 
-              ? `${user.firstName} ${user.lastName}` 
-              : user?.fullName || 'Utilisateur'}
-          </div>
+
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+          <span className="text-white/70 text-xs font-medium tracking-widest uppercase">Sika Texte</span>
         </div>
-        
-        <Button 
+
+        <Button
           asChild
-          variant="ghost" 
+          variant="ghost"
           size="sm"
-          className="text-white hover:bg-white/20 relative transition-colors"
+          className="text-white hover:bg-white/10 relative transition-colors p-2 rounded-xl"
           data-testid="button-notifications"
         >
           <Link href="/transactions">
-            <Bell size={22} strokeWidth={2} />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-red-400 rounded-full animate-pulse"></span>
+            <Bell size={20} strokeWidth={2} />
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-400 rounded-full"></span>
           </Link>
         </Button>
       </div>
 
-      {/* Balance & Action Section */}
-      <div className="px-6 py-6 text-center backdrop-blur-sm bg-white/5">
-        {/* Balance Display */}
-        <div className="mb-4">
-          <div className="text-sm font-semibold mb-1 opacity-90">Solde disponible</div>
-          <div className="flex items-center justify-center gap-3 mb-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsBalanceVisible(!isBalanceVisible)}
-              className="text-white hover:bg-white/20 p-1 transition-colors"
-              data-testid="button-toggle-balance"
-            >
-              {isBalanceVisible ? (
-                <Eye size={20} strokeWidth={2} />
-              ) : (
-                <EyeOff size={20} strokeWidth={2} />
-              )}
-            </Button>
-            <div className="text-4xl font-black tracking-tight" data-testid="text-balance">
-              {isBalanceVisible ? formatFCFA(balance) : "••••••"}
+      {/* Profile + Balance Card */}
+      <div className="px-4 pb-6 pt-2">
+        {/* User greeting */}
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-sm text-white shadow-lg flex-shrink-0"
+            style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+            {initials.toUpperCase()}
+          </div>
+          <div>
+            <p className="text-white/60 text-xs">Bonjour 👋</p>
+            <p className="text-white font-semibold text-sm leading-tight truncate max-w-[180px]" data-testid="text-username">
+              {displayName}
+            </p>
+          </div>
+          <div className="ml-auto">
+            <div className="flex items-center gap-1 bg-emerald-500/20 border border-emerald-500/30 rounded-full px-2 py-1">
+              <Shield size={10} className="text-emerald-400" />
+              <span className="text-emerald-400 text-[10px] font-semibold">Vérifié</span>
             </div>
           </div>
         </div>
 
-        {/* Footer Info */}
-        <div className="flex justify-between text-xs mt-4 opacity-80 font-medium">
-          <span data-testid="text-account-id">
-            {user?.id?.substring(0, 10) || user?.email?.split('@')[0] || 'testuser45'}
-          </span>
-          <span data-testid="text-last-update">
-            {new Date().toLocaleDateString("fr-FR")} {new Date().toLocaleTimeString("fr-FR", { 
-              hour: "2-digit", 
-              minute: "2-digit" 
-            })}
-          </span>
+        {/* Balance Card — glassmorphism */}
+        <div className="relative rounded-3xl p-5 overflow-hidden"
+          style={{
+            background: 'linear-gradient(135deg, rgba(99,102,241,0.25) 0%, rgba(139,92,246,0.15) 100%)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            backdropFilter: 'blur(20px)',
+          }}>
+          {/* Decorative circles */}
+          <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full opacity-10"
+            style={{ background: 'radial-gradient(circle, #818cf8, transparent)' }} />
+          <div className="absolute -bottom-4 -left-4 w-20 h-20 rounded-full opacity-10"
+            style={{ background: 'radial-gradient(circle, #a78bfa, transparent)' }} />
+
+          <div className="relative z-10">
+            <div className="flex justify-between items-start mb-1">
+              <span className="text-white/60 text-xs font-medium tracking-wide uppercase">Solde disponible</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsBalanceVisible(!isBalanceVisible)}
+                className="text-white/60 hover:text-white hover:bg-white/10 p-1 h-auto transition-colors"
+                data-testid="button-toggle-balance"
+              >
+                {isBalanceVisible ? <Eye size={15} /> : <EyeOff size={15} />}
+              </Button>
+            </div>
+
+            <div className="mb-3">
+              <span className="text-4xl font-black text-white tracking-tight" data-testid="text-balance">
+                {isBalanceVisible ? formatFCFA(balance) : '••••••'}
+              </span>
+            </div>
+
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-1.5">
+                <TrendingUp size={12} className="text-emerald-400" />
+                <span className="text-emerald-400 text-xs font-medium">Actif</span>
+              </div>
+              <div className="flex items-center gap-3 text-white/40 text-[10px]" data-testid="text-last-update">
+                <span>{user?.id?.substring(0, 8) || 'STB-0001'}</span>
+                <span>{new Date().toLocaleDateString("fr-FR")}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </header>
