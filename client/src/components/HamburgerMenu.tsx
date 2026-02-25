@@ -1,6 +1,6 @@
 import { 
   Briefcase, History, CreditCard, Settings, Wallet, HelpCircle,
-  TrendingUp, Users, Code2, LogOut, X, ChevronRight, Shield, Star
+  TrendingUp, Users, Code2, LogOut, X, ChevronRight, Shield
 } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -98,8 +98,10 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
             <div className="flex-1 min-w-0">
               <p className="text-white font-bold truncate" data-testid="text-menu-user-name">{displayName}</p>
               <div className="flex items-center gap-1 mt-0.5">
-                <Shield size={10} className="text-emerald-400" />
-                <span className="text-emerald-400 text-[11px] font-medium">Compte vérifié</span>
+                <Shield size={10} style={{ color: user?.isActive ? "#34d399" : "#f59e0b" }} />
+                <span className="text-[11px] font-medium" style={{ color: user?.isActive ? "#34d399" : "#f59e0b" }}>
+                  {user?.isActive ? "Actif" : "Inactif"}
+                </span>
               </div>
             </div>
           </div>
@@ -113,10 +115,6 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
             <p className="text-white text-2xl font-black" data-testid="text-menu-balance">
               {formatFCFA((balance as any)?.balance || 0)}
             </p>
-            <div className="flex items-center gap-1 mt-2">
-              <Star size={10} className="text-yellow-400 fill-yellow-400" />
-              <span className="text-yellow-400 text-[10px] font-semibold">Membre Premium</span>
-            </div>
           </div>
         </div>
 

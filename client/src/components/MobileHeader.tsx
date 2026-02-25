@@ -72,9 +72,15 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
             </p>
           </div>
           <div className="ml-auto">
-            <div className="flex items-center gap-1 bg-emerald-500/20 border border-emerald-500/30 rounded-full px-2 py-1">
-              <Shield size={10} className="text-emerald-400" />
-              <span className="text-emerald-400 text-[10px] font-semibold">Vérifié</span>
+            <div className="flex items-center gap-1 rounded-full px-2 py-1"
+              style={{
+                background: user?.isActive ? "rgba(16,185,129,0.15)" : "rgba(245,158,11,0.15)",
+                border: user?.isActive ? "1px solid rgba(16,185,129,0.3)" : "1px solid rgba(245,158,11,0.3)",
+              }}>
+              <Shield size={10} style={{ color: user?.isActive ? "#34d399" : "#fbbf24" }} />
+              <span className="text-[10px] font-semibold" style={{ color: user?.isActive ? "#34d399" : "#fbbf24" }}>
+                {user?.isActive ? "Actif" : "Inactif"}
+              </span>
             </div>
           </div>
         </div>
