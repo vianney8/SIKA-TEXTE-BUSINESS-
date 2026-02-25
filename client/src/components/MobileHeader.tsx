@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Menu, Bell, Eye, EyeOff, TrendingUp, Shield } from "lucide-react";
+import { Menu, Bell, Eye, EyeOff, Shield } from "lucide-react";
 import { Link } from "wouter";
 import { formatFCFA } from "@/lib/utils";
 import { useState } from "react";
@@ -120,8 +120,8 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
 
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-1.5">
-                <TrendingUp size={12} className="text-emerald-400" />
-                <span className="text-emerald-400 text-xs font-medium">Actif</span>
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-emerald-400 text-xs font-medium">Online</span>
               </div>
               <div className="flex items-center gap-3 text-white/40 text-[10px]" data-testid="text-last-update">
                 <span>{user?.id?.substring(0, 8) || 'STB-0001'}</span>

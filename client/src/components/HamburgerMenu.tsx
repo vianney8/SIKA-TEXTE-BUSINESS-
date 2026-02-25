@@ -1,6 +1,6 @@
 import { 
   Briefcase, History, CreditCard, Settings, Wallet, HelpCircle,
-  TrendingUp, Users, Code2, LogOut, X, ChevronRight
+  TrendingUp, Users, Code2, LogOut, X, ChevronRight, Shield
 } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -97,9 +97,11 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-white font-bold truncate" data-testid="text-menu-user-name">{displayName}</p>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-[11px] font-medium text-emerald-400">Online</span>
+              <div className="flex items-center gap-1 mt-0.5">
+                <Shield size={10} style={{ color: user?.isActive ? "#34d399" : "#f59e0b" }} />
+                <span className="text-[11px] font-medium" style={{ color: user?.isActive ? "#34d399" : "#f59e0b" }}>
+                  {user?.isActive ? "Actif" : "Inactif"}
+                </span>
               </div>
             </div>
           </div>
