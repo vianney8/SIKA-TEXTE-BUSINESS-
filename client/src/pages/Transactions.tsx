@@ -1,399 +1,175 @@
 import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Filter } from "lucide-react";
+import { ArrowLeft, Filter, TrendingUp, TrendingDown, RefreshCw, Zap, Users, ShoppingCart, CreditCard } from "lucide-react";
 import { Link } from "wouter";
 import { useState } from "react";
 import { formatFCFA } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import BottomNavigation from "@/components/BottomNavigation";
+
+const TX_META: Record<string, { label: string; icon: any; color: string; bg: string; positive: boolean }> = {
+  deposit:           { label: "Récompenses",       icon: TrendingUp,   color: "#10b981", bg: "rgba(16,185,129,0.12)",  positive: true  },
+  pointage:          { label: "Pointage",           icon: Zap,          color: "#f59e0b", bg: "rgba(245,158,11,0.12)",  positive: true  },
+  transfer:          { label: "Transfert",          icon: TrendingDown, color: "#6366f1", bg: "rgba(99,102,241,0.12)",  positive: false },
+  transfer_received: { label: "Transfert reçu",    icon: TrendingUp,   color: "#10b981", bg: "rgba(16,185,129,0.12)",  positive: true  },
+  recharge:          { label: "Recharge crédit",   icon: RefreshCw,    color: "#f59e0b", bg: "rgba(245,158,11,0.12)",  positive: false },
+  payment:           { label: "Paiement Marchand", icon: ShoppingCart, color: "#6366f1", bg: "rgba(99,102,241,0.12)",  positive: false },
+  withdrawal:        { label: "Retrait",            icon: TrendingDown, color: "#ef4444", bg: "rgba(239,68,68,0.12)",   positive: false },
+  referral:          { label: "Parrainage",         icon: Users,        color: "#8b5cf6", bg: "rgba(139,92,246,0.12)",  positive: true  },
+  activation:        { label: "Activation",         icon: CreditCard,   color: "#10b981", bg: "rgba(16,185,129,0.12)",  positive: true  },
+};
+
+const getMeta = (type: string) => TX_META[type] || { label: "Transaction", icon: CreditCard, color: "#64748b", bg: "rgba(100,116,139,0.12)", positive: false };
+
+const getStatusStyle = (status: string) => {
+  switch (status) {
+    case "completed": return { label: "Payé",       color: "#10b981", bg: "rgba(16,185,129,0.12)"  };
+    case "pending":   return { label: "En attente", color: "#f59e0b", bg: "rgba(245,158,11,0.12)"  };
+    case "failed":    return { label: "Échoué",     color: "#ef4444", bg: "rgba(239,68,68,0.12)"   };
+    default:          return { label: "Inconnu",    color: "#64748b", bg: "rgba(100,116,139,0.12)" };
+  }
+};
 
 export default function Transactions() {
-  const { user } = useAuth();
-  const [filterType, setFilterType] = useState<string>("all");
-  const [filterStatus, setFilterStatus] = useState<string>("all");
-  
+  const [filterType, setFilterType] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+
   const { data: transactions = [] } = useQuery({
     queryKey: ["/api/transactions", filterType, filterStatus],
     queryFn: () => {
-      const params = new URLSearchParams();
-      params.append('limit', '50');
-      
-      if (filterType && filterType !== 'all') params.append('type', filterType);
-      if (filterStatus && filterStatus !== 'all') params.append('status', filterStatus);
-      return fetch(`/api/transactions?${params.toString()}`, {
-        credentials: 'include'
-      }).then(res => res.json());
-    }
+      const params = new URLSearchParams({ limit: "50" });
+      if (filterType !== "all") params.append("type", filterType);
+      if (filterStatus !== "all") params.append("status", filterStatus);
+      return fetch(`/api/transactions?${params}`, { credentials: "include" }).then(r => r.json());
+    },
   });
 
-  const getTransactionIcon = (type: string) => {
-    switch (type) {
-      case "deposit":
-        return "fas fa-check-circle";
-      case "pointage":
-        return "fas fa-clock";
-      case "transfer":
-        return "fas fa-exchange-alt";
-      case "transfer_received":
-        return "fas fa-arrow-down";
-      case "recharge":
-        return "fas fa-plus";
-      case "payment":
-        return "fas fa-shopping-cart";
-      case "withdrawal":
-        return "fas fa-arrow-up";
-      case "referral":
-        return "fas fa-users";
-      default:
-        return "fas fa-circle";
-    }
-  };
-
-  const getTransactionIconBg = (type: string) => {
-    switch (type) {
-      case "deposit":
-        return "bg-yellow-100";
-      case "pointage":
-        return "bg-green-100";
-      case "transfer":
-        return "bg-blue-100";
-      case "transfer_received":
-        return "bg-green-100";
-      case "recharge":
-        return "bg-orange-100";
-      case "payment":
-        return "bg-blue-100";
-      case "withdrawal":
-        return "bg-red-100";
-      case "referral":
-        return "bg-purple-100";
-      default:
-        return "bg-gray-100";
-    }
-  };
-
-  const getTransactionIconColor = (type: string) => {
-    switch (type) {
-      case "deposit":
-        return "text-yellow-600";
-      case "pointage":
-        return "text-green-600";
-      case "transfer":
-        return "text-primary";
-      case "transfer_received":
-        return "text-green-600";
-      case "recharge":
-        return "text-accent";
-      case "payment":
-        return "text-primary";
-      case "withdrawal":
-        return "text-red-600";
-      case "referral":
-        return "text-purple-600";
-      default:
-        return "text-gray-600";
-    }
-  };
-
-  const getTypeLabel = (type: string, description?: string) => {
-    switch (type) {
-      case "deposit":
-        if (description?.includes("correction")) return "Corrections";
-        if (description?.includes("Bonus de bienvenue")) return "Bonus de bienvenue";
-        return "Récompenses";
-      case "pointage":
-        return "Pointage";
-      case "transfer":
-        return "Transfert";
-      case "transfer_received":
-        return "Transfert reçu";
-      case "recharge":
-        return "Recharge crédit";
-      case "payment":
-        return "Paiement Marchand";
-      case "withdrawal":
-        return "Retrait";
-      case "referral":
-        return "Gains de parrainage";
-      default:
-        return "Transaction";
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "completed":
-        return <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">Payé</span>;
-      case "pending":
-        return <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full">En attente</span>;
-      case "failed":
-        return <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full">Échoué</span>;
-      default:
-        return <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full">Inconnu</span>;
-    }
-  };
-
-  // Server-side filtering is now handled, so we just use the transactions directly
-  const filteredTransactions = transactions as any[];
-
-  // Get available filter options
-  const getFilterOptions = () => {
-    return [
-      { value: "all", label: "Tous les types" },
-      { value: "deposit", label: "Bonus/Dépôt" },
-      { value: "pointage", label: "Pointage" },
-      { value: "transfer", label: "Transfert" },
-      { value: "withdrawal", label: "Retrait" },
-      { value: "referral", label: "Parrainage" },
-    ];
-  };
+  const txList = transactions as any[];
+  const totalIn  = txList.filter(t => getMeta(t.type).positive).reduce((s, t) => s + Math.abs(parseFloat(t.amount)), 0);
+  const totalOut = txList.filter(t => !getMeta(t.type).positive).reduce((s, t) => s + Math.abs(parseFloat(t.amount)), 0);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen pb-24" style={{ background: "#f0f4ff" }}>
+
       {/* Header */}
-      <div className="gradient-bg text-primary-foreground">
-        <div className="px-6 py-4 flex items-center">
-          <Button asChild variant="ghost" size="sm" className="text-primary-foreground hover:bg-white/10">
-            <Link href="/" data-testid="button-back">
-              <ArrowLeft className="w-5 h-5" />
+      <div style={{ background: "linear-gradient(135deg, #0a0f2c 0%, #1a1f5e 100%)" }}>
+        <div className="px-4 pt-12 pb-6">
+          <div className="flex items-center gap-3 mb-6">
+            <Link href="/">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center cursor-pointer"
+                style={{ background: "rgba(255,255,255,0.08)" }} data-testid="button-back">
+                <ArrowLeft size={18} className="text-white" />
+              </div>
             </Link>
-          </Button>
-          <h1 className="ml-4 text-lg font-semibold" data-testid="page-title">
-            Historique des transactions
-          </h1>
+            <h1 className="text-white font-bold text-lg" data-testid="page-title">Transactions</h1>
+          </div>
+
+          {/* Summary */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl p-4" style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.2)" }}>
+              <div className="flex items-center gap-2 mb-1">
+                <TrendingUp size={13} style={{ color: "#10b981" }} />
+                <span className="text-[11px] font-semibold" style={{ color: "#10b981" }}>Entrées</span>
+              </div>
+              <p className="text-white font-black text-lg">+{formatFCFA(totalIn)}</p>
+            </div>
+            <div className="rounded-2xl p-4" style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.2)" }}>
+              <div className="flex items-center gap-2 mb-1">
+                <TrendingDown size={13} style={{ color: "#ef4444" }} />
+                <span className="text-[11px] font-semibold" style={{ color: "#ef4444" }}>Sorties</span>
+              </div>
+              <p className="text-white font-black text-lg">-{formatFCFA(totalOut)}</p>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="p-6">
-        {/* Filters */}
-        <Card className="bg-white rounded-xl shadow-sm border border-border mb-6">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-4">
-              <Filter className="text-muted-foreground" size={20} />
-              <div className="flex-1 grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Type</label>
-                  <Select value={filterType} onValueChange={setFilterType}>
-                    <SelectTrigger data-testid="filter-type">
-                      <SelectValue placeholder="Tous les types" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {getFilterOptions().map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Statut</label>
-                  <Select value={filterStatus} onValueChange={setFilterStatus}>
-                    <SelectTrigger data-testid="filter-status">
-                      <SelectValue placeholder="Tous les statuts" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Tous les statuts</SelectItem>
-                      <SelectItem value="completed">Payé</SelectItem>
-                      <SelectItem value="pending">En attente</SelectItem>
-                      <SelectItem value="failed">Échoué</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="px-4 py-4 space-y-4">
 
-        {/* Transactions List */}
-        <Card className="bg-white rounded-xl shadow-sm border border-border">
-          <CardContent className="p-0">
-            {filteredTransactions.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground" data-testid="text-no-transactions">
-                Aucune transaction trouvée
-              </div>
-            ) : (
-              <div className="divide-y divide-border">
-                {filteredTransactions.map((transaction: any) => (
-                  <div
-                    key={transaction.id}
-                    className="p-4 flex justify-between items-center hover:bg-gray-50 transition-colors"
-                    data-testid={`transaction-${transaction.id}`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className={`w-10 h-10 ${getTransactionIconBg(transaction.type)} rounded-full flex items-center justify-center`}>
-                        <i className={`${getTransactionIcon(transaction.type)} ${getTransactionIconColor(transaction.type)}`}></i>
-                      </div>
-                      <div>
-                        <div className="font-medium text-sm" data-testid={`text-transaction-type-${transaction.id}`}>
-                          {getTypeLabel(transaction.type, transaction.description)}
-                        </div>
-                        <div className="text-xs text-muted-foreground" data-testid={`text-transaction-date-${transaction.id}`}>
-                          {new Date(transaction.createdAt).toLocaleDateString("fr-FR", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div 
-                        className={`font-semibold ${
-                          ["deposit", "pointage", "transfer_received", "referral"].includes(transaction.type)
-                            ? "text-green-600"
-                            : "text-red-600"
-                        }`}
-                        data-testid={`text-transaction-amount-${transaction.id}`}
-                      >
-                        {["deposit", "pointage", "transfer_received", "referral"].includes(transaction.type)
-                          ? "+"
-                          : "-"}
-                        {formatFCFA(Math.abs(parseFloat(transaction.amount)))}
-                      </div>
-                      {getStatusBadge(transaction.status)}
-                    </div>
+        {/* Filters */}
+        <div className="rounded-2xl p-4 shadow-sm" style={{ background: "white" }}>
+          <div className="flex items-center gap-2 mb-3">
+            <Filter size={14} style={{ color: "#6366f1" }} />
+            <span className="text-slate-700 font-semibold text-sm">Filtres</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Select value={filterType} onValueChange={setFilterType}>
+              <SelectTrigger data-testid="filter-type" className="rounded-xl border-slate-200 text-sm">
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les types</SelectItem>
+                <SelectItem value="deposit">Récompenses</SelectItem>
+                <SelectItem value="pointage">Pointage</SelectItem>
+                <SelectItem value="transfer">Transfert</SelectItem>
+                <SelectItem value="withdrawal">Retrait</SelectItem>
+                <SelectItem value="referral">Parrainage</SelectItem>
+                <SelectItem value="activation">Activation</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger data-testid="filter-status" className="rounded-xl border-slate-200 text-sm">
+                <SelectValue placeholder="Statut" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les statuts</SelectItem>
+                <SelectItem value="completed">Payé</SelectItem>
+                <SelectItem value="pending">En attente</SelectItem>
+                <SelectItem value="failed">Échoué</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* List */}
+        {txList.length === 0 ? (
+          <div className="rounded-2xl p-10 text-center shadow-sm" style={{ background: "white" }} data-testid="text-no-transactions">
+            <div className="w-14 h-14 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: "rgba(99,102,241,0.08)" }}>
+              <CreditCard size={24} style={{ color: "#6366f1" }} />
+            </div>
+            <p className="text-slate-500 font-medium">Aucune transaction trouvée</p>
+            <p className="text-slate-400 text-sm mt-1">Vos opérations apparaîtront ici</p>
+          </div>
+        ) : (
+          <div className="rounded-2xl overflow-hidden shadow-sm" style={{ background: "white" }}>
+            {txList.map((tx: any, i: number) => {
+              const meta = getMeta(tx.type);
+              const status = getStatusStyle(tx.status);
+              const Icon = meta.icon;
+              return (
+                <div key={tx.id}
+                  className={`flex items-center gap-3 px-4 py-4 ${i < txList.length - 1 ? "border-b" : ""}`}
+                  style={{ borderColor: "#f1f5f9" }}
+                  data-testid={`transaction-${tx.id}`}>
+                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: meta.bg }}>
+                    <Icon size={18} style={{ color: meta.color }} />
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-slate-800 font-semibold text-sm" data-testid={`text-transaction-type-${tx.id}`}>
+                      {meta.label}
+                    </p>
+                    <p className="text-slate-400 text-[11px]" data-testid={`text-transaction-date-${tx.id}`}>
+                      {new Date(tx.createdAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className={`font-bold text-sm`} style={{ color: meta.positive ? "#10b981" : "#ef4444" }}
+                      data-testid={`text-transaction-amount-${tx.id}`}>
+                      {meta.positive ? "+" : "-"}{formatFCFA(Math.abs(parseFloat(tx.amount)))}
+                    </p>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                      style={{ color: status.color, background: status.bg }}>
+                      {status.label}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
+
+      <BottomNavigation currentPage="transactions" />
     </div>
   );
-
-  function renderTransactionContent(subtitle: string) {
-    return (
-      <>
-        {/* Subtitle */}
-        <div className="text-center">
-          <p className="text-sm text-muted-foreground">{subtitle}</p>
-        </div>
-        {/* Filters */}
-        <Card className="bg-white rounded-xl shadow-sm border border-border mb-6">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-4">
-              <Filter className="text-muted-foreground" size={20} />
-              <div className="flex-1 grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Type</label>
-                  <Select value={filterType} onValueChange={setFilterType}>
-                    <SelectTrigger data-testid="filter-type">
-                      <SelectValue placeholder="Tous les types" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {getFilterOptions().map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Statut</label>
-                  <Select value={filterStatus} onValueChange={setFilterStatus}>
-                    <SelectTrigger data-testid="filter-status">
-                      <SelectValue placeholder="Tous les statuts" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Tous les statuts</SelectItem>
-                      <SelectItem value="completed">Payé</SelectItem>
-                      <SelectItem value="pending">En attente</SelectItem>
-                      <SelectItem value="failed">Échoué</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Transactions List */}
-        <Card className="bg-white rounded-xl shadow-sm border border-border">
-          <CardContent className="p-0">
-            {filteredTransactions.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground" data-testid="text-no-transactions">
-                Aucun pointage trouvé
-              </div>
-            ) : (
-              <div className="divide-y divide-border">
-                {filteredTransactions.map((transaction: any) => (
-                  <div
-                    key={transaction.id}
-                    className="p-4 hover:bg-gray-50 transition-colors"
-                    data-testid={`transaction-item-${transaction.id}`}
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-start space-x-3 flex-1">
-                        <div className={`w-10 h-10 ${getTransactionIconBg(transaction.type)} rounded-full flex items-center justify-center flex-shrink-0`}>
-                          <i className={`${getTransactionIcon(transaction.type)} ${getTransactionIconColor(transaction.type)}`}></i>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm mb-1" data-testid={`transaction-type-${transaction.id}`}>
-                            {getTypeLabel(transaction.type, transaction.description)}
-                          </div>
-                          <div className="text-xs text-muted-foreground mb-2" data-testid={`transaction-date-${transaction.id}`}>
-                            {new Date(transaction.createdAt).toLocaleDateString("fr-FR", {
-                              day: "2-digit",
-                              month: "long",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </div>
-                          {transaction.reference && (
-                            <div className="text-xs text-muted-foreground" data-testid={`transaction-ref-${transaction.id}`}>
-                              Réf: {transaction.reference}
-                            </div>
-                          )}
-                          {transaction.description && (
-                            <div className="text-xs text-muted-foreground mt-1" data-testid={`transaction-desc-${transaction.id}`}>
-                              {transaction.description}
-                            </div>
-                          )}
-                          {transaction.recipientPhone && (
-                            <div className="text-xs text-muted-foreground">
-                              Vers: {transaction.recipientPhone}
-                            </div>
-                          )}
-                          {transaction.operator && (
-                            <div className="text-xs text-muted-foreground">
-                              {transaction.operator}
-                            </div>
-                          )}
-                          {transaction.merchantCode && (
-                            <div className="text-xs text-muted-foreground">
-                              Marchand: {transaction.merchantCode}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div 
-                          className={`font-semibold text-sm mb-1 ${
-                            ["deposit", "pointage", "transfer_received", "referral"].includes(transaction.type) ? "text-green-600" : "text-red-600"
-                          }`}
-                          data-testid={`transaction-amount-${transaction.id}`}
-                        >
-                          {["deposit", "pointage", "transfer_received", "referral"].includes(transaction.type) ? "+" : "-"}
-                          {formatFCFA(parseFloat(transaction.amount))}
-                        </div>
-                        {getStatusBadge(transaction.status)}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </>
-    );
-  }
 }
