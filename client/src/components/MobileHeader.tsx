@@ -25,7 +25,7 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
     : user?.fullName || 'Utilisateur';
 
   return (
-    <header className="sticky top-0 z-50" style={{ background: 'linear-gradient(135deg, #0a0f2c 0%, #1a1f5e 40%, #0d1b4b 100%)' }}>
+    <header style={{ background: 'linear-gradient(135deg, #0a0f2c 0%, #1a1f5e 40%, #0d1b4b 100%)' }}>
       {/* Top bar */}
       <div className="px-4 pt-4 pb-2 flex justify-between items-center">
         <Button
