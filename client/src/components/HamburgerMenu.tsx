@@ -1,27 +1,10 @@
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { 
-  User, 
-  Edit, 
-  LogOut, 
-  Briefcase, 
-  History, 
-  CreditCard, 
-  Settings, 
-  Wallet, 
-  HelpCircle,
-  ChevronDown,
-  Code2,
-  TrendingUp,
-  Users,
-  FileText,
-  MoreHorizontal
+  Briefcase, History, CreditCard, Settings, Wallet, HelpCircle,
+  TrendingUp, Users, Code2, LogOut, X, ChevronRight, Shield, Star
 } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { formatFCFA } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast";
 
 interface HamburgerMenuProps {
   isOpen: boolean;
@@ -29,202 +12,159 @@ interface HamburgerMenuProps {
   user: any;
 }
 
+const menuGroups = [
+  {
+    title: "Principal",
+    items: [
+      { icon: Briefcase, label: "Nouveau travail", href: "/work", color: "#6366f1", bg: "rgba(99,102,241,0.12)", testId: "button-new-work" },
+      { icon: CreditCard, label: "Transactions", href: "/transactions", color: "#10b981", bg: "rgba(16,185,129,0.12)", testId: "button-transactions" },
+      { icon: TrendingUp, label: "Statistiques", href: "/summary", color: "#f59e0b", bg: "rgba(245,158,11,0.12)", testId: "button-statistics" },
+    ]
+  },
+  {
+    title: "Finances",
+    items: [
+      { icon: Wallet, label: "Retrait", href: "/withdrawal", color: "#ef4444", bg: "rgba(239,68,68,0.12)", testId: "button-withdrawal" },
+      { icon: Users, label: "Mon équipe", href: "/team", color: "#8b5cf6", bg: "rgba(139,92,246,0.12)", testId: "button-team" },
+    ]
+  },
+  {
+    title: "Compte",
+    items: [
+      { icon: Settings, label: "Profil", href: "/profile", color: "#64748b", bg: "rgba(100,116,139,0.12)", testId: "button-profile" },
+      { icon: HelpCircle, label: "Assistance", href: "/assistance", color: "#0088cc", bg: "rgba(0,136,204,0.12)", testId: "button-help" },
+      { icon: Code2, label: "API Agrégateur", href: "/api-agregateur", color: "#10b981", bg: "rgba(16,185,129,0.12)", testId: "button-api-agregateur" },
+    ]
+  }
+];
+
 export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuProps) {
-  const { toast } = useToast();
-  const { data: balance } = useQuery({
-    queryKey: ["/api/user/balance"],
-  });
+  const { data: balance } = useQuery({ queryKey: ["/api/user/balance"] });
+
   const handleLogout = async () => {
     try {
-      const response = await fetch("/api/auth/logout", {
-        method: "POST",
-        credentials: "include",
-      });
-      
-      if (response.ok) {
-        window.location.href = "/";
-      }
-    } catch (error) {
-      console.error("Erreur lors de la déconnexion:", error);
-      window.location.href = "/";
-    }
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    } catch {}
+    window.location.href = "/";
   };
 
-  const menuItems = [
-    {
-      icon: Briefcase,
-      label: "Nouveau travail",
-      href: "/work",
-      testId: "button-new-work",
-    },
-    {
-      icon: CreditCard,
-      label: "Transactions",
-      href: "/transactions",
-      testId: "button-transactions",
-    },
-    {
-      icon: TrendingUp,
-      label: "Statistiques",
-      href: "/summary",
-      testId: "button-statistics",
-    },
-    {
-      icon: Settings,
-      label: "Profil",
-      href: "/profile",
-      testId: "button-profile",
-    },
-  ];
+  const initials = (() => {
+    if (user?.firstName && user?.lastName) return `${user.firstName[0]}${user.lastName[0]}`;
+    if (user?.fullName) return user.fullName.split(' ').map((w: string) => w[0]).join('').slice(0, 2);
+    return 'U';
+  })();
 
-  const handleAssistance = () => {
-    window.location.href = '/assistance';
-    onClose();
-  };
-
-  const handleWithdrawal = () => {
-    window.location.href = '/withdrawal';
-    onClose();
-  };
-
-  const secondaryItems = [
-    {
-      icon: Wallet,
-      label: "Retrait",
-      action: handleWithdrawal,
-      testId: "button-withdrawal",
-      highlight: false,
-    },
-    {
-      icon: Users,
-      label: "Mon équipe",
-      href: "/team",
-      testId: "button-team",
-    },
-    {
-      icon: HelpCircle,
-      label: "Assistance",
-      action: handleAssistance,
-      testId: "button-help",
-    },
-    {
-      icon: Code2,
-      label: "API Agrégateur",
-      href: "/api-agregateur",
-      testId: "button-api-agregateur",
-    },
-  ];
+  const displayName = user?.firstName && user?.lastName
+    ? `${user.firstName} ${user.lastName}`
+    : user?.fullName || 'Utilisateur';
 
   return (
     <>
+      {/* Overlay */}
       {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40" 
+        <div
+          className="fixed inset-0 z-40"
+          style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)' }}
           onClick={onClose}
           data-testid="menu-overlay"
         />
       )}
-      
-      <div 
-        className={`fixed top-0 left-0 w-80 h-full bg-white shadow-xl z-50 transform transition-transform duration-300 ${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+
+      {/* Drawer */}
+      <div
+        className={`fixed top-0 left-0 h-full z-50 flex flex-col transform transition-transform duration-300 ease-out ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        style={{ width: '300px', background: '#0a0f2c' }}
         data-testid="hamburger-menu"
       >
-        <div className="gradient-bg text-primary-foreground p-6">
-          <div className="flex items-center space-x-4 mb-4">
-            <Avatar className="w-16 h-16 border-2 border-white/20 shadow-lg">
-              <AvatarFallback className="bg-white/20 text-white text-lg font-semibold">
-                {user?.firstName && user?.lastName ? `${user.firstName[0]}${user.lastName[0]}` : user?.fullName?.[0] || "U"}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1">
-              <div className="font-bold text-lg" data-testid="text-menu-user-name">
-                {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.fullName || "Utilisateur"}
+        {/* Header */}
+        <div className="relative px-5 pt-10 pb-6"
+          style={{ background: 'linear-gradient(135deg, #0a0f2c 0%, #1a1f5e 100%)' }}>
+          {/* Decorative glow */}
+          <div className="absolute top-0 right-0 w-40 h-40 rounded-full pointer-events-none"
+            style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.2), transparent)', transform: 'translate(30%, -30%)' }} />
+
+          {/* Close button */}
+          <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+            style={{ background: 'rgba(255,255,255,0.08)' }}>
+            <X size={16} className="text-white/70" />
+          </button>
+
+          {/* Avatar */}
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center font-bold text-lg text-white flex-shrink-0 shadow-lg"
+              style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+              {initials.toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-bold truncate" data-testid="text-menu-user-name">{displayName}</p>
+              <div className="flex items-center gap-1 mt-0.5">
+                <Shield size={10} className="text-emerald-400" />
+                <span className="text-emerald-400 text-[11px] font-medium">Compte vérifié</span>
               </div>
-              <Badge variant="secondary" className="mt-1 bg-white/20 text-white border-white/20">
-                NOUVEAU
-              </Badge>
             </div>
-          </div>
-          
-          <div className="bg-gradient-to-r from-green-500 to-blue-500 rounded-xl p-4 text-center shadow-md">
-            <div className="text-2xl font-bold text-white">
-              {formatFCFA((balance as any)?.balance || 0)}
-            </div>
-            <div className="text-white/90 text-sm font-medium">Solde disponible</div>
-          </div>
-        </div>
-        
-        <nav className="p-4 space-y-2 overflow-y-auto h-[calc(100%-200px)]">
-          {menuItems.map((item) => (
-            <Button
-              key={item.label}
-              asChild
-              variant="ghost"
-              className="w-full justify-start p-4 rounded-xl transition-all duration-200 h-auto hover:bg-blue-50 hover:shadow-sm active:scale-95"
-              onClick={onClose}
-              data-testid={item.testId}
-            >
-              <Link href={item.href}>
-                <div className="flex items-center space-x-3 flex-1">
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-50 rounded-lg flex items-center justify-center">
-                    <item.icon className="text-primary" size={20} strokeWidth={2} />
-                  </div>
-                  <span className="font-semibold text-slate-700">{item.label}</span>
-                </div>
-              </Link>
-            </Button>
-          ))}
-          
-          <div className="pt-4 border-t border-slate-200 mt-4">
-            {secondaryItems.map((item) => (
-              item.action ? (
-                <Button
-                  key={item.label}
-                  variant="ghost"
-                  className="w-full justify-start p-4 rounded-xl transition-all duration-200 h-auto hover:bg-purple-50 hover:shadow-sm active:scale-95"
-                  onClick={item.action}
-                  data-testid={item.testId}
-                >
-                  <div className="flex items-center space-x-3 flex-1">
-                    <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-purple-50 rounded-lg flex items-center justify-center">
-                      <item.icon className="text-purple-600" size={20} strokeWidth={2} />
-                    </div>
-                    <span className="font-semibold text-slate-700">{item.label}</span>
-                  </div>
-                </Button>
-              ) : (
-                <Button
-                  key={item.label}
-                  asChild
-                  variant="ghost"
-                  className="w-full justify-start p-4 rounded-xl transition-all duration-200 h-auto hover:bg-purple-50 hover:shadow-sm active:scale-95"
-                  onClick={onClose}
-                  data-testid={item.testId}
-                >
-                  <Link href={item.href}>
-                    <div className="flex items-center space-x-3 flex-1">
-                      <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-purple-50 rounded-lg flex items-center justify-center">
-                        <item.icon className="text-purple-600" size={20} strokeWidth={2} />
-                      </div>
-                      <span className="font-semibold text-slate-700">{item.label}</span>
-                    </div>
-                  </Link>
-                </Button>
-              )
-            ))}
           </div>
 
-          <Button
+          {/* Balance card */}
+          <div className="rounded-2xl p-4 relative overflow-hidden"
+            style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <div className="absolute -right-4 -top-4 w-20 h-20 rounded-full"
+              style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.3), transparent)' }} />
+            <p className="text-white/50 text-xs mb-1 font-medium uppercase tracking-wider">Solde disponible</p>
+            <p className="text-white text-2xl font-black" data-testid="text-menu-balance">
+              {formatFCFA((balance as any)?.balance || 0)}
+            </p>
+            <div className="flex items-center gap-1 mt-2">
+              <Star size={10} className="text-yellow-400 fill-yellow-400" />
+              <span className="text-yellow-400 text-[10px] font-semibold">Membre Premium</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5"
+          style={{ background: '#0e1335' }}>
+          {menuGroups.map((group) => (
+            <div key={group.title}>
+              <p className="text-white/30 text-[10px] font-bold uppercase tracking-widest mb-2 px-2">
+                {group.title}
+              </p>
+              <div className="space-y-1">
+                {group.items.map((item) => (
+                  <Link key={item.label} href={item.href}>
+                    <div
+                      onClick={onClose}
+                      data-testid={item.testId}
+                      className="flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer active:scale-95 transition-all group"
+                      style={{ background: 'rgba(255,255,255,0.03)' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
+                    >
+                      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{ background: item.bg }}>
+                        <item.icon size={17} style={{ color: item.color }} />
+                      </div>
+                      <span className="text-white/80 font-medium text-sm flex-1">{item.label}</span>
+                      <ChevronRight size={14} className="text-white/20" />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Logout */}
+        <div className="px-4 py-5" style={{ background: '#0e1335', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          <button
             onClick={handleLogout}
-            className="w-full mt-6 bg-red-500 hover:bg-red-600 text-white rounded-xl py-3 font-semibold flex items-center justify-center gap-2 transition-colors"
             data-testid="button-logout"
+            className="w-full flex items-center justify-center gap-2 rounded-xl py-3 font-semibold text-sm transition-all active:scale-95"
+            style={{ background: 'rgba(239,68,68,0.12)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}
           >
-            <LogOut size={18} />
+            <LogOut size={16} />
             Se déconnecter
-          </Button>
-        </nav>
+          </button>
+        </div>
       </div>
     </>
   );

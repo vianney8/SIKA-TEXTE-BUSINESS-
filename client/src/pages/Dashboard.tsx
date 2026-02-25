@@ -318,12 +318,6 @@ export default function Dashboard() {
 
         {/* Testimonials */}
         <div className="px-4 mb-5">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-5 h-5 rounded-full bg-yellow-400 flex items-center justify-center">
-              <Star size={10} className="text-white fill-white" />
-            </div>
-            <h3 className="font-bold text-slate-800 text-sm">Avis de nos membres</h3>
-          </div>
           <TestimonialsSlider />
         </div>
 
