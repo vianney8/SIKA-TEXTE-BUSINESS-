@@ -144,19 +144,20 @@ export default function Dashboard() {
       <main className="pb-24">
 
         {/* Quick Actions */}
-        <div className="px-4 -mt-1 mb-5">
+        <div className="px-4 mt-4 mb-5">
           <div className="grid grid-cols-2 gap-3">
             {/* Transfert */}
             <Link href="/transfer">
               <div className="rounded-2xl p-4 flex items-center gap-3 cursor-pointer active:scale-95 transition-transform shadow-sm"
-                style={{ background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)' }}
+                style={{ background: 'white', border: '1.5px solid #e2e8f0' }}
                 data-testid="button-transfer">
-                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
-                  <ArrowUpRight size={20} className="text-white" />
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'rgba(16,185,129,0.12)' }}>
+                  <ArrowUpRight size={20} style={{ color: '#10b981' }} />
                 </div>
                 <div>
-                  <p className="text-white font-bold text-sm">Transfert</p>
-                  <p className="text-white/70 text-[11px]">Envoyer</p>
+                  <p className="font-bold text-sm" style={{ color: '#1e293b' }}>Transfert</p>
+                  <p className="text-[11px]" style={{ color: '#94a3b8' }}>Envoyer</p>
                 </div>
               </div>
             </Link>
@@ -164,14 +165,15 @@ export default function Dashboard() {
             {/* Retrait */}
             <Link href="/withdrawal">
               <div className="rounded-2xl p-4 flex items-center gap-3 cursor-pointer active:scale-95 transition-transform shadow-sm"
-                style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)' }}
+                style={{ background: 'white', border: '1.5px solid #e2e8f0' }}
                 data-testid="button-withdrawal">
-                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
-                  <Wallet size={20} className="text-white" />
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'rgba(245,158,11,0.12)' }}>
+                  <Wallet size={20} style={{ color: '#f59e0b' }} />
                 </div>
                 <div>
-                  <p className="text-white font-bold text-sm">Retrait</p>
-                  <p className="text-white/70 text-[11px]">Retirer</p>
+                  <p className="font-bold text-sm" style={{ color: '#1e293b' }}>Retrait</p>
+                  <p className="text-[11px]" style={{ color: '#94a3b8' }}>Retirer</p>
                 </div>
               </div>
             </Link>
