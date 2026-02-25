@@ -248,7 +248,7 @@ export default function Dashboard() {
                 SIKA TEXTE
               </h2>
               <p className="text-white/60 text-xs leading-relaxed">
-                Corrigez des phrases et gagnez jusqu'à <span className="text-emerald-400 font-bold">7 800 FCFA/jour</span>
+                corrigez des phrases et gagnez jusqu'à 7 800 FCFA/jour
               </p>
             </div>
           </div>
