@@ -392,94 +392,102 @@ export default function Withdrawal() {
   if (!withdrawalData?.isAccountActive) {
     return (
       <>
-      <div className="min-h-screen pb-10" style={{ background: "#f0f4ff" }}>
-
-        {/* Header */}
-        <div style={{ background: "linear-gradient(135deg, #0a0f2c 0%, #1a1f5e 100%)" }}>
-          <div className="px-4 pt-12 pb-8">
-            <div className="flex items-center gap-3 mb-6">
-              <Link href="/">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center cursor-pointer"
-                  style={{ background: "rgba(255,255,255,0.08)" }} data-testid="button-back">
-                  <ArrowLeft size={18} className="text-white" />
-                </div>
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
+        <div className="max-w-md mx-auto pt-8">
+          {/* Back Button */}
+          <div className="mb-4">
+            <Button asChild variant="ghost" size="sm" className="text-slate-600 hover:text-slate-800">
+              <Link href="/" data-testid="button-back">
+                <ArrowLeft className="w-4 h-4 mr-1" />
+                Retour
               </Link>
-              <h1 className="text-white font-bold text-lg">Activation du compte</h1>
-            </div>
-
-            {/* Activation badge */}
-            <div className="rounded-3xl p-5" style={{ background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.25)" }}>
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: "rgba(245,158,11,0.2)" }}>
-                  <Shield size={26} style={{ color: "#fbbf24" }} />
-                </div>
-                <div>
-                  <p className="text-white font-bold text-base">Compte non activé</p>
-                  <p className="text-white/50 text-xs mt-0.5">Paiement unique requis pour débloquer</p>
-                </div>
-              </div>
-            </div>
+            </Button>
           </div>
-        </div>
+          
+          <Card>
+            <CardHeader>
+              <div className="mx-auto w-16 h-16 bg-yellow-100 dark:bg-yellow-900 rounded-full flex items-center justify-center mb-4">
+                <Shield className="w-8 h-8 text-yellow-600 dark:text-yellow-400" />
+              </div>
+              <CardTitle className="text-center text-2xl">
+                Activation Requise
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="text-center">
+                <p className="text-slate-600 dark:text-slate-400 mb-4">
+                  Pour pouvoir recevoir vos paiements, vous devez d'abord activer votre compte SIKA TEXTE.
+                </p>
+                
+                <Alert className="mb-6">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Important :</strong> Une fois le compte activé, la fonction de retrait par Mobile Money sera automatiquement disponible.
+                  </AlertDescription>
+                </Alert>
 
-        <div className="px-4 py-5 space-y-4">
+                <div className="bg-blue-50 dark:bg-blue-900 p-4 rounded-lg mb-6">
+                  <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                    Pourquoi activer ?
+                  </h3>
+                  <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1 text-left">
+                    <li>✅ Pour que votre compte puisse être actif et accepter les paiements directs</li>
+                    <li>✅ Ce statut actif rendra votre compte accessible aux fonctionnalités de retrait</li>
+                    <li>✅ Une fois activé, vous recevrez vos gains directement et automatiquement</li>
+                  </ul>
+                </div>
 
-          {/* Price card */}
-          <div className="rounded-3xl overflow-hidden shadow-sm" style={{ background: "white" }}>
-            <div className="h-1" style={{ background: "linear-gradient(90deg, #f59e0b, #10b981)" }} />
-            <div className="p-5 text-center">
-              <p className="text-slate-500 text-sm mb-2">Coût d'activation unique</p>
-              <p className="font-black text-4xl mb-1" style={{ color: "#0a0f2c" }}>3 600</p>
-              <p className="text-slate-400 text-base font-semibold mb-4">FCFA</p>
-              <div className="space-y-2 text-left">
-                {[
-                  "Accédez aux retraits Mobile Money",
-                  "Transférez de l'argent librement",
-                  "Recevez vos gains automatiquement",
-                ].map((item) => (
-                  <div key={item} className="flex items-center gap-2">
-                    <CheckCircle size={14} style={{ color: "#10b981" }} />
-                    <span className="text-slate-600 text-sm">{item}</span>
+                <div className="bg-green-50 dark:bg-green-900 p-4 rounded-lg mb-6">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <Banknote className="w-5 h-5 text-green-600" />
+                    <span className="font-semibold text-green-800 dark:text-green-200">
+                      Coût d'activation
+                    </span>
                   </div>
-                ))}
-              </div>
-            </div>
-          </div>
+                  <p className="text-2xl font-bold text-green-800 dark:text-green-200">
+                    3 600 FCFA
+                  </p>
+                  <p className="text-sm text-green-600 dark:text-green-300 mt-1">
+                    Paiement unique
+                  </p>
+                </div>
 
-          {/* Pay button */}
-          <button
-            data-testid="button-pay-activation"
-            onClick={() => setShowPaymentDialog(true)}
-            className="w-full rounded-2xl py-4 text-white font-bold text-base transition-all active:scale-95 shadow-lg"
-            style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}>
-            <span className="flex items-center justify-center gap-2">
-              <CreditCard size={18} />
-              Payer l'activation en ligne
-            </span>
-          </button>
+                <div className="space-y-4">
+                  <Button 
+                    data-testid="button-pay-activation"
+                    onClick={() => setShowPaymentDialog(true)}
+                    size="lg" 
+                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-6 text-lg"
+                  >
+                    <CreditCard className="w-6 h-6 mr-2" />
+                    Payer l'activation en ligne
+                  </Button>
 
-          {/* Support card */}
-          <div className="rounded-2xl p-4 shadow-sm" style={{ background: "white" }}>
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: "rgba(0,136,204,0.1)" }}>
-                <MessageCircle size={16} style={{ color: "#0088cc" }} />
+                  <div className="bg-orange-50 dark:bg-orange-900 p-4 rounded-lg">
+                    <div className="flex items-center justify-center gap-2 mb-3">
+                      <MessageCircle className="w-5 h-5 text-orange-600" />
+                      <span className="font-semibold text-orange-800 dark:text-orange-200">
+                        Besoin d'aide ?
+                      </span>
+                    </div>
+                    <p className="text-sm text-orange-700 dark:text-orange-300 mb-3 text-center">
+                      Si votre compte reste inactif après le paiement, contactez immédiatement le superviseur.
+                    </p>
+                    <Button 
+                      data-testid="button-supervisor-contact"
+                      onClick={() => setShowSupervisorDialog(true)}
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full border-orange-300 hover:bg-orange-100"
+                    >
+                      <MessageCircle className="w-4 h-4 mr-2" />
+                      Contacter un superviseur
+                    </Button>
+                  </div>
+                </div>
               </div>
-              <div>
-                <p className="text-slate-700 font-semibold text-sm">Besoin d'aide ?</p>
-                <p className="text-slate-400 text-xs">Contactez un superviseur</p>
-              </div>
-            </div>
-            <button
-              data-testid="button-supervisor-contact"
-              onClick={() => setShowSupervisorDialog(true)}
-              className="w-full rounded-xl py-3 text-sm font-semibold flex items-center justify-center gap-2 transition-all active:scale-95"
-              style={{ background: "rgba(0,136,204,0.07)", color: "#0088cc", border: "1px solid rgba(0,136,204,0.15)" }}>
-              <FaTelegram />
-              Contacter un superviseur
-            </button>
-          </div>
+            </CardContent>
+          </Card>
 
         </div>
       </div>
