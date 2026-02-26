@@ -2076,17 +2076,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Record transaction
         await storage.createTransaction({
-          id: crypto.randomUUID(),
           userId,
           type: 'activation',
-          amount: activationAmount,
+          amount: String(activationAmount),
           description: 'Activation compte - SolvexPay (SendavaPay)',
           status: 'completed',
           reference: paymentRef,
-          createdAt: new Date()
         });
 
-        console.log('[SOLVEXPAY-WEBHOOK] ✅ Account activated for user:', userId, '| Balance:', newBalance);
+        console.log('[SOLVEXPAY-WEBHOOK] ✅ Account activated for user:', userId);
       }
 
       return res.status(200).json({ message: 'Activation réussie', success: true });
