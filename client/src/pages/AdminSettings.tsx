@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Settings, Save, Video, Trash2 } from "lucide-react";
+import { ArrowLeft, Settings, Save } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -64,7 +64,6 @@ export default function AdminSettings() {
       queryClient.invalidateQueries({ queryKey: ['/api/settings/lygos_name'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/leekpay_name'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/solvexpay_name'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/settings/withdrawal_video_url'] });
     },
     onError: (error: any) => {
       toast({
@@ -390,81 +389,6 @@ export default function AdminSettings() {
             >
               <Save className="h-4 w-4 mr-2" />
               {saveSettingsMutation.isPending ? "Sauvegarde..." : "Sauvegarder les Passerelles"}
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Video Retrait Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Video className="h-5 w-5" />
-              Vidéo de présentation (page activation)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Cette vidéo est affichée sur la page d'activation pour les utilisateurs dont le compte n'est pas encore activé. Laissez le champ vide pour masquer la vidéo.
-            </p>
-
-            {/* Preview */}
-            {settings.withdrawal_video_url && (
-              <div className="rounded-xl overflow-hidden border border-slate-200 mb-2">
-                <video
-                  controls
-                  className="w-full"
-                  style={{ maxHeight: "200px" }}
-                  key={settings.withdrawal_video_url}
-                >
-                  <source src={settings.withdrawal_video_url} type="video/mp4" />
-                </video>
-              </div>
-            )}
-
-            <div>
-              <Label htmlFor="withdrawal_video_url">URL de la vidéo (mp4 ou lien direct)</Label>
-              <Input
-                id="withdrawal_video_url"
-                value={settings.withdrawal_video_url || ''}
-                onChange={(e) => handleInputChange('withdrawal_video_url', e.target.value)}
-                placeholder="/withdrawal-video.mp4 ou https://..."
-                data-testid="input-withdrawal-video-url"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Ex: <code>/withdrawal-video.mp4</code> pour la vidéo par défaut
-              </p>
-            </div>
-
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => handleInputChange('withdrawal_video_url', '/withdrawal-video.mp4')}
-                data-testid="button-reset-video-default"
-              >
-                Remettre la vidéo par défaut
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                onClick={() => handleInputChange('withdrawal_video_url', '')}
-                data-testid="button-delete-video"
-              >
-                <Trash2 className="h-4 w-4 mr-1" />
-                Supprimer la vidéo
-              </Button>
-            </div>
-
-            <Button 
-              onClick={handleSave}
-              disabled={saveSettingsMutation.isPending}
-              className="w-full"
-              data-testid="button-save-video"
-            >
-              <Save className="h-4 w-4 mr-2" />
-              {saveSettingsMutation.isPending ? "Sauvegarde..." : "Sauvegarder"}
             </Button>
           </CardContent>
         </Card>

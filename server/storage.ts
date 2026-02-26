@@ -1342,9 +1342,7 @@ export class DatabaseStorage implements IStorage {
         bankCardId: bankCards.id,
         bankCardFirstName: bankCards.firstName,
         bankCardLastName: bankCards.lastName,
-        bankCardNumber: bankCards.cardNumber,
-        bankCardOperator: bankCards.operator,
-        bankCardCountry: bankCards.country
+        bankCardNumber: bankCards.cardNumber
       })
       .from(withdrawals)
       .leftJoin(users, eq(withdrawals.userId, users.id))
@@ -1692,8 +1690,7 @@ export class DatabaseStorage implements IStorage {
       { key: 'whatsapp_group', value: 'https://chat.whatsapp.com/HtUYvCOeJArHYLhMcRCsDs', label: 'Groupe WhatsApp' },
       { key: 'telegram_supervisor', value: 'https://t.me/servicepay_support', label: 'Superviseur Telegram' },
       { key: 'telegram_group', value: 'https://t.me/+A1QL2HAVBkMyMDA0', label: 'Groupe Telegram' },
-      { key: 'chat_enabled', value: 'true', label: 'Chat en ligne activé' },
-      { key: 'withdrawal_video_url', value: '/withdrawal-video.mp4', label: 'Vidéo page activation' }
+      { key: 'chat_enabled', value: 'true', label: 'Chat en ligne activé' }
     ];
 
     for (const setting of defaultSettings) {

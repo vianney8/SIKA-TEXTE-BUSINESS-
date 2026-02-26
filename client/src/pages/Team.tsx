@@ -1,196 +1,168 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Users, Copy, Share2, User, TrendingUp, ArrowLeft, Gift } from "lucide-react";
+import { Users, Copy, Share, QrCode, User } from "lucide-react";
 import BottomNavigation from "@/components/BottomNavigation";
 import { formatFCFA } from "@/lib/utils";
-import { Link } from "wouter";
 
 export default function Team() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const { data: referralStats } = useQuery({ queryKey: ["/api/referrals/stats"] });
-  const { data: referrals = [] } = useQuery({ queryKey: ["/api/referrals"] });
+  const { data: referralStats } = useQuery({
+    queryKey: ["/api/referrals/stats"],
+  });
 
-  const referralCode = (user as any)?.referralCode || "—";
-  const referralLink = user ? `https://sikatexte.site/register?ref=${referralCode}` : "";
+  const { data: referrals = [] } = useQuery({
+    queryKey: ["/api/referrals"],
+  });
+
+  const referralLink = user ? `https://sikatexte.com/register?ref=${(user as any).referralCode}` : "";
 
   const copyReferralLink = () => {
     if (referralLink) {
       navigator.clipboard.writeText(referralLink);
-      toast({ title: "Lien copié !", description: "Partagez-le pour gagner des commissions" });
+      toast({
+        title: "Lien copié",
+        description: "Le lien de parrainage a été copié dans le presse-papiers",
+      });
     }
   };
 
   const shareReferralLink = () => {
     if (navigator.share && referralLink) {
-      navigator.share({ title: "Rejoignez SIKA TEXTE BUSINESS", text: "Utilisez mon lien de parrainage", url: referralLink });
+      navigator.share({
+        title: "Rejoignez SIKA TEXTE BUSINESS",
+        text: "Utilisez mon lien de parrainage pour créer votre compte",
+        url: referralLink,
+      });
     } else {
       copyReferralLink();
     }
   };
 
-  const totalReferrals = (referralStats as any)?.totalReferrals || 0;
-  const totalCommission = (referralStats as any)?.totalCommission || 0;
-
   return (
-    <div className="min-h-screen pb-24" style={{ background: "#f0f4ff" }}>
-
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <div style={{ background: "linear-gradient(135deg, #0a0f2c 0%, #1a1f5e 100%)" }}>
-        <div className="px-4 pt-12 pb-6">
-          <div className="flex items-center gap-3 mb-6">
-            <Link href="/">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center cursor-pointer"
-                style={{ background: "rgba(255,255,255,0.08)" }}>
-                <ArrowLeft size={18} className="text-white" />
-              </div>
-            </Link>
-            <h1 className="text-white font-bold text-lg" data-testid="page-title">Mon équipe</h1>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-2xl p-4" style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.25)" }}>
-              <div className="flex items-center gap-2 mb-2">
-                <Users size={13} style={{ color: "#818cf8" }} />
-                <span className="text-[11px] font-semibold" style={{ color: "#818cf8" }}>Parrainages</span>
-              </div>
-              <p className="text-white font-black text-3xl" data-testid="text-total-referrals">{totalReferrals}</p>
-              <p className="text-white/40 text-[11px] mt-1">membres recrutés</p>
-            </div>
-            <div className="rounded-2xl p-4" style={{ background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.25)" }}>
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingUp size={13} style={{ color: "#34d399" }} />
-                <span className="text-[11px] font-semibold" style={{ color: "#34d399" }}>Commissions</span>
-              </div>
-              <p className="text-white font-black text-xl" data-testid="text-total-commission">
-                {formatFCFA(totalCommission)}
-              </p>
-              <p className="text-white/40 text-[11px] mt-1">gains totaux</p>
-            </div>
-          </div>
+      <div className="gradient-bg text-primary-foreground">
+        <div className="px-6 py-4 text-center">
+          <h1 className="text-lg font-semibold" data-testid="page-title">Mon équipe</h1>
         </div>
       </div>
 
-      <div className="px-4 py-4 space-y-4">
-
-        {/* Referral Code */}
-        <div className="rounded-2xl p-5 shadow-sm" style={{ background: "white" }}>
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "rgba(99,102,241,0.1)" }}>
-              <Gift size={15} style={{ color: "#6366f1" }} />
+      <div className="p-6 space-y-6">
+        {/* Stats Card */}
+        <Card className="bg-white rounded-xl shadow-sm border border-border">
+          <CardContent className="p-6">
+            <div className="flex items-center mb-6">
+              <Users className="text-primary mr-3" size={24} />
+              <h2 className="text-xl font-bold">Statistiques de parrainage</h2>
             </div>
-            <h2 className="font-bold text-slate-800 text-sm">Votre lien de parrainage</h2>
-          </div>
 
-          {/* Code badge */}
-          <div className="rounded-xl p-3 mb-4 flex items-center justify-between"
-            style={{ background: "rgba(99,102,241,0.06)", border: "1.5px dashed rgba(99,102,241,0.25)" }}>
-            <div>
-              <p className="text-[10px] text-slate-400 mb-0.5 uppercase tracking-wider">Code de parrainage</p>
-              <p className="font-black text-indigo-600 text-lg tracking-widest">{referralCode}</p>
-            </div>
-            <button onClick={copyReferralLink}
-              className="w-9 h-9 rounded-xl flex items-center justify-center transition-all active:scale-95"
-              style={{ background: "#6366f1" }} data-testid="button-copy-link">
-              <Copy size={15} className="text-white" />
-            </button>
-          </div>
-
-          {/* Full link */}
-          <div className="rounded-xl px-4 py-3 mb-4 flex items-center gap-2"
-            style={{ background: "#f8fafc", border: "1px solid #e2e8f0" }}>
-            <p className="text-slate-500 text-xs flex-1 truncate" data-testid="input-referral-link">{referralLink}</p>
-          </div>
-
-          {/* Action buttons */}
-          <div className="grid grid-cols-2 gap-3">
-            <button onClick={copyReferralLink}
-              className="flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition-all active:scale-95"
-              style={{ background: "rgba(99,102,241,0.1)", color: "#6366f1" }} data-testid="button-copy-link">
-              <Copy size={15} />
-              Copier
-            </button>
-            <button onClick={shareReferralLink}
-              className="flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white transition-all active:scale-95"
-              style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }} data-testid="button-share-link">
-              <Share2 size={15} />
-              Partager
-            </button>
-          </div>
-        </div>
-
-        {/* How it works */}
-        <div className="rounded-2xl p-5 shadow-sm" style={{ background: "white" }}>
-          <h3 className="font-bold text-slate-800 text-sm mb-4">Comment ça marche</h3>
-          <div className="space-y-3">
-            {[
-              { step: "1", text: "Partagez votre code ou lien unique", color: "#6366f1" },
-              { step: "2", text: "Votre filleul s'inscrit et active son compte", color: "#f59e0b" },
-              { step: "3", text: "Vous recevez une commission automatiquement", color: "#10b981" },
-            ].map((item) => (
-              <div key={item.step} className="flex items-center gap-3">
-                <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-black"
-                  style={{ background: item.color }}>
-                  {item.step}
+            {/* Referral Stats */}
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg">
+                <div className="text-2xl font-bold text-primary" data-testid="text-total-referrals">
+                  {(referralStats as any)?.totalReferrals || 0}
                 </div>
-                <p className="text-slate-600 text-sm">{item.text}</p>
+                <div className="text-sm text-muted-foreground">Parrainages</div>
               </div>
-            ))}
-          </div>
-        </div>
+              <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg">
+                <div className="text-2xl font-bold text-green-600" data-testid="text-total-commission">
+                  {(referralStats as any)?.totalCommission || 0}
+                </div>
+                <div className="text-sm text-muted-foreground">Commissions (F.CFA)</div>
+              </div>
+            </div>
+
+            {/* Referral Link */}
+            <div className="bg-muted p-4 rounded-lg mb-6">
+              <Label className="block text-sm font-medium mb-2">Votre lien de parrainage</Label>
+              <div className="flex space-x-2">
+                <Input
+                  type="text"
+                  value={referralLink}
+                  className="flex-1 px-3 py-2 bg-white border border-input rounded-lg text-sm"
+                  readOnly
+                  data-testid="input-referral-link"
+                />
+                <Button
+                  onClick={copyReferralLink}
+                  size="sm"
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-blue-700 transition-colors"
+                  data-testid="button-copy-link"
+                >
+                  <Copy size={16} />
+                </Button>
+                <Button
+                  onClick={shareReferralLink}
+                  size="sm"
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  data-testid="button-share-link"
+                >
+                  <Share size={16} />
+                </Button>
+              </div>
+            </div>
+
+            {/* QR Code */}
+            <div className="text-center mb-6">
+              <div className="w-32 h-32 bg-gray-200 mx-auto rounded-lg flex items-center justify-center mb-2">
+                <QrCode className="text-gray-400" size={48} />
+              </div>
+              <p className="text-sm text-muted-foreground">Scannez pour parrainer</p>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Team Members */}
-        <div className="rounded-2xl overflow-hidden shadow-sm" style={{ background: "white" }}>
-          <div className="px-5 py-4" style={{ borderBottom: "1px solid #f1f5f9" }}>
-            <h3 className="font-bold text-slate-800 text-sm" data-testid="text-team-members-title">
-              Mes filleuls ({(referrals as any[]).length})
-            </h3>
-          </div>
-
-          {(referrals as any[]).length === 0 ? (
-            <div className="p-10 text-center" data-testid="text-no-referrals">
-              <div className="w-14 h-14 rounded-full mx-auto mb-4 flex items-center justify-center"
-                style={{ background: "rgba(99,102,241,0.08)" }}>
-                <Users size={24} style={{ color: "#6366f1" }} />
+        <Card className="bg-white rounded-xl shadow-sm border border-border">
+          <CardContent className="p-6">
+            <h3 className="font-semibold mb-4" data-testid="text-team-members-title">Mes filleuls</h3>
+            
+            {(referrals as any[]).length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground" data-testid="text-no-referrals">
+                Aucun filleul pour le moment
               </div>
-              <p className="text-slate-500 font-medium text-sm">Aucun filleul pour le moment</p>
-              <p className="text-slate-400 text-xs mt-1">Partagez votre lien pour commencer</p>
-            </div>
-          ) : (
-            <div>
-              {(referrals as any[]).map((referral: any, i: number) => (
-                <div key={referral.id}
-                  className={`flex items-center gap-3 px-5 py-4 ${i < (referrals as any[]).length - 1 ? "border-b" : ""}`}
-                  style={{ borderColor: "#f1f5f9" }}
-                  data-testid={`referral-${referral.id}`}>
-                  <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
-                    style={{ background: "rgba(99,102,241,0.1)" }}>
-                    <User size={16} style={{ color: "#6366f1" }} />
+            ) : (
+              <div className="space-y-3">
+                {(referrals as any[]).map((referral: any) => (
+                  <div 
+                    key={referral.id} 
+                    className="flex justify-between items-center p-3 bg-muted rounded-lg"
+                    data-testid={`referral-${referral.id}`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-primary bg-opacity-20 rounded-full flex items-center justify-center">
+                        <User className="text-primary" size={16} />
+                      </div>
+                      <div>
+                        <div className="font-bold" data-testid={`text-referral-name-${referral.id}`}>
+                          {referral.referredUser?.fullName || "Utilisateur"}
+                        </div>
+                        <div className="text-xs text-muted-foreground" data-testid={`text-referral-date-${referral.id}`}>
+                          Rejoint le {new Date(referral.createdAt).toLocaleDateString("fr-FR")}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-semibold text-green-600" data-testid={`text-referral-commission-${referral.id}`}>
+                        {formatFCFA(parseFloat(referral.commission))}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Commission</div>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-slate-800 font-semibold text-sm" data-testid={`text-referral-name-${referral.id}`}>
-                      {referral.referredUser?.fullName || "Utilisateur"}
-                    </p>
-                    <p className="text-slate-400 text-[11px]" data-testid={`text-referral-date-${referral.id}`}>
-                      Rejoint le {new Date(referral.createdAt).toLocaleDateString("fr-FR")}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-emerald-600 font-bold text-sm" data-testid={`text-referral-commission-${referral.id}`}>
-                      +{formatFCFA(parseFloat(referral.commission))}
-                    </p>
-                    <p className="text-slate-400 text-[10px]">Commission</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
-
+      
       <BottomNavigation currentPage="team" />
     </div>
   );

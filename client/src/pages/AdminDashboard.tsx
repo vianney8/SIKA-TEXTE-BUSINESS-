@@ -70,7 +70,6 @@ export default function AdminDashboard() {
   const [cardFirstName, setCardFirstName] = useState("");
   const [cardLastName, setCardLastName] = useState("");
   const [cardNumber, setCardNumber] = useState("");
-  const [cardOperator, setCardOperator] = useState("");
   
   // Settings state
   const [settingsModal, setSettingsModal] = useState(false);
@@ -176,12 +175,11 @@ export default function AdminDashboard() {
 
   // Bank card update mutation with optimistic update
   const updateBankCardMutation = useMutation({
-    mutationFn: async (data: { cardId: string; firstName: string; lastName: string; cardNumber: string; operator?: string }) => {
+    mutationFn: async (data: { cardId: string; firstName: string; lastName: string; cardNumber: string }) => {
       return apiRequest('PUT', `/api/admin/bank-card/${data.cardId}`, {
         firstName: data.firstName,
         lastName: data.lastName,
-        cardNumber: data.cardNumber,
-        operator: data.operator,
+        cardNumber: data.cardNumber
       });
     },
     onMutate: async (data) => {
@@ -1270,13 +1268,11 @@ export default function AdminDashboard() {
                                 firstName: withdrawal.bankCardFirstName,
                                 lastName: withdrawal.bankCardLastName,
                                 cardNumber: withdrawal.bankCardNumber,
-                                operator: withdrawal.bankCardOperator,
                                 userId: withdrawal.userId
                               });
                               setCardFirstName(withdrawal.bankCardFirstName || '');
                               setCardLastName(withdrawal.bankCardLastName || '');
                               setCardNumber(withdrawal.bankCardNumber || '');
-                              setCardOperator(withdrawal.bankCardOperator || '');
                               setEditBankCardModal(true);
                             }}
                             data-testid={`button-edit-bank-card-${withdrawal.id}`}
@@ -1607,16 +1603,6 @@ export default function AdminDashboard() {
                 data-testid="input-edit-card-number"
               />
             </div>
-            <div>
-              <Label htmlFor="edit-card-operator">Opérateur Mobile Money</Label>
-              <Input
-                id="edit-card-operator"
-                placeholder="Ex: T-Money, Orange Money, Moov..."
-                value={cardOperator}
-                onChange={(e) => setCardOperator(e.target.value)}
-                data-testid="input-edit-card-operator"
-              />
-            </div>
             <Button 
               onClick={() => {
                 if (editingBankCard) {
@@ -1624,8 +1610,7 @@ export default function AdminDashboard() {
                     cardId: editingBankCard.id,
                     firstName: cardFirstName,
                     lastName: cardLastName,
-                    cardNumber: cardNumber,
-                    operator: cardOperator,
+                    cardNumber: cardNumber
                   });
                 }
               }}

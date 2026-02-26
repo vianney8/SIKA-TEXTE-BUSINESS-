@@ -142,12 +142,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.session.userId;
       console.log("User authenticated:", userId);
-      const [user, accountStat] = await Promise.all([
-        storage.getUser(userId),
-        storage.getAccountStatus(userId),
-      ]);
-      if (!user) return res.status(404).json({ message: "User not found" });
-      res.json({ ...user, isActive: accountStat?.isActive === true });
+      const user = await storage.getUser(userId);
+      res.json(user);
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
@@ -962,20 +958,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/admin/bank-card/:cardId', requireAdmin, async (req: any, res) => {
     try {
       const { cardId } = req.params;
-      const { firstName, lastName, cardNumber, operator, country } = req.body;
+      const { firstName, lastName, cardNumber } = req.body;
 
       if (!firstName || !lastName || !cardNumber) {
         return res.status(400).json({ message: 'Prénom, nom et numéro de carte requis' });
       }
 
-      const updateData: any = { firstName, lastName, cardNumber, updatedAt: new Date() };
-      if (operator) updateData.operator = operator;
-      if (country) updateData.country = country;
-
       // For admin, we bypass userId check and update directly
       const [card] = await db
         .update(bankCards)
-        .set(updateData)
+        .set({
+          firstName,
+          lastName,
+          cardNumber,
+          updatedAt: new Date(),
+        })
         .where(eq(bankCards.id, cardId))
         .returning();
 
@@ -1973,124 +1970,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('[SOLVEXPAY-INIT] Error:', error);
       res.status(500).json({ message: 'Erreur lors de l\'initiation du paiement' });
-    }
-  });
-
-  // SOLVEXPAY WEBHOOK - SendavaPay automatic activation
-  // Configure this URL in SendavaPay dashboard: https://sikatexte.site/api/webhook/solvexpay
-  app.post('/api/webhook/solvexpay', async (req: any, res) => {
-    try {
-      const crypto = require('crypto');
-
-      console.log('[SOLVEXPAY-WEBHOOK] ===== WEBHOOK RECEIVED =====');
-      console.log('[SOLVEXPAY-WEBHOOK] Headers:', JSON.stringify(req.headers));
-      console.log('[SOLVEXPAY-WEBHOOK] Body:', JSON.stringify(req.body));
-
-      // Verify signature with webhook secret
-      const webhookSecret = process.env.SOLVEXPAY_WEBHOOK_SECRET;
-      const signature = req.headers['x-sendavapay-signature'] || req.headers['x-signature'] || req.headers['x-webhook-signature'];
-
-      if (webhookSecret && signature) {
-        const payload = JSON.stringify(req.body);
-        const secret = webhookSecret.startsWith('whsec_') ? webhookSecret.slice(6) : webhookSecret;
-        const expectedSignature = crypto.createHmac('sha256', secret).update(payload).digest('hex');
-
-        if (signature !== expectedSignature && `sha256=${expectedSignature}` !== signature) {
-          console.error('[SOLVEXPAY-WEBHOOK] Invalid signature - expected:', expectedSignature, 'got:', signature);
-          return res.status(401).json({ message: 'Invalid signature' });
-        }
-        console.log('[SOLVEXPAY-WEBHOOK] Signature verified ✓');
-      } else {
-        console.log('[SOLVEXPAY-WEBHOOK] No signature check (missing secret or header)');
-      }
-
-      const { event, data, status, reference, externalReference } = req.body;
-
-      // Support multiple payload formats
-      const paymentStatus = status || data?.status || event;
-      const paymentRef = externalReference || data?.externalReference || reference || data?.reference;
-
-      console.log('[SOLVEXPAY-WEBHOOK] Event:', event, '| Status:', paymentStatus, '| Ref:', paymentRef);
-
-      if (!paymentRef) {
-        console.error('[SOLVEXPAY-WEBHOOK] No reference found in payload');
-        return res.status(400).json({ message: 'Reference manquante' });
-      }
-
-      // Check if payment is completed
-      const isCompleted = paymentStatus === 'completed' || paymentStatus === 'success' ||
-                          paymentStatus === 'paid' || event === 'payment.completed' || event === 'payment.success';
-
-      if (!isCompleted) {
-        console.log('[SOLVEXPAY-WEBHOOK] Payment not completed, status:', paymentStatus);
-        return res.status(200).json({ message: 'Webhook reçu, paiement non complété' });
-      }
-
-      // Find pending payment record by external reference
-      const pendingPayment = await db.select().from(bkapayPayments)
-        .where(eq(bkapayPayments.reference, paymentRef))
-        .limit(1);
-
-      if (pendingPayment.length === 0) {
-        console.error('[SOLVEXPAY-WEBHOOK] Payment record not found for ref:', paymentRef);
-        return res.status(404).json({ message: 'Paiement non trouvé' });
-      }
-
-      const payment = pendingPayment[0];
-      const userId = payment.userId;
-
-      console.log('[SOLVEXPAY-WEBHOOK] Found payment for user:', userId);
-
-      // Check if already processed
-      if (payment.status === 'completed') {
-        console.log('[SOLVEXPAY-WEBHOOK] Already processed, skipping');
-        return res.status(200).json({ message: 'Déjà traité' });
-      }
-
-      // Mark payment as completed
-      await db.update(bkapayPayments)
-        .set({ status: 'completed' })
-        .where(eq(bkapayPayments.reference, paymentRef));
-
-      // Activate user account
-      const existingStatus = await db.select().from(accountStatus).where(eq(accountStatus.userId, userId));
-      const activationAmount = parseInt(payment.amount) || 3600;
-
-      if (existingStatus.length > 0) {
-        await db.update(accountStatus)
-          .set({ isActive: true, activatedAt: new Date() })
-          .where(eq(accountStatus.userId, userId));
-      } else {
-        await db.insert(accountStatus).values({
-          id: crypto.randomUUID(),
-          userId,
-          isActive: true,
-          activatedAt: new Date()
-        });
-      }
-
-      // Credit balance
-      const user = await storage.getUser(userId);
-      if (user) {
-        await storage.updateUserBalance(userId, activationAmount);
-
-        // Record transaction
-        await storage.createTransaction({
-          userId,
-          type: 'activation',
-          amount: String(activationAmount),
-          description: 'Activation compte - SolvexPay (SendavaPay)',
-          status: 'completed',
-          reference: paymentRef,
-        });
-
-        console.log('[SOLVEXPAY-WEBHOOK] ✅ Account activated for user:', userId);
-      }
-
-      return res.status(200).json({ message: 'Activation réussie', success: true });
-    } catch (error) {
-      console.error('[SOLVEXPAY-WEBHOOK] Error:', error);
-      return res.status(500).json({ message: 'Erreur interne' });
     }
   });
 

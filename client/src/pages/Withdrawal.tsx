@@ -89,7 +89,6 @@ export default function Withdrawal() {
   // Récupérer les liens dynamiques depuis les paramètres admin
   const { data: activationLink } = useAppSetting('activation_link');
   const { data: telegramSupervisor } = useAppSetting('telegram_supervisor');
-  const { data: withdrawalVideoUrl } = useAppSetting('withdrawal_video_url');
   const { data: bkapayEnabled } = useAppSetting('bkapay_enabled');
   const { data: lygosEnabled } = useAppSetting('lygos_enabled');
   const { data: leekpayEnabled } = useAppSetting('leekpay_enabled');
@@ -453,65 +452,6 @@ export default function Withdrawal() {
                   </p>
                 </div>
 
-                {/* Testimonials Section */}
-                <div className="mb-6">
-                  <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-3 text-center">
-                    💬 Ce que disent nos utilisateurs
-                  </h3>
-                  <div className="space-y-3 text-left">
-                    <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3">
-                      <div className="flex items-center gap-2 mb-1">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-xs font-bold">A</div>
-                        <div>
-                          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Aminata K.</p>
-                          <p className="text-xs text-yellow-500">★★★★★</p>
-                        </div>
-                      </div>
-                      <p className="text-xs text-slate-600 dark:text-slate-400">J'ai activé mon compte et dès le lendemain j'ai reçu mes premiers gains. Je recommande vivement !</p>
-                    </div>
-                    <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3">
-                      <div className="flex items-center gap-2 mb-1">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center text-white text-xs font-bold">K</div>
-                        <div>
-                          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Kofi M.</p>
-                          <p className="text-xs text-yellow-500">★★★★★</p>
-                        </div>
-                      </div>
-                      <p className="text-xs text-slate-600 dark:text-slate-400">Le retrait est rapide et sécurisé. En moins de 5 minutes après la demande, l'argent était sur mon compte Orange Money.</p>
-                    </div>
-                    <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3">
-                      <div className="flex items-center gap-2 mb-1">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center text-white text-xs font-bold">F</div>
-                        <div>
-                          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Fatima T.</p>
-                          <p className="text-xs text-yellow-500">★★★★★</p>
-                        </div>
-                      </div>
-                      <p className="text-xs text-slate-600 dark:text-slate-400">Simple, rapide et efficace. J'ai activé mon compte avec 3600 FCFA et j'en ai déjà retiré plus de 25 000 FCFA ce mois-ci !</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Video Section */}
-                {withdrawalVideoUrl && (
-                  <div className="mb-6">
-                    <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-3 text-center">
-                      🎬 Voir comment ça fonctionne
-                    </h3>
-                    <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700">
-                      <video
-                        controls
-                        className="w-full"
-                        style={{ maxHeight: "280px" }}
-                        preload="metadata"
-                      >
-                        <source src={withdrawalVideoUrl} type="video/mp4" />
-                        Votre navigateur ne supporte pas la vidéo.
-                      </video>
-                    </div>
-                  </div>
-                )}
-
                 <div className="space-y-4">
                   <Button 
                     data-testid="button-pay-activation"
@@ -666,179 +606,210 @@ export default function Withdrawal() {
 
 
   return (
-    <div className="min-h-screen pb-10" style={{ background: "#f0f4ff" }}>
-
-      {/* Header */}
-      <div style={{ background: "linear-gradient(135deg, #0a0f2c 0%, #1a1f5e 100%)" }}>
-        <div className="px-4 pt-12 pb-6">
-          <div className="flex items-center gap-3 mb-5">
-            <Link href="/">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center cursor-pointer"
-                style={{ background: "rgba(255,255,255,0.08)" }} data-testid="button-back-withdrawal">
-                <ArrowLeft size={18} className="text-white" />
-              </div>
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
+      <div className="max-w-md mx-auto pt-8 space-y-6">
+        
+        {/* Back Button */}
+        <div className="mb-4">
+          <Button asChild variant="ghost" size="sm" className="text-slate-600 hover:text-slate-800">
+            <Link href="/" data-testid="button-back-withdrawal">
+              <ArrowLeft className="w-4 h-4 mr-1" />
+              Retour
             </Link>
-            <h1 className="text-white font-bold text-lg">Retrait</h1>
-          </div>
-
-          {/* Balance */}
-          <div className="rounded-3xl p-5" style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.25)" }}>
-            <p className="text-white/50 text-xs uppercase tracking-wider mb-1">Solde disponible</p>
-            <p className="text-white font-black text-3xl mb-1">{(withdrawalData?.balance || 0).toLocaleString('fr-FR')} <span className="text-lg font-semibold text-white/70">FCFA</span></p>
-            <div className="flex items-center gap-1.5">
-              <CheckCircle size={12} style={{ color: "#34d399" }} />
-              <span className="text-xs font-semibold" style={{ color: "#34d399" }}>Compte Activé</span>
-            </div>
-          </div>
+          </Button>
         </div>
-      </div>
 
-      <div className="px-4 py-5 space-y-4">
+        {/* Header */}
+        <div className="text-center mb-6">
+          <div className="mx-auto w-16 h-16 bg-gradient-to-r from-green-500 to-blue-600 rounded-full flex items-center justify-center mb-4">
+            <CreditCard className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+            Retrait
+          </h1>
+          <p className="text-slate-600 dark:text-slate-400">
+            Retirez vos gains sur votre carte bancaire
+          </p>
+        </div>
 
         {/* Notifications */}
-        {notifications && notifications
-          .filter(n => !n.seenAt || Date.now() - new Date(n.seenAt).getTime() < 60000)
-          .map((notification) => (
-            <div key={notification.id} className="rounded-2xl p-4 flex items-start gap-3"
-              style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
-              <AlertTriangle size={16} style={{ color: "#ef4444" }} className="mt-0.5 flex-shrink-0" />
-              <p className="text-slate-700 text-sm">{renderTextWithLinks(notification.message)}</p>
-            </div>
-          ))}
-
-        {/* Bank card */}
-        {bankCard && (
-          <div className="rounded-2xl p-4 flex items-center justify-between shadow-sm"
-            style={{ background: "linear-gradient(135deg, #1e1b4b, #312e81)" }}>
-            <div>
-              <p className="text-white/50 text-[11px] uppercase tracking-wider mb-0.5">Carte enregistrée</p>
-              <p className="text-white font-bold">{bankCard.firstName} {bankCard.lastName}</p>
-              <p className="text-white/60 text-sm">****{bankCard.cardNumber.slice(-4)}</p>
-            </div>
-            <Link href="/bank-card">
-              <button className="w-9 h-9 rounded-xl flex items-center justify-center"
-                style={{ background: "rgba(255,255,255,0.08)" }} data-testid="button-edit-bank-card">
-                <Edit3 size={15} className="text-white" />
-              </button>
-            </Link>
+        {notifications && notifications.length > 0 && (
+          <div className="space-y-3">
+            {notifications
+              .filter(n => {
+                if (!n.seenAt) return true;
+                const timeSinceSeen = Date.now() - new Date(n.seenAt).getTime();
+                return timeSinceSeen < 60000;
+              })
+              .map((notification) => (
+                <Alert key={notification.id} className="border-red-500 bg-red-50 dark:bg-red-950">
+                  <AlertTriangle className="h-4 w-4 text-red-600" />
+                  <AlertDescription className="text-red-800 dark:text-red-200">
+                    <strong>Alerte :</strong> {renderTextWithLinks(notification.message)}
+                  </AlertDescription>
+                </Alert>
+              ))}
           </div>
         )}
 
-        {!bankCard && (
-          <Link href="/bank-card">
-            <button className="w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-semibold transition-all active:scale-95 shadow-sm"
-              style={{ background: "white", color: "#6366f1", border: "1.5px dashed rgba(99,102,241,0.4)" }}>
-              <Plus size={16} />
-              Ajouter une carte bancaire
-            </button>
-          </Link>
+        {/* Bank Card Display */}
+        {bankCard && (
+          <Card className="bg-gradient-to-r from-blue-600 to-purple-600 text-white mb-6">
+            <CardContent className="p-4">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-sm opacity-75">Carte enregistrée</p>
+                  <p className="font-semibold">{bankCard.firstName} {bankCard.lastName}</p>
+                  <p className="text-sm opacity-90">****{bankCard.cardNumber.slice(-4)}</p>
+                </div>
+                <Button asChild variant="ghost" size="sm" className="text-white hover:bg-white/10">
+                  <Link href="/bank-card" data-testid="button-edit-bank-card">
+                    <Edit3 className="w-4 h-4" />
+                  </Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
+        {/* Balance Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg text-center">Solde disponible</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-green-600 mb-2">
+                {withdrawalData?.balance || 0} FCFA
+              </div>
+              <Badge variant="secondary" className="text-xs">
+                Compte Activé ✅
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Withdrawal Form */}
-        <div className="rounded-3xl overflow-hidden shadow-sm" style={{ background: "white" }}>
-          <div className="h-1" style={{ background: "linear-gradient(90deg, #10b981, #6366f1)" }} />
-          <div className="p-5">
-            <h2 className="text-slate-800 font-bold text-sm mb-4">Nouveau retrait</h2>
-            <label className="text-slate-600 text-xs font-semibold uppercase tracking-wider block mb-2">
-              Montant à retirer (FCFA)
-            </label>
-            <div className="relative mb-4">
-              <Banknote size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Nouveau retrait</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">
+                Montant à retirer (FCFA)
+              </label>
+              <Input
                 data-testid="input-withdrawal-amount"
                 type="number"
                 value={amount}
-                onChange={(e) => { const v = parseFloat(e.target.value); if (v > 0 || e.target.value === '') setAmount(e.target.value); }}
+                onChange={(e) => {
+                  const value = parseFloat(e.target.value);
+                  if (value > 0 || e.target.value === '') {
+                    setAmount(e.target.value);
+                  }
+                }}
                 min="1"
                 placeholder="Entrez le montant"
-                className="w-full pl-10 pr-4 py-3 rounded-xl text-sm font-medium outline-none transition-all"
-                style={{ background: "#f8fafc", border: "1.5px solid #e2e8f0" }}
-                onFocus={e => e.target.style.borderColor = "#10b981"}
-                onBlur={e => e.target.style.borderColor = "#e2e8f0"}
               />
             </div>
-            <div className="rounded-xl px-4 py-3 mb-4 flex items-start gap-2"
-              style={{ background: "rgba(99,102,241,0.05)", border: "1px solid rgba(99,102,241,0.1)" }}>
-              <CreditCard size={14} style={{ color: "#6366f1" }} className="mt-0.5 flex-shrink-0" />
-              <p className="text-slate-500 text-xs">Les retraits sont traités sur votre carte bancaire dans les prochaines minutes.</p>
-            </div>
-            <button
+
+
+            <Alert>
+              <CreditCard className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                Les retraits sont traités sur votre carte bancaire enregistrée dans les prochaines minutes.
+              </AlertDescription>
+            </Alert>
+
+            <Button 
               data-testid="button-request-withdrawal"
               onClick={handleWithdraw}
               disabled={withdrawMutation.isPending}
-              className="w-full rounded-2xl py-4 text-white font-bold text-sm transition-all active:scale-95 disabled:opacity-60"
-              style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}>
-              {withdrawMutation.isPending ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                  Traitement...
-                </span>
-              ) : "Demander le retrait"}
-            </button>
-          </div>
-        </div>
+              className="w-full"
+              size="lg"
+            >
+              {withdrawMutation.isPending ? "Traitement..." : "Demander le retrait"}
+            </Button>
+          </CardContent>
+        </Card>
 
         {/* Withdrawal History */}
-        <div className="rounded-2xl overflow-hidden shadow-sm" style={{ background: "white" }}>
-          <div className="px-5 py-4" style={{ borderBottom: "1px solid #f1f5f9" }}>
-            <h3 className="text-slate-800 font-bold text-sm">Historique des retraits</h3>
-          </div>
-          {withdrawalData?.withdrawalHistory && withdrawalData.withdrawalHistory.length > 0 ? (
-            <div>
-              {withdrawalData.withdrawalHistory.map((w: any, i: number) => {
-                const statusMap: Record<string, { label: string; color: string; bg: string }> = {
-                  completed: { label: "Terminé",    color: "#10b981", bg: "rgba(16,185,129,0.1)"  },
-                  pending:   { label: "En cours",   color: "#f59e0b", bg: "rgba(245,158,11,0.1)"  },
-                  failed:    { label: "Échoué",     color: "#ef4444", bg: "rgba(239,68,68,0.1)"   },
-                };
-                const s = statusMap[w.status] || statusMap.pending;
-                return (
-                  <div key={w.id} className={`flex items-center gap-3 px-5 py-4 ${i < withdrawalData.withdrawalHistory.length - 1 ? "border-b" : ""}`}
-                    style={{ borderColor: "#f1f5f9" }}>
-                    <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
-                      style={{ background: "rgba(16,185,129,0.08)" }}>
-                      <Banknote size={16} style={{ color: "#10b981" }} />
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Historique des retraits</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {withdrawalData?.withdrawalHistory && withdrawalData.withdrawalHistory.length > 0 ? (
+              <div className="space-y-3">
+                {withdrawalData.withdrawalHistory.map((withdrawal) => (
+                  <div key={withdrawal.id} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                    <div>
+                      <p className="font-medium">{withdrawal.amount} FCFA</p>
+                      <p className="text-xs text-slate-400">
+                        {new Date(withdrawal.date).toLocaleDateString('fr-FR')}
+                      </p>
+                      {withdrawal.phoneNumber && (
+                        <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-1">
+                          📱 {withdrawal.phoneNumber}
+                        </p>
+                      )}
                     </div>
-                    <div className="flex-1">
-                      <p className="text-slate-800 font-bold text-sm">{w.amount?.toLocaleString('fr-FR')} FCFA</p>
-                      <p className="text-slate-400 text-[11px]">{new Date(w.date).toLocaleDateString('fr-FR')}</p>
-                    </div>
-                    <span className="text-[11px] font-bold px-2.5 py-1 rounded-full"
-                      style={{ color: s.color, background: s.bg }}>{s.label}</span>
+                    <Badge 
+                      variant={
+                        withdrawal.status === 'completed' ? 'default' :
+                        withdrawal.status === 'pending' ? 'secondary' : 'destructive'
+                      }
+                    >
+                      {withdrawal.status === 'completed' ? '✅ Terminé' :
+                       withdrawal.status === 'pending' ? '⏳ En cours' : '❌ Échoué'}
+                    </Badge>
                   </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="p-8 text-center">
-              <Clock size={32} className="mx-auto mb-3 text-slate-300" />
-              <p className="text-slate-500 text-sm font-medium">Aucun retrait effectué</p>
-              <p className="text-slate-400 text-xs mt-1">Vos retraits apparaîtront ici</p>
-            </div>
-          )}
-        </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6">
+                <Clock className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <p className="text-slate-500">Aucun retrait effectué</p>
+                <p className="text-xs text-slate-400 mt-1">
+                  Vos retraits apparaîtront ici
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-        {/* Support */}
-        <div className="rounded-2xl p-4 shadow-sm" style={{ background: "white" }}>
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: "rgba(0,136,204,0.1)" }}>
-              <MessageCircle size={16} style={{ color: "#0088cc" }} />
+        {/* Support Contact */}
+        <Card className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950">
+          <CardContent className="p-6">
+            <div className="text-center">
+              <MessageCircle className="w-12 h-12 text-blue-600 dark:text-blue-400 mx-auto mb-3" />
+              <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                Vous avez un retrait non reçu ?
+              </h3>
+              <p className="text-sm text-blue-700 dark:text-blue-300 mb-4">
+                Contactez notre service client
+              </p>
+              <div className="space-y-2">
+                <Button 
+                  asChild
+                  variant="outline"
+                  className="w-full border-blue-300 hover:bg-blue-100 dark:border-blue-600 dark:hover:bg-blue-900"
+                  data-testid="button-contact-telegram"
+                >
+                  <a 
+                    href={telegramSupervisor || 'https://t.me/servicepay_support'}
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                  >
+                    <FaTelegram className="w-4 h-4 mr-2" />
+                    Service client Telegram
+                  </a>
+                </Button>
+              </div>
             </div>
-            <div>
-              <p className="text-slate-700 font-semibold text-sm">Retrait non reçu ?</p>
-              <p className="text-slate-400 text-xs">Contactez le service client</p>
-            </div>
-          </div>
-          <a href={telegramSupervisor || 'https://t.me/servicepay_support'} target="_blank" rel="noopener noreferrer">
-            <button className="w-full rounded-xl py-3 text-sm font-semibold flex items-center justify-center gap-2 transition-all active:scale-95"
-              style={{ background: "rgba(0,136,204,0.07)", color: "#0088cc", border: "1px solid rgba(0,136,204,0.15)" }}
-              data-testid="button-contact-telegram">
-              <FaTelegram />
-              Service client Telegram
-            </button>
-          </a>
-        </div>
+          </CardContent>
+        </Card>
 
       </div>
     </div>
