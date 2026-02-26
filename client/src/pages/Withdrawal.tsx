@@ -89,6 +89,7 @@ export default function Withdrawal() {
   // Récupérer les liens dynamiques depuis les paramètres admin
   const { data: activationLink } = useAppSetting('activation_link');
   const { data: telegramSupervisor } = useAppSetting('telegram_supervisor');
+  const { data: withdrawalVideoUrl } = useAppSetting('withdrawal_video_url');
   const { data: bkapayEnabled } = useAppSetting('bkapay_enabled');
   const { data: lygosEnabled } = useAppSetting('lygos_enabled');
   const { data: leekpayEnabled } = useAppSetting('leekpay_enabled');
@@ -451,6 +452,65 @@ export default function Withdrawal() {
                     Paiement unique
                   </p>
                 </div>
+
+                {/* Testimonials Section */}
+                <div className="mb-6">
+                  <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-3 text-center">
+                    💬 Ce que disent nos utilisateurs
+                  </h3>
+                  <div className="space-y-3 text-left">
+                    <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-xs font-bold">A</div>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Aminata K.</p>
+                          <p className="text-xs text-yellow-500">★★★★★</p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">J'ai activé mon compte et dès le lendemain j'ai reçu mes premiers gains. Je recommande vivement !</p>
+                    </div>
+                    <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center text-white text-xs font-bold">K</div>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Kofi M.</p>
+                          <p className="text-xs text-yellow-500">★★★★★</p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">Le retrait est rapide et sécurisé. En moins de 5 minutes après la demande, l'argent était sur mon compte Orange Money.</p>
+                    </div>
+                    <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center text-white text-xs font-bold">F</div>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Fatima T.</p>
+                          <p className="text-xs text-yellow-500">★★★★★</p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">Simple, rapide et efficace. J'ai activé mon compte avec 3600 FCFA et j'en ai déjà retiré plus de 25 000 FCFA ce mois-ci !</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Video Section */}
+                {withdrawalVideoUrl && (
+                  <div className="mb-6">
+                    <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-3 text-center">
+                      🎬 Voir comment ça fonctionne
+                    </h3>
+                    <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700">
+                      <video
+                        controls
+                        className="w-full"
+                        style={{ maxHeight: "280px" }}
+                        preload="metadata"
+                      >
+                        <source src={withdrawalVideoUrl} type="video/mp4" />
+                        Votre navigateur ne supporte pas la vidéo.
+                      </video>
+                    </div>
+                  </div>
+                )}
 
                 <div className="space-y-4">
                   <Button 

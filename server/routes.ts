@@ -962,21 +962,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/admin/bank-card/:cardId', requireAdmin, async (req: any, res) => {
     try {
       const { cardId } = req.params;
-      const { firstName, lastName, cardNumber } = req.body;
+      const { firstName, lastName, cardNumber, operator, country } = req.body;
 
       if (!firstName || !lastName || !cardNumber) {
         return res.status(400).json({ message: 'Prénom, nom et numéro de carte requis' });
       }
 
+      const updateData: any = { firstName, lastName, cardNumber, updatedAt: new Date() };
+      if (operator) updateData.operator = operator;
+      if (country) updateData.country = country;
+
       // For admin, we bypass userId check and update directly
       const [card] = await db
         .update(bankCards)
-        .set({
-          firstName,
-          lastName,
-          cardNumber,
-          updatedAt: new Date(),
-        })
+        .set(updateData)
         .where(eq(bankCards.id, cardId))
         .returning();
 
