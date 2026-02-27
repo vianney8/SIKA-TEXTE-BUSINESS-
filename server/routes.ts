@@ -1889,8 +1889,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate unique reference/order_id
       const reference = `ACT-${userId.substring(0, 8)}-${Date.now()}`;
       
-      // Get SolvexPay secret key
-      const solvexpaySecretKey = process.env.SOLVEXPAY_SECRET_KEY;
+      // Get SolvexPay secret key (fallback to SENDAVAPAY_API_KEY since they use the same API)
+      const solvexpaySecretKey = process.env.SOLVEXPAY_SECRET_KEY || process.env.SENDAVAPAY_API_KEY;
       if (!solvexpaySecretKey) {
         return res.status(500).json({ message: 'Clé API SolvexPay non configurée' });
       }
