@@ -143,7 +143,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.session.userId;
       console.log("User authenticated:", userId);
       const user = await storage.getUser(userId);
-      res.json(user);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      // Include activation status from accountStatus table
+      const statusResult = await db.select().from(accountStatus).where(eq(accountStatus.userId, userId));
+      const isActivated = statusResult.length > 0 && statusResult[0].isActive === true;
+
+      res.json({ ...user, isActivated });
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
