@@ -4,17 +4,15 @@ import { useAuth } from "@/hooks/useAuth";
 import MobileHeader from "@/components/MobileHeader";
 import HamburgerMenu from "@/components/HamburgerMenu";
 import BottomNavigation from "@/components/BottomNavigation";
-import TransactionCard from "@/components/TransactionCard";
 import TestimonialsSlider from "@/components/TestimonialsSlider";
 import MiddleNotification from "@/components/MiddleNotification";
-import WhatsAppNotification from "@/components/WhatsAppNotification";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Eye, ArrowUpRight, Wallet, Users, Plus } from "lucide-react";
-import { formatFCFA } from "@/lib/utils";
+import { ArrowUpRight, Wallet, TrendingUp, Clock, ChevronRight, Zap, Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAppSetting } from "@/hooks/useAppSettings";
 import { FaTelegram } from "react-icons/fa";
+import { Link } from "wouter";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -23,18 +21,16 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   const { data: telegramSupervisor } = useAppSetting('telegram_supervisor');
   const { data: telegramGroup } = useAppSetting('telegram_group');
-  
+
   const [position, setPosition] = useState({ x: window.innerWidth - 80, y: window.innerHeight - 180 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-
-  // Notification WhatsApp à chaque chargement
 
   const { data: balance } = useQuery({
     queryKey: ["/api/user/balance"],
   });
 
-  const { data: transactions = [] } = useQuery({
+  const { data: transactions = [] } = useQuery<any[]>({
     queryKey: ["/api/transactions"],
   });
 
@@ -71,11 +67,10 @@ export default function Dashboard() {
   }, [isDragging, dragOffset]);
 
   const handlePointage = async () => {
-    // Check if user already did pointage today
     const userId = (user as any)?.id || (user as any)?.sub || 'anonymous';
     const lastPointageDate = localStorage.getItem(`lastPointage_${userId}`);
     const today = new Date().toDateString();
-    
+
     if (lastPointageDate === today) {
       toast({
         title: "Pointage déjà effectué",
@@ -84,10 +79,9 @@ export default function Dashboard() {
       });
       return;
     }
-    
-    // Generate random positive bonus between 300-800 FCFA
+
     const amount = Math.floor(Math.random() * (800 - 300 + 1)) + 300;
-    
+
     try {
       const response = await fetch("/api/transactions/pointage", {
         method: "POST",
@@ -95,7 +89,7 @@ export default function Dashboard() {
         body: JSON.stringify({ amount }),
         credentials: "include",
       });
-      
+
       if (response.ok) {
         try {
           const data = await response.json();
@@ -104,10 +98,9 @@ export default function Dashboard() {
             title: "Pointage réussi !",
             description: `Vous avez gagné ${data.amount} FCFA`
           });
-          // Auto-update balance and transactions without reload
           queryClient.invalidateQueries({ queryKey: ["/api/user/balance"] });
           queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
-        } catch (error) {
+        } catch {
           localStorage.setItem(`lastPointage_${userId}`, today);
           toast({
             title: "Pointage réussi !",
@@ -137,88 +130,10 @@ export default function Dashboard() {
     }
   };
 
-  const actionButtons = [
-    {
-      icon: ArrowUpRight,
-      label: "Transfert",
-      href: "/transfer",
-      bgColor: "bg-blue-100",
-      iconColor: "text-primary",
-      testId: "button-transfer",
-    },
-    {
-      icon: Wallet,
-      label: "Retrait",
-      href: "/withdrawal",
-      bgColor: "bg-orange-100",
-      iconColor: "text-accent",
-      testId: "button-withdrawal",
-    },
-  ];
-
-  const getTransactionIcon = (type: string) => {
-    switch (type) {
-      case "deposit":
-      case "pointage":
-        return "fas fa-check-circle";
-      case "transfer":
-        return "fas fa-exchange-alt";
-      case "recharge":
-        return "fas fa-plus";
-      case "payment":
-        return "fas fa-shopping-cart";
-      default:
-        return "fas fa-circle";
-    }
-  };
-
-  const getTransactionIconBg = (type: string) => {
-    switch (type) {
-      case "deposit":
-      case "pointage":
-        return "bg-yellow-100";
-      case "transfer":
-        return "bg-blue-100";
-      case "recharge":
-        return "bg-orange-100";
-      case "payment":
-        return "bg-blue-100";
-      default:
-        return "bg-gray-100";
-    }
-  };
-
-  const getTransactionIconColor = (type: string) => {
-    switch (type) {
-      case "deposit":
-      case "pointage":
-        return "text-yellow-600";
-      case "transfer":
-        return "text-primary";
-      case "recharge":
-        return "text-accent";
-      case "payment":
-        return "text-primary";
-      default:
-        return "text-gray-600";
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "completed":
-        return <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">Payé</span>;
-      case "pending":
-        return <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full">En attente</span>;
-      case "failed":
-        return <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full">Échoué</span>;
-      default:
-        return <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full">Inconnu</span>;
-    }
-  };
+  const transactionCount = Array.isArray(transactions) ? transactions.length : 0;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gray-50">
       <MobileHeader
         user={user}
         balance={(balance as any)?.balance || 0}
@@ -232,59 +147,117 @@ export default function Dashboard() {
         user={user}
       />
 
-      <main className="pb-20">
-        <div className="p-6">
+      <main className="pb-24">
+        <div className="p-4 space-y-4">
           {/* Action Buttons */}
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            {actionButtons.map((button) => (
-              <Button
-                key={button.label}
-                asChild
-                variant="ghost"
-                className="bg-white rounded-xl p-6 shadow-sm border border-border hover:shadow-md transition-shadow h-auto flex-col space-y-3"
-                data-testid={button.testId}
-              >
-                <a href={button.href}>
-                  <div className={`w-12 h-12 ${button.bgColor} rounded-full flex items-center justify-center`}>
-                    <button.icon className={`${button.iconColor} text-lg`} />
+          <div className="grid grid-cols-2 gap-3">
+            <Link href="/transfer">
+              <Card className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer active:scale-95 transition-transform"
+                data-testid="button-transfer">
+                <div className="flex flex-col items-start gap-3">
+                  <div className="w-11 h-11 bg-green-100 rounded-full flex items-center justify-center">
+                    <ArrowUpRight className="text-green-600" size={20} />
                   </div>
-                  <div className="text-center font-medium text-sm">{button.label}</div>
-                </a>
-              </Button>
-            ))}
+                  <div>
+                    <div className="font-semibold text-gray-800 text-sm">Transfert</div>
+                    <div className="text-gray-400 text-xs">Envoyer</div>
+                  </div>
+                </div>
+              </Card>
+            </Link>
+
+            <Link href="/withdrawal">
+              <Card className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer active:scale-95 transition-transform"
+                data-testid="button-withdrawal">
+                <div className="flex flex-col items-start gap-3">
+                  <div className="w-11 h-11 bg-orange-100 rounded-full flex items-center justify-center">
+                    <Wallet className="text-orange-500" size={20} />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-gray-800 text-sm">Retrait</div>
+                    <div className="text-gray-400 text-xs">Retirer</div>
+                  </div>
+                </div>
+              </Card>
+            </Link>
           </div>
 
-          {/* Earn Points Button */}
-          <Button 
+          {/* Pointage quotidien Banner */}
+          <Card
+            className="rounded-2xl border-0 shadow-md overflow-hidden cursor-pointer active:scale-95 transition-transform"
+            style={{ background: "linear-gradient(135deg, #2e7d32 0%, #388e3c 60%, #43a047 100%)" }}
             onClick={handlePointage}
-            className="w-full bg-gradient-to-r from-red-400 to-pink-500 hover:from-red-500 hover:to-pink-600 text-white font-bold py-3 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95 mb-8"
             data-testid="button-pointage"
           >
-            Faire du pointage
-          </Button>
-
-          {/* Central Notification Banner */}
-          <Card className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-xl shadow-lg border-0 overflow-hidden">
-            <div className="p-6 text-center relative">
-              <div className="absolute inset-0 bg-white/5 backdrop-blur-sm"></div>
-              <div className="relative z-10">
-                <h2 className="text-2xl font-bold mb-2 text-white">SIKA TEXTE BUSINESS</h2>
-                <p className="text-emerald-100 text-lg">Plateforme Européenne</p>
+            <div className="p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                  <Zap className="text-white" size={20} />
+                </div>
+                <div>
+                  <div className="text-white font-bold text-sm">Pointage quotidien</div>
+                  <div className="text-green-200 text-xs">Gagnez entre 300 – 800 FCFA</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 bg-yellow-400 text-yellow-900 text-xs font-bold px-3 py-1.5 rounded-full shadow">
+                <Star size={12} />
+                Bonus
               </div>
             </div>
           </Card>
 
-          {/* Telegram Button before testimonials */}
-          <div className="my-8 text-center">
+          {/* Stats Cards */}
+          <div className="grid grid-cols-2 gap-3">
+            <Link href="/transactions">
+              <Card className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="w-9 h-9 bg-purple-100 rounded-full flex items-center justify-center">
+                    <TrendingUp className="text-purple-500" size={18} />
+                  </div>
+                  <ChevronRight className="text-gray-300" size={16} />
+                </div>
+                <div className="text-2xl font-bold text-gray-800">{transactionCount}</div>
+                <div className="text-gray-400 text-xs mt-1">Transactions</div>
+              </Card>
+            </Link>
+
+            <Link href="/transactions">
+              <Card className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="w-9 h-9 bg-yellow-100 rounded-full flex items-center justify-center">
+                    <Clock className="text-yellow-500" size={18} />
+                  </div>
+                  <ChevronRight className="text-gray-300" size={16} />
+                </div>
+                <div className="text-2xl font-bold text-gray-800">{transactionCount}</div>
+                <div className="text-gray-400 text-xs mt-1">Total opérations</div>
+              </Card>
+            </Link>
+          </div>
+
+          {/* Platform Banner */}
+          <Card className="rounded-2xl border-0 shadow-md overflow-hidden"
+            style={{ background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%)" }}>
+            <div className="p-5">
+              <div className="flex items-center gap-1 mb-1">
+                <Star className="text-yellow-400 fill-yellow-400" size={14} />
+                <span className="text-yellow-400 text-xs font-bold tracking-widest uppercase">Plateforme Européenne</span>
+              </div>
+              <div className="text-white text-xl font-black tracking-wide">SIKA TEXTE</div>
+            </div>
+          </Card>
+
+          {/* Telegram Group Button */}
+          <div className="text-center py-2">
             <a
               href={telegramGroup || 'https://t.me/+A1QL2HAVBkMyMDA0'}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center space-x-2 bg-[#0088cc] text-white px-6 py-3 rounded-lg hover:bg-[#0077b3] transition-colors shadow-md"
+              className="inline-flex items-center space-x-2 bg-[#0088cc] text-white px-6 py-3 rounded-xl hover:bg-[#0077b3] transition-colors shadow-md"
               data-testid="button-telegram-group"
             >
               <FaTelegram className="text-xl" />
-              <span className="font-medium">Rejoindre notre groupe Telegram</span>
+              <span className="font-medium text-sm">Rejoindre notre groupe Telegram</span>
             </a>
           </div>
 
@@ -295,7 +268,7 @@ export default function Dashboard() {
 
       <BottomNavigation currentPage="home" />
       <MiddleNotification />
-      
+
       {/* Telegram Floating Button */}
       <a
         href={telegramSupervisor || 'https://t.me/servicepay_support'}
@@ -313,11 +286,9 @@ export default function Dashboard() {
         className="group"
         data-testid="button-telegram-float"
       >
-        <div 
+        <div
           className="w-16 h-16 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center shadow-lg hover:shadow-2xl hover:scale-110 transition-all"
-          style={{
-            boxShadow: '0 4px 12px rgba(59, 130, 246, 0.4)'
-          }}
+          style={{ boxShadow: '0 4px 12px rgba(59, 130, 246, 0.4)' }}
         >
           <FaTelegram className="text-white text-3xl" />
         </div>
