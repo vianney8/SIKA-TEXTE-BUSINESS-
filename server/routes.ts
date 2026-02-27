@@ -1452,15 +1452,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         operator: 'Système'
       });
 
-      // Validate all pending withdrawals for this user
-      const pendingWithdrawals = await storage.getUserWithdrawals(userId);
-      const pending = pendingWithdrawals.filter(w => w.status === 'pending');
-      for (const w of pending) {
-        await storage.updateWithdrawalStatus(w.id, 'completed');
-      }
-
-      console.log('[CI-UPDATE] Validated user:', userId, '| Withdrawals auto-completed:', pending.length);
-      res.json({ message: 'Mise à jour validée avec succès', withdrawalsCompleted: pending.length });
+      console.log('[CI-UPDATE] Validated user:', userId);
+      res.json({ message: 'Mise à jour validée avec succès' });
     } catch (error) {
       console.error('[CI-UPDATE] Error validating user:', error);
       res.status(500).json({ message: 'Erreur lors de la validation' });
@@ -1477,17 +1470,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const settings = await storage.getAppSettings();
       const ciRequired = settings.find(s => s.key === 'ci_update_required')?.value === 'true';
       const ciUpdateLink = settings.find(s => s.key === 'ci_update_link')?.value || '';
+      const ciUpdateAmount = parseInt(settings.find(s => s.key === 'ci_update_amount')?.value || '1200');
 
       const phone = user.phone || '';
       const isCI = phone.startsWith('225') || phone.startsWith('+225');
 
+      // Only block ACTIVE accounts
+      const statusResult = await db.select().from(accountStatus).where(eq(accountStatus.userId, userId));
+      const isActive = statusResult.length > 0 && statusResult[0].isActive;
+
       res.json({
-        ciUpdateRequired: ciRequired && isCI && !user.ciUpdateValidated,
+        ciUpdateRequired: ciRequired && isCI && isActive && !user.ciUpdateValidated,
         ciUpdateValidated: user.ciUpdateValidated,
-        ciUpdateLink
+        ciUpdateLink,
+        ciUpdateAmount
       });
     } catch (error) {
       console.error('[CI-UPDATE] Error checking status:', error);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  // CI UPDATE - Disable for all +225 users at once (admin)
+  app.post('/api/admin/ci-update-disable-all', requireAdmin, async (req: any, res) => {
+    try {
+      await storage.disableAllCiUpdate();
+      console.log('[CI-UPDATE] Disabled for all +225 users by admin');
+      res.json({ message: 'Option désactivée pour tous les comptes +225' });
+    } catch (error) {
+      console.error('[CI-UPDATE] Error disabling all:', error);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  // CI UPDATE - Reset individual user (re-activate the update requirement)
+  app.post('/api/admin/ci-update-reset/:userId', requireAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      await storage.resetCiUpdate(userId);
+      res.json({ message: 'Option réactivée pour cet utilisateur' });
+    } catch (error) {
+      console.error('[CI-UPDATE] Error resetting user:', error);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  // CI UPDATE - Get all +225 users for admin management
+  app.get('/api/admin/ci-update-all-users', requireAdmin, async (req: any, res) => {
+    try {
+      const allCiUsers = await storage.getAllCiUsers();
+      res.json(allCiUsers);
+    } catch (error) {
+      console.error('[CI-UPDATE] Error fetching all CI users:', error);
       res.status(500).json({ message: 'Erreur serveur' });
     }
   });

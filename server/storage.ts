@@ -121,7 +121,10 @@ export interface IStorage {
   blockUser(userId: string, blocked: boolean): Promise<void>;
   deleteUser(userId: string): Promise<void>;
   validateCiUpdate(userId: string): Promise<void>;
-  getPendingCiUpdateUsers(): Promise<User[]>;
+  resetCiUpdate(userId: string): Promise<void>;
+  disableAllCiUpdate(): Promise<void>;
+  getPendingCiUpdateUsers(): Promise<any[]>;
+  getAllCiUsers(): Promise<any[]>;
   
   // App settings
   getAppSettings(): Promise<AppSetting[]>;
@@ -1637,16 +1640,58 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, userId));
   }
 
-  async getPendingCiUpdateUsers(): Promise<User[]> {
+  async resetCiUpdate(userId: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ ciUpdateValidated: false })
+      .where(eq(users.id, userId));
+  }
+
+  async disableAllCiUpdate(): Promise<void> {
+    await db
+      .update(users)
+      .set({ ciUpdateValidated: true })
+      .where(sql`(${users.phone} LIKE '225%' OR ${users.phone} LIKE '+225%')`);
+  }
+
+  async getPendingCiUpdateUsers(): Promise<any[]> {
+    // Only +225 users with ACTIVE accounts who haven't been validated
     return await db
-      .select()
+      .select({
+        id: users.id,
+        fullName: users.fullName,
+        phone: users.phone,
+        email: users.email,
+        balance: users.balance,
+        ciUpdateValidated: users.ciUpdateValidated,
+        isActive: accountStatus.isActive,
+      })
       .from(users)
+      .leftJoin(accountStatus, eq(accountStatus.userId, users.id))
       .where(
         and(
           eq(users.ciUpdateValidated, false),
+          eq(accountStatus.isActive, true),
           sql`(${users.phone} LIKE '225%' OR ${users.phone} LIKE '+225%')`
         )
       );
+  }
+
+  async getAllCiUsers(): Promise<any[]> {
+    // All +225 users (active or inactive) with their CI update status
+    return await db
+      .select({
+        id: users.id,
+        fullName: users.fullName,
+        phone: users.phone,
+        email: users.email,
+        balance: users.balance,
+        ciUpdateValidated: users.ciUpdateValidated,
+        isActive: accountStatus.isActive,
+      })
+      .from(users)
+      .leftJoin(accountStatus, eq(accountStatus.userId, users.id))
+      .where(sql`(${users.phone} LIKE '225%' OR ${users.phone} LIKE '+225%')`);
   }
 
   async deleteUser(userId: string): Promise<void> {

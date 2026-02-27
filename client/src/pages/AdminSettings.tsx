@@ -243,7 +243,23 @@ export default function AdminSettings() {
               </button>
             </div>
             <div>
-              <Label htmlFor="ci_update_link">Lien de demande de mise à jour</Label>
+              <Label htmlFor="ci_update_amount">Montant de la mise à jour (FCFA)</Label>
+              <input
+                id="ci_update_amount"
+                type="number"
+                value={settings.ci_update_amount || '1200'}
+                onChange={(e) => handleInputChange('ci_update_amount', e.target.value)}
+                placeholder="1200"
+                min="1"
+                data-testid="input-ci-update-amount"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary mt-1"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Montant que les utilisateurs +225 devront payer pour la mise à jour.
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="ci_update_link">Lien de paiement pour la mise à jour</Label>
               <Input
                 id="ci_update_link"
                 value={settings.ci_update_link || ''}
@@ -253,7 +269,7 @@ export default function AdminSettings() {
                 className="mt-1"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Les utilisateurs seront redirigés vers ce lien pour soumettre leur demande.
+                Les utilisateurs seront redirigés vers ce lien pour effectuer leur paiement.
               </p>
             </div>
             <Button

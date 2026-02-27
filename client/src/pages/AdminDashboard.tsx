@@ -563,11 +563,22 @@ export default function AdminDashboard() {
     },
   });
 
-  // CI Update - pending users query
+  // CI Update - pending users query (active +225 only)
   const { data: ciPendingUsers = [], refetch: refetchCiPending } = useQuery<any[]>({
     queryKey: ['/api/admin/ci-update-pending'],
     refetchInterval: 15000,
   });
+
+  // CI Update - all +225 users for individual management
+  const [showCiSearch, setShowCiSearch] = useState(false);
+  const [ciSearchQuery, setCiSearchQuery] = useState("");
+  const { data: allCiUsers = [], refetch: refetchAllCi } = useQuery<any[]>({
+    queryKey: ['/api/admin/ci-update-all-users'],
+    enabled: showCiSearch,
+  });
+  const filteredCiUsers = allCiUsers.filter((u: any) =>
+    !ciSearchQuery || u.fullName?.toLowerCase().includes(ciSearchQuery.toLowerCase()) || u.phone?.includes(ciSearchQuery)
+  );
 
   // CI Update - validate mutation
   const ciValidateMutation = useMutation({
@@ -575,12 +586,45 @@ export default function AdminDashboard() {
       const res = await apiRequest('POST', `/api/admin/ci-update-validate/${userId}`, {});
       return res.json();
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       refetchCiPending();
-      toast({ title: "✓ Mise à jour validée", description: `${data.withdrawalsCompleted} retrait(s) automatiquement validé(s)` });
+      refetchAllCi();
+      toast({ title: "✓ Mise à jour validée", description: "Le compte a été débloqué avec succès." });
     },
     onError: () => {
       toast({ title: "Erreur", description: "Erreur lors de la validation", variant: "destructive" });
+    }
+  });
+
+  // CI Update - reset individual user (re-activate requirement)
+  const ciResetMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await apiRequest('POST', `/api/admin/ci-update-reset/${userId}`, {});
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchCiPending();
+      refetchAllCi();
+      toast({ title: "✓ Option réactivée", description: "L'utilisateur devra effectuer la mise à jour." });
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Erreur lors de la réactivation", variant: "destructive" });
+    }
+  });
+
+  // CI Update - disable for ALL +225 users at once
+  const ciDisableAllMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', '/api/admin/ci-update-disable-all', {});
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchCiPending();
+      refetchAllCi();
+      toast({ title: "✓ Option désactivée pour tous", description: "Tous les comptes +225 ont retrouvé l'accès." });
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Erreur lors de la désactivation globale", variant: "destructive" });
     }
   });
 
@@ -1124,36 +1168,128 @@ export default function AdminDashboard() {
         </div>
 
 
-        {/* CI Update Section - Pending +225 users */}
-        {ciPendingUsers.length > 0 && (
-          <Card className="mb-6 border-orange-200">
-            <CardHeader className="bg-orange-50 rounded-t-lg">
+        {/* CI Update Section */}
+        <Card className="mb-6 border-orange-200">
+          <CardHeader className="bg-orange-50 rounded-t-lg">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <CardTitle className="flex items-center gap-2 text-orange-700">
                 <RefreshCw className="h-5 w-5" />
-                Demandes de mise à jour — +225 ({ciPendingUsers.length})
+                Mise à jour +225
+                {ciPendingUsers.length > 0 && (
+                  <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 ml-1">
+                    {ciPendingUsers.length} en attente
+                  </span>
+                )}
               </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-3">
-              {ciPendingUsers.map((u: any) => (
-                <div key={u.id} className="flex items-center justify-between p-3 border rounded-lg bg-white">
-                  <div>
-                    <p className="font-medium text-sm">{u.fullName || 'Sans nom'}</p>
-                    <p className="text-xs text-muted-foreground">{u.phone}</p>
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-orange-400 text-orange-700 hover:bg-orange-50"
+                  onClick={() => { setShowCiSearch(!showCiSearch); }}
+                >
+                  <Search className="h-3 w-3 mr-1" />
+                  Gérer comptes
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  disabled={ciDisableAllMutation.isPending}
+                  onClick={() => {
+                    if (confirm("Désactiver la mise à jour pour TOUS les comptes +225 ? Ils auront tous accès immédiatement.")) {
+                      ciDisableAllMutation.mutate();
+                    }
+                  }}
+                >
+                  {ciDisableAllMutation.isPending ? "..." : "Désactiver pour tous"}
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-4">
+            {/* Pending validations */}
+            {ciPendingUsers.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-2">Aucune demande en attente.</p>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Comptes actifs à valider</p>
+                {ciPendingUsers.map((u: any) => (
+                  <div key={u.id} className="flex items-center justify-between p-3 border rounded-lg bg-white">
+                    <div>
+                      <p className="font-medium text-sm">{u.fullName || 'Sans nom'}</p>
+                      <p className="text-xs text-muted-foreground">{u.phone}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => ciValidateMutation.mutate(u.id)}
+                      disabled={ciValidateMutation.isPending}
+                      className="bg-green-500 hover:bg-green-600 text-white"
+                    >
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Valider
+                    </Button>
                   </div>
-                  <Button
-                    size="sm"
-                    onClick={() => ciValidateMutation.mutate(u.id)}
-                    disabled={ciValidateMutation.isPending}
-                    className="bg-green-500 hover:bg-green-600 text-white"
-                  >
-                    <CheckCircle className="h-3 w-3 mr-1" />
-                    Valider
-                  </Button>
+                ))}
+              </div>
+            )}
+
+            {/* Individual search & management */}
+            {showCiSearch && (
+              <div className="border-t pt-4 space-y-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Rechercher un compte +225</p>
+                <Input
+                  placeholder="Nom ou numéro de téléphone..."
+                  value={ciSearchQuery}
+                  onChange={(e) => setCiSearchQuery(e.target.value)}
+                  className="text-sm"
+                />
+                {filteredCiUsers.length === 0 && ciSearchQuery && (
+                  <p className="text-sm text-muted-foreground text-center">Aucun résultat.</p>
+                )}
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {filteredCiUsers.map((u: any) => (
+                    <div key={u.id} className="flex items-center justify-between p-3 border rounded-lg bg-white text-sm">
+                      <div>
+                        <p className="font-medium">{u.fullName || 'Sans nom'}</p>
+                        <p className="text-xs text-muted-foreground">{u.phone}</p>
+                        <div className="flex gap-1 mt-1">
+                          <span className={`text-xs px-1.5 py-0.5 rounded ${u.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                            {u.isActive ? 'Actif' : 'Inactif'}
+                          </span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded ${u.ciUpdateValidated ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
+                            {u.ciUpdateValidated ? 'MàJ validée' : 'MàJ requise'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        {!u.ciUpdateValidated ? (
+                          <Button
+                            size="sm"
+                            onClick={() => ciValidateMutation.mutate(u.id)}
+                            disabled={ciValidateMutation.isPending}
+                            className="bg-green-500 hover:bg-green-600 text-white text-xs"
+                          >
+                            Valider
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => ciResetMutation.mutate(u.id)}
+                            disabled={ciResetMutation.isPending}
+                            className="border-orange-400 text-orange-600 text-xs"
+                          >
+                            Réactiver
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </CardContent>
-          </Card>
-        )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Pending Withdrawals Section */}
         <Card className="mb-6">
