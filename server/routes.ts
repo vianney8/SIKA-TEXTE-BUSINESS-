@@ -1973,6 +1973,235 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // SENDAVAPAY - Activation Payment (Passerelle 5)
+  app.post('/api/activation/init-payment-sendavapay', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const user = await storage.getUser(userId);
+
+      if (!user) {
+        return res.status(404).json({ message: 'Utilisateur non trouvé' });
+      }
+
+      const statusResult = await db.select().from(accountStatus).where(eq(accountStatus.userId, userId));
+      if (statusResult.length > 0 && statusResult[0].isActive) {
+        return res.status(400).json({ message: 'Votre compte est déjà activé' });
+      }
+
+      const settings = await storage.getAppSettings();
+      const activationSetting = settings.find(s => s.key === 'activation_amount');
+      const activationAmount = parseInt(activationSetting?.value || '3600');
+
+      const reference = `SENDA-${userId.substring(0, 8)}-${Date.now()}`;
+
+      const sendavapayApiKey = process.env.SENDAVAPAY_API_KEY;
+      if (!sendavapayApiKey) {
+        return res.status(500).json({ message: 'Clé API SendavaPay non configurée' });
+      }
+
+      await db.insert(bkapayPayments).values({
+        id: crypto.randomUUID(),
+        userId: userId,
+        amount: activationAmount.toString(),
+        reference: reference,
+        status: 'pending',
+        createdAt: new Date()
+      });
+
+      const domain = process.env.APP_DOMAIN || 'sikatexte.site';
+      const encodedRef = encodeURIComponent(reference);
+      const returnUrl = `https://${domain}/activation-success?ref=${encodedRef}&status=success`;
+
+      console.log('[SENDAVAPAY-INIT] ===== PAYMENT INITIATED =====');
+      console.log('[SENDAVAPAY-INIT] User ID:', userId);
+      console.log('[SENDAVAPAY-INIT] Reference:', reference);
+      console.log('[SENDAVAPAY-INIT] Amount:', activationAmount);
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+
+      const apiResponse = await fetch('https://sendavapay.com/api/v1/create-payment', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${sendavapayApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          amount: activationAmount,
+          currency: 'XOF',
+          description: 'Activation compte Sika Texte',
+          externalReference: reference,
+          customerEmail: user.email || undefined,
+          customerPhone: user.phone || undefined,
+          redirectUrl: returnUrl
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeout);
+
+      if (!apiResponse.ok) {
+        const errorText = await apiResponse.text();
+        console.error('[SENDAVAPAY-INIT] API Error:', apiResponse.status, errorText);
+        return res.status(500).json({ message: 'Erreur lors de la création du paiement SendavaPay' });
+      }
+
+      const apiData = await apiResponse.json();
+      console.log('[SENDAVAPAY-INIT] Response:', apiData);
+
+      if (!apiData.success || !apiData.data?.paymentUrl) {
+        console.error('[SENDAVAPAY-INIT] Invalid response:', apiData);
+        return res.status(502).json({ message: 'Réponse invalide de SendavaPay - lien de paiement manquant' });
+      }
+
+      await db.update(bkapayPayments)
+        .set({ redirectUrl: apiData.data.paymentUrl })
+        .where(eq(bkapayPayments.reference, reference));
+
+      res.json({
+        redirectUrl: apiData.data.paymentUrl,
+        reference,
+        amount: activationAmount,
+        paymentReference: apiData.data.reference,
+        gateway: 'sendavapay'
+      });
+    } catch (error) {
+      console.error('[SENDAVAPAY-INIT] Error:', error);
+      res.status(500).json({ message: 'Erreur lors de l\'initiation du paiement' });
+    }
+  });
+
+  // SENDAVAPAY Webhook - Receive payment notifications
+  app.post('/api/webhook/sendavapay', async (req: any, res) => {
+    try {
+      const crypto = require('crypto');
+
+      console.log('[SENDAVAPAY-WEBHOOK] ===== WEBHOOK RECEIVED =====');
+
+      const signature = req.headers['x-sendavapay-signature'] as string;
+      const webhookSecret = process.env.SENDAVAPAY_WEBHOOK_SECRET;
+
+      if (webhookSecret && signature) {
+        const payload = JSON.stringify(req.body);
+        const expectedSignature = crypto
+          .createHmac('sha256', webhookSecret)
+          .update(payload)
+          .digest('hex');
+
+        if (signature !== expectedSignature) {
+          console.log('[SENDAVAPAY-WEBHOOK] ✗ INVALID SIGNATURE - Rejecting');
+          return res.status(401).json({ error: 'Signature invalide' });
+        }
+        console.log('[SENDAVAPAY-WEBHOOK] ✓ Signature VERIFIED');
+      } else {
+        console.log('[SENDAVAPAY-WEBHOOK] WARNING: No signature check (secret or header missing)');
+      }
+
+      const {
+        event,
+        transactionId,
+        externalReference,
+        amount,
+        status,
+        customerEmail,
+        customerPhone,
+        customerName,
+        operator,
+        description
+      } = req.body;
+
+      console.log('[SENDAVAPAY-WEBHOOK] Event:', event);
+      console.log('[SENDAVAPAY-WEBHOOK] External Reference:', externalReference);
+      console.log('[SENDAVAPAY-WEBHOOK] Amount:', amount, '| Status:', status);
+
+      let payment = null;
+
+      if (externalReference) {
+        const payments = await db.select().from(bkapayPayments)
+          .where(eq(bkapayPayments.reference, externalReference));
+        payment = payments[0];
+      }
+
+      if (!payment && description) {
+        const refMatch = description.match(/SENDA-[a-zA-Z0-9]+-\d+/);
+        if (refMatch) {
+          const payments = await db.select().from(bkapayPayments)
+            .where(eq(bkapayPayments.reference, refMatch[0]));
+          payment = payments[0];
+        }
+      }
+
+      if (!payment && amount) {
+        const recentPayments = await db.select().from(bkapayPayments)
+          .where(and(
+            eq(bkapayPayments.amount, amount.toString()),
+            or(
+              eq(bkapayPayments.status, 'pending'),
+              eq(bkapayPayments.status, 'awaiting_verification')
+            )
+          ))
+          .orderBy(desc(bkapayPayments.createdAt))
+          .limit(1);
+        payment = recentPayments[0];
+      }
+
+      if (!payment) {
+        console.log('[SENDAVAPAY-WEBHOOK] Payment not found');
+        return res.status(404).json({ error: 'Payment not found' });
+      }
+
+      if (payment.status === 'completed') {
+        return res.json({ received: true, message: 'Already processed' });
+      }
+
+      const isCompleted = (event === 'payment.completed' || status === 'completed') && status !== 'failed';
+      const isFailed = event === 'payment.failed' || status === 'failed';
+
+      if (isCompleted) {
+        const activationAmount = parseFloat(payment.amount);
+
+        await db.update(bkapayPayments)
+          .set({ status: 'completed', completedAt: new Date() })
+          .where(eq(bkapayPayments.id, payment.id));
+
+        await storage.updateUserBalance(payment.userId, activationAmount);
+
+        await storage.createTransaction({
+          userId: payment.userId,
+          type: 'recharge',
+          amount: activationAmount.toString(),
+          description: `Dépôt via SendavaPay`,
+          status: 'completed',
+          reference: payment.reference,
+          operator: operator || 'SendavaPay'
+        });
+
+        await storage.activateAccount(payment.userId);
+
+        console.log('[SENDAVAPAY-WEBHOOK] ✓ PAYMENT SUCCESS - Account activated for user:', payment.userId);
+
+        return res.json({
+          received: true,
+          message: 'Payment successful - account activated',
+          activated: true,
+          balanceCredited: activationAmount,
+          userId: payment.userId
+        });
+      } else if (isFailed) {
+        await db.update(bkapayPayments)
+          .set({ status: 'failed' })
+          .where(eq(bkapayPayments.id, payment.id));
+
+        return res.json({ received: true, message: 'Payment failed', activated: false });
+      } else {
+        return res.json({ received: true, message: 'Event received but not processed', activated: false });
+      }
+    } catch (error) {
+      console.error('[SENDAVAPAY-WEBHOOK] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // LeekPay Webhook - Receive payment notifications
   app.post('/api/webhook/leekpay', async (req: any, res) => {
     try {

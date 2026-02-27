@@ -97,10 +97,13 @@ export default function Withdrawal() {
   const { data: leekpayName } = useAppSetting('leekpay_name');
   const { data: solvexpayEnabled } = useAppSetting('solvexpay_enabled');
   const { data: solvexpayName } = useAppSetting('solvexpay_name');
+  const { data: sendavapayEnabled } = useAppSetting('sendavapay_enabled');
+  const { data: sendavapayName } = useAppSetting('sendavapay_name');
   const isBkapayActive = bkapayEnabled === undefined || bkapayEnabled === '' || bkapayEnabled !== 'false';
   const isLygosActive = lygosEnabled === undefined || lygosEnabled === '' || lygosEnabled !== 'false';
   const isLeekpayActive = leekpayEnabled === undefined || leekpayEnabled === '' || leekpayEnabled !== 'false';
   const isSolvexpayActive = solvexpayEnabled === undefined || solvexpayEnabled === '' || solvexpayEnabled !== 'false';
+  const isSendavapayActive = sendavapayEnabled === 'true';
 
   const { data: withdrawalData, refetch: refetchWithdrawalData } = useQuery<WithdrawalData>({
     queryKey: ['/api/withdrawal'],
@@ -169,11 +172,12 @@ export default function Withdrawal() {
     },
   });
 
-  // Payment gateways - Lygos, BKAPay, LeekPay and SolvexPay
+  // Payment gateways - Lygos, BKAPay, LeekPay, SolvexPay and SendavaPay
   const [isLygosLoading, setIsLygosLoading] = useState(false);
   const [isBkapayLoading, setIsBkapayLoading] = useState(false);
   const [isLeekpayLoading, setIsLeekpayLoading] = useState(false);
   const [isSolvexpayLoading, setIsSolvexpayLoading] = useState(false);
+  const [isSendavapayLoading, setIsSendavapayLoading] = useState(false);
   
   // Lygos payment handler
   const handlePayLygos = async () => {
@@ -360,6 +364,53 @@ export default function Withdrawal() {
         variant: "destructive",
       });
       setIsSolvexpayLoading(false);
+    }
+  };
+
+  // SendavaPay payment handler
+  const handlePaySendavapay = async () => {
+    setIsSendavapayLoading(true);
+    try {
+      console.log('[SENDAVAPAY] Initiating activation payment...');
+
+      const response = await fetch("/api/activation/init-payment-sendavapay", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[SENDAVAPAY] Init payment failed:', response.status, errorData);
+        throw new Error(errorData.message || "Erreur lors de l'initiation du paiement");
+      }
+
+      const data = await response.json();
+      console.log('[SENDAVAPAY] Payment init response:', data);
+
+      if (!data.redirectUrl) {
+        throw new Error("URL de paiement non reçue");
+      }
+
+      if (data.reference) {
+        localStorage.setItem('pendingActivationRef', data.reference);
+        localStorage.setItem('pendingActivationTime', Date.now().toString());
+      }
+
+      toast({
+        title: "Redirection vers SendavaPay",
+        description: `Paiement de ${data.amount} FCFA en cours...`,
+      });
+
+      window.location.href = data.redirectUrl;
+    } catch (error: any) {
+      console.error('[SENDAVAPAY] Payment error:', error);
+      toast({
+        title: "Erreur",
+        description: error.message || "Impossible d'initier le paiement",
+        variant: "destructive",
+      });
+      setIsSendavapayLoading(false);
     }
   };
 
@@ -567,7 +618,7 @@ export default function Withdrawal() {
                   setShowPaymentDialog(false);
                   handlePaySolvexpay();
                 }}
-                disabled={isLygosLoading || isBkapayLoading || isLeekpayLoading || isSolvexpayLoading}
+                disabled={isLygosLoading || isBkapayLoading || isLeekpayLoading || isSolvexpayLoading || isSendavapayLoading}
                 size="lg" 
                 className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-semibold py-5"
               >
@@ -575,7 +626,22 @@ export default function Withdrawal() {
               </Button>
             )}
 
-            {!isBkapayActive && !isLygosActive && !isLeekpayActive && !isSolvexpayActive && (
+            {isSendavapayActive && (
+              <Button
+                data-testid="button-payment-sendavapay"
+                onClick={() => {
+                  setShowPaymentDialog(false);
+                  handlePaySendavapay();
+                }}
+                disabled={isLygosLoading || isBkapayLoading || isLeekpayLoading || isSolvexpayLoading || isSendavapayLoading}
+                size="lg"
+                className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold py-5"
+              >
+                {isSendavapayLoading ? "Chargement..." : sendavapayName || "Passerelle 5 - SendavaPay"}
+              </Button>
+            )}
+
+            {!isBkapayActive && !isLygosActive && !isLeekpayActive && !isSolvexpayActive && !isSendavapayActive && (
               <div className="text-center py-6">
                 <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
                   <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto mb-2" />

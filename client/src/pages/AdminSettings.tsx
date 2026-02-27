@@ -60,10 +60,12 @@ export default function AdminSettings() {
       queryClient.invalidateQueries({ queryKey: ['/api/settings/lygos_enabled'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/leekpay_enabled'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/solvexpay_enabled'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/sendavapay_enabled'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/bkapay_name'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/lygos_name'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/leekpay_name'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/solvexpay_name'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/sendavapay_name'] });
     },
     onError: (error: any) => {
       toast({
@@ -379,6 +381,49 @@ export default function AdminSettings() {
                   className="mt-1"
                 />
               </div>
+            </div>
+
+            {/* SendavaPay */}
+            <div className="space-y-3 p-4 border rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 flex items-center justify-center text-white font-bold text-sm">
+                    5
+                  </div>
+                  <div>
+                    <p className="font-medium">SendavaPay</p>
+                    <p className="text-sm text-muted-foreground">
+                      {settings.sendavapay_enabled === 'true' ? '✓ Activé' : '✗ Désactivé'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleInputChange('sendavapay_enabled', settings.sendavapay_enabled === 'true' ? 'false' : 'true')}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    settings.sendavapay_enabled === 'true'
+                      ? 'bg-green-500 hover:bg-green-600 text-white'
+                      : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
+                  }`}
+                  data-testid="toggle-sendavapay-enabled"
+                >
+                  {settings.sendavapay_enabled === 'true' ? 'Activé' : 'Désactivé'}
+                </button>
+              </div>
+              <div>
+                <Label htmlFor="sendavapay_name" className="text-sm">Nom personnalisé</Label>
+                <Input
+                  id="sendavapay_name"
+                  value={settings.sendavapay_name || 'Passerelle 5 - SendavaPay'}
+                  onChange={(e) => handleInputChange('sendavapay_name', e.target.value)}
+                  placeholder="Passerelle 5 - SendavaPay"
+                  data-testid="input-sendavapay-name"
+                  className="mt-1"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                URL Webhook à configurer dans SendavaPay : <span className="font-mono text-xs">https://sikatexte.site/api/webhook/sendavapay</span>
+              </p>
             </div>
 
             <Button 
