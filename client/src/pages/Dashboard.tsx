@@ -8,7 +8,7 @@ import TestimonialsSlider from "@/components/TestimonialsSlider";
 import MiddleNotification from "@/components/MiddleNotification";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowUpRight, Wallet, TrendingUp, Clock, ChevronRight, Zap, Star } from "lucide-react";
+import { TrendingUp, Clock, ChevronRight, Zap, Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAppSetting } from "@/hooks/useAppSettings";
 import { FaTelegram } from "react-icons/fa";
@@ -149,39 +149,6 @@ export default function Dashboard() {
 
       <main className="pb-24">
         <div className="p-4 space-y-4">
-          {/* Action Buttons */}
-          <div className="grid grid-cols-2 gap-3">
-            <Link href="/transfer">
-              <Card className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer active:scale-95 transition-transform"
-                data-testid="button-transfer">
-                <div className="flex flex-col items-start gap-3">
-                  <div className="w-11 h-11 bg-green-100 rounded-full flex items-center justify-center">
-                    <ArrowUpRight className="text-green-600" size={20} />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-gray-800 text-sm">Transfert</div>
-                    <div className="text-gray-400 text-xs">Envoyer</div>
-                  </div>
-                </div>
-              </Card>
-            </Link>
-
-            <Link href="/withdrawal">
-              <Card className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer active:scale-95 transition-transform"
-                data-testid="button-withdrawal">
-                <div className="flex flex-col items-start gap-3">
-                  <div className="w-11 h-11 bg-orange-100 rounded-full flex items-center justify-center">
-                    <Wallet className="text-orange-500" size={20} />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-gray-800 text-sm">Retrait</div>
-                    <div className="text-gray-400 text-xs">Retirer</div>
-                  </div>
-                </div>
-              </Card>
-            </Link>
-          </div>
-
           {/* Pointage quotidien Banner */}
           <Card
             className="rounded-2xl border-0 shadow-md overflow-hidden cursor-pointer active:scale-95 transition-transform"

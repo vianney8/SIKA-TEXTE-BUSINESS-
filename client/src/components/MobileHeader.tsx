@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { Menu, Bell, Eye, EyeOff } from "lucide-react";
+import { Menu, Bell, Eye, EyeOff, ArrowUpRight, Wallet } from "lucide-react";
 import { Link } from "wouter";
-import { formatFCFA } from "@/lib/utils";
 import { useState } from "react";
 
 interface MobileHeaderProps {
@@ -54,13 +53,13 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
       </div>
 
       {/* User greeting & balance */}
-      <div className="px-5 pb-6 pt-2">
+      <div className="px-5 pb-4 pt-2">
         {/* User Row */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold text-base"
               style={{ background: "linear-gradient(135deg, #7c3aed, #5b21b6)" }}>
-              {firstName.charAt(0).toUpperCase()}{lastName.charAt(0).toUpperCase()}
+              {firstName.charAt(0).toUpperCase()}{lastName ? lastName.charAt(0).toUpperCase() : ""}
             </div>
             <div>
               <div className="text-white/70 text-xs">Bonjour 👋</div>
@@ -97,8 +96,8 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
           </Button>
         </div>
 
-        {/* Footer Info */}
-        <div className="flex items-center justify-between text-xs">
+        {/* Online indicator */}
+        <div className="flex items-center justify-between text-xs mb-4">
           <div className="flex items-center gap-1">
             <span className="w-2 h-2 bg-green-400 rounded-full"></span>
             <span className="text-green-300 font-medium">online</span>
@@ -107,6 +106,33 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
             <span data-testid="text-account-id">{accountId}</span>
             <span data-testid="text-last-update">{today}</span>
           </div>
+        </div>
+
+        {/* Action Buttons - Transfert & Retrait */}
+        <div className="grid grid-cols-2 gap-3">
+          <Link href="/transfer" data-testid="button-transfer">
+            <div className="bg-white rounded-2xl p-3 flex items-center gap-3 cursor-pointer hover:bg-gray-50 active:scale-95 transition-transform shadow-sm">
+              <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <ArrowUpRight className="text-green-600" size={18} />
+              </div>
+              <div>
+                <div className="font-semibold text-gray-800 text-sm leading-tight">Transfert</div>
+                <div className="text-gray-400 text-xs">Envoyer</div>
+              </div>
+            </div>
+          </Link>
+
+          <Link href="/withdrawal" data-testid="button-withdrawal">
+            <div className="bg-white rounded-2xl p-3 flex items-center gap-3 cursor-pointer hover:bg-gray-50 active:scale-95 transition-transform shadow-sm">
+              <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <Wallet className="text-orange-500" size={18} />
+              </div>
+              <div>
+                <div className="font-semibold text-gray-800 text-sm leading-tight">Retrait</div>
+                <div className="text-gray-400 text-xs">Retirer</div>
+              </div>
+            </div>
+          </Link>
         </div>
       </div>
     </header>
