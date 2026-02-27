@@ -10,8 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { ArrowLeft, ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { Link, useLocation } from "wouter";
+import PageHeader from "@/components/PageHeader";
 
 type TransferForm = {
   recipientPhone: string;
@@ -59,20 +60,10 @@ export default function Transfer() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="gradient-bg text-primary-foreground">
-        <div className="px-6 py-4 flex items-center">
-          <Button asChild variant="ghost" size="sm" className="text-primary-foreground hover:bg-white/10">
-            <Link href="/" data-testid="button-back">
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-          </Button>
-          <h1 className="ml-4 text-lg font-semibold" data-testid="page-title">Transférer de l'argent à un abonné Sika texte</h1>
-        </div>
-      </div>
+    <div className="min-h-screen bg-gray-50">
+      <PageHeader title="Transfert d'argent" backHref="/" />
 
-      <div className="p-6">
+      <div className="p-4 pb-8">
         <Card className="bg-white rounded-xl shadow-sm border border-border">
           <CardContent className="p-6">
             <div className="flex items-center mb-6">

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { CheckCircle, AlertCircle, Clock, TrendingUp, CreditCard } from "lucide-react";
 import BottomNavigation from "@/components/BottomNavigation";
+import PageHeader from "@/components/PageHeader";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -118,13 +119,8 @@ export default function Work() {
 
   if ((progress?.correctedToday || 0) >= (progress?.maxPerDay || 12)) {
     return (
-      <div className="min-h-screen bg-background">
-        {/* Header */}
-        <div className="gradient-bg text-primary-foreground">
-          <div className="px-6 py-4 text-center">
-            <h1 className="text-lg font-semibold" data-testid="page-title">Travail</h1>
-          </div>
-        </div>
+      <div className="min-h-screen bg-gray-50">
+        <PageHeader title="Travail" backHref="/" />
         <div className="p-4 pb-24">
           <div className="max-w-md mx-auto pt-8">
           <Card className="text-center">
@@ -175,13 +171,8 @@ export default function Work() {
   const remainingSentences = (progress?.maxPerDay || 12) - (progress?.correctedToday || 0);
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="gradient-bg text-primary-foreground">
-        <div className="px-6 py-4 text-center">
-          <h1 className="text-lg font-semibold" data-testid="page-title">Travail</h1>
-        </div>
-      </div>
+    <div className="min-h-screen bg-gray-50">
+      <PageHeader title="Travail" backHref="/" />
       <div className="p-4 pb-24">
         <div className="max-w-md mx-auto pt-8">
         {/* Progress Card */}

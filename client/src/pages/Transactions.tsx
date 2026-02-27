@@ -4,7 +4,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Filter } from "lucide-react";
+import { Filter } from "lucide-react";
+import PageHeader from "@/components/PageHeader";
 import { Link } from "wouter";
 import { useState } from "react";
 import { formatFCFA } from "@/lib/utils";
@@ -151,22 +152,10 @@ export default function Transactions() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="gradient-bg text-primary-foreground">
-        <div className="px-6 py-4 flex items-center">
-          <Button asChild variant="ghost" size="sm" className="text-primary-foreground hover:bg-white/10">
-            <Link href="/" data-testid="button-back">
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-          </Button>
-          <h1 className="ml-4 text-lg font-semibold" data-testid="page-title">
-            Historique des transactions
-          </h1>
-        </div>
-      </div>
+    <div className="min-h-screen bg-gray-50">
+      <PageHeader title="Historique des transactions" backHref="/" />
 
-      <div className="p-6">
+      <div className="p-4 pb-8">
         {/* Filters */}
         <Card className="bg-white rounded-xl shadow-sm border border-border mb-6">
           <CardContent className="p-4">

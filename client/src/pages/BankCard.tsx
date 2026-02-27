@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, CreditCard, Edit3, Save, Trash2, Plus } from "lucide-react";
+import { CreditCard, Edit3, Save, Trash2, Plus } from "lucide-react";
+import PageHeader from "@/components/PageHeader";
 import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -214,22 +215,10 @@ export default function BankCard() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="gradient-bg text-primary-foreground">
-        <div className="px-6 py-4 flex items-center">
-          <Button asChild variant="ghost" size="sm" className="text-primary-foreground hover:bg-white/10">
-            <Link href="/profile" data-testid="button-back">
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-          </Button>
-          <h1 className="ml-4 text-lg font-semibold" data-testid="page-title">
-            Carte Bancaire
-          </h1>
-        </div>
-      </div>
+    <div className="min-h-screen bg-gray-50">
+      <PageHeader title="Carte Bancaire" backHref="/profile" />
 
-      <div className="p-6">
+      <div className="p-4 pb-8">
         {isLoading ? (
           <Card>
             <CardContent className="p-6">

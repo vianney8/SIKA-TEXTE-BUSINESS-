@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, MessageCircle, Headphones, Download, Send, Loader2, Image, X, User, Sparkles, Pencil, Check, Shield, Clock, ChevronDown, CheckCheck } from "lucide-react";
+import { MessageCircle, Headphones, Download, Send, Loader2, Image, X, User, Sparkles, Pencil, Check, Shield, Clock, ChevronDown, CheckCheck } from "lucide-react";
+import PageHeader from "@/components/PageHeader";
 import { Link } from "wouter";
 import { FaTelegram, FaWhatsapp } from "react-icons/fa";
 import { useAppSetting } from "@/hooks/useAppSettings";
@@ -194,23 +195,8 @@ export default function Assistance() {
 
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 pb-24">
-      {/* Header moderne */}
-      <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white relative overflow-hidden">
-        <div className="relative px-6 py-6">
-          <div className="flex items-center gap-4">
-            <Button asChild variant="ghost" size="icon" className="text-white hover:bg-white/20 rounded-full">
-              <Link href="/" data-testid="button-back">
-                <ArrowLeft className="w-5 h-5" />
-              </Link>
-            </Button>
-            <div>
-              <h1 className="text-xl font-bold" data-testid="page-title">Centre d'Assistance</h1>
-              <p className="text-blue-100 text-sm">Nous sommes là pour vous aider</p>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="min-h-screen bg-gray-50 pb-24">
+      <PageHeader title="Centre d'Assistance" backHref="/" />
 
       <div className="px-4 py-6 space-y-6 max-w-lg mx-auto">
         {/* Hero Section */}

@@ -13,12 +13,12 @@ import {
   Shield,
   Banknote,
   Clock,
-  ArrowLeft,
   ExternalLink,
   MessageCircle,
   Plus,
   Edit3
 } from "lucide-react";
+import PageHeader from "@/components/PageHeader";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -392,18 +392,9 @@ export default function Withdrawal() {
   if (!withdrawalData?.isAccountActive) {
     return (
       <>
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
-        <div className="max-w-md mx-auto pt-8">
-          {/* Back Button */}
-          <div className="mb-4">
-            <Button asChild variant="ghost" size="sm" className="text-slate-600 hover:text-slate-800">
-              <Link href="/" data-testid="button-back">
-                <ArrowLeft className="w-4 h-4 mr-1" />
-                Retour
-              </Link>
-            </Button>
-          </div>
-          
+      <div className="min-h-screen bg-gray-50">
+        <PageHeader title="Retrait" backHref="/" />
+        <div className="max-w-md mx-auto p-4 pt-6">
           <Card>
             <CardHeader>
               <div className="mx-auto w-16 h-16 bg-yellow-100 dark:bg-yellow-900 rounded-full flex items-center justify-center mb-4">
@@ -606,31 +597,11 @@ export default function Withdrawal() {
 
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
-      <div className="max-w-md mx-auto pt-8 space-y-6">
-        
-        {/* Back Button */}
-        <div className="mb-4">
-          <Button asChild variant="ghost" size="sm" className="text-slate-600 hover:text-slate-800">
-            <Link href="/" data-testid="button-back-withdrawal">
-              <ArrowLeft className="w-4 h-4 mr-1" />
-              Retour
-            </Link>
-          </Button>
-        </div>
-
-        {/* Header */}
-        <div className="text-center mb-6">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-r from-green-500 to-blue-600 rounded-full flex items-center justify-center mb-4">
-            <CreditCard className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            Retrait
-          </h1>
-          <p className="text-slate-600 dark:text-slate-400">
-            Retirez vos gains sur votre carte bancaire
-          </p>
-        </div>
+    <div className="min-h-screen bg-gray-50">
+      <PageHeader title="Retrait" backHref="/" />
+      <div className="max-w-md mx-auto p-4 pb-8 space-y-4">
+        {/* Subtitle */}
+        <p className="text-sm text-gray-500 text-center pt-2">Retirez vos gains sur votre compte mobile money</p>
 
         {/* Notifications */}
         {notifications && notifications.length > 0 && (

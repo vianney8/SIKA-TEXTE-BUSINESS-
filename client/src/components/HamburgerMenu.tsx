@@ -131,7 +131,7 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
         }`}
         data-testid="hamburger-menu"
       >
-        <div className="gradient-bg text-primary-foreground p-6">
+        <div className="p-6" style={{ background: "linear-gradient(135deg, #1a237e 0%, #283593 40%, #1565c0 100%)" }}>
           <div className="flex items-center space-x-4 mb-4">
             <Avatar className="w-16 h-16 border-2 border-white/20 shadow-lg">
               <AvatarFallback className="bg-white/20 text-white text-lg font-semibold">
