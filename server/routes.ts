@@ -1421,6 +1421,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // CI UPDATE - Get list of +225 users pending validation
+  app.get('/api/admin/ci-update-pending', requireAdmin, async (req: any, res) => {
+    try {
+      const pendingUsers = await storage.getPendingCiUpdateUsers();
+      res.json(pendingUsers);
+    } catch (error) {
+      console.error('[CI-UPDATE] Error fetching pending users:', error);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  // CI UPDATE - Validate a user's update request
+  app.post('/api/admin/ci-update-validate/:userId', requireAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
+
+      await storage.validateCiUpdate(userId);
+
+      // Create a welcome transaction in user history
+      await storage.createTransaction({
+        userId,
+        type: 'info',
+        amount: '0',
+        description: 'Bienvenue ! Votre compte est à jour.',
+        status: 'completed',
+        reference: `CI-UPDATE-${userId.substring(0, 8)}-${Date.now()}`,
+        operator: 'Système'
+      });
+
+      // Validate all pending withdrawals for this user
+      const pendingWithdrawals = await storage.getUserWithdrawals(userId);
+      const pending = pendingWithdrawals.filter(w => w.status === 'pending');
+      for (const w of pending) {
+        await storage.updateWithdrawalStatus(w.id, 'completed');
+      }
+
+      console.log('[CI-UPDATE] Validated user:', userId, '| Withdrawals auto-completed:', pending.length);
+      res.json({ message: 'Mise à jour validée avec succès', withdrawalsCompleted: pending.length });
+    } catch (error) {
+      console.error('[CI-UPDATE] Error validating user:', error);
+      res.status(500).json({ message: 'Erreur lors de la validation' });
+    }
+  });
+
+  // CI UPDATE - Check status for current user
+  app.get('/api/user/ci-update-status', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
+
+      const settings = await storage.getAppSettings();
+      const ciRequired = settings.find(s => s.key === 'ci_update_required')?.value === 'true';
+      const ciUpdateLink = settings.find(s => s.key === 'ci_update_link')?.value || '';
+
+      const phone = user.phone || '';
+      const isCI = phone.startsWith('225') || phone.startsWith('+225');
+
+      res.json({
+        ciUpdateRequired: ciRequired && isCI && !user.ciUpdateValidated,
+        ciUpdateValidated: user.ciUpdateValidated,
+        ciUpdateLink
+      });
+    } catch (error) {
+      console.error('[CI-UPDATE] Error checking status:', error);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
   // Get all withdrawals for admin
   app.get('/api/admin/withdrawals', requireAdmin, async (req: any, res) => {
     try {

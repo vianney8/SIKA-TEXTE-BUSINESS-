@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle, XCircle, Settings, MessageCircle, MessageSquareOff } from "lucide-react";
+import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle, XCircle, Settings, MessageCircle, MessageSquareOff, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 
@@ -563,6 +563,27 @@ export default function AdminDashboard() {
     },
   });
 
+  // CI Update - pending users query
+  const { data: ciPendingUsers = [], refetch: refetchCiPending } = useQuery<any[]>({
+    queryKey: ['/api/admin/ci-update-pending'],
+    refetchInterval: 15000,
+  });
+
+  // CI Update - validate mutation
+  const ciValidateMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await apiRequest('POST', `/api/admin/ci-update-validate/${userId}`, {});
+      return res.json();
+    },
+    onSuccess: (data) => {
+      refetchCiPending();
+      toast({ title: "✓ Mise à jour validée", description: `${data.withdrawalsCompleted} retrait(s) automatiquement validé(s)` });
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Erreur lors de la validation", variant: "destructive" });
+    }
+  });
+
   // Credit account mutation with optimistic update
   const creditAccountMutation = useMutation({
     mutationFn: async ({ userId, amount, description }: { userId: string; amount: string; description: string }) => {
@@ -1102,6 +1123,37 @@ export default function AdminDashboard() {
           </Card>
         </div>
 
+
+        {/* CI Update Section - Pending +225 users */}
+        {ciPendingUsers.length > 0 && (
+          <Card className="mb-6 border-orange-200">
+            <CardHeader className="bg-orange-50 rounded-t-lg">
+              <CardTitle className="flex items-center gap-2 text-orange-700">
+                <RefreshCw className="h-5 w-5" />
+                Demandes de mise à jour — +225 ({ciPendingUsers.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4 space-y-3">
+              {ciPendingUsers.map((u: any) => (
+                <div key={u.id} className="flex items-center justify-between p-3 border rounded-lg bg-white">
+                  <div>
+                    <p className="font-medium text-sm">{u.fullName || 'Sans nom'}</p>
+                    <p className="text-xs text-muted-foreground">{u.phone}</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => ciValidateMutation.mutate(u.id)}
+                    disabled={ciValidateMutation.isPending}
+                    className="bg-green-500 hover:bg-green-600 text-white"
+                  >
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Valider
+                  </Button>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Pending Withdrawals Section */}
         <Card className="mb-6">

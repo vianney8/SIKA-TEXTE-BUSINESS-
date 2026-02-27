@@ -210,6 +210,63 @@ export default function AdminSettings() {
           </CardContent>
         </Card>
 
+        {/* CI Update (Côte d'Ivoire) */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Mise à jour requise — +225 (Côte d'Ivoire)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Lorsqu'activé, les utilisateurs ivoiriens (+225) verront une page de mise à jour obligatoire et ne pourront pas accéder à leur compte tant que l'administrateur ne les a pas validés.
+            </p>
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div>
+                <p className="font-medium">Activer pour les +225</p>
+                <p className="text-sm text-muted-foreground">
+                  {settings.ci_update_required === 'true' ? '✓ Activé' : '✗ Désactivé'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleInputChange('ci_update_required', settings.ci_update_required === 'true' ? 'false' : 'true')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  settings.ci_update_required === 'true'
+                    ? 'bg-red-500 hover:bg-red-600 text-white'
+                    : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
+                }`}
+                data-testid="toggle-ci-update-required"
+              >
+                {settings.ci_update_required === 'true' ? 'Activé' : 'Désactivé'}
+              </button>
+            </div>
+            <div>
+              <Label htmlFor="ci_update_link">Lien de demande de mise à jour</Label>
+              <Input
+                id="ci_update_link"
+                value={settings.ci_update_link || ''}
+                onChange={(e) => handleInputChange('ci_update_link', e.target.value)}
+                placeholder="https://..."
+                data-testid="input-ci-update-link"
+                className="mt-1"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Les utilisateurs seront redirigés vers ce lien pour soumettre leur demande.
+              </p>
+            </div>
+            <Button
+              onClick={handleSave}
+              disabled={saveSettingsMutation.isPending}
+              className="w-full"
+            >
+              <Save className="h-4 w-4 mr-2" />
+              {saveSettingsMutation.isPending ? "Sauvegarde..." : "Sauvegarder"}
+            </Button>
+          </CardContent>
+        </Card>
+
         {/* Payment Gateways Settings Card */}
         <Card>
           <CardHeader>

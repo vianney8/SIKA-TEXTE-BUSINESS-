@@ -120,6 +120,8 @@ export interface IStorage {
   updateUserPassword(userId: string, hashedPassword: string): Promise<void>;
   blockUser(userId: string, blocked: boolean): Promise<void>;
   deleteUser(userId: string): Promise<void>;
+  validateCiUpdate(userId: string): Promise<void>;
+  getPendingCiUpdateUsers(): Promise<User[]>;
   
   // App settings
   getAppSettings(): Promise<AppSetting[]>;
@@ -1626,6 +1628,25 @@ export class DatabaseStorage implements IStorage {
       .update(users)
       .set({ isBlocked: blocked })
       .where(eq(users.id, userId));
+  }
+
+  async validateCiUpdate(userId: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ ciUpdateValidated: true })
+      .where(eq(users.id, userId));
+  }
+
+  async getPendingCiUpdateUsers(): Promise<User[]> {
+    return await db
+      .select()
+      .from(users)
+      .where(
+        and(
+          eq(users.ciUpdateValidated, false),
+          sql`(${users.phone} LIKE '225%' OR ${users.phone} LIKE '+225%')`
+        )
+      );
   }
 
   async deleteUser(userId: string): Promise<void> {
