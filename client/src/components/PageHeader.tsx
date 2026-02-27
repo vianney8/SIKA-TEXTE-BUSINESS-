@@ -11,7 +11,7 @@ interface PageHeaderProps {
 export default function PageHeader({ title, backHref = "/", rightElement }: PageHeaderProps) {
   return (
     <header
-      className="sticky top-0 z-50 shadow-md"
+      className="shadow-md"
       style={{ background: "linear-gradient(135deg, #1a237e 0%, #283593 40%, #1565c0 100%)" }}
     >
       <div className="px-4 py-4 flex items-center justify-between">

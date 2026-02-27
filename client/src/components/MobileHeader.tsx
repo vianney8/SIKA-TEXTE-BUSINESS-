@@ -20,7 +20,7 @@ export default function MobileHeader({ user, balance, onMenuToggle, onPointage }
   const lastName = (user as any)?.lastName || (user as any)?.fullName?.split(" ").slice(1).join(" ") || "";
 
   return (
-    <header className="sticky top-0 z-50 shadow-lg" style={{ background: "linear-gradient(135deg, #1a237e 0%, #283593 40%, #1565c0 100%)" }}>
+    <header className="shadow-lg" style={{ background: "linear-gradient(135deg, #1a237e 0%, #283593 40%, #1565c0 100%)" }}>
       {/* Top Navigation Bar */}
       <div className="px-4 py-3 flex justify-between items-center">
         <Button
