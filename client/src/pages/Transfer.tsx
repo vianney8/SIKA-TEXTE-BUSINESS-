@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { transferSchema } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Lock } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import PageHeader from "@/components/PageHeader";
 
@@ -24,6 +24,12 @@ export default function Transfer() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const { data: withdrawalInfo } = useQuery<{ isAccountActive: boolean }>({
+    queryKey: ["/api/withdrawal"],
+  });
+
+  const isAccountActive = withdrawalInfo?.isAccountActive ?? true;
 
   const form = useForm<TransferForm>({
     resolver: zodResolver(transferSchema),
@@ -64,96 +70,115 @@ export default function Transfer() {
       <PageHeader title="Transfert d'argent" backHref="/" />
 
       <div className="p-4 pb-8">
-        <Card className="bg-white rounded-xl shadow-sm border border-border">
-          <CardContent className="p-6">
-            <div className="flex items-center mb-6">
-              <ArrowUpRight className="text-primary mr-3" size={24} />
-              <h2 className="text-xl font-bold">Envoyer de l'argent</h2>
-            </div>
+        {!isAccountActive ? (
+          <Card className="bg-white rounded-xl shadow-sm border border-border">
+            <CardContent className="p-6 flex flex-col items-center text-center gap-4">
+              <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center">
+                <Lock className="text-amber-500" size={26} />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-gray-800 mb-1">Compte non activé</h2>
+                <p className="text-sm text-gray-500 leading-relaxed">
+                  Les transferts d'argent sont réservés aux comptes activés. Activez votre compte pour accéder à cette fonctionnalité.
+                </p>
+              </div>
+              <Link href="/">
+                <Button variant="outline" className="mt-2">Retour au tableau de bord</Button>
+              </Link>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="bg-white rounded-xl shadow-sm border border-border">
+            <CardContent className="p-6">
+              <div className="flex items-center mb-6">
+                <ArrowUpRight className="text-primary mr-3" size={24} />
+                <h2 className="text-xl font-bold">Envoyer de l'argent</h2>
+              </div>
 
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="recipientPhone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Numéro destinataire</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="tel"
-                          placeholder="+229 12345678"
-                          {...field}
-                          data-testid="input-recipient-phone"
-                          className="w-full px-4 py-3 border border-input rounded-lg focus:ring-2 focus:ring-ring"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="recipientPhone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Numéro destinataire</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="tel"
+                            placeholder="+229 12345678"
+                            {...field}
+                            data-testid="input-recipient-phone"
+                            className="w-full px-4 py-3 border border-input rounded-lg focus:ring-2 focus:ring-ring"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name="amount"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Montant (F.CFA)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          placeholder="1000"
-                          {...field}
-                          onChange={(e) => {
-                            const value = parseFloat(e.target.value);
-                            if (value > 0) {
-                              field.onChange(value);
-                            } else if (e.target.value === '') {
-                              field.onChange('');
-                            }
-                          }}
-                          min="1"
-                          data-testid="input-amount"
-                          className="w-full px-4 py-3 border border-input rounded-lg focus:ring-2 focus:ring-ring"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  <FormField
+                    control={form.control}
+                    name="amount"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Montant (F.CFA)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            placeholder="1000"
+                            {...field}
+                            onChange={(e) => {
+                              const value = parseFloat(e.target.value);
+                              if (value > 0) {
+                                field.onChange(value);
+                              } else if (e.target.value === '') {
+                                field.onChange('');
+                              }
+                            }}
+                            min="1"
+                            data-testid="input-amount"
+                            className="w-full px-4 py-3 border border-input rounded-lg focus:ring-2 focus:ring-ring"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name="message"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Message (optionnel)</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Votre message"
-                          rows={3}
-                          {...field}
-                          data-testid="textarea-message"
-                          className="w-full px-4 py-3 border border-input rounded-lg focus:ring-2 focus:ring-ring"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  <FormField
+                    control={form.control}
+                    name="message"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Message (optionnel)</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Votre message"
+                            rows={3}
+                            {...field}
+                            data-testid="textarea-message"
+                            className="w-full px-4 py-3 border border-input rounded-lg focus:ring-2 focus:ring-ring"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <Button
-                  type="submit"
-                  disabled={transferMutation.isPending}
-                  className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
-                  data-testid="button-submit"
-                >
-                  {transferMutation.isPending ? "Envoi en cours..." : "Envoyer le transfert"}
-                </Button>
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
+                  <Button
+                    type="submit"
+                    disabled={transferMutation.isPending}
+                    className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                    data-testid="button-submit"
+                  >
+                    {transferMutation.isPending ? "Envoi en cours..." : "Envoyer le transfert"}
+                  </Button>
+                </form>
+              </Form>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

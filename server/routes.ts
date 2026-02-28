@@ -333,7 +333,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.session.userId;
       const { recipientPhone, amount, message } = transferSchema.parse(req.body);
-      
+
+      // Check sender account is active
+      const senderStatus = await storage.getAccountStatus(userId);
+      if (!senderStatus?.isActive) {
+        return res.status(403).json({ message: "Votre compte doit être activé pour effectuer des transferts" });
+      }
+
       // Check if recipient exists in SIKA TEXTE system
       const recipient = await storage.getUserByPhone(recipientPhone);
       if (!recipient) {
