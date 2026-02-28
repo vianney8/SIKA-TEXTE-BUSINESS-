@@ -81,8 +81,9 @@ export default function CiUpdatePage() {
     submitMutation.mutate();
   };
 
-  const whatsappUrl = whatsappAdmin
-    ? `https://wa.me/${whatsappAdmin}?text=${encodeURIComponent('Bonjour, j\'ai effectué le paiement pour la mise à jour de mon compte SIKA TEXTE. Numéro de paiement : ' + paymentPhone)}`
+  const whatsappNumber = whatsappAdmin.replace(/[^0-9]/g, '');
+  const whatsappUrl = whatsappNumber
+    ? `https://wa.me/${whatsappNumber}?text=${encodeURIComponent('Bonjour, j\'ai effectué le paiement pour la mise à jour de mon compte SIKA TEXTE. Numéro de paiement : ' + paymentPhone)}`
     : null;
 
   const statusMessages = [
@@ -366,29 +367,6 @@ export default function CiUpdatePage() {
                   <p className="text-white/60 text-xs leading-relaxed">
                     Afin de continuer à bénéficier pleinement des services de la plateforme, veuillez procéder à la mise à jour de votre compte via Mobile Money.
                   </p>
-
-                  {/* Logos Mobile Money acceptés */}
-                  <div>
-                    <p className="text-white/30 text-xs uppercase tracking-widest mb-2 font-semibold">Paiement accepté via</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl" style={{ background: 'rgba(255,107,0,0.15)', border: '1px solid rgba(255,107,0,0.3)' }}>
-                        <div className="w-5 h-5 rounded-full shrink-0 overflow-hidden"><OMLogo /></div>
-                        <span className="text-orange-300 text-xs font-bold">Orange Money</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl" style={{ background: 'rgba(255,204,0,0.12)', border: '1px solid rgba(255,204,0,0.3)' }}>
-                        <div className="w-5 h-5 rounded-full shrink-0 overflow-hidden"><MoMoLogo /></div>
-                        <span className="text-yellow-300 text-xs font-bold">MTN MoMo</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl" style={{ background: 'rgba(255,107,0,0.12)', border: '1px solid rgba(255,107,0,0.25)' }}>
-                        <div className="w-5 h-5 rounded-full shrink-0 overflow-hidden"><WaveLogo /></div>
-                        <span className="text-orange-300 text-xs font-bold">Wave</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl" style={{ background: 'rgba(0,48,135,0.25)', border: '1px solid rgba(0,80,200,0.35)' }}>
-                        <div className="w-5 h-5 rounded-full shrink-0 overflow-hidden"><MoovLogo /></div>
-                        <span className="text-blue-300 text-xs font-bold">Moov Money</span>
-                      </div>
-                    </div>
-                  </div>
 
                   {/* Avantages */}
                   <div className="space-y-2 pt-1" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>

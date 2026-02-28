@@ -1822,7 +1822,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { key } = req.params;
       const { value } = req.body;
-      if (!value) {
+      if (value === undefined || value === null) {
         return res.status(400).json({ message: 'Valeur requise' });
       }
       await storage.updateAppSetting(key, value);
