@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { RefreshCw, Search, CheckCircle, ArrowLeft } from "lucide-react";
+import { RefreshCw, Search, CheckCircle, ArrowLeft, Send, Settings2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Link } from "wouter";
@@ -13,6 +13,8 @@ export default function AdminCiUpdate() {
   const { toast } = useToast();
   const [showCiSearch, setShowCiSearch] = useState(false);
   const [ciSearchQuery, setCiSearchQuery] = useState("");
+  const [showTelegramConfig, setShowTelegramConfig] = useState(false);
+  const [manualChatId, setManualChatId] = useState("");
 
   const { data: ciPendingUsers = [], refetch: refetchCiPending } = useQuery<any[]>({
     queryKey: ['/api/admin/ci-update-pending'],
@@ -76,6 +78,26 @@ export default function AdminCiUpdate() {
     }
   });
 
+  const { data: telegramStatus, refetch: refetchTelegramStatus } = useQuery<any>({
+    queryKey: ['/api/admin/telegram-status'],
+    staleTime: 30000,
+  });
+
+  const setChatIdMutation = useMutation({
+    mutationFn: async (chatId: string) => {
+      const res = await apiRequest('POST', '/api/admin/telegram-set-chat-id', { chatId });
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchTelegramStatus();
+      setManualChatId("");
+      toast({ title: "✓ Chat ID enregistré", description: "Le bot Telegram est maintenant configuré." });
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible d'enregistrer le Chat ID", variant: "destructive" });
+    }
+  });
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary to-blue-600 p-4">
       <div className="max-w-4xl mx-auto">
@@ -101,6 +123,69 @@ export default function AdminCiUpdate() {
             </Badge>
           )}
         </div>
+
+        {/* Telegram Configuration Card */}
+        <Card className={`mb-4 ${telegramStatus?.configured ? 'border-green-200' : 'border-yellow-300'}`}>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Send className={`h-4 w-4 ${telegramStatus?.configured ? 'text-green-600' : 'text-yellow-600'}`} />
+                <p className="font-semibold text-gray-800 text-sm">Configuration Telegram</p>
+                {telegramStatus?.configured ? (
+                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Actif</span>
+                ) : (
+                  <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">Non configuré</span>
+                )}
+              </div>
+              <Button size="sm" variant="outline" onClick={() => setShowTelegramConfig(!showTelegramConfig)}>
+                <Settings2 className="h-3 w-3 mr-1" />
+                {showTelegramConfig ? "Masquer" : "Configurer"}
+              </Button>
+            </div>
+
+            {telegramStatus?.botUsername && (
+              <p className="text-xs text-gray-500">
+                Bot : <strong>@{telegramStatus.botUsername}</strong>
+                {telegramStatus.configured && (
+                  <span className="ml-2 text-green-600">— Chat ID enregistré</span>
+                )}
+              </p>
+            )}
+
+            {showTelegramConfig && (
+              <div className="mt-4 pt-4 border-t space-y-3">
+                {!telegramStatus?.configured && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800 space-y-1">
+                    <p className="font-semibold">Configuration requise :</p>
+                    <p>1. Ouvrez Telegram et cherchez <strong>@{telegramStatus?.botUsername || 'le bot'}</strong></p>
+                    <p>2. Envoyez-lui n'importe quel message (ex: <code>/start</code>)</p>
+                    <p>3. Le Chat ID sera détecté automatiquement, <strong>OU</strong> saisissez-le manuellement ci-dessous.</p>
+                    <p className="text-blue-700 mt-1">Pour trouver votre Chat ID, envoyez un message à <strong>@userinfobot</strong> sur Telegram.</p>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Chat ID Telegram (ex: 123456789)"
+                    value={manualChatId}
+                    onChange={(e) => setManualChatId(e.target.value)}
+                    className="text-sm h-9"
+                  />
+                  <Button
+                    size="sm"
+                    disabled={!manualChatId.trim() || setChatIdMutation.isPending}
+                    onClick={() => setChatIdMutation.mutate(manualChatId.trim())}
+                    className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
+                  >
+                    {setChatIdMutation.isPending ? "..." : "Enregistrer"}
+                  </Button>
+                </div>
+                {telegramStatus?.configured && (
+                  <p className="text-xs text-gray-500">Chat ID actuel : <code>{telegramStatus.adminChatId}</code></p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Action globale */}
         <Card className="mb-4 border-red-200">

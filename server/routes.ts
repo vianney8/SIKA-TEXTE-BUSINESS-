@@ -1532,6 +1532,249 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // CI UPDATE - User submits payment phone → send Telegram notification to admin
+  app.post('/api/ci-update/submit', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { paymentPhone } = req.body;
+
+      if (!paymentPhone || !paymentPhone.trim()) {
+        return res.status(400).json({ message: 'Numéro de paiement requis' });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
+
+      const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+      if (!TELEGRAM_TOKEN) {
+        console.error('[TELEGRAM] TELEGRAM_BOT_TOKEN not configured');
+        return res.status(500).json({ message: 'Service Telegram non configuré' });
+      }
+
+      // Get CI update amount from settings
+      const settings = await storage.getAppSettings();
+      const ciUpdateAmount = parseInt(settings.find(s => s.key === 'ci_update_amount')?.value || '1200');
+
+      // Get admin chat_id from settings (stored when admin messages the bot)
+      let adminChatId = settings.find(s => s.key === 'telegram_admin_chat_id')?.value;
+
+      if (!adminChatId) {
+        console.warn('[TELEGRAM] No admin chat_id found. Admin must message the bot first.');
+        return res.status(503).json({ message: 'Configuration Telegram incomplète. Contactez l\'administrateur.' });
+      }
+
+      const messageText = `🔔 <b>Nouvelle demande de mise à jour — Compte +225 (Côte d'Ivoire)</b>\n\n` +
+        `👤 <b>Nom complet :</b> ${user.fullName || 'Non renseigné'}\n` +
+        `🆔 <b>ID Compte :</b> <code>${user.id}</code>\n` +
+        `📋 <b>N° Compte Sika :</b> <code>${user.referralCode || 'N/A'}</code>\n` +
+        `📱 <b>Numéro de paiement :</b> <code>${paymentPhone.trim()}</code>\n` +
+        `💰 <b>Montant :</b> ${ciUpdateAmount.toLocaleString('fr-FR')} FCFA\n\n` +
+        `Veuillez valider ou décliner cette demande de mise à jour.`;
+
+      const keyboard = {
+        inline_keyboard: [[
+          { text: '✅ Accepter', callback_data: `ci_approve_${userId}` },
+          { text: '❌ Décliner', callback_data: `ci_decline_${userId}` }
+        ]]
+      };
+
+      const telegramRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: adminChatId,
+          text: messageText,
+          parse_mode: 'HTML',
+          reply_markup: keyboard
+        })
+      });
+
+      const telegramData = await telegramRes.json() as any;
+      if (!telegramData.ok) {
+        console.error('[TELEGRAM] Failed to send message:', telegramData);
+        return res.status(500).json({ message: 'Erreur lors de l\'envoi de la notification' });
+      }
+
+      console.log(`[CI-UPDATE] Telegram notification sent for user ${userId}`);
+      res.json({ message: 'Demande envoyée avec succès. Vous serez notifié après validation.' });
+    } catch (error) {
+      console.error('[CI-UPDATE] Submit error:', error);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  // TELEGRAM WEBHOOK - Receives callback queries from inline keyboard buttons
+  app.post('/api/telegram/ci-webhook', async (req: any, res) => {
+    try {
+      const update = req.body;
+      const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+      if (!TELEGRAM_TOKEN) return res.sendStatus(200);
+
+      // Auto-save admin chat_id when they message the bot
+      if (update.message && update.message.chat?.id) {
+        const chatId = String(update.message.chat.id);
+        const settings = await storage.getAppSettings();
+        const existing = settings.find(s => s.key === 'telegram_admin_chat_id');
+        if (!existing || !existing.value) {
+          await storage.updateAppSetting('telegram_admin_chat_id', chatId);
+          console.log('[TELEGRAM] Admin chat_id auto-saved:', chatId);
+
+          // Send confirmation to admin
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              text: '✅ <b>Bot SIKA TEXTE configuré avec succès !</b>\n\nVous recevrez désormais les demandes de mise à jour des comptes +225.',
+              parse_mode: 'HTML'
+            })
+          });
+        }
+      }
+
+      // Handle inline button clicks (callback queries)
+      if (update.callback_query) {
+        const callbackQuery = update.callback_query;
+        const data = callbackQuery.data || '';
+        const chatId = callbackQuery.message?.chat?.id;
+        const messageId = callbackQuery.message?.message_id;
+
+        let answerText = '';
+
+        if (data.startsWith('ci_approve_')) {
+          const userId = data.replace('ci_approve_', '');
+          try {
+            await storage.validateCiUpdate(userId);
+            await storage.createTransaction({
+              userId,
+              type: 'info',
+              amount: '0',
+              description: 'Mise à jour validée. Votre compte est pleinement restauré.',
+              status: 'completed',
+              reference: `CI-UPDATE-${userId.substring(0, 8)}-${Date.now()}`,
+              operator: 'Système'
+            });
+            answerText = '✅ Compte validé avec succès !';
+
+            // Edit the message to show approved status
+            if (chatId && messageId) {
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] } })
+              });
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  text: `✅ <b>Demande acceptée</b>\n\nLe compte a été débloqué avec succès.`,
+                  parse_mode: 'HTML'
+                })
+              });
+            }
+            console.log('[CI-UPDATE] Approved via Telegram for user:', userId);
+          } catch (err) {
+            answerText = '❌ Erreur lors de la validation';
+            console.error('[CI-UPDATE] Telegram approve error:', err);
+          }
+
+        } else if (data.startsWith('ci_decline_')) {
+          const userId = data.replace('ci_decline_', '');
+          answerText = '❌ Demande déclinée.';
+
+          if (chatId && messageId) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] } })
+            });
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                text: `❌ <b>Demande déclinée</b>\n\nLe compte reste bloqué.`,
+                parse_mode: 'HTML'
+              })
+            });
+          }
+          console.log('[CI-UPDATE] Declined via Telegram for user:', userId);
+        }
+
+        // Answer the callback query (required by Telegram)
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/answerCallbackQuery`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ callback_query_id: callbackQuery.id, text: answerText })
+        });
+      }
+
+      res.sendStatus(200);
+    } catch (error) {
+      console.error('[TELEGRAM] Webhook error:', error);
+      res.sendStatus(200); // Always return 200 to Telegram
+    }
+  });
+
+  // TELEGRAM STATUS - Get bot info and admin chat_id config
+  app.get('/api/admin/telegram-status', requireAdmin, async (req: any, res) => {
+    try {
+      const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+      if (!TELEGRAM_TOKEN) return res.json({ configured: false, reason: 'no_token' });
+
+      const settings = await storage.getAppSettings();
+      const adminChatId = settings.find(s => s.key === 'telegram_admin_chat_id')?.value || '';
+
+      const meRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getMe`);
+      const meData = await meRes.json() as any;
+
+      res.json({
+        configured: !!adminChatId,
+        adminChatId,
+        botUsername: meData.ok ? meData.result.username : null,
+        botName: meData.ok ? meData.result.first_name : null,
+      });
+    } catch (error) {
+      res.status(500).json({ configured: false, reason: 'error' });
+    }
+  });
+
+  // TELEGRAM - Manually set admin chat_id
+  app.post('/api/admin/telegram-set-chat-id', requireAdmin, async (req: any, res) => {
+    try {
+      const { chatId } = req.body;
+      if (!chatId) return res.status(400).json({ message: 'chatId requis' });
+      await storage.updateAppSetting('telegram_admin_chat_id', String(chatId));
+      res.json({ message: 'Chat ID enregistré avec succès' });
+    } catch (error) {
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  // TELEGRAM SETUP - Register webhook URL with Telegram (call once from admin)
+  app.post('/api/telegram/setup-webhook', requireAdmin, async (req: any, res) => {
+    try {
+      const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+      if (!TELEGRAM_TOKEN) return res.status(500).json({ message: 'TELEGRAM_BOT_TOKEN non configuré' });
+
+      const { webhookUrl } = req.body;
+      const url = webhookUrl || 'https://sikatexte.site/api/telegram/ci-webhook';
+
+      const result = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/setWebhook`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, allowed_updates: ['message', 'callback_query'] })
+      });
+      const data = await result.json() as any;
+      console.log('[TELEGRAM] Webhook setup result:', data);
+      res.json(data);
+    } catch (error) {
+      console.error('[TELEGRAM] Setup webhook error:', error);
+      res.status(500).json({ message: 'Erreur lors de la configuration du webhook' });
+    }
+  });
+
   // Get all withdrawals for admin
   app.get('/api/admin/withdrawals', requireAdmin, async (req: any, res) => {
     try {

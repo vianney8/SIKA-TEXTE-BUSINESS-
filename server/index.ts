@@ -39,6 +39,20 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
+  // Auto-register Telegram webhook in production
+  if (process.env.TELEGRAM_BOT_TOKEN) {
+    const webhookUrl = 'https://sikatexte.site/api/telegram/ci-webhook';
+    fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/setWebhook`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: webhookUrl, allowed_updates: ['message', 'callback_query'] })
+    }).then((r: any) => r.json()).then((data: any) => {
+      log(`Telegram webhook registered: ${data.ok ? 'OK' : data.description}`);
+    }).catch((err: any) => {
+      log(`Telegram webhook setup failed: ${err}`);
+    });
+  }
+
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
