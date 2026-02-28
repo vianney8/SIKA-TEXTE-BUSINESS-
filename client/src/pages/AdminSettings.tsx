@@ -198,6 +198,20 @@ export default function AdminSettings() {
               </p>
             </div>
 
+            <div>
+              <Label htmlFor="whatsapp_admin_contact">📱 WhatsApp Administrateur (Contact Mise à jour)</Label>
+              <Input
+                id="whatsapp_admin_contact"
+                value={settings.whatsapp_admin_contact || ''}
+                onChange={(e) => handleInputChange('whatsapp_admin_contact', e.target.value)}
+                placeholder="2250708091011"
+                data-testid="input-whatsapp-admin-contact"
+              />
+              <p className="text-sm text-muted-foreground mt-1">
+                Numéro WhatsApp de l'administrateur (format international sans +, ex: 2250708091011). Affiché sur la page de mise à jour +225 pour que les utilisateurs puissent vous contacter.
+              </p>
+            </div>
+
             <Button 
               onClick={handleSave} 
               disabled={saveSettingsMutation.isPending}

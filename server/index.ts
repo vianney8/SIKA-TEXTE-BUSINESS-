@@ -69,6 +69,7 @@ app.use((req, res, next) => {
     { key: 'solvexpay_name',            value: '',                                                  label: 'Nom Passerelle SolvexPay' },
     { key: 'sendavapay_enabled',        value: '',                                                  label: 'Activer Passerelle SendavaPay' },
     { key: 'sendavapay_name',           value: '',                                                  label: 'Nom Passerelle SendavaPay' },
+    { key: 'whatsapp_admin_contact',    value: '',                                                  label: 'WhatsApp Administrateur (Contact Mise à jour)' },
   ];
   for (const s of defaults) {
     await db.execute(sql`
