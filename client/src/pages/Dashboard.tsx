@@ -152,7 +152,7 @@ export default function Dashboard() {
           {/* Pointage quotidien Banner */}
           <Card
             className="rounded-2xl border-0 shadow-md overflow-hidden cursor-pointer active:scale-95 transition-transform"
-            style={{ background: "linear-gradient(135deg, #2e7d32 0%, #388e3c 60%, #43a047 100%)" }}
+            style={{ background: "linear-gradient(135deg, #4c1d95 0%, #6d28d9 55%, #a855f7 100%)" }}
             onClick={handlePointage}
             data-testid="button-pointage"
           >
@@ -163,7 +163,7 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <div className="text-white font-bold text-sm">Pointage quotidien</div>
-                  <div className="text-green-200 text-xs">Gagnez entre 300 – 800 FCFA</div>
+                  <div className="text-purple-200 text-xs">Gagnez entre 300 – 800 FCFA</div>
                 </div>
               </div>
               <div className="flex items-center gap-1 bg-yellow-400 text-yellow-900 text-xs font-bold px-3 py-1.5 rounded-full shadow">

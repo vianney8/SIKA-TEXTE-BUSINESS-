@@ -1,23 +1,16 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
-import { Shield, Phone, User, CreditCard, Hash, AlertCircle, CheckCircle, ExternalLink, Loader2, Lock } from "lucide-react";
+import {
+  Shield, Phone, User, CreditCard, Hash,
+  AlertTriangle, CheckCircle2, ExternalLink,
+  Loader2, ChevronRight, Lock, Sparkles
+} from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
-interface AuthUser {
-  id: string;
-  fullName: string;
-  referralCode: string;
-  phone: string;
-}
-
-interface CiStatus {
-  ciUpdateRequired: boolean;
-  ciUpdateLink: string;
-  ciUpdateAmount: number;
-}
-
+interface AuthUser { id: string; fullName: string; referralCode: string; phone: string; }
+interface CiStatus { ciUpdateRequired: boolean; ciUpdateLink: string; ciUpdateAmount: number; }
 type PageState = "form" | "payment" | "error";
 
 export default function CiUpdatePage() {
@@ -25,15 +18,11 @@ export default function CiUpdatePage() {
   const [paymentPhone, setPaymentPhone] = useState("");
   const [inputError, setInputError] = useState("");
   const [pageState, setPageState] = useState<PageState>("form");
-  const [mounted, setMounted] = useState(false);
+  const [entered, setEntered] = useState(false);
 
-  useEffect(() => {
-    const t = setTimeout(() => setMounted(true), 80);
-    return () => clearTimeout(t);
-  }, []);
+  useEffect(() => { const t = setTimeout(() => setEntered(true), 60); return () => clearTimeout(t); }, []);
 
   const { data: user } = useQuery<AuthUser>({ queryKey: ['/api/auth/user'] });
-
   const { data: ciStatus } = useQuery<CiStatus>({
     queryKey: ['/api/user/ci-update-status'],
     refetchInterval: pageState === "payment" ? 9000 : false,
@@ -49,392 +38,405 @@ export default function CiUpdatePage() {
     },
     onSuccess: () => setPageState("payment"),
     onError: () => {
-      toast({ title: "Erreur d'envoi", description: "Impossible de transmettre votre demande. Veuillez réessayer.", variant: "destructive" });
+      toast({ title: "Erreur", description: "Impossible de transmettre votre demande.", variant: "destructive" });
     }
   });
 
   const handleSubmit = () => {
-    if (!paymentPhone.trim()) {
-      setInputError("Ce champ est requis.");
-      return;
-    }
-    if (paymentPhone.trim().length < 8) {
-      setInputError("Numéro invalide. Vérifiez et réessayez.");
-      return;
-    }
+    if (!paymentPhone.trim()) { setInputError("Ce champ est requis."); return; }
+    if (paymentPhone.trim().length < 8) { setInputError("Numéro invalide."); return; }
     setInputError("");
     submitMutation.mutate();
   };
 
+  const step = pageState === "form" ? 1 : 2;
+
   return (
-    <div className="min-h-screen relative overflow-hidden flex items-center justify-center p-4"
-      style={{ background: 'linear-gradient(135deg, #0a0e1a 0%, #0d1b3e 40%, #0a1628 70%, #060d1f 100%)' }}>
-
-      {/* Orbes animées en arrière-plan */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none select-none">
-        <div className="absolute rounded-full opacity-20"
-          style={{
-            width: 500, height: 500, top: '-10%', left: '-15%',
-            background: 'radial-gradient(circle, #1d4ed8 0%, transparent 70%)',
-            animation: 'floatA 14s ease-in-out infinite'
-          }} />
-        <div className="absolute rounded-full opacity-15"
-          style={{
-            width: 400, height: 400, top: '40%', right: '-10%',
-            background: 'radial-gradient(circle, #7c3aed 0%, transparent 70%)',
-            animation: 'floatB 18s ease-in-out infinite'
-          }} />
-        <div className="absolute rounded-full opacity-10"
-          style={{
-            width: 300, height: 300, bottom: '-5%', left: '30%',
-            background: 'radial-gradient(circle, #0ea5e9 0%, transparent 70%)',
-            animation: 'floatA 22s ease-in-out infinite reverse'
-          }} />
-        {/* Grille subtile */}
-        <div className="absolute inset-0 opacity-5"
-          style={{
-            backgroundImage: `linear-gradient(rgba(99,179,237,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(99,179,237,0.3) 1px, transparent 1px)`,
-            backgroundSize: '60px 60px'
-          }} />
-      </div>
-
+    <>
       <style>{`
-        @keyframes floatA {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          33% { transform: translate(30px, -30px) scale(1.05); }
-          66% { transform: translate(-20px, 20px) scale(0.97); }
+        @keyframes ci-enter {
+          from { opacity: 0; transform: translateY(40px) scale(0.97); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
         }
-        @keyframes floatB {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          50% { transform: translate(-40px, 30px) scale(1.08); }
+        @keyframes ci-slide {
+          from { opacity: 0; transform: translateX(30px); }
+          to { opacity: 1; transform: translateX(0); }
         }
-        @keyframes shimmer {
-          0% { background-position: -200% center; }
-          100% { background-position: 200% center; }
+        @keyframes ci-fade {
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(28px); }
-          to { opacity: 1; transform: translateY(0); }
+        @keyframes ci-pulse-dot {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.5; transform: scale(0.8); }
         }
-        @keyframes scaleIn {
-          from { opacity: 0; transform: scale(0.88); }
-          to { opacity: 1; transform: scale(1); }
+        @keyframes ci-wave {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(400%); }
         }
-        @keyframes pulse-ring {
-          0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(99,102,241,0.6); }
-          70% { transform: scale(1); box-shadow: 0 0 0 14px rgba(99,102,241,0); }
-          100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(99,102,241,0); }
+        @keyframes ci-bounce-icon {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-6px); }
         }
-        @keyframes spin-slow {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
+        .ci-card {
+          animation: ci-enter 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.07), 0 24px 48px -12px rgba(15,23,42,0.18), 0 0 0 1px rgba(15,23,42,0.06);
         }
-        .card-glow {
-          box-shadow: 0 0 0 1px rgba(255,255,255,0.08), 0 32px 64px -12px rgba(0,0,0,0.7), 0 0 80px -20px rgba(99,102,241,0.25);
+        .ci-form-anim { animation: ci-slide 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+        .ci-pay-anim { animation: ci-slide 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+        .ci-input {
+          border: 1.5px solid #e2e8f0 !important;
+          border-radius: 14px !important;
+          height: 52px !important;
+          font-size: 15px !important;
+          color: #1e293b !important;
+          background: #f8fafc !important;
+          transition: all 0.2s !important;
+          padding-left: 46px !important;
         }
-        .btn-pay {
-          background: linear-gradient(135deg, #1d4ed8 0%, #4f46e5 50%, #7c3aed 100%);
-          box-shadow: 0 0 30px rgba(99,102,241,0.4), 0 8px 32px rgba(0,0,0,0.4);
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .btn-pay:hover {
-          box-shadow: 0 0 50px rgba(99,102,241,0.6), 0 12px 40px rgba(0,0,0,0.5);
-          transform: translateY(-2px);
-        }
-        .btn-submit {
-          background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
-          box-shadow: 0 4px 20px rgba(59,130,246,0.35);
-          transition: all 0.25s ease;
-        }
-        .btn-submit:hover:not(:disabled) {
-          box-shadow: 0 6px 28px rgba(59,130,246,0.55);
-          transform: translateY(-1px);
-        }
-        .shimmer-text {
-          background: linear-gradient(90deg, #93c5fd 0%, #c4b5fd 30%, #f0abfc 60%, #93c5fd 100%);
-          background-size: 200% auto;
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-          animation: shimmer 4s linear infinite;
-        }
-        .glass {
-          background: rgba(255,255,255,0.04);
-          backdrop-filter: blur(24px);
-          -webkit-backdrop-filter: blur(24px);
-        }
-        .field-glass {
-          background: rgba(255,255,255,0.06) !important;
-          border: 1px solid rgba(255,255,255,0.12) !important;
-          color: white !important;
-          transition: all 0.2s ease;
-        }
-        .field-glass:focus {
-          background: rgba(255,255,255,0.09) !important;
-          border-color: rgba(99,102,241,0.7) !important;
-          box-shadow: 0 0 0 3px rgba(99,102,241,0.2) !important;
+        .ci-input:focus {
+          border-color: #6366f1 !important;
+          background: #fff !important;
+          box-shadow: 0 0 0 4px rgba(99,102,241,0.1) !important;
           outline: none !important;
         }
-        .field-glass::placeholder { color: rgba(255,255,255,0.3) !important; }
-        .info-row {
-          background: rgba(255,255,255,0.03);
-          border: 1px solid rgba(255,255,255,0.07);
+        .ci-btn-primary {
+          background: linear-gradient(135deg, #4f46e5 0%, #6d28d9 100%);
+          border-radius: 16px;
+          height: 56px;
+          font-size: 15px;
+          font-weight: 700;
+          color: white;
+          border: none;
+          cursor: pointer;
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow: 0 4px 15px rgba(99,102,241,0.4), 0 1px 3px rgba(0,0,0,0.1);
+          position: relative;
+          overflow: hidden;
+        }
+        .ci-btn-primary::before {
+          content: '';
+          position: absolute;
+          top: 0; left: 0; right: 0; bottom: 0;
+          background: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%);
+          opacity: 0;
+          transition: opacity 0.25s;
+        }
+        .ci-btn-primary:hover::before { opacity: 1; }
+        .ci-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(99,102,241,0.5); }
+        .ci-btn-primary:active { transform: translateY(0); }
+        .ci-btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .ci-btn-pay {
+          background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+          border-radius: 16px;
+          height: 60px;
+          font-size: 16px;
+          font-weight: 800;
+          color: white;
+          border: none;
+          cursor: pointer;
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          text-decoration: none;
+          box-shadow: 0 6px 20px rgba(16,185,129,0.45), 0 1px 3px rgba(0,0,0,0.1);
+          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+          position: relative;
+          overflow: hidden;
+        }
+        .ci-btn-pay::after {
+          content: '';
+          position: absolute;
+          top: -50%; left: -60%;
+          width: 40%; height: 200%;
+          background: rgba(255,255,255,0.15);
+          transform: skewX(-20deg);
+          animation: ci-wave 2.5s ease-in-out infinite;
+        }
+        .ci-btn-pay:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(16,185,129,0.55); }
+        .step-dot { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; transition: all 0.3s; }
+        .step-active { background: #4f46e5; color: white; box-shadow: 0 0 0 4px rgba(99,102,241,0.2); }
+        .step-done { background: #10b981; color: white; }
+        .step-inactive { background: #e2e8f0; color: #94a3b8; }
+        .step-line { flex: 1; height: 2px; background: #e2e8f0; position: relative; overflow: hidden; }
+        .step-line-fill { height: 100%; background: linear-gradient(90deg, #10b981, #4f46e5); transition: width 0.5s ease; }
+        .info-chip {
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
           border-radius: 14px;
-          padding: 12px 14px;
+          padding: 12px 16px;
           display: flex;
           align-items: center;
           gap: 12px;
         }
-        .tag-amount {
-          background: linear-gradient(90deg, rgba(251,191,36,0.15), rgba(245,158,11,0.1));
-          border: 1px solid rgba(251,191,36,0.3);
-          color: #fbbf24;
+        .amount-badge {
+          background: linear-gradient(135deg, #fffbeb, #fef3c7);
+          border: 1.5px solid #fcd34d;
+          border-radius: 12px;
+          padding: 10px 16px;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
         }
+        .pending-dot {
+          width: 8px; height: 8px; border-radius: 50%; background: #f59e0b;
+          animation: ci-pulse-dot 1.5s ease-in-out infinite;
+        }
+        .icon-float { animation: ci-bounce-icon 3s ease-in-out infinite; }
       `}</style>
 
-      {/* Carte principale */}
-      <div className="relative w-full max-w-md card-glow rounded-3xl overflow-hidden"
-        style={{
-          animation: mounted ? 'scaleIn 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards' : 'none',
-          opacity: mounted ? 1 : 0,
-          border: '1px solid rgba(255,255,255,0.1)'
-        }}>
+      <div className="min-h-screen flex items-center justify-center p-4"
+        style={{ background: 'linear-gradient(160deg, #f0f4ff 0%, #f8f9ff 40%, #fdf4ff 100%)' }}>
 
-        {/* En-tête */}
-        <div className="relative px-8 pt-10 pb-8 text-center overflow-hidden"
-          style={{ background: 'linear-gradient(180deg, rgba(30,64,175,0.5) 0%, rgba(15,23,42,0) 100%)' }}>
-          <div className="absolute inset-0" style={{
-            background: 'radial-gradient(ellipse at 50% -20%, rgba(99,102,241,0.4) 0%, transparent 70%)'
-          }} />
+        {/* Décorations arrière-plan */}
+        <div className="fixed inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute top-0 left-0 w-96 h-96 rounded-full opacity-30"
+            style={{ background: 'radial-gradient(circle, #c7d2fe 0%, transparent 70%)', transform: 'translate(-30%, -30%)' }} />
+          <div className="absolute bottom-0 right-0 w-96 h-96 rounded-full opacity-20"
+            style={{ background: 'radial-gradient(circle, #ddd6fe 0%, transparent 70%)', transform: 'translate(30%, 30%)' }} />
+          <div className="absolute top-1/2 left-1/2 w-64 h-64 rounded-full opacity-15"
+            style={{ background: 'radial-gradient(circle, #a5f3fc 0%, transparent 70%)', transform: 'translate(-50%, -80%)' }} />
+        </div>
 
-          {/* Icône animée */}
-          <div className="relative mx-auto mb-5 w-20 h-20">
-            <div className="absolute inset-0 rounded-full"
-              style={{ animation: 'pulse-ring 2.5s ease-out infinite', background: 'rgba(99,102,241,0.3)' }} />
-            <div className="relative w-20 h-20 rounded-full flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg, #1e40af, #6d28d9)', border: '1px solid rgba(255,255,255,0.2)' }}>
-              <Shield className="w-9 h-9 text-white" />
+        <div className={`relative w-full max-w-md bg-white rounded-3xl overflow-hidden ci-card ${entered ? '' : 'opacity-0'}`}>
+
+          {/* ── HEADER ── */}
+          <div className="relative px-8 pt-8 pb-6 overflow-hidden"
+            style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%)' }}>
+            {/* Pattern */}
+            <div className="absolute inset-0 opacity-10"
+              style={{
+                backgroundImage: `radial-gradient(circle at 20% 50%, rgba(255,255,255,0.3) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(167,139,250,0.4) 0%, transparent 40%)`
+              }} />
+            <div className="absolute inset-0" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23fff' fill-opacity='0.03'%3E%3Ccircle cx='20' cy='20' r='3'/%3E%3C/g%3E%3C/svg%3E")` }} />
+
+            <div className="relative flex items-start gap-4">
+              <div className="icon-float w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)', backdropFilter: 'blur(8px)' }}>
+                <Shield className="w-7 h-7 text-white" />
+              </div>
+              <div className="flex-1 pt-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-indigo-300 text-xs font-semibold uppercase tracking-widest">Sécurité Compte</span>
+                </div>
+                <h1 className="text-white font-extrabold text-xl leading-tight">Mise à jour obligatoire</h1>
+                <p className="text-indigo-200/70 text-xs mt-1">SIKA TEXTE BUSINESS — Plateforme sécurisée</p>
+              </div>
+            </div>
+
+            {/* Montant */}
+            <div className="relative mt-5 flex items-center gap-3">
+              <div className="amount-badge">
+                <Sparkles className="w-4 h-4 text-amber-500" />
+                <span className="text-amber-800 font-black text-lg">{amount.toLocaleString("fr-FR")} FCFA</span>
+                <span className="text-amber-600 text-xs font-medium">à régler</span>
+              </div>
             </div>
           </div>
 
-          <h1 className="text-2xl font-bold text-white tracking-tight mb-1">Mise à jour requise</h1>
-          <p className="text-blue-300/70 text-xs tracking-widest uppercase font-medium">SIKA TEXTE BUSINESS</p>
-
-          {/* Montant badge */}
-          <div className="inline-flex items-center gap-2 mt-4 px-4 py-1.5 rounded-full tag-amount text-sm font-semibold">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-            {amount.toLocaleString("fr-FR")} FCFA requis
+          {/* ── ÉTAPES ── */}
+          <div className="px-8 py-4 border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <div className={`step-dot ${step >= 1 ? (step > 1 ? 'step-done' : 'step-active') : 'step-inactive'}`}>
+                {step > 1 ? <CheckCircle2 className="w-3.5 h-3.5" /> : '1'}
+              </div>
+              <span className="text-xs font-medium" style={{ color: step === 1 ? '#4f46e5' : '#10b981' }}>Confirmation</span>
+              <div className="step-line mx-1">
+                <div className="step-line-fill" style={{ width: step > 1 ? '100%' : '0%' }} />
+              </div>
+              <div className={`step-dot ${step >= 2 ? 'step-active' : 'step-inactive'}`}>2</div>
+              <span className="text-xs font-medium" style={{ color: step === 2 ? '#4f46e5' : '#94a3b8' }}>Paiement</span>
+            </div>
           </div>
-        </div>
 
-        {/* Corps */}
-        <div className="glass px-7 pb-8 pt-2 space-y-5">
+          {/* ── CORPS ── */}
+          <div className="px-8 py-6 space-y-5">
 
-          {/* Informations du compte */}
-          {user && (
-            <div style={{ animation: mounted ? 'fadeUp 0.55s ease forwards' : 'none', opacity: mounted ? 1 : 0 }}>
-              <p className="text-xs text-white/30 uppercase tracking-widest font-semibold mb-3">Votre compte</p>
+            {/* Infos compte */}
+            {user && (
               <div className="space-y-2">
-                <div className="info-row">
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{ background: 'rgba(59,130,246,0.2)', border: '1px solid rgba(59,130,246,0.3)' }}>
-                    <User className="w-4 h-4 text-blue-400" />
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Votre compte</p>
+                <div className="info-chip">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: 'linear-gradient(135deg, #ede9fe, #ddd6fe)' }}>
+                    <User className="w-4 h-4 text-violet-600" />
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-white/40 text-xs leading-none mb-1">Titulaire</p>
-                    <p className="text-white font-semibold text-sm truncate">{user.fullName}</p>
+                  <div>
+                    <p className="text-xs text-slate-400 mb-0.5">Titulaire du compte</p>
+                    <p className="font-bold text-slate-800 text-sm">{user.fullName}</p>
                   </div>
                 </div>
-
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="info-row">
-                    <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                      style={{ background: 'rgba(52,211,153,0.15)', border: '1px solid rgba(52,211,153,0.25)' }}>
-                      <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
+                  <div className="info-chip">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                      style={{ background: 'linear-gradient(135deg, #d1fae5, #a7f3d0)' }}>
+                      <CreditCard className="w-3.5 h-3.5 text-emerald-600" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-white/35 text-xs leading-none mb-0.5">N° Compte</p>
-                      <p className="text-emerald-300 font-mono text-xs font-bold truncate">{user.referralCode || '—'}</p>
+                      <p className="text-xs text-slate-400 mb-0.5">N° Compte</p>
+                      <p className="font-bold text-emerald-700 font-mono text-xs truncate">{user.referralCode || '—'}</p>
                     </div>
                   </div>
-                  <div className="info-row">
-                    <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                      style={{ background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.25)' }}>
-                      <Hash className="w-3.5 h-3.5 text-violet-400" />
+                  <div className="info-chip">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                      style={{ background: 'linear-gradient(135deg, #ede9fe, #ddd6fe)' }}>
+                      <Hash className="w-3.5 h-3.5 text-violet-600" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-white/35 text-xs leading-none mb-0.5">ID Compte</p>
-                      <p className="text-violet-300 font-mono text-xs truncate">{user.id.substring(0, 8)}…</p>
+                      <p className="text-xs text-slate-400 mb-0.5">ID Compte</p>
+                      <p className="font-bold text-violet-700 font-mono text-xs truncate">{user.id.substring(0, 10)}…</p>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* ──────── ÉTAT : FORMULAIRE ──────── */}
-          {pageState === "form" && (
-            <div className="space-y-4"
-              style={{ animation: mounted ? 'fadeUp 0.65s ease forwards' : 'none', opacity: mounted ? 1 : 0 }}>
-
-              {/* Note explicative */}
-              <div className="rounded-2xl p-4 space-y-1 text-sm"
-                style={{ background: 'rgba(251,191,36,0.07)', border: '1px solid rgba(251,191,36,0.2)' }}>
-                <div className="flex items-center gap-2 text-amber-300 font-semibold text-xs mb-1">
-                  <AlertCircle className="w-3.5 h-3.5" /> Action requise
+            {/* ──── ÉTAPE 1 : FORMULAIRE ──── */}
+            {pageState === "form" && (
+              <div className="ci-form-anim space-y-4">
+                <div className="rounded-2xl p-4"
+                  style={{ background: 'linear-gradient(135deg, #fff7ed, #ffedd5)', border: '1.5px solid #fed7aa' }}>
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-orange-800 text-xs leading-relaxed">
+                      <strong>Action requise.</strong> Votre compte doit être mis à jour pour accéder à la nouvelle version sécurisée. Un frais unique de{" "}
+                      <strong>{amount.toLocaleString("fr-FR")} FCFA</strong> est appliqué.
+                    </p>
+                  </div>
                 </div>
-                <p className="text-white/60 text-xs leading-relaxed">
-                  Pour continuer à utiliser la plateforme, veuillez effectuer la mise à jour de votre compte en réglant les frais de{" "}
-                  <span className="text-amber-300 font-bold">{amount.toLocaleString("fr-FR")} FCFA</span>.
-                  Votre accès sera rétabli immédiatement après validation.
-                </p>
-              </div>
 
-              {/* Champ téléphone */}
-              <div>
-                <label className="block text-white/60 text-xs font-semibold mb-2 tracking-wide">
-                  Numéro Mobile Money pour le paiement
-                </label>
-                <div className="relative">
-                  <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
-                  <Input
-                    type="tel"
-                    value={paymentPhone}
-                    onChange={(e) => { setPaymentPhone(e.target.value); if (inputError) setInputError(""); }}
-                    placeholder="Ex : 0708091011"
-                    className="field-glass pl-10 h-12 rounded-xl text-sm"
-                  />
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2.5">
+                    Numéro Mobile Money <span className="text-red-400">*</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-lg flex items-center justify-center"
+                      style={{ background: 'linear-gradient(135deg, #ede9fe, #ddd6fe)' }}>
+                      <Phone className="w-3.5 h-3.5 text-violet-600" />
+                    </div>
+                    <Input
+                      type="tel"
+                      value={paymentPhone}
+                      onChange={(e) => { setPaymentPhone(e.target.value); if (inputError) setInputError(""); }}
+                      placeholder="0708091011"
+                      className="ci-input"
+                    />
+                  </div>
+                  {inputError ? (
+                    <p className="flex items-center gap-1.5 text-red-500 text-xs mt-2 font-medium">
+                      <AlertTriangle className="w-3.5 h-3.5" /> {inputError}
+                    </p>
+                  ) : (
+                    <p className="text-slate-400 text-xs mt-2">
+                      Numéro depuis lequel vous enverrez les fonds
+                    </p>
+                  )}
                 </div>
-                {inputError ? (
-                  <p className="flex items-center gap-1.5 text-red-400 text-xs mt-2">
-                    <AlertCircle className="w-3.5 h-3.5" /> {inputError}
-                  </p>
-                ) : (
-                  <p className="text-white/30 text-xs mt-2">
-                    Numéro depuis lequel vous enverrez les {amount.toLocaleString("fr-FR")} FCFA
-                  </p>
-                )}
+
+                <button onClick={handleSubmit} disabled={submitMutation.isPending} className="ci-btn-primary">
+                  <span className="relative z-10 flex items-center gap-2">
+                    {submitMutation.isPending ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Envoi en cours…</>
+                    ) : (
+                      <><Lock className="w-4 h-4" /> Confirmer et accéder au paiement <ChevronRight className="w-4 h-4" /></>
+                    )}
+                  </span>
+                </button>
               </div>
+            )}
 
-              {/* Bouton soumettre */}
-              <button
-                onClick={handleSubmit}
-                disabled={submitMutation.isPending}
-                className="btn-submit w-full h-13 rounded-2xl text-white font-bold text-sm py-4 disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {submitMutation.isPending ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Envoi en cours…
-                  </span>
-                ) : (
-                  <span className="flex items-center justify-center gap-2">
-                    <Lock className="w-4 h-4" />
-                    Valider et procéder au paiement
-                  </span>
-                )}
-              </button>
-            </div>
-          )}
+            {/* ──── ÉTAPE 2 : PAIEMENT ──── */}
+            {pageState === "payment" && (
+              <div className="ci-pay-anim space-y-4">
+                {/* Succès */}
+                <div className="rounded-2xl p-4 flex items-center gap-3"
+                  style={{ background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)', border: '1.5px solid #bbf7d0' }}>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: 'linear-gradient(135deg, #dcfce7, #bbf7d0)' }}>
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-emerald-800 text-sm">Demande bien reçue</p>
+                    <p className="text-emerald-600 text-xs mt-0.5">N° enregistré : <strong className="font-mono">{paymentPhone}</strong></p>
+                  </div>
+                </div>
 
-          {/* ──────── ÉTAT : PAIEMENT ──────── */}
-          {pageState === "payment" && (
-            <div className="space-y-4"
-              style={{ animation: 'scaleIn 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards' }}>
+                {/* Lien paiement */}
+                <div className="rounded-2xl p-5 space-y-4"
+                  style={{ background: 'linear-gradient(135deg, #f8faff, #f0f4ff)', border: '1.5px solid #c7d2fe' }}>
+                  <div>
+                    <p className="font-extrabold text-slate-800 text-base mb-1">Effectuez votre paiement</p>
+                    <p className="text-slate-500 text-xs">
+                      Cliquez sur le bouton ci-dessous et réglez{" "}
+                      <strong className="text-indigo-700">{amount.toLocaleString("fr-FR")} FCFA</strong>{" "}
+                      via Mobile Money.
+                    </p>
+                  </div>
 
-              {/* Confirmation d'envoi */}
-              <div className="rounded-2xl p-4 flex items-center gap-3"
-                style={{ background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.25)' }}>
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: 'rgba(52,211,153,0.15)' }}>
-                  <CheckCircle className="w-5 h-5 text-emerald-400" />
+                  <a href={paymentLink} target="_blank" rel="noopener noreferrer" className="ci-btn-pay">
+                    <ExternalLink className="w-5 h-5 flex-shrink-0" />
+                    <span>Payer {amount.toLocaleString("fr-FR")} FCFA maintenant</span>
+                  </a>
+
+                  <p className="text-center text-xs text-slate-400">
+                    Lien sécurisé — Paiement Mobile Money
+                  </p>
+                </div>
+
+                {/* Attente */}
+                <div className="rounded-2xl p-4 flex items-center gap-3"
+                  style={{ background: '#fefce8', border: '1px solid #fef08a' }}>
+                  <div className="pending-dot flex-shrink-0" />
+                  <div>
+                    <p className="font-semibold text-amber-800 text-xs">En attente de validation</p>
+                    <p className="text-amber-600/80 text-xs mt-0.5">Votre accès sera rétabli automatiquement après confirmation de paiement.</p>
+                  </div>
+                </div>
+
+                <button onClick={() => setPageState("form")}
+                  className="w-full text-xs text-slate-400 hover:text-slate-600 transition-colors py-1">
+                  ← Modifier ma demande
+                </button>
+              </div>
+            )}
+
+            {/* ──── ERREUR ──── */}
+            {pageState === "error" && (
+              <div className="text-center space-y-4 py-4">
+                <div className="w-14 h-14 mx-auto rounded-2xl flex items-center justify-center"
+                  style={{ background: '#fef2f2', border: '1.5px solid #fecaca' }}>
+                  <AlertTriangle className="w-7 h-7 text-red-500" />
                 </div>
                 <div>
-                  <p className="text-emerald-300 font-semibold text-sm">Demande transmise avec succès</p>
-                  <p className="text-white/40 text-xs mt-0.5">
-                    N° enregistré : <span className="text-white/70 font-mono">{paymentPhone}</span>
-                  </p>
+                  <p className="font-bold text-slate-800">Une erreur est survenue</p>
+                  <p className="text-slate-500 text-sm mt-1">Veuillez réessayer.</p>
                 </div>
+                <button onClick={() => setPageState("form")}
+                  className="px-6 py-2.5 rounded-xl text-sm font-semibold text-indigo-700 transition-all"
+                  style={{ background: '#ede9fe', border: '1px solid #c4b5fd' }}>
+                  Réessayer
+                </button>
               </div>
+            )}
+          </div>
 
-              {/* Lien de paiement */}
-              <div className="rounded-2xl p-5 space-y-4"
-                style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)' }}>
-                <div className="text-center">
-                  <p className="text-white/50 text-xs uppercase tracking-widest mb-1">Étape suivante</p>
-                  <p className="text-white font-bold text-base">Effectuez votre paiement</p>
-                  <p className="text-white/40 text-xs mt-1">
-                    Réglez <span className="text-indigo-300 font-bold">{amount.toLocaleString("fr-FR")} FCFA</span> via le lien ci-dessous
-                  </p>
-                </div>
-
-                <a
-                  href={paymentLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-pay flex items-center justify-center gap-3 w-full py-4 rounded-2xl text-white font-bold text-base"
-                >
-                  <span className="shimmer-text text-base font-extrabold">
-                    Payer {amount.toLocaleString("fr-FR")} FCFA
-                  </span>
-                  <ExternalLink className="w-5 h-5 text-white/80 flex-shrink-0" />
-                </a>
-              </div>
-
-              {/* Attente validation */}
-              <div className="rounded-2xl p-4 flex items-center gap-3"
-                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <div className="relative flex-shrink-0">
-                  <div className="w-8 h-8 rounded-full border-2 border-blue-500/30 border-t-blue-400"
-                    style={{ animation: 'spin-slow 1.5s linear infinite' }} />
-                </div>
-                <div>
-                  <p className="text-white/70 text-xs font-medium">En attente de validation</p>
-                  <p className="text-white/35 text-xs mt-0.5">
-                    Votre accès sera rétabli automatiquement dès confirmation.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setPageState("form")}
-                className="w-full text-xs text-white/25 hover:text-white/50 transition-colors py-2"
-              >
-                ← Modifier ma demande
-              </button>
+          {/* ── FOOTER ── */}
+          <div className="px-8 pb-6 pt-2">
+            <div className="flex items-center justify-center gap-2 rounded-xl py-3"
+              style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+              <Lock className="w-3 h-3 text-slate-400" />
+              <p className="text-xs text-slate-400 font-medium">Procédure sécurisée — SIKA TEXTE BUSINESS</p>
             </div>
-          )}
-
-          {/* ──────── ÉTAT : ERREUR ──────── */}
-          {pageState === "error" && (
-            <div className="text-center space-y-4 py-3">
-              <div className="w-14 h-14 mx-auto rounded-full flex items-center justify-center"
-                style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
-                <AlertCircle className="w-7 h-7 text-red-400" />
-              </div>
-              <div>
-                <p className="text-white font-semibold">Une erreur est survenue</p>
-                <p className="text-white/40 text-sm mt-1">Vérifiez votre connexion et réessayez.</p>
-              </div>
-              <button
-                onClick={() => setPageState("form")}
-                className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
-                style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)' }}
-              >
-                Réessayer
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Pied de carte */}
-        <div className="px-7 pb-6 pt-0">
-          <div className="flex items-center justify-center gap-2 text-white/20 text-xs">
-            <Shield className="w-3 h-3" />
-            <span>Procédure sécurisée — SIKA TEXTE BUSINESS</span>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
