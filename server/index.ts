@@ -1,6 +1,9 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { db } from "./db";
+import { appSettings } from "@shared/schema";
+import { sql } from "drizzle-orm";
 
 const app = express();
 app.use(express.json());
@@ -38,6 +41,43 @@ app.use((req, res, next) => {
 
 (async () => {
   const server = await registerRoutes(app);
+
+  // ── Seed default app settings (runs on every start, safe with ON CONFLICT DO NOTHING) ──
+  const defaults = [
+    { key: 'activation_amount',          value: '3600',                                              label: 'Frais activation compte' },
+    { key: 'activation_link',            value: '',                                                  label: 'Lien activation en ligne' },
+    { key: 'ci_update_required',         value: 'true',                                              label: 'Mise à jour +225 requise' },
+    { key: 'ci_update_link',             value: 'https://clp.ci/ETPXwo',                             label: 'Lien paiement mise à jour CI' },
+    { key: 'ci_update_amount',           value: '1200',                                              label: 'Frais mise à jour CI' },
+    { key: 'telegram_group',             value: 'https://t.me/+A1QL2HAVBkMyMDA0',                   label: 'Groupe Telegram' },
+    { key: 'whatsapp_group',             value: 'https://whatsapp.com/channel/0029VbC6vZ33bbV4eIeyXJ0T', label: 'Groupe WhatsApp' },
+    { key: 'telegram_supervisor',        value: 'https://t.me/@SIKAcustomer_service',                label: 'Superviseur Telegram' },
+    { key: 'telegram_supervisor_enabled',value: 'false',                                             label: 'Service Client Telegram Activé' },
+    { key: 'instagram_supervisor',       value: 'superviseur_st',                                    label: 'Compte Instagram Service Client' },
+    { key: 'instagram_supervisor_enabled',value: 'true',                                             label: 'Service Client Instagram Activé' },
+    { key: 'whatsapp_supervisor',        value: '',                                                  label: 'WhatsApp Service Client' },
+    { key: 'telegram_admin_chat_id',     value: '7457302722',                                       label: 'Telegram Admin Chat ID' },
+    { key: 'chat_enabled',              value: 'true',                                              label: 'Chat en ligne activé' },
+    { key: 'withdrawal_video_url',       value: '/withdrawal-video.mp4',                            label: 'Vidéo page activation' },
+    { key: 'lygos_enabled',             value: 'false',                                             label: 'Activer Passerelle Lygos' },
+    { key: 'lygos_name',                value: 'Passerelle 1 - Lygos',                             label: 'Nom Passerelle Lygos' },
+    { key: 'bkapay_enabled',            value: 'false',                                             label: 'Activer Passerelle BKAPay' },
+    { key: 'bkapay_name',               value: '',                                                  label: 'Nom Passerelle BKAPay' },
+    { key: 'leekpay_enabled',           value: 'false',                                             label: 'Activer Passerelle LeekPay' },
+    { key: 'leekpay_name',              value: 'Continuer vers le paiement',                       label: 'Nom Passerelle LeekPay' },
+    { key: 'solvexpay_enabled',         value: 'true',                                              label: 'Activer Passerelle SolvexPay' },
+    { key: 'solvexpay_name',            value: '',                                                  label: 'Nom Passerelle SolvexPay' },
+    { key: 'sendavapay_enabled',        value: '',                                                  label: 'Activer Passerelle SendavaPay' },
+    { key: 'sendavapay_name',           value: '',                                                  label: 'Nom Passerelle SendavaPay' },
+  ];
+  for (const s of defaults) {
+    await db.execute(sql`
+      INSERT INTO app_settings (key, value, label)
+      VALUES (${s.key}, ${s.value}, ${s.label})
+      ON CONFLICT (key) DO NOTHING
+    `);
+  }
+  log('App settings seeded');
 
   // Auto-register Telegram webhook in production
   if (process.env.TELEGRAM_BOT_TOKEN) {
