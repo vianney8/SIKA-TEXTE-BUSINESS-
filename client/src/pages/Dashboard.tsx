@@ -173,34 +173,6 @@ export default function Dashboard() {
             </div>
           </Card>
 
-          {/* Stats Cards */}
-          <div className="grid grid-cols-2 gap-3">
-            <Link href="/transactions">
-              <Card className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="w-9 h-9 bg-purple-100 rounded-full flex items-center justify-center">
-                    <TrendingUp className="text-purple-500" size={18} />
-                  </div>
-                  <ChevronRight className="text-gray-300" size={16} />
-                </div>
-                <div className="text-2xl font-bold text-gray-800">{transactionCount}</div>
-                <div className="text-gray-400 text-xs mt-1">Historique</div>
-              </Card>
-            </Link>
-
-            <Link href="/transactions">
-              <Card className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="w-9 h-9 bg-yellow-100 rounded-full flex items-center justify-center">
-                    <Clock className="text-yellow-500" size={18} />
-                  </div>
-                  <ChevronRight className="text-gray-300" size={16} />
-                </div>
-                <div className="text-2xl font-bold text-gray-800">{transactionCount}</div>
-                <div className="text-gray-400 text-xs mt-1">Activité totale</div>
-              </Card>
-            </Link>
-          </div>
 
 
           {/* Telegram Group Button */}
