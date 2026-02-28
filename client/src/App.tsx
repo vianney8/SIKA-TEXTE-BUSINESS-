@@ -29,6 +29,8 @@ import BankCard from "@/pages/BankCard";
 import AdminDashboard from "@/pages/AdminDashboard";
 import AdminSettings from "@/pages/AdminSettings";
 import AdminMessages from "@/pages/AdminMessages";
+import AdminCiUpdate from "@/pages/AdminCiUpdate";
+import AdminWithdrawals from "@/pages/AdminWithdrawals";
 import Summary from "@/pages/Summary";
 import Activation from "@/pages/Activation";
 import ActivationSuccess from "@/pages/ActivationSuccess";
@@ -151,6 +153,8 @@ function Router() {
           <Route path="/admin" component={AdminDashboard} />
           <Route path="/admin/settings" component={AdminSettings} />
           <Route path="/admin/messages" component={AdminMessages} />
+          <Route path="/admin/ci-update" component={AdminCiUpdate} />
+          <Route path="/admin/withdrawals" component={AdminWithdrawals} />
           <Route path="/identity-verification" component={IdentityVerification} />
           <Route path="/bank-card" component={BankCard} />
           <Route path="/dashboard" component={Dashboard} />

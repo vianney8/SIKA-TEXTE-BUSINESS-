@@ -888,6 +888,28 @@ export default function AdminDashboard() {
                 Paramètres
               </a>
             </Button>
+            <Button asChild className="bg-orange-500 hover:bg-orange-600 text-white relative">
+              <a href="/admin/ci-update">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                MàJ +225
+                {ciPendingUsers.length > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
+                    {ciPendingUsers.length}
+                  </span>
+                )}
+              </a>
+            </Button>
+            <Button asChild className="bg-red-600 hover:bg-red-700 text-white relative">
+              <a href="/admin/withdrawals">
+                <TrendingDown className="h-4 w-4 mr-2" />
+                Retraits
+                {pendingWithdrawals.length > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-yellow-400 text-black text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
+                    {pendingWithdrawals.length}
+                  </span>
+                )}
+              </a>
+            </Button>
             <Button asChild className="bg-emerald-600 hover:bg-emerald-700 text-white relative">
               <a href="/admin/messages" data-testid="button-admin-messages">
                 <MessageCircle className="h-4 w-4 mr-2" />
@@ -1168,321 +1190,50 @@ export default function AdminDashboard() {
         </div>
 
 
-        {/* CI Update Section */}
-        <Card className="mb-6 border-orange-200">
-          <CardHeader className="bg-orange-50 rounded-t-lg">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <CardTitle className="flex items-center gap-2 text-orange-700">
-                <RefreshCw className="h-5 w-5" />
-                Mise à jour +225
-                {ciPendingUsers.length > 0 && (
-                  <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 ml-1">
-                    {ciPendingUsers.length} en attente
-                  </span>
-                )}
-              </CardTitle>
-              <div className="flex gap-2 flex-wrap">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="border-orange-400 text-orange-700 hover:bg-orange-50"
-                  onClick={() => { setShowCiSearch(!showCiSearch); }}
-                >
-                  <Search className="h-3 w-3 mr-1" />
-                  Gérer comptes
-                </Button>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  disabled={ciDisableAllMutation.isPending}
-                  onClick={() => {
-                    if (confirm("Désactiver la mise à jour pour TOUS les comptes +225 ? Ils auront tous accès immédiatement.")) {
-                      ciDisableAllMutation.mutate();
-                    }
-                  }}
-                >
-                  {ciDisableAllMutation.isPending ? "..." : "Désactiver pour tous"}
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-4 space-y-4">
-            {/* Pending validations */}
-            {ciPendingUsers.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-2">Aucune demande en attente.</p>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Comptes actifs à valider</p>
-                {ciPendingUsers.map((u: any) => (
-                  <div key={u.id} className="flex items-center justify-between p-3 border rounded-lg bg-white">
-                    <div>
-                      <p className="font-medium text-sm">{u.fullName || 'Sans nom'}</p>
-                      <p className="text-xs text-muted-foreground">{u.phone}</p>
-                    </div>
-                    <Button
-                      size="sm"
-                      onClick={() => ciValidateMutation.mutate(u.id)}
-                      disabled={ciValidateMutation.isPending}
-                      className="bg-green-500 hover:bg-green-600 text-white"
-                    >
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                      Valider
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Individual search & management */}
-            {showCiSearch && (
-              <div className="border-t pt-4 space-y-3">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Rechercher un compte +225</p>
-                <Input
-                  placeholder="Nom ou numéro de téléphone..."
-                  value={ciSearchQuery}
-                  onChange={(e) => setCiSearchQuery(e.target.value)}
-                  className="text-sm"
-                />
-                {filteredCiUsers.length === 0 && ciSearchQuery && (
-                  <p className="text-sm text-muted-foreground text-center">Aucun résultat.</p>
-                )}
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {filteredCiUsers.map((u: any) => (
-                    <div key={u.id} className="flex items-center justify-between p-3 border rounded-lg bg-white text-sm">
-                      <div>
-                        <p className="font-medium">{u.fullName || 'Sans nom'}</p>
-                        <p className="text-xs text-muted-foreground">{u.phone}</p>
-                        <div className="flex gap-1 mt-1">
-                          <span className={`text-xs px-1.5 py-0.5 rounded ${u.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                            {u.isActive ? 'Actif' : 'Inactif'}
-                          </span>
-                          <span className={`text-xs px-1.5 py-0.5 rounded ${u.ciUpdateValidated ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
-                            {u.ciUpdateValidated ? 'MàJ validée' : 'MàJ requise'}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex gap-1">
-                        {!u.ciUpdateValidated ? (
-                          <Button
-                            size="sm"
-                            onClick={() => ciValidateMutation.mutate(u.id)}
-                            disabled={ciValidateMutation.isPending}
-                            className="bg-green-500 hover:bg-green-600 text-white text-xs"
-                          >
-                            Valider
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => ciResetMutation.mutate(u.id)}
-                            disabled={ciResetMutation.isPending}
-                            className="border-orange-400 text-orange-600 text-xs"
-                          >
-                            Réactiver
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+        {/* Summary cards linking to dedicated pages */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          {/* CI Update summary card */}
+          <Card className="border-orange-200 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => window.location.href = '/admin/ci-update'}>
+            <CardContent className="pt-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-orange-700 flex items-center gap-2">
+                    <RefreshCw className="h-4 w-4" />
+                    Mise à jour +225
+                  </p>
+                  <p className="text-2xl font-bold mt-1 text-orange-800">{ciPendingUsers.length}</p>
+                  <p className="text-xs text-muted-foreground">compte(s) en attente de validation</p>
+                </div>
+                <div className="text-right">
+                  <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white">
+                    Gérer →
+                  </Button>
                 </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        {/* Pending Withdrawals Section */}
-        <Card className="mb-6">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <TrendingDown className="h-5 w-5 text-red-600" />
-                Retraits en Attente
-              </CardTitle>
-              {pendingWithdrawals && pendingWithdrawals.length > 0 && (
-                <div className="flex gap-2 flex-wrap">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-blue-500 text-blue-600 hover:bg-blue-50"
-                    onClick={() => setNotifyAllModal(true)}
-                    data-testid="button-notify-all-pending"
-                  >
-                    🔔 Notifier tout ({pendingWithdrawals.length})
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => {
-                      if (confirm(`Rejeter les ${pendingWithdrawals.length} retrait(s) en attente ?`)) {
-                        rejectAllWithdrawalsMutation.mutate();
-                      }
-                    }}
-                    disabled={rejectAllWithdrawalsMutation.isPending}
-                    data-testid="button-reject-all-withdrawals"
-                  >
-                    <XCircle className="h-4 w-4 mr-1" />
-                    {rejectAllWithdrawalsMutation.isPending ? "Rejet..." : "Rejeter tout"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-orange-500 text-orange-600 hover:bg-orange-50"
-                    onClick={() => {
-                      if (confirm(`ATTENTION : Annuler les ${pendingWithdrawals.length} retrait(s) va les supprimer définitivement de l'historique et rembourser les utilisateurs. Continuer ?`)) {
-                        cancelAllWithdrawalsMutation.mutate();
-                      }
-                    }}
-                    disabled={cancelAllWithdrawalsMutation.isPending}
-                    data-testid="button-cancel-all-withdrawals"
-                  >
-                    <XCircle className="h-4 w-4 mr-1" />
-                    {cancelAllWithdrawalsMutation.isPending ? "Annulation..." : "Annuler tout"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="bg-green-600 hover:bg-green-700"
-                    onClick={() => {
-                      if (confirm(`Valider les ${pendingWithdrawals.length} retrait(s) en attente ?`)) {
-                        approveAllWithdrawalsMutation.mutate();
-                      }
-                    }}
-                    disabled={approveAllWithdrawalsMutation.isPending}
-                    data-testid="button-approve-all-withdrawals"
-                  >
-                    <CheckCircle className="h-4 w-4 mr-1" />
-                    {approveAllWithdrawalsMutation.isPending ? "Validation..." : "Valider tout"}
+          {/* Withdrawals summary card */}
+          <Card className="border-red-200 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => window.location.href = '/admin/withdrawals'}>
+            <CardContent className="pt-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-red-700 flex items-center gap-2">
+                    <TrendingDown className="h-4 w-4" />
+                    Retraits en Attente
+                  </p>
+                  <p className="text-2xl font-bold mt-1 text-red-800">{pendingWithdrawals.length}</p>
+                  <p className="text-xs text-muted-foreground">retrait(s) à traiter</p>
+                </div>
+                <div className="text-right">
+                  <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white">
+                    Gérer →
                   </Button>
                 </div>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            {pendingWithdrawals && pendingWithdrawals.length > 0 ? (
-              <div className="space-y-3">
-                {pendingWithdrawals.map((withdrawal: any) => (
-                  <div key={withdrawal.id} className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
-                        <p className="font-semibold text-lg">{parseFloat(withdrawal.amount || '0').toFixed(0)} FCFA</p>
-                        <p className="text-sm text-slate-600 dark:text-slate-400">
-                          Utilisateur: {withdrawal.userFullName || withdrawal.userId}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          Téléphone: {withdrawal.userPhone}
-                        </p>
-                        <p className="text-xs text-slate-400">
-                          {new Date(withdrawal.createdAt).toLocaleString('fr-FR')}
-                        </p>
-                      </div>
-                      <div className="flex gap-2 flex-wrap">
-                        <Button
-                          size="sm"
-                          className="bg-green-600 hover:bg-green-700"
-                          onClick={() => approveWithdrawalMutation.mutate(withdrawal.id)}
-                          disabled={approveWithdrawalMutation.isPending}
-                          data-testid={`button-approve-withdrawal-${withdrawal.id}`}
-                        >
-                          <CheckCircle className="h-4 w-4 mr-1" />
-                          Valider
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => {
-                            if (confirm("Rejeter ce retrait ?")) {
-                              rejectWithdrawalMutation.mutate(withdrawal.id);
-                            }
-                          }}
-                          disabled={rejectWithdrawalMutation.isPending}
-                          data-testid={`button-reject-withdrawal-${withdrawal.id}`}
-                        >
-                          ✖ Rejeter
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-orange-500 text-orange-600 hover:bg-orange-50"
-                          onClick={() => {
-                            if (confirm("ATTENTION : Annuler ce retrait va le supprimer définitivement de l'historique et rembourser l'utilisateur. Continuer ?")) {
-                              cancelWithdrawalMutation.mutate(withdrawal.id);
-                            }
-                          }}
-                          disabled={cancelWithdrawalMutation.isPending}
-                          data-testid={`button-cancel-withdrawal-${withdrawal.id}`}
-                        >
-                          🗑️ Annuler
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            const message = prompt("Message de notification :");
-                            if (message) {
-                              fetch('/api/admin/notifications', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                credentials: 'include',
-                                body: JSON.stringify({ userId: withdrawal.userId, message })
-                              }).then(() => alert('Notification envoyée !'));
-                            }
-                          }}
-                          data-testid={`button-notify-${withdrawal.id}`}
-                        >
-                          🔔 Notifier
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    {/* Bank Card Info */}
-                    {withdrawal.bankCardId && (
-                      <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-200 dark:border-blue-800">
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <p className="text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">💳 Carte bancaire</p>
-                            <p className="text-sm font-medium text-blue-900 dark:text-blue-200">
-                              {withdrawal.bankCardFirstName} {withdrawal.bankCardLastName}
-                            </p>
-                            <p className="text-xs text-blue-700 dark:text-blue-400">
-                              {withdrawal.bankCardNumber}
-                            </p>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setEditingBankCard({
-                                id: withdrawal.bankCardId,
-                                firstName: withdrawal.bankCardFirstName,
-                                lastName: withdrawal.bankCardLastName,
-                                cardNumber: withdrawal.bankCardNumber,
-                                userId: withdrawal.userId
-                              });
-                              setCardFirstName(withdrawal.bankCardFirstName || '');
-                              setCardLastName(withdrawal.bankCardLastName || '');
-                              setCardNumber(withdrawal.bankCardNumber || '');
-                              setEditBankCardModal(true);
-                            }}
-                            data-testid={`button-edit-bank-card-${withdrawal.id}`}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                    {!withdrawal.bankCardId && (
-                      <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">⚠️ Aucune carte bancaire enregistrée</p>
-                    )}
-                  </div>
-                ))}
               </div>
-            ) : (
-              <div className="text-center py-8 text-slate-500">
-                Aucun retrait en attente
-              </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Users Section with Real-time Search */}
         <Card>
