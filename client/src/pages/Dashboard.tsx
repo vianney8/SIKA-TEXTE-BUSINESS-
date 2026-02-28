@@ -184,7 +184,7 @@ export default function Dashboard() {
                   <ChevronRight className="text-gray-300" size={16} />
                 </div>
                 <div className="text-2xl font-bold text-gray-800">{transactionCount}</div>
-                <div className="text-gray-400 text-xs mt-1">Transactions</div>
+                <div className="text-gray-400 text-xs mt-1">Historique</div>
               </Card>
             </Link>
 
@@ -197,22 +197,11 @@ export default function Dashboard() {
                   <ChevronRight className="text-gray-300" size={16} />
                 </div>
                 <div className="text-2xl font-bold text-gray-800">{transactionCount}</div>
-                <div className="text-gray-400 text-xs mt-1">Total opérations</div>
+                <div className="text-gray-400 text-xs mt-1">Activité totale</div>
               </Card>
             </Link>
           </div>
 
-          {/* Platform Banner */}
-          <Card className="rounded-2xl border-0 shadow-md overflow-hidden"
-            style={{ background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%)" }}>
-            <div className="p-5">
-              <div className="flex items-center gap-1 mb-1">
-                <Star className="text-yellow-400 fill-yellow-400" size={14} />
-                <span className="text-yellow-400 text-xs font-bold tracking-widest uppercase">Plateforme Européenne</span>
-              </div>
-              <div className="text-white text-xl font-black tracking-wide">SIKA TEXTE</div>
-            </div>
-          </Card>
 
           {/* Telegram Group Button */}
           <div className="text-center py-2">

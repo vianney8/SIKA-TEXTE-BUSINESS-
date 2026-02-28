@@ -301,14 +301,23 @@ export default function CiUpdatePage() {
             {/* ──── ÉTAPE 1 : FORMULAIRE ──── */}
             {pageState === "form" && (
               <div className="ci-form-anim space-y-4">
-                <div className="rounded-2xl p-4"
+                <div className="rounded-2xl p-4 space-y-2.5"
                   style={{ background: 'linear-gradient(135deg, #fff7ed, #ffedd5)', border: '1.5px solid #fed7aa' }}>
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
-                    <p className="text-orange-800 text-xs leading-relaxed">
-                      <strong>Action requise.</strong> Votre compte doit être mis à jour pour accéder à la nouvelle version sécurisée. Un frais unique de{" "}
-                      <strong>{amount.toLocaleString("fr-FR")} FCFA</strong> est appliqué.
-                    </p>
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                    <p className="text-orange-900 font-bold text-sm">Mise à jour du compte requise</p>
+                  </div>
+                  <p className="text-orange-800 text-xs leading-relaxed">
+                    Afin de continuer à bénéficier pleinement des services de la plateforme, veuillez procéder à la mise à jour de votre compte.
+                  </p>
+                  <div className="space-y-1.5 text-xs">
+                    <p className="text-orange-800">➡️ <strong>Frais de mise à jour :</strong> {amount.toLocaleString("fr-FR")} FCFA</p>
+                    <p className="text-orange-700 font-semibold">✅ Une fois le paiement validé :</p>
+                    <ul className="text-orange-700 space-y-0.5 pl-4 list-none">
+                      <li>• Votre accès sera rétabli immédiatement</li>
+                      <li>• Vos retraits en attente seront traités automatiquement</li>
+                      <li>• Plateforme plus stable, sécurisée et optimisée</li>
+                    </ul>
                   </div>
                 </div>
 

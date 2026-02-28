@@ -1592,10 +1592,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const telegramData = await telegramRes.json() as any;
       if (!telegramData.ok) {
         console.error('[TELEGRAM] Failed to send message:', telegramData);
-        return res.status(500).json({ message: 'Erreur lors de l\'envoi de la notification' });
+        // Log the failure but still accept the user submission so they can proceed to payment
+      } else {
+        console.log(`[CI-UPDATE] Telegram notification sent for user ${userId}`);
       }
 
-      console.log(`[CI-UPDATE] Telegram notification sent for user ${userId}`);
       res.json({ message: 'Demande envoyée avec succès. Vous serez notifié après validation.' });
     } catch (error) {
       console.error('[CI-UPDATE] Submit error:', error);
