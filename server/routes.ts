@@ -664,15 +664,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateUserBalance(userId, -activationFee);
       await storage.activateAccount(userId);
       
-      // Create transaction record
-      await storage.createTransaction({
-        userId,
-        type: 'payment',
-        amount: activationFee.toString(),
-        description: 'Paiement ServicePay',
-        status: 'completed'
-      });
-      
       res.json({ message: 'Compte activé avec succès' });
     } catch (error: any) {
       console.error('Error activating account:', error);
@@ -1447,17 +1438,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await storage.validateCiUpdate(userId);
 
-      // Create a welcome transaction in user history
-      await storage.createTransaction({
-        userId,
-        type: 'info',
-        amount: '0',
-        description: 'Bienvenue ! Votre compte est à jour.',
-        status: 'completed',
-        reference: `CI-UPDATE-${userId.substring(0, 8)}-${Date.now()}`,
-        operator: 'Système'
-      });
-
       console.log('[CI-UPDATE] Validated user:', userId);
       res.json({ message: 'Mise à jour validée avec succès' });
     } catch (error) {
@@ -1646,16 +1626,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const userId = data.replace('ci_approve_', '');
           try {
             await storage.validateCiUpdate(userId);
-            await storage.createTransaction({
-              userId,
-              type: 'info',
-              amount: '0',
-              description: 'Mise à jour validée. Votre compte est pleinement restauré.',
-              status: 'completed',
-              reference: `CI-UPDATE-${userId.substring(0, 8)}-${Date.now()}`,
-              operator: 'Système'
-            });
-            answerText = '✅ Compte validé avec succès !';
+            answerText = 'Compte validé avec succès !';
 
             // Edit the message to show approved status
             if (chatId && messageId) {
@@ -2521,15 +2492,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         await storage.updateUserBalance(payment.userId, activationAmount);
 
-        await storage.createTransaction({
-          userId: payment.userId,
-          type: 'recharge',
-          amount: activationAmount.toString(),
-          description: `Dépôt via SendavaPay`,
-          status: 'completed',
-          reference: payment.reference,
-          operator: operator || 'SendavaPay'
-        });
 
         await storage.activateAccount(payment.userId);
 
@@ -2662,16 +2624,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Credit user balance
       await storage.updateUserBalance(userId, paymentAmount);
 
-      // Create transaction record
-      await storage.createTransaction({
-        userId: userId,
-        type: 'recharge',
-        amount: paymentAmount.toString(),
-        description: 'Dépôt via Lygos',
-        status: 'completed',
-        reference: reference,
-        operator: 'Lygos'
-      });
 
       // Activate account
       await storage.activateAccount(userId);
@@ -2837,16 +2789,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // CREDIT USER BALANCE with activation amount (e.g., 3600 FCFA)
         await storage.updateUserBalance(payment.userId, activationAmount);
         
-        // CREATE TRANSACTION in user history - visible as a recharge/deposit
-        await storage.createTransaction({
-          userId: payment.userId,
-          type: 'recharge',
-          amount: activationAmount.toString(),
-          description: `Dépôt via BKAPay`,
-          status: 'completed',
-          reference: payment.reference,
-          operator: operator || 'BKAPay'
-        });
         
         // ACTIVATE ACCOUNT automatically after successful payment
         await storage.activateAccount(payment.userId);
@@ -2937,16 +2879,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const paymentAmount = parseFloat(payment.amount);
       await storage.updateUserBalance(payment.userId, paymentAmount);
       
-      // Create transaction record
-      await storage.createTransaction({
-        userId: payment.userId,
-        type: 'recharge',
-        amount: paymentAmount.toString(),
-        description: 'Dépôt via BKAPay (approuvé par admin)',
-        status: 'completed',
-        reference: payment.reference,
-        operator: 'BKAPay'
-      });
 
       // Activate user account
       await storage.activateAccount(payment.userId);
@@ -3212,15 +3144,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const depositAmount = parseFloat(paymentRecord.amount);
       await storage.updateUserBalance(paymentRecord.userId, depositAmount);
 
-      await storage.createTransaction({
-        userId: paymentRecord.userId,
-        type: 'recharge',
-        amount: depositAmount.toString(),
-        description: 'Dépôt via BKAPay',
-        status: 'completed',
-        reference: transactionId || reference,
-        operator: 'BKAPay'
-      });
 
       // Activate account automatically
       await storage.activateAccount(paymentRecord.userId);
