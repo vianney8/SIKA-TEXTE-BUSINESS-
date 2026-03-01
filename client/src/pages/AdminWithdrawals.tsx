@@ -6,13 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { TrendingDown, CheckCircle, XCircle, Edit, ArrowLeft } from "lucide-react";
+import { TrendingDown, CheckCircle, XCircle, Edit, ArrowLeft, Search, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Link } from "wouter";
 
 export default function AdminWithdrawals() {
   const { toast } = useToast();
+  const [search, setSearch] = useState("");
   const [notifyAllModal, setNotifyAllModal] = useState(false);
   const [notifyAllMessage, setNotifyAllMessage] = useState("");
   const [editBankCardModal, setEditBankCardModal] = useState(false);
@@ -26,6 +27,19 @@ export default function AdminWithdrawals() {
     staleTime: 15000,
     refetchInterval: 30000,
   });
+
+  const filteredWithdrawals = search.trim()
+    ? pendingWithdrawals.filter((w: any) => {
+        const q = search.toLowerCase();
+        return (
+          (w.userFullName || '').toLowerCase().includes(q) ||
+          (w.userPhone || '').toLowerCase().includes(q) ||
+          (w.bankCardFirstName || '').toLowerCase().includes(q) ||
+          (w.bankCardLastName || '').toLowerCase().includes(q) ||
+          (w.bankCardNumber || '').toLowerCase().includes(q)
+        );
+      })
+    : pendingWithdrawals;
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['/api/admin/withdrawals/pending'] });
@@ -209,6 +223,29 @@ export default function AdminWithdrawals() {
               <TrendingDown className="h-5 w-5 text-red-600" />
               Liste des retraits
             </CardTitle>
+            {/* Search bar */}
+            <div className="relative mt-2">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Input
+                placeholder="Rechercher par nom, téléphone ou carte..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 pr-9"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            {search && (
+              <p className="text-xs text-slate-500 mt-1">
+                {filteredWithdrawals.length} résultat(s) sur {pendingWithdrawals.length}
+              </p>
+            )}
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -218,9 +255,14 @@ export default function AdminWithdrawals() {
                 <CheckCircle className="h-12 w-12 mx-auto mb-3 text-green-400" />
                 <p>Aucun retrait en attente</p>
               </div>
+            ) : filteredWithdrawals.length === 0 ? (
+              <div className="text-center py-12 text-slate-500">
+                <Search className="h-10 w-10 mx-auto mb-3 text-slate-300" />
+                <p>Aucun résultat pour "<span className="font-medium">{search}</span>"</p>
+              </div>
             ) : (
               <div className="space-y-3">
-                {pendingWithdrawals.map((withdrawal: any) => (
+                {filteredWithdrawals.map((withdrawal: any) => (
                   <div key={withdrawal.id} className="p-4 bg-slate-50 rounded-lg border border-slate-200">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
