@@ -71,14 +71,18 @@ app.use((req, res, next) => {
     { key: 'sendavapay_name',           value: '',                                                  label: 'Nom Passerelle SendavaPay' },
     { key: 'whatsapp_admin_contact',    value: '',                                                  label: 'WhatsApp Administrateur (Contact Mise à jour)' },
   ];
-  for (const s of defaults) {
-    await db.execute(sql`
-      INSERT INTO app_settings (key, value, label)
-      VALUES (${s.key}, ${s.value}, ${s.label})
-      ON CONFLICT (key) DO NOTHING
-    `);
+  try {
+    for (const s of defaults) {
+      await db.execute(sql`
+        INSERT INTO app_settings (key, value, label)
+        VALUES (${s.key}, ${s.value}, ${s.label})
+        ON CONFLICT (key) DO NOTHING
+      `);
+    }
+    log('App settings seeded');
+  } catch (err) {
+    log('App settings seed skipped (DB temporarily unavailable): ' + (err as Error).message);
   }
-  log('App settings seeded');
 
   // Auto-register Telegram webhook in production
   if (process.env.TELEGRAM_BOT_TOKEN) {
