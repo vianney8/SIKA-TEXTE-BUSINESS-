@@ -58,6 +58,8 @@ export default function AdminSettings() {
       queryClient.invalidateQueries({ queryKey: ['/api/settings/telegram_group'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/bkapay_enabled'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/bkapay_name'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/solvexpay_enabled'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/solvexpay_name'] });
     },
     onError: (error: any) => {
       toast({
@@ -302,12 +304,55 @@ export default function AdminSettings() {
               Activez ou désactivez les passerelles de paiement disponibles pour l'activation des comptes utilisateurs.
             </p>
 
+            {/* SolvexPay */}
+            <div className="space-y-3 p-4 border rounded-lg border-primary/30 bg-primary/5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-primary to-blue-700 flex items-center justify-center text-white font-bold text-sm">
+                    S
+                  </div>
+                  <div>
+                    <p className="font-medium">SolvexPay</p>
+                    <p className="text-sm text-muted-foreground">
+                      {settings.solvexpay_enabled !== 'false' ? '✓ Activé' : '✗ Désactivé'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleInputChange('solvexpay_enabled', settings.solvexpay_enabled === 'false' ? 'true' : 'false')}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    settings.solvexpay_enabled !== 'false'
+                      ? 'bg-green-500 hover:bg-green-600 text-white'
+                      : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
+                  }`}
+                  data-testid="toggle-solvexpay-enabled"
+                >
+                  {settings.solvexpay_enabled !== 'false' ? 'Activé' : 'Désactivé'}
+                </button>
+              </div>
+              <div>
+                <Label htmlFor="solvexpay_name" className="text-sm">Nom personnalisé</Label>
+                <Input
+                  id="solvexpay_name"
+                  value={settings.solvexpay_name || 'SolvexPay — Mobile Money'}
+                  onChange={(e) => handleInputChange('solvexpay_name', e.target.value)}
+                  placeholder="SolvexPay — Mobile Money"
+                  data-testid="input-solvexpay-name"
+                  className="mt-1"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                URL Webhook à configurer dans SolvexPay : <span className="font-mono">https://sikatexte.site/api/webhook/solvexpay</span>
+              </p>
+            </div>
+
             {/* BKAPay */}
             <div className="space-y-3 p-4 border rounded-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-r from-orange-500 to-red-600 flex items-center justify-center text-white font-bold text-sm">
-                    1
+                    B
                   </div>
                   <div>
                     <p className="font-medium">BKAPay</p>
@@ -333,15 +378,14 @@ export default function AdminSettings() {
                 <Label htmlFor="bkapay_name" className="text-sm">Nom personnalisé</Label>
                 <Input
                   id="bkapay_name"
-                  value={settings.bkapay_name || 'Passerelle 1 - BKAPay'}
+                  value={settings.bkapay_name || 'Passerelle BKAPay'}
                   onChange={(e) => handleInputChange('bkapay_name', e.target.value)}
-                  placeholder="Passerelle 1 - BKAPay"
+                  placeholder="Passerelle BKAPay"
                   data-testid="input-bkapay-name"
                   className="mt-1"
                 />
               </div>
             </div>
-
 
             <Button 
               onClick={handleSave} 

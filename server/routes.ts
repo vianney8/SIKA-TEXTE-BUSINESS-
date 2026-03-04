@@ -1907,6 +1907,240 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
+  // SOLVEXPAY - Initiate activation payment (push Mobile Money)
+  app.post('/api/activation/init-solvexpay', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const user = await storage.getUser(userId);
+
+      if (!user) {
+        return res.status(404).json({ message: 'Utilisateur non trouvé' });
+      }
+
+      const statusResult = await db.select().from(accountStatus).where(eq(accountStatus.userId, userId));
+      if (statusResult.length > 0 && statusResult[0].isActive) {
+        return res.status(400).json({ message: 'Votre compte est déjà activé' });
+      }
+
+      const { phone, operator, country } = req.body;
+
+      if (!phone || !operator || !country) {
+        return res.status(400).json({ message: 'Numéro de téléphone, opérateur et pays sont requis' });
+      }
+
+      const apiKey = process.env.SOLVEXPAY_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ message: 'Clé API SolvexPay non configurée' });
+      }
+
+      const settings = await storage.getAppSettings();
+      const activationSetting = settings.find((s: any) => s.key === 'activation_amount');
+      const activationAmount = parseInt(activationSetting?.value || '3600');
+
+      const reference = `SVX-${userId.substring(0, 8)}-${Date.now()}`;
+
+      await db.insert(bkapayPayments).values({
+        id: crypto.randomUUID(),
+        userId,
+        amount: activationAmount.toString(),
+        reference,
+        status: 'pending',
+        createdAt: new Date()
+      });
+
+      console.log('[SOLVEXPAY-INIT] ===== PAYMENT INITIATED =====');
+      console.log('[SOLVEXPAY-INIT] User ID:', userId);
+      console.log('[SOLVEXPAY-INIT] Reference:', reference);
+      console.log('[SOLVEXPAY-INIT] Amount:', activationAmount);
+      console.log('[SOLVEXPAY-INIT] Phone:', phone, '| Operator:', operator, '| Country:', country);
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+
+      const apiResponse = await fetch('https://solvexpay.com/api/v1/deposit', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          amount: activationAmount,
+          phone,
+          operator,
+          country,
+          description: `Activation compte Sika Texte — ${reference}`,
+          customer_name: user.username || undefined,
+          customer_email: user.email || undefined,
+          metadata: { user_id: userId, reference }
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeout);
+
+      const apiData = await apiResponse.json();
+      console.log('[SOLVEXPAY-INIT] Response status:', apiResponse.status);
+      console.log('[SOLVEXPAY-INIT] Response data:', JSON.stringify(apiData));
+
+      if (!apiResponse.ok) {
+        const errCode = apiData?.error?.code || 'UNKNOWN';
+        const errMsg = apiData?.error?.message || 'Erreur lors de la création du paiement';
+        console.error('[SOLVEXPAY-INIT] API Error:', errCode, errMsg);
+        return res.status(apiResponse.status).json({ message: errMsg, code: errCode });
+      }
+
+      await db.update(bkapayPayments)
+        .set({ redirectUrl: apiData.id })
+        .where(eq(bkapayPayments.reference, reference));
+
+      res.json({
+        success: true,
+        transactionId: apiData.id,
+        reference,
+        amount: activationAmount,
+        status: apiData.status,
+        paymentUrl: apiData.payment_url || null,
+        gateway: 'solvexpay'
+      });
+    } catch (error: any) {
+      console.error('[SOLVEXPAY-INIT] Error:', error);
+      if (error?.name === 'AbortError') {
+        return res.status(504).json({ message: 'Délai d\'attente dépassé — veuillez réessayer' });
+      }
+      res.status(500).json({ message: 'Erreur lors de l\'initiation du paiement' });
+    }
+  });
+
+  // SOLVEXPAY WEBHOOK - Receive payment notifications (HMAC-SHA256 on raw body)
+  app.post('/api/webhook/solvexpay', async (req: any, res) => {
+    try {
+      const crypto = require('crypto');
+
+      console.log('[SOLVEXPAY-WEBHOOK] ===== WEBHOOK RECEIVED =====');
+
+      const signature = req.headers['x-solvexpay-signature'] as string;
+      const webhookSecret = process.env.SOLVEXPAY_WEBHOOK_SECRET;
+
+      if (webhookSecret && signature) {
+        const rawBody = req.rawBody as Buffer;
+        const expected = 'sha256=' + crypto
+          .createHmac('sha256', webhookSecret)
+          .update(rawBody)
+          .digest('hex');
+
+        if (signature !== expected) {
+          console.log('[SOLVEXPAY-WEBHOOK] ✗ INVALID SIGNATURE - Rejecting');
+          console.log('[SOLVEXPAY-WEBHOOK] Received:', signature);
+          console.log('[SOLVEXPAY-WEBHOOK] Expected:', expected);
+          return res.status(401).json({ error: 'Signature invalide' });
+        }
+        console.log('[SOLVEXPAY-WEBHOOK] ✓ Signature VERIFIED');
+      } else {
+        console.log('[SOLVEXPAY-WEBHOOK] WARNING: No signature check (secret or header missing)');
+      }
+
+      const { event, transaction } = req.body;
+
+      console.log('[SOLVEXPAY-WEBHOOK] Event:', event);
+      console.log('[SOLVEXPAY-WEBHOOK] Transaction:', JSON.stringify(transaction));
+
+      if (!transaction) {
+        return res.status(400).json({ error: 'Payload invalide' });
+      }
+
+      const { id: transactionId, amount, reference, metadata } = transaction;
+
+      let payment = null;
+
+      if (metadata?.reference) {
+        const payments = await db.select().from(bkapayPayments)
+          .where(eq(bkapayPayments.reference, metadata.reference));
+        payment = payments[0];
+      }
+
+      if (!payment && reference) {
+        const payments = await db.select().from(bkapayPayments)
+          .where(eq(bkapayPayments.reference, reference));
+        payment = payments[0];
+      }
+
+      if (!payment && metadata?.user_id) {
+        const recentPayments = await db.select().from(bkapayPayments)
+          .where(and(
+            eq(bkapayPayments.userId, metadata.user_id),
+            or(
+              eq(bkapayPayments.status, 'pending'),
+              eq(bkapayPayments.status, 'awaiting_verification')
+            )
+          ))
+          .orderBy(desc(bkapayPayments.createdAt))
+          .limit(1);
+        payment = recentPayments[0];
+      }
+
+      if (!payment && transactionId) {
+        const recentPayments = await db.select().from(bkapayPayments)
+          .where(and(
+            eq(bkapayPayments.redirectUrl, transactionId),
+            or(
+              eq(bkapayPayments.status, 'pending'),
+              eq(bkapayPayments.status, 'awaiting_verification')
+            )
+          ))
+          .orderBy(desc(bkapayPayments.createdAt))
+          .limit(1);
+        payment = recentPayments[0];
+      }
+
+      if (!payment) {
+        console.log('[SOLVEXPAY-WEBHOOK] Payment not found for transaction:', transactionId);
+        return res.status(404).json({ error: 'Payment not found' });
+      }
+
+      if (payment.status === 'completed') {
+        console.log('[SOLVEXPAY-WEBHOOK] Already processed');
+        return res.json({ received: true, message: 'Already processed' });
+      }
+
+      if (event === 'transaction.completed') {
+        const paymentAmount = parseFloat(payment.amount);
+
+        await db.update(bkapayPayments)
+          .set({ status: 'completed', completedAt: new Date() })
+          .where(eq(bkapayPayments.id, payment.id));
+
+        await storage.updateUserBalance(payment.userId, paymentAmount);
+        await storage.activateAccount(payment.userId);
+
+        console.log('[SOLVEXPAY-WEBHOOK] ╔════════════════════════════════════════╗');
+        console.log('[SOLVEXPAY-WEBHOOK] ║  ✓ ACCOUNT ACTIVATED SUCCESSFULLY      ║');
+        console.log('[SOLVEXPAY-WEBHOOK] ║  User:', payment.userId);
+        console.log('[SOLVEXPAY-WEBHOOK] ║  Amount:', paymentAmount, 'FCFA');
+        console.log('[SOLVEXPAY-WEBHOOK] ╚════════════════════════════════════════╝');
+
+        return res.json({
+          received: true,
+          message: 'Payment successful - account activated',
+          activated: true,
+          balanceCredited: paymentAmount,
+          userId: payment.userId
+        });
+      } else if (event === 'transaction.failed') {
+        await db.update(bkapayPayments)
+          .set({ status: 'failed' })
+          .where(eq(bkapayPayments.id, payment.id));
+
+        console.log('[SOLVEXPAY-WEBHOOK] Payment failed for user:', payment.userId);
+        return res.json({ received: true, message: 'Payment failed', activated: false });
+      } else {
+        return res.json({ received: true, message: 'Event received but not processed' });
+      }
+    } catch (error) {
+      console.error('[SOLVEXPAY-WEBHOOK] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // BKAPAY WEBHOOK v1.3 - Automatic account activation via secure webhook
   // IMPORTANT: This URL MUST be configured in BKAPay Dashboard:
   //   1. Go to Dashboard → Clés API

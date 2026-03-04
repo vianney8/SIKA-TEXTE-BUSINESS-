@@ -6,7 +6,11 @@ import { appSettings } from "@shared/schema";
 import { sql } from "drizzle-orm";
 
 const app = express();
-app.use(express.json());
+app.use(express.json({
+  verify: (req: any, _res, buf) => {
+    req.rawBody = buf;
+  }
+}));
 app.use(express.urlencoded({ extended: false }));
 
 app.use((req, res, next) => {
@@ -59,16 +63,10 @@ app.use((req, res, next) => {
     { key: 'telegram_admin_chat_id',     value: '7457302722',                                       label: 'Telegram Admin Chat ID' },
     { key: 'chat_enabled',              value: 'true',                                              label: 'Chat en ligne activé' },
     { key: 'withdrawal_video_url',       value: '/withdrawal-video.mp4',                            label: 'Vidéo page activation' },
-    { key: 'lygos_enabled',             value: 'false',                                             label: 'Activer Passerelle Lygos' },
-    { key: 'lygos_name',                value: 'Passerelle 1 - Lygos',                             label: 'Nom Passerelle Lygos' },
-    { key: 'bkapay_enabled',            value: 'false',                                             label: 'Activer Passerelle BKAPay' },
-    { key: 'bkapay_name',               value: '',                                                  label: 'Nom Passerelle BKAPay' },
-    { key: 'leekpay_enabled',           value: 'false',                                             label: 'Activer Passerelle LeekPay' },
-    { key: 'leekpay_name',              value: 'Continuer vers le paiement',                       label: 'Nom Passerelle LeekPay' },
     { key: 'solvexpay_enabled',         value: 'true',                                              label: 'Activer Passerelle SolvexPay' },
-    { key: 'solvexpay_name',            value: '',                                                  label: 'Nom Passerelle SolvexPay' },
-    { key: 'sendavapay_enabled',        value: '',                                                  label: 'Activer Passerelle SendavaPay' },
-    { key: 'sendavapay_name',           value: '',                                                  label: 'Nom Passerelle SendavaPay' },
+    { key: 'solvexpay_name',            value: 'SolvexPay — Mobile Money',                         label: 'Nom Passerelle SolvexPay' },
+    { key: 'bkapay_enabled',            value: 'false',                                             label: 'Activer Passerelle BKAPay' },
+    { key: 'bkapay_name',               value: 'Passerelle BKAPay',                                label: 'Nom Passerelle BKAPay' },
     { key: 'whatsapp_admin_contact',    value: '',                                                  label: 'WhatsApp Administrateur (Contact Mise à jour)' },
   ];
   try {
