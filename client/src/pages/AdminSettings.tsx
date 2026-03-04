@@ -60,6 +60,7 @@ export default function AdminSettings() {
       queryClient.invalidateQueries({ queryKey: ['/api/settings/bkapay_name'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/solvexpay_enabled'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/solvexpay_name'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/solvexpay_link'] });
     },
     onError: (error: any) => {
       toast({
@@ -341,6 +342,20 @@ export default function AdminSettings() {
                   data-testid="input-solvexpay-name"
                   className="mt-1"
                 />
+              </div>
+              <div>
+                <Label htmlFor="solvexpay_link" className="text-sm">Lien de paiement SolvexPay</Label>
+                <Input
+                  id="solvexpay_link"
+                  value={settings.solvexpay_link || ''}
+                  onChange={(e) => handleInputChange('solvexpay_link', e.target.value)}
+                  placeholder="https://pay.sx/xxxxxxxx"
+                  data-testid="input-solvexpay-link"
+                  className="mt-1"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Lien de paiement créé depuis votre tableau de bord SolvexPay (Liens de Paiement). Les utilisateurs y seront redirigés directement.
+                </p>
               </div>
               <p className="text-xs text-muted-foreground">
                 URL Webhook à configurer dans SolvexPay : <span className="font-mono">https://sikatexte.site/api/webhook/solvexpay</span>

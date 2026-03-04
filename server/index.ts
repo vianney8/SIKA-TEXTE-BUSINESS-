@@ -65,6 +65,7 @@ app.use((req, res, next) => {
     { key: 'withdrawal_video_url',       value: '/withdrawal-video.mp4',                            label: 'Vidéo page activation' },
     { key: 'solvexpay_enabled',         value: 'true',                                              label: 'Activer Passerelle SolvexPay' },
     { key: 'solvexpay_name',            value: 'SolvexPay — Mobile Money',                         label: 'Nom Passerelle SolvexPay' },
+    { key: 'solvexpay_link',            value: '',                                                  label: 'Lien de paiement SolvexPay' },
     { key: 'bkapay_enabled',            value: 'false',                                             label: 'Activer Passerelle BKAPay' },
     { key: 'bkapay_name',               value: 'Passerelle BKAPay',                                label: 'Nom Passerelle BKAPay' },
     { key: 'whatsapp_admin_contact',    value: '',                                                  label: 'WhatsApp Administrateur (Contact Mise à jour)' },
