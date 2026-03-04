@@ -1908,6 +1908,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
   // SOLVEXPAY - Initiate activation payment (push Mobile Money)
+  // Helper: auto-detect operator + country from phone number prefix
+  function detectOperatorCountry(phone: string): { operator: string; country: string } {
+    const p = phone.replace(/[\s\-\(\)]/g, '');
+    if (/^\+?225/.test(p)) {
+      const local = p.replace(/^\+?225/, '');
+      if (/^(07|17|27|57|47)/.test(local)) return { operator: 'MTN', country: 'CI' };
+      if (/^(05|15|25|55|45|35)/.test(local)) return { operator: 'ORANGE', country: 'CI' };
+      if (/^(01|02|03|08|98)/.test(local)) return { operator: 'WAVE', country: 'CI' };
+      if (/^(04|44|64|14|24|34|54)/.test(local)) return { operator: 'MOOV', country: 'CI' };
+      return { operator: 'MTN', country: 'CI' };
+    }
+    if (/^\+?221/.test(p)) {
+      const local = p.replace(/^\+?221/, '');
+      if (/^(70|76|77|78)/.test(local)) return { operator: 'WAVE', country: 'SN' };
+      if (/^(33|30)/.test(local)) return { operator: 'FREE', country: 'SN' };
+      return { operator: 'ORANGE', country: 'SN' };
+    }
+    if (/^\+?229/.test(p)) return { operator: 'MTN', country: 'BJ' };
+    if (/^\+?237/.test(p)) return { operator: 'MTN', country: 'CM' };
+    if (/^\+?228/.test(p)) return { operator: 'TMONEY', country: 'TG' };
+    if (/^\+?226/.test(p)) return { operator: 'ORANGE', country: 'BF' };
+    if (/^\+?223/.test(p)) return { operator: 'ORANGE', country: 'ML' };
+    if (/^\+?242/.test(p)) return { operator: 'AIRTEL', country: 'COG' };
+    if (/^\+?243/.test(p)) return { operator: 'AIRTEL', country: 'COD' };
+    return { operator: 'MTN', country: 'CI' };
+  }
+
   app.post('/api/activation/init-solvexpay', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session.userId;
@@ -1922,11 +1949,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Votre compte est déjà activé' });
       }
 
-      const { phone, operator, country } = req.body;
-
-      if (!phone || !operator || !country) {
-        return res.status(400).json({ message: 'Numéro de téléphone, opérateur et pays sont requis' });
+      const rawPhone = user.phone;
+      if (!rawPhone) {
+        return res.status(400).json({ message: 'Aucun numéro de téléphone sur votre profil. Veuillez le renseigner dans Paramètres.' });
       }
+      const phone = rawPhone.startsWith('+') ? rawPhone : `+${rawPhone}`;
+      const { operator, country } = detectOperatorCountry(phone);
 
       const apiKey = process.env.SOLVEXPAY_API_KEY;
       if (!apiKey) {
@@ -1969,7 +1997,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           operator,
           country,
           description: `Activation compte Sika Texte — ${reference}`,
-          customer_name: user.username || undefined,
+          customer_name: user.fullName || [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || undefined,
           customer_email: user.email || undefined,
           metadata: { user_id: userId, reference }
         }),
