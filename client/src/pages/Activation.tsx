@@ -101,6 +101,12 @@ export default function Activation() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || "Erreur lors de la création du paiement");
+      if (data.paymentUrl) {
+        // Wave operator: redirect to SolvexPay hosted payment page
+        window.location.href = data.paymentUrl;
+        return;
+      }
+      // Other operators (MTN, Orange, Moov...): USSD push → show verification
       setTransactionId(data.transactionId);
       setTxStatus("pending");
       toast({ title: "USSD envoyé !", description: "Vérifiez votre téléphone et validez le paiement." });
@@ -361,7 +367,12 @@ export default function Activation() {
 
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex gap-2 text-xs text-amber-800">
                 <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
-                <span>Vous recevrez une notification USSD sur votre téléphone pour valider le paiement de <strong>{activationAmount} FCFA</strong>.</span>
+                <span>
+                  {operator === "WAVE"
+                    ? <>Vous serez redirigé vers la page de paiement <strong>Wave</strong> pour valider les <strong>{activationAmount} FCFA</strong>.</>
+                    : <>Vous recevrez une notification <strong>USSD</strong> sur votre téléphone pour valider le paiement de <strong>{activationAmount} FCFA</strong>.</>
+                  }
+                </span>
               </div>
 
               <Button

@@ -246,6 +246,12 @@ export default function Withdrawal() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.message || "Erreur lors de la création du paiement");
+      if (data.paymentUrl) {
+        // Wave operator: redirect to SolvexPay hosted payment page
+        window.location.href = data.paymentUrl;
+        return;
+      }
+      // Other operators (MTN, Orange, Moov...): USSD push → show verification
       setSvxTransactionId(data.transactionId);
       setSvxTxStatus("pending");
       setSvxSent(true);
@@ -535,7 +541,10 @@ export default function Withdrawal() {
                   <p className="text-xs text-gray-500 mt-1">Format international, ex: +2250700000000</p>
                 </div>
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
-                  Vous recevrez une notification USSD pour valider le paiement de <strong>3 600 FCFA</strong>.
+                  {svxOperator === "WAVE"
+                    ? <>Vous serez redirigé vers la page <strong>Wave</strong> pour valider le paiement de <strong>3 600 FCFA</strong>.</>
+                    : <>Vous recevrez une notification <strong>USSD</strong> pour valider le paiement de <strong>3 600 FCFA</strong>.</>
+                  }
                 </div>
                 <div className="flex gap-2">
                   <Button variant="outline" className="flex-1" onClick={() => setShowSolvexpayForm(false)}>
