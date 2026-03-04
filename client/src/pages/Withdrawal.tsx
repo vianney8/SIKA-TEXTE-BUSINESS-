@@ -90,20 +90,11 @@ export default function Withdrawal() {
   const { data: activationLink } = useAppSetting('activation_link');
   const { data: telegramSupervisor } = useAppSetting('telegram_supervisor');
   const { data: bkapayEnabled } = useAppSetting('bkapay_enabled');
-  const { data: lygosEnabled } = useAppSetting('lygos_enabled');
-  const { data: leekpayEnabled } = useAppSetting('leekpay_enabled');
   const { data: bkapayName } = useAppSetting('bkapay_name');
-  const { data: lygosName } = useAppSetting('lygos_name');
-  const { data: leekpayName } = useAppSetting('leekpay_name');
   const { data: solvexpayEnabled } = useAppSetting('solvexpay_enabled');
   const { data: solvexpayName } = useAppSetting('solvexpay_name');
-  const { data: sendavapayEnabled } = useAppSetting('sendavapay_enabled');
-  const { data: sendavapayName } = useAppSetting('sendavapay_name');
-  const isBkapayActive = bkapayEnabled === undefined || bkapayEnabled === '' || bkapayEnabled !== 'false';
-  const isLygosActive = lygosEnabled === undefined || lygosEnabled === '' || lygosEnabled !== 'false';
-  const isLeekpayActive = leekpayEnabled === undefined || leekpayEnabled === '' || leekpayEnabled !== 'false';
-  const isSolvexpayActive = solvexpayEnabled === undefined || solvexpayEnabled === '' || solvexpayEnabled !== 'false';
-  const isSendavapayActive = sendavapayEnabled === 'true';
+  const isBkapayActive = bkapayEnabled !== 'false' && !!activationLink && activationLink !== 'h' && activationLink !== '';
+  const isSolvexpayActive = solvexpayEnabled !== 'false';
 
   const { data: withdrawalData, refetch: refetchWithdrawalData } = useQuery<WithdrawalData>({
     queryKey: ['/api/withdrawal'],
@@ -172,245 +163,74 @@ export default function Withdrawal() {
     },
   });
 
-  // Payment gateways - Lygos, BKAPay, LeekPay, SolvexPay and SendavaPay
-  const [isLygosLoading, setIsLygosLoading] = useState(false);
+  // Payment state
   const [isBkapayLoading, setIsBkapayLoading] = useState(false);
-  const [isLeekpayLoading, setIsLeekpayLoading] = useState(false);
   const [isSolvexpayLoading, setIsSolvexpayLoading] = useState(false);
-  const [isSendavapayLoading, setIsSendavapayLoading] = useState(false);
-  
-  // Lygos payment handler
-  const handlePayLygos = async () => {
-    setIsLygosLoading(true);
-    try {
-      console.log('[LYGOS] Initiating activation payment...');
-      
-      const response = await fetch("/api/activation/init-payment", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('[LYGOS] Init payment failed:', response.status, errorData);
-        throw new Error(errorData.message || "Erreur lors de l'initiation du paiement");
-      }
-      
-      const data = await response.json();
-      console.log('[LYGOS] Payment init response:', data);
-      
-      if (!data.redirectUrl) {
-        throw new Error("URL de paiement non reçue");
-      }
-      
-      if (data.reference) {
-        localStorage.setItem('pendingActivationRef', data.reference);
-        localStorage.setItem('pendingActivationTime', Date.now().toString());
-      }
-      
-      toast({
-        title: "Redirection vers Lygos",
-        description: `Paiement de ${data.amount} FCFA en cours...`,
-      });
-      
-      window.location.href = data.redirectUrl;
-    } catch (error: any) {
-      console.error('[LYGOS] Payment error:', error);
-      toast({
-        title: "Erreur",
-        description: error.message || "Impossible d'initier le paiement",
-        variant: "destructive",
-      });
-      setIsLygosLoading(false);
-    }
+  const [showSolvexpayForm, setShowSolvexpayForm] = useState(false);
+  const [svxPhone, setSvxPhone] = useState("");
+  const [svxCountry, setSvxCountry] = useState("CI");
+  const [svxOperator, setSvxOperator] = useState("MTN");
+  const [svxSent, setSvxSent] = useState(false);
+
+  const OPERATORS_BY_COUNTRY: Record<string, string[]> = {
+    CI: ["MTN", "ORANGE", "WAVE", "MOOV"],
+    BJ: ["MTN", "MOOV"],
+    SN: ["ORANGE", "WAVE", "FREE"],
+    CM: ["MTN", "ORANGE"],
+    TG: ["TMONEY", "MOOV"],
+    BF: ["ORANGE", "MOOV"],
+    ML: ["ORANGE", "MOOV"],
+    COD: ["AIRTEL", "VODACOM"],
+    COG: ["MTN", "AIRTEL"],
+  };
+  const COUNTRY_LABELS: Record<string, string> = {
+    CI: "Côte d'Ivoire", BJ: "Bénin", SN: "Sénégal", CM: "Cameroun",
+    TG: "Togo", BF: "Burkina Faso", ML: "Mali", COD: "RD Congo", COG: "Congo",
+  };
+  const handleSvxCountryChange = (c: string) => {
+    setSvxCountry(c);
+    const ops = OPERATORS_BY_COUNTRY[c];
+    if (ops && !ops.includes(svxOperator)) setSvxOperator(ops[0]);
   };
 
-  // BKAPay payment handler
-  const handlePayBkapay = async () => {
-    setIsBkapayLoading(true);
-    try {
-      console.log('[BKAPAY] Initiating activation payment...');
-      
-      const response = await fetch("/api/activation/init-payment-bkapay", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('[BKAPAY] Init payment failed:', response.status, errorData);
-        throw new Error(errorData.message || "Erreur lors de l'initiation du paiement");
-      }
-      
-      const data = await response.json();
-      console.log('[BKAPAY] Payment init response:', data);
-      
-      if (!data.redirectUrl) {
-        throw new Error("URL de paiement non reçue");
-      }
-      
-      if (data.reference) {
-        localStorage.setItem('pendingActivationRef', data.reference);
-        localStorage.setItem('pendingActivationTime', Date.now().toString());
-      }
-      
-      toast({
-        title: "Redirection vers BKAPay",
-        description: `Paiement de ${data.amount} FCFA en cours...`,
-      });
-      
-      window.location.href = data.redirectUrl;
-    } catch (error: any) {
-      console.error('[BKAPAY] Payment error:', error);
-      toast({
-        title: "Erreur",
-        description: error.message || "Impossible d'initier le paiement",
-        variant: "destructive",
-      });
-      setIsBkapayLoading(false);
-    }
+  // BKAPay payment handler (redirect via activation link)
+  const handlePayBkapay = () => {
+    if (activationLink) window.location.href = activationLink;
   };
 
-  // LeekPay payment handler
-  const handlePayLeekpay = async () => {
-    setIsLeekpayLoading(true);
-    try {
-      console.log('[LEEKPAY] Initiating activation payment...');
-      
-      const response = await fetch("/api/activation/init-payment-leekpay", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('[LEEKPAY] Init payment failed:', response.status, errorData);
-        throw new Error(errorData.message || "Erreur lors de l'initiation du paiement");
-      }
-      
-      const data = await response.json();
-      console.log('[LEEKPAY] Payment init response:', data);
-      
-      if (!data.redirectUrl) {
-        throw new Error("URL de paiement non reçue");
-      }
-      
-      if (data.reference) {
-        localStorage.setItem('pendingActivationRef', data.reference);
-        localStorage.setItem('pendingActivationTime', Date.now().toString());
-      }
-      
-      toast({
-        title: "Redirection vers LeekPay",
-        description: `Paiement de ${data.amount} FCFA en cours...`,
-      });
-      
-      window.location.href = data.redirectUrl;
-    } catch (error: any) {
-      console.error('[LEEKPAY] Payment error:', error);
-      toast({
-        title: "Erreur",
-        description: error.message || "Impossible d'initier le paiement",
-        variant: "destructive",
-      });
-      setIsLeekpayLoading(false);
-    }
-  };
-
-  // SolvexPay payment handler
+  // SolvexPay push Mobile Money handler
   const handlePaySolvexpay = async () => {
+    if (!svxPhone.trim()) {
+      toast({ title: "Numéro requis", description: "Veuillez saisir votre numéro de téléphone.", variant: "destructive" });
+      return;
+    }
     setIsSolvexpayLoading(true);
     try {
-      console.log('[SOLVEXPAY] Initiating activation payment...');
-      
-      const response = await fetch("/api/activation/init-payment-solvexpay", {
+      const formattedPhone = svxPhone.startsWith('+') ? svxPhone : `+${svxPhone}`;
+      const response = await fetch("/api/activation/init-solvexpay", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: formattedPhone, operator: svxOperator, country: svxCountry }),
       });
-      
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('[SOLVEXPAY] Init payment failed:', response.status, errorData);
-        throw new Error(errorData.message || "Erreur lors de l'initiation du paiement");
+        throw new Error(data.message || "Erreur lors de la création du paiement");
       }
-      
-      const data = await response.json();
-      console.log('[SOLVEXPAY] Payment init response:', data);
-      
-      if (!data.redirectUrl) {
-        throw new Error("URL de paiement non reçue");
+      if (data.paymentUrl) {
+        window.location.href = data.paymentUrl;
+      } else {
+        setSvxSent(true);
+        setShowPaymentDialog(false);
+        toast({
+          title: "Demande envoyée !",
+          description: `Vérifiez votre téléphone ${svxPhone} et validez le paiement ${svxOperator}.`,
+        });
       }
-      
-      if (data.reference) {
-        localStorage.setItem('pendingActivationRef', data.reference);
-        localStorage.setItem('pendingActivationTime', Date.now().toString());
-      }
-      
-      toast({
-        title: "Redirection vers SolvexPay",
-        description: `Paiement de ${data.amount} FCFA en cours...`,
-      });
-      
-      window.location.href = data.redirectUrl;
     } catch (error: any) {
-      console.error('[SOLVEXPAY] Payment error:', error);
-      toast({
-        title: "Erreur",
-        description: error.message || "Impossible d'initier le paiement",
-        variant: "destructive",
-      });
+      toast({ title: "Erreur", description: error.message || "Impossible d'initier le paiement", variant: "destructive" });
+    } finally {
       setIsSolvexpayLoading(false);
-    }
-  };
-
-  // SendavaPay payment handler
-  const handlePaySendavapay = async () => {
-    setIsSendavapayLoading(true);
-    try {
-      console.log('[SENDAVAPAY] Initiating activation payment...');
-
-      const response = await fetch("/api/activation/init-payment-sendavapay", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('[SENDAVAPAY] Init payment failed:', response.status, errorData);
-        throw new Error(errorData.message || "Erreur lors de l'initiation du paiement");
-      }
-
-      const data = await response.json();
-      console.log('[SENDAVAPAY] Payment init response:', data);
-
-      if (!data.redirectUrl) {
-        throw new Error("URL de paiement non reçue");
-      }
-
-      if (data.reference) {
-        localStorage.setItem('pendingActivationRef', data.reference);
-        localStorage.setItem('pendingActivationTime', Date.now().toString());
-      }
-
-      toast({
-        title: "Redirection vers SendavaPay",
-        description: `Paiement de ${data.amount} FCFA en cours...`,
-      });
-
-      window.location.href = data.redirectUrl;
-    } catch (error: any) {
-      console.error('[SENDAVAPAY] Payment error:', error);
-      toast({
-        title: "Erreur",
-        description: error.message || "Impossible d'initier le paiement",
-        variant: "destructive",
-      });
-      setIsSendavapayLoading(false);
     }
   };
 
@@ -560,101 +380,105 @@ export default function Withdrawal() {
       </Dialog>
 
       {/* Payment Gateway Selection Dialog */}
-      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+      <Dialog open={showPaymentDialog} onOpenChange={(open) => { setShowPaymentDialog(open); if (!open) setShowSolvexpayForm(false); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="text-center">Choisissez votre passerelle de paiement</DialogTitle>
+            <DialogTitle className="text-center">
+              {showSolvexpayForm ? "Payer via Mobile Money" : "Choisissez votre passerelle"}
+            </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 pt-4">
-            {isBkapayActive && (
-              <Button 
-                data-testid="button-payment-bkapay"
-                onClick={() => {
-                  setShowPaymentDialog(false);
-                  handlePayBkapay();
-                }}
-                disabled={isLygosLoading || isBkapayLoading || isLeekpayLoading}
-                size="lg" 
-                className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-semibold py-5"
-              >
-                {isBkapayLoading ? "Chargement..." : bkapayName || "Passerelle 1 - BKAPay"}
-              </Button>
-            )}
-            
-            {isLygosActive && (
-              <Button 
-                data-testid="button-payment-lygos"
-                onClick={() => {
-                  setShowPaymentDialog(false);
-                  handlePayLygos();
-                }}
-                disabled={isLygosLoading || isBkapayLoading || isLeekpayLoading}
-                size="lg" 
-                className="w-full bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 text-white font-semibold py-5"
-              >
-                {isLygosLoading ? "Chargement..." : lygosName || "Passerelle 2 - Lygos"}
-              </Button>
-            )}
-            
-            {isLeekpayActive && (
-              <Button 
-                data-testid="button-payment-leekpay"
-                onClick={() => {
-                  setShowPaymentDialog(false);
-                  handlePayLeekpay();
-                }}
-                disabled={isLygosLoading || isBkapayLoading || isLeekpayLoading || isSolvexpayLoading}
-                size="lg" 
-                className="w-full bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white font-semibold py-5"
-              >
-                {isLeekpayLoading ? "Chargement..." : leekpayName || "Passerelle 3 - LeekPay"}
-              </Button>
-            )}
 
-            {isSolvexpayActive && (
-              <Button 
-                data-testid="button-payment-solvexpay"
-                onClick={() => {
-                  setShowPaymentDialog(false);
-                  handlePaySolvexpay();
-                }}
-                disabled={isLygosLoading || isBkapayLoading || isLeekpayLoading || isSolvexpayLoading || isSendavapayLoading}
-                size="lg" 
-                className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-semibold py-5"
-              >
-                {isSolvexpayLoading ? "Chargement..." : solvexpayName || "Passerelle 4 - SolvexPay"}
-              </Button>
-            )}
-
-            {isSendavapayActive && (
-              <Button
-                data-testid="button-payment-sendavapay"
-                onClick={() => {
-                  setShowPaymentDialog(false);
-                  handlePaySendavapay();
-                }}
-                disabled={isLygosLoading || isBkapayLoading || isLeekpayLoading || isSolvexpayLoading || isSendavapayLoading}
-                size="lg"
-                className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold py-5"
-              >
-                {isSendavapayLoading ? "Chargement..." : sendavapayName || "Passerelle 5 - SendavaPay"}
-              </Button>
-            )}
-
-            {!isBkapayActive && !isLygosActive && !isLeekpayActive && !isSolvexpayActive && !isSendavapayActive && (
-              <div className="text-center py-6">
-                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
-                  <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
-                  <p className="text-amber-700 dark:text-amber-300 font-medium">
-                    Aucune passerelle disponible pour le moment
-                  </p>
-                  <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
-                    Veuillez réessayer plus tard
-                  </p>
-                </div>
+          {showSolvexpayForm ? (
+            <div className="space-y-4 pt-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Pays</label>
+                <select
+                  value={svxCountry}
+                  onChange={(e) => handleSvxCountryChange(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                >
+                  {Object.entries(COUNTRY_LABELS).map(([code, label]) => (
+                    <option key={code} value={code}>{label}</option>
+                  ))}
+                </select>
               </div>
-            )}
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Opérateur</label>
+                <select
+                  value={svxOperator}
+                  onChange={(e) => setSvxOperator(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                >
+                  {(OPERATORS_BY_COUNTRY[svxCountry] || []).map((op) => (
+                    <option key={op} value={op}>{op}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Numéro de téléphone</label>
+                <input
+                  type="tel"
+                  value={svxPhone}
+                  onChange={(e) => setSvxPhone(e.target.value)}
+                  placeholder="+2250700000000"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">Format international, ex: +2250700000000</p>
+              </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+                Vous recevrez une notification sur votre téléphone pour valider le paiement de <strong>3 600 FCFA</strong>.
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setShowSolvexpayForm(false)}>
+                  Retour
+                </Button>
+                <Button
+                  className="flex-1 bg-gradient-to-r from-primary to-blue-700 text-white"
+                  onClick={handlePaySolvexpay}
+                  disabled={isSolvexpayLoading}
+                  data-testid="button-payment-solvexpay-confirm"
+                >
+                  {isSolvexpayLoading ? "Envoi..." : `Payer via ${svxOperator}`}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4 pt-4">
+              {isSolvexpayActive && (
+                <Button
+                  data-testid="button-payment-solvexpay"
+                  onClick={() => setShowSolvexpayForm(true)}
+                  size="lg"
+                  className="w-full bg-gradient-to-r from-primary to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-5"
+                >
+                  <Smartphone className="w-5 h-5 mr-2" />
+                  {solvexpayName || "SolvexPay — Mobile Money"}
+                </Button>
+              )}
+
+              {isBkapayActive && (
+                <Button
+                  data-testid="button-payment-bkapay"
+                  onClick={() => { setShowPaymentDialog(false); handlePayBkapay(); }}
+                  disabled={isBkapayLoading}
+                  size="lg"
+                  className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-semibold py-5"
+                >
+                  {isBkapayLoading ? "Chargement..." : bkapayName || "BKAPay"}
+                </Button>
+              )}
+
+              {!isSolvexpayActive && !isBkapayActive && (
+                <div className="text-center py-6">
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                    <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
+                    <p className="text-amber-700 font-medium">Aucune passerelle disponible</p>
+                    <p className="text-sm text-amber-600 mt-1">Veuillez réessayer plus tard</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
       </>
