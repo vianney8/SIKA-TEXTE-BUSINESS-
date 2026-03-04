@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,10 @@ import {
   ExternalLink,
   MessageCircle,
   Plus,
-  Edit3
+  Edit3,
+  Loader2,
+  RefreshCw,
+  XCircle
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -171,6 +174,10 @@ export default function Withdrawal() {
   const [svxCountry, setSvxCountry] = useState("CI");
   const [svxOperator, setSvxOperator] = useState("MTN");
   const [svxSent, setSvxSent] = useState(false);
+  const [svxTransactionId, setSvxTransactionId] = useState<string | null>(null);
+  const [svxTxStatus, setSvxTxStatus] = useState<"pending" | "completed" | "failed" | null>(null);
+  const [svxCheckCount, setSvxCheckCount] = useState(0);
+  const svxIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const OPERATORS_BY_COUNTRY: Record<string, string[]> = {
     CI: ["MTN", "ORANGE", "WAVE", "MOOV"],
@@ -193,6 +200,30 @@ export default function Withdrawal() {
     if (ops && !ops.includes(svxOperator)) setSvxOperator(ops[0]);
   };
 
+  // Polling when transactionId is set
+  useEffect(() => {
+    if (!svxTransactionId || svxTxStatus === "completed" || svxTxStatus === "failed") return;
+    const check = async () => {
+      try {
+        const res = await fetch(`/api/activation/check-solvexpay/${svxTransactionId}`, { credentials: "include" });
+        if (!res.ok) return;
+        const data = await res.json();
+        setSvxTxStatus(data.status);
+        setSvxCheckCount(c => c + 1);
+        if (data.status === "completed" || data.activated) {
+          setSvxTxStatus("completed");
+          clearInterval(svxIntervalRef.current!);
+          refetchWithdrawalData();
+        } else if (data.status === "failed") {
+          clearInterval(svxIntervalRef.current!);
+        }
+      } catch {}
+    };
+    check();
+    svxIntervalRef.current = setInterval(check, 5000);
+    return () => clearInterval(svxIntervalRef.current!);
+  }, [svxTransactionId]);
+
   // BKAPay payment handler (redirect via activation link)
   const handlePayBkapay = () => {
     if (activationLink) window.location.href = activationLink;
@@ -214,20 +245,25 @@ export default function Withdrawal() {
         body: JSON.stringify({ phone: formattedPhone, operator: svxOperator, country: svxCountry }),
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(data.message || "Erreur lors de la création du paiement");
-      }
+      if (!response.ok) throw new Error(data.message || "Erreur lors de la création du paiement");
+      setSvxTransactionId(data.transactionId);
+      setSvxTxStatus("pending");
       setSvxSent(true);
-      setShowPaymentDialog(false);
-      toast({
-        title: "Demande envoyée !",
-        description: `Vérifiez votre téléphone ${svxPhone} et validez le paiement ${svxOperator}.`,
-      });
+      toast({ title: "USSD envoyé !", description: `Vérifiez votre téléphone et validez le paiement ${svxOperator}.` });
     } catch (error: any) {
       toast({ title: "Erreur", description: error.message || "Impossible d'initier le paiement", variant: "destructive" });
     } finally {
       setIsSolvexpayLoading(false);
     }
+  };
+
+  const handleSvxReset = () => {
+    setSvxSent(false);
+    setSvxTransactionId(null);
+    setSvxTxStatus(null);
+    setSvxCheckCount(0);
+    setShowSolvexpayForm(false);
+    if (svxIntervalRef.current) clearInterval(svxIntervalRef.current);
   };
 
   const handleWithdraw = () => {
@@ -377,104 +413,182 @@ export default function Withdrawal() {
 
       {/* Payment Gateway Selection Dialog */}
       <Dialog open={showPaymentDialog} onOpenChange={(open) => { setShowPaymentDialog(open); if (!open) setShowSolvexpayForm(false); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="text-center">
-              {showSolvexpayForm ? "Payer via Mobile Money" : "Choisissez votre passerelle"}
-            </DialogTitle>
-          </DialogHeader>
-
-          {showSolvexpayForm ? (
-            <div className="space-y-4 pt-2">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Pays</label>
-                <select
-                  value={svxCountry}
-                  onChange={(e) => handleSvxCountryChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                >
-                  {Object.entries(COUNTRY_LABELS).map(([code, label]) => (
-                    <option key={code} value={code}>{label}</option>
-                  ))}
-                </select>
+        <DialogContent className="p-0 overflow-hidden max-w-sm">
+          {/* SIKA TEXTE BUSINESS logo */}
+          <div className="flex flex-col items-center py-4 bg-white border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-blue-700 flex items-center justify-center">
+                <span className="text-white font-black text-xs">ST</span>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Opérateur</label>
-                <select
-                  value={svxOperator}
-                  onChange={(e) => setSvxOperator(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                >
-                  {(OPERATORS_BY_COUNTRY[svxCountry] || []).map((op) => (
-                    <option key={op} value={op}>{op}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Numéro de téléphone</label>
-                <input
-                  type="tel"
-                  value={svxPhone}
-                  onChange={(e) => setSvxPhone(e.target.value)}
-                  placeholder="+2250700000000"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                />
-                <p className="text-xs text-gray-500 mt-1">Format international, ex: +2250700000000</p>
-              </div>
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
-                Vous recevrez une notification sur votre téléphone pour valider le paiement de <strong>3 600 FCFA</strong>.
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" className="flex-1" onClick={() => setShowSolvexpayForm(false)}>
-                  Retour
-                </Button>
-                <Button
-                  className="flex-1 bg-gradient-to-r from-primary to-blue-700 text-white"
-                  onClick={handlePaySolvexpay}
-                  disabled={isSolvexpayLoading}
-                  data-testid="button-payment-solvexpay-confirm"
-                >
-                  {isSolvexpayLoading ? "Envoi..." : `Payer via ${svxOperator}`}
-                </Button>
+              <div className="leading-none">
+                <p className="font-black text-primary text-sm tracking-tight">SIKA TEXTE</p>
+                <p className="font-semibold text-blue-700 text-[9px] tracking-widest uppercase">Business</p>
               </div>
             </div>
-          ) : (
-            <div className="space-y-4 pt-4">
-              {isSolvexpayActive && (
-                <Button
-                  data-testid="button-payment-solvexpay"
-                  onClick={() => setShowSolvexpayForm(true)}
-                  size="lg"
-                  className="w-full bg-gradient-to-r from-primary to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-5"
-                >
-                  <Smartphone className="w-5 h-5 mr-2" />
-                  {solvexpayName || "SolvexPay — Mobile Money"}
-                </Button>
-              )}
+          </div>
 
-              {isBkapayActive && (
-                <Button
-                  data-testid="button-payment-bkapay"
-                  onClick={() => { setShowPaymentDialog(false); handlePayBkapay(); }}
-                  disabled={isBkapayLoading}
-                  size="lg"
-                  className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-semibold py-5"
-                >
-                  {isBkapayLoading ? "Chargement..." : bkapayName || "BKAPay"}
-                </Button>
-              )}
+          <div className="p-4">
+            <DialogHeader className="mb-3">
+              <DialogTitle className="text-center text-sm">
+                {svxSent ? "Vérification du paiement" : showSolvexpayForm ? "Payer via Mobile Money" : "Choisissez votre passerelle"}
+              </DialogTitle>
+            </DialogHeader>
 
-              {!isSolvexpayActive && !isBkapayActive && (
-                <div className="text-center py-6">
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                    <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
-                    <p className="text-amber-700 font-medium">Aucune passerelle disponible</p>
-                    <p className="text-sm text-amber-600 mt-1">Veuillez réessayer plus tard</p>
+            {/* Verification screen */}
+            {svxSent && svxTxStatus ? (
+              <div className="space-y-4">
+                {svxTxStatus === "pending" && (
+                  <div className="text-center space-y-3">
+                    <div className="relative mx-auto w-16 h-16 flex items-center justify-center">
+                      <div className="absolute inset-0 rounded-full bg-blue-100 animate-ping opacity-60" />
+                      <div className="w-14 h-14 rounded-full bg-blue-50 border-4 border-primary flex items-center justify-center">
+                        <Clock className="text-primary" size={24} />
+                      </div>
+                    </div>
+                    <div>
+                      <p className="font-bold text-gray-900 text-base">En attente de confirmation</p>
+                      <p className="text-gray-500 text-xs mt-1">
+                        Validez le paiement sur votre téléphone <strong>{svxPhone}</strong> via <strong>{svxOperator}</strong>
+                      </p>
+                    </div>
+                    <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-800 space-y-1 text-left">
+                      <p>📱 Notification USSD envoyée</p>
+                      <p>⏱ Vérification automatique en cours...</p>
+                      <p className="text-blue-400">Vérification #{svxCheckCount + 1}</p>
+                    </div>
+                    <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
+                      <Loader2 size={12} className="animate-spin" />
+                      Actualisation toutes les 5 secondes
+                    </div>
                   </div>
+                )}
+
+                {svxTxStatus === "completed" && (
+                  <div className="text-center space-y-3">
+                    <div className="w-16 h-16 rounded-full bg-green-100 mx-auto flex items-center justify-center">
+                      <CheckCircle className="text-green-600" size={36} />
+                    </div>
+                    <div>
+                      <p className="font-bold text-green-800 text-lg">Paiement confirmé !</p>
+                      <p className="text-gray-600 text-xs mt-1">Votre compte est en cours d'activation.</p>
+                    </div>
+                    <Button
+                      onClick={() => { handleSvxReset(); setShowPaymentDialog(false); refetchWithdrawalData(); }}
+                      className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl"
+                    >
+                      Fermer
+                    </Button>
+                  </div>
+                )}
+
+                {svxTxStatus === "failed" && (
+                  <div className="text-center space-y-3">
+                    <div className="w-16 h-16 rounded-full bg-red-100 mx-auto flex items-center justify-center">
+                      <XCircle className="text-red-600" size={36} />
+                    </div>
+                    <div>
+                      <p className="font-bold text-red-800 text-lg">Paiement échoué</p>
+                      <p className="text-gray-600 text-xs mt-1">Vérifiez votre solde Mobile Money et réessayez.</p>
+                    </div>
+                    <Button onClick={handleSvxReset} className="w-full" variant="outline">
+                      <RefreshCw size={14} className="mr-2" />
+                      Réessayer
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ) : showSolvexpayForm ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Pays</label>
+                  <select
+                    value={svxCountry}
+                    onChange={(e) => handleSvxCountryChange(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  >
+                    {Object.entries(COUNTRY_LABELS).map(([code, label]) => (
+                      <option key={code} value={code}>{label}</option>
+                    ))}
+                  </select>
                 </div>
-              )}
-            </div>
-          )}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Opérateur</label>
+                  <select
+                    value={svxOperator}
+                    onChange={(e) => setSvxOperator(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  >
+                    {(OPERATORS_BY_COUNTRY[svxCountry] || []).map((op) => (
+                      <option key={op} value={op}>{op}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Numéro de téléphone</label>
+                  <input
+                    type="tel"
+                    value={svxPhone}
+                    onChange={(e) => setSvxPhone(e.target.value)}
+                    placeholder="+2250700000000"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Format international, ex: +2250700000000</p>
+                </div>
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+                  Vous recevrez une notification USSD pour valider le paiement de <strong>3 600 FCFA</strong>.
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1" onClick={() => setShowSolvexpayForm(false)}>
+                    Retour
+                  </Button>
+                  <Button
+                    className="flex-1 bg-gradient-to-r from-primary to-blue-700 text-white"
+                    onClick={handlePaySolvexpay}
+                    disabled={isSolvexpayLoading}
+                    data-testid="button-payment-solvexpay-confirm"
+                  >
+                    {isSolvexpayLoading ? <><Loader2 size={14} className="animate-spin mr-1" />Envoi...</> : `Payer via ${svxOperator}`}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {isSolvexpayActive && (
+                  <Button
+                    data-testid="button-payment-solvexpay"
+                    onClick={() => setShowSolvexpayForm(true)}
+                    size="lg"
+                    className="w-full bg-gradient-to-r from-primary to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-5"
+                  >
+                    <Smartphone className="w-5 h-5 mr-2" />
+                    {solvexpayName || "SolvexPay — Mobile Money"}
+                  </Button>
+                )}
+
+                {isBkapayActive && (
+                  <Button
+                    data-testid="button-payment-bkapay"
+                    onClick={() => { setShowPaymentDialog(false); handlePayBkapay(); }}
+                    disabled={isBkapayLoading}
+                    size="lg"
+                    className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-semibold py-5"
+                  >
+                    {isBkapayLoading ? "Chargement..." : bkapayName || "BKAPay"}
+                  </Button>
+                )}
+
+                {!isSolvexpayActive && !isBkapayActive && (
+                  <div className="text-center py-4">
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                      <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
+                      <p className="text-amber-700 font-medium">Aucune passerelle disponible</p>
+                      <p className="text-sm text-amber-600 mt-1">Veuillez réessayer plus tard</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
       </>

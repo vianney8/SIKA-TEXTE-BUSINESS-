@@ -2011,6 +2011,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // SOLVEXPAY - Check transaction status
+  app.get('/api/activation/check-solvexpay/:transactionId', requireAuth, async (req: any, res) => {
+    try {
+      const { transactionId } = req.params;
+      const apiKey = process.env.SOLVEXPAY_API_KEY;
+      if (!apiKey) return res.status(500).json({ message: 'Clé API SolvexPay non configurée' });
+
+      const response = await fetch(`https://solvexpay.com/api/v1/transactions/${transactionId}`, {
+        headers: { 'Authorization': `Bearer ${apiKey}` }
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        return res.status(response.status).json({ message: data?.error?.message || 'Erreur de vérification' });
+      }
+
+      const localPayments = await db.select().from(bkapayPayments)
+        .where(eq(bkapayPayments.redirectUrl, transactionId));
+      const localPayment = localPayments[0];
+
+      res.json({
+        id: data.id,
+        status: data.status,
+        amount: data.amount,
+        operator: data.operator,
+        phone: data.phone,
+        activated: localPayment?.status === 'completed',
+        completedAt: data.completed_at || null
+      });
+    } catch (error) {
+      console.error('[SOLVEXPAY-CHECK] Error:', error);
+      res.status(500).json({ message: 'Erreur lors de la vérification' });
+    }
+  });
+
   // SOLVEXPAY WEBHOOK - Receive payment notifications (HMAC-SHA256 on raw body)
   app.post('/api/webhook/solvexpay', async (req: any, res) => {
     try {
