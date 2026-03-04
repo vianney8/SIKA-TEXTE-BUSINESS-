@@ -1953,8 +1953,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!rawPhone) {
         return res.status(400).json({ message: 'Aucun numéro de téléphone sur votre profil. Veuillez le renseigner dans Paramètres.' });
       }
-      const phone = rawPhone.startsWith('+') ? rawPhone : `+${rawPhone}`;
-      const { operator, country } = detectOperatorCountry(phone);
+      // Normalise: format with "+" for detection, then strip "+" for the API (digits only)
+      const phoneWithPlus = rawPhone.startsWith('+') ? rawPhone : `+${rawPhone}`;
+      const { operator, country } = detectOperatorCountry(phoneWithPlus);
+      const phone = phoneWithPlus.replace(/^\+/, '');
 
       const apiKey = process.env.SOLVEXPAY_API_KEY;
       if (!apiKey) {
