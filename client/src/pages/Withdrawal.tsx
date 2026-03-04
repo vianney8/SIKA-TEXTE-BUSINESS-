@@ -178,6 +178,7 @@ export default function Withdrawal() {
   const [svxTxStatus, setSvxTxStatus] = useState<"pending" | "completed" | "failed" | null>(null);
   const [svxCheckCount, setSvxCheckCount] = useState(0);
   const svxIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [svxRedirecting, setSvxRedirecting] = useState(false);
 
   const OPERATORS_BY_COUNTRY: Record<string, string[]> = {
     CI: ["MTN", "ORANGE", "WAVE", "MOOV"],
@@ -247,11 +248,14 @@ export default function Withdrawal() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.message || "Erreur lors de la création du paiement");
       if (data.paymentUrl) {
-        // Wave operator: redirect to SolvexPay hosted payment page
-        window.location.href = data.paymentUrl;
+        // Wave / redirect-based operators: navigate to SolvexPay's hosted payment page
+        setSvxRedirecting(true);
+        setSvxSent(true);
+        toast({ title: "Redirection en cours...", description: "Vous allez être redirigé vers la page de paiement SolvexPay." });
+        setTimeout(() => { window.location.href = data.paymentUrl; }, 800);
         return;
       }
-      // Other operators (MTN, Orange, Moov...): USSD push → show verification
+      // USSD operators (MTN, Orange, Moov...): show verification in dialog
       setSvxTransactionId(data.transactionId);
       setSvxTxStatus("pending");
       setSvxSent(true);
@@ -265,6 +269,7 @@ export default function Withdrawal() {
 
   const handleSvxReset = () => {
     setSvxSent(false);
+    setSvxRedirecting(false);
     setSvxTransactionId(null);
     setSvxTxStatus(null);
     setSvxCheckCount(0);
@@ -436,12 +441,30 @@ export default function Withdrawal() {
           <div className="p-4">
             <DialogHeader className="mb-3">
               <DialogTitle className="text-center text-sm">
-                {svxSent ? "Vérification du paiement" : showSolvexpayForm ? "Payer via Mobile Money" : "Choisissez votre passerelle"}
+                {svxRedirecting ? "Redirection en cours" : svxSent ? "Vérification du paiement" : showSolvexpayForm ? "Payer via Mobile Money" : "Choisissez votre passerelle"}
               </DialogTitle>
             </DialogHeader>
 
-            {/* Verification screen */}
-            {svxSent && svxTxStatus ? (
+            {/* Redirect loading screen */}
+            {svxRedirecting ? (
+              <div className="text-center space-y-4 py-2">
+                <div className="relative mx-auto w-16 h-16 flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full bg-blue-100 animate-ping opacity-60" />
+                  <div className="w-14 h-14 rounded-full bg-blue-50 border-4 border-primary flex items-center justify-center">
+                    <Loader2 className="text-primary animate-spin" size={28} />
+                  </div>
+                </div>
+                <div>
+                  <p className="font-bold text-gray-900 text-base">Redirection vers SolvexPay</p>
+                  <p className="text-gray-500 text-xs mt-1">
+                    Vous allez être redirigé vers la page de paiement pour valider <strong>3 600 FCFA</strong> via <strong>{svxOperator}</strong>.
+                  </p>
+                </div>
+                <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-700">
+                  Ne fermez pas cette fenêtre. La redirection est en cours...
+                </div>
+              </div>
+            ) : svxSent && svxTxStatus ? (
               <div className="space-y-4">
                 {svxTxStatus === "pending" && (
                   <div className="text-center space-y-3">

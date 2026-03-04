@@ -1981,6 +1981,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const apiData = await apiResponse.json();
       console.log('[SOLVEXPAY-INIT] Response status:', apiResponse.status);
       console.log('[SOLVEXPAY-INIT] Response data:', JSON.stringify(apiData));
+      console.log('[SOLVEXPAY-INIT] payment_url value:', apiData.payment_url);
+      console.log('[SOLVEXPAY-INIT] redirect_url value:', apiData.redirect_url);
 
       if (!apiResponse.ok) {
         const errCode = apiData?.error?.code || 'UNKNOWN';
@@ -1989,17 +1991,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(apiResponse.status).json({ message: errMsg, code: errCode });
       }
 
+      // Resolve payment URL — docs use payment_url, some versions may use redirect_url
+      const paymentUrl = apiData.payment_url || apiData.redirect_url || null;
+      console.log('[SOLVEXPAY-INIT] Resolved paymentUrl:', paymentUrl);
+
       await db.update(bkapayPayments)
         .set({ redirectUrl: apiData.id })
         .where(eq(bkapayPayments.reference, reference));
 
+      // For Wave (and any operator returning a payment_url): send redirect response
+      // so the browser navigates directly to SolvexPay's hosted payment page
+      if (paymentUrl) {
+        console.log('[SOLVEXPAY-INIT] Redirecting to payment page:', paymentUrl);
+        return res.json({
+          success: true,
+          transactionId: apiData.id,
+          reference,
+          amount: activationAmount,
+          status: apiData.status,
+          paymentUrl,
+          redirect: true,
+          gateway: 'solvexpay'
+        });
+      }
+
+      // For USSD operators (MTN, Orange, Moov, TMoney...): no redirect, return transaction info
       res.json({
         success: true,
         transactionId: apiData.id,
         reference,
         amount: activationAmount,
         status: apiData.status,
-        paymentUrl: apiData.payment_url || null,
+        paymentUrl: null,
+        redirect: false,
         gateway: 'solvexpay'
       });
     } catch (error: any) {

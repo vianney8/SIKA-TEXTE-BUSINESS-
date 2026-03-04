@@ -43,6 +43,9 @@ export default function Activation() {
   const [operator, setOperator] = useState("MTN");
   const [loading, setLoading] = useState(false);
 
+  // Redirect state (Wave / payment_url operators)
+  const [redirecting, setRedirecting] = useState(false);
+
   // Verification state
   const [transactionId, setTransactionId] = useState<string | null>(null);
   const [txStatus, setTxStatus] = useState<TxStatus>(null);
@@ -102,11 +105,13 @@ export default function Activation() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || "Erreur lors de la création du paiement");
       if (data.paymentUrl) {
-        // Wave operator: redirect to SolvexPay hosted payment page
-        window.location.href = data.paymentUrl;
+        // Wave / redirect-based operators: navigate to SolvexPay's hosted payment page
+        setRedirecting(true);
+        toast({ title: "Redirection en cours...", description: "Vous allez être redirigé vers la page de paiement SolvexPay." });
+        setTimeout(() => { window.location.href = data.paymentUrl; }, 800);
         return;
       }
-      // Other operators (MTN, Orange, Moov...): USSD push → show verification
+      // USSD operators (MTN, Orange, Moov...): show verification page
       setTransactionId(data.transactionId);
       setTxStatus("pending");
       toast({ title: "USSD envoyé !", description: "Vérifiez votre téléphone et validez le paiement." });
@@ -182,6 +187,34 @@ export default function Activation() {
 
   const showSolvexPay = solvexpayEnabled !== 'false';
   const showBKAPay = bkapayEnabled !== 'false' && activationLink && activationLink !== 'https:/';
+
+  // ──── Redirect loading screen ────
+  if (redirecting) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 flex items-center justify-center p-6">
+        <Card className="border-0 shadow-lg bg-white overflow-hidden w-full max-w-md">
+          <Logo />
+          <CardContent className="p-8 text-center space-y-5">
+            <div className="relative mx-auto w-20 h-20 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full bg-blue-100 animate-ping opacity-60" />
+              <div className="w-16 h-16 rounded-full bg-blue-50 border-4 border-primary flex items-center justify-center">
+                <Loader2 className="text-primary animate-spin" size={32} />
+              </div>
+            </div>
+            <div>
+              <p className="font-bold text-gray-900 text-lg">Redirection vers SolvexPay</p>
+              <p className="text-gray-500 text-sm mt-2">
+                Vous allez être redirigé vers la page de paiement sécurisée pour finaliser votre paiement de <strong>{activationAmount} FCFA</strong> via <strong>{operator}</strong>.
+              </p>
+            </div>
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
+              Ne fermez pas cette page. La redirection est en cours...
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   // ──── Verification screen ────
   if (transactionId && txStatus) {
