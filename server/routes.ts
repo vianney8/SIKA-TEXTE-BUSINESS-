@@ -2074,58 +2074,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('[SOLVEXPAY-WEBHOOK] WARNING: No signature check (secret or header missing)');
       }
 
-      const { event, transaction } = req.body;
+      // New SolvexPay webhook payload: { event, transaction: { id, status, amount, currency, operator, phone, reference, fees, net_amount, created_at }, timestamp }
+      // Note: metadata is NOT included in the webhook payload anymore
+      const { event, transaction, timestamp } = req.body;
 
       console.log('[SOLVEXPAY-WEBHOOK] Event:', event);
+      console.log('[SOLVEXPAY-WEBHOOK] Timestamp:', timestamp);
       console.log('[SOLVEXPAY-WEBHOOK] Transaction:', JSON.stringify(transaction));
 
-      if (!transaction) {
+      if (!transaction || !transaction.id) {
         return res.status(400).json({ error: 'Payload invalide' });
       }
 
-      const { id: transactionId, amount, reference, metadata } = transaction;
+      const { id: transactionId, amount } = transaction;
 
+      // Primary lookup: transaction.id stored in redirectUrl during deposit init
       let payment = null;
-
-      if (metadata?.reference) {
-        const payments = await db.select().from(bkapayPayments)
-          .where(eq(bkapayPayments.reference, metadata.reference));
-        payment = payments[0];
-      }
-
-      if (!payment && reference) {
-        const payments = await db.select().from(bkapayPayments)
-          .where(eq(bkapayPayments.reference, reference));
-        payment = payments[0];
-      }
-
-      if (!payment && metadata?.user_id) {
-        const recentPayments = await db.select().from(bkapayPayments)
-          .where(and(
-            eq(bkapayPayments.userId, metadata.user_id),
-            or(
-              eq(bkapayPayments.status, 'pending'),
-              eq(bkapayPayments.status, 'awaiting_verification')
-            )
-          ))
-          .orderBy(desc(bkapayPayments.createdAt))
-          .limit(1);
-        payment = recentPayments[0];
-      }
-
-      if (!payment && transactionId) {
-        const recentPayments = await db.select().from(bkapayPayments)
-          .where(and(
-            eq(bkapayPayments.redirectUrl, transactionId),
-            or(
-              eq(bkapayPayments.status, 'pending'),
-              eq(bkapayPayments.status, 'awaiting_verification')
-            )
-          ))
-          .orderBy(desc(bkapayPayments.createdAt))
-          .limit(1);
-        payment = recentPayments[0];
-      }
+      const byTxId = await db.select().from(bkapayPayments)
+        .where(eq(bkapayPayments.redirectUrl, transactionId))
+        .orderBy(desc(bkapayPayments.createdAt))
+        .limit(1);
+      payment = byTxId[0] || null;
 
       if (!payment) {
         console.log('[SOLVEXPAY-WEBHOOK] Payment not found for transaction:', transactionId);
