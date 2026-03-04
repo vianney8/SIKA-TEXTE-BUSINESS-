@@ -58,16 +58,12 @@ export default function Activation() {
   const solvexpayMutation = useMutation({
     mutationFn: async (data: { phone: string; operator: string; country: string }) =>
       apiRequest("POST", "/api/activation/init-solvexpay", data),
-    onSuccess: (data: any) => {
+    onSuccess: () => {
       setPaymentSent(true);
-      if (data?.paymentUrl) {
-        window.location.href = data.paymentUrl;
-      } else {
-        toast({
-          title: "Demande envoyée",
-          description: "Vérifiez votre téléphone et validez le paiement Mobile Money.",
-        });
-      }
+      toast({
+        title: "Demande envoyée",
+        description: "Vérifiez votre téléphone et validez le paiement Mobile Money.",
+      });
     },
     onError: (error: any) => {
       toast({

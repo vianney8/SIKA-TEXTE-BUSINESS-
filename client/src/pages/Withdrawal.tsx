@@ -217,16 +217,12 @@ export default function Withdrawal() {
       if (!response.ok) {
         throw new Error(data.message || "Erreur lors de la création du paiement");
       }
-      if (data.paymentUrl) {
-        window.location.href = data.paymentUrl;
-      } else {
-        setSvxSent(true);
-        setShowPaymentDialog(false);
-        toast({
-          title: "Demande envoyée !",
-          description: `Vérifiez votre téléphone ${svxPhone} et validez le paiement ${svxOperator}.`,
-        });
-      }
+      setSvxSent(true);
+      setShowPaymentDialog(false);
+      toast({
+        title: "Demande envoyée !",
+        description: `Vérifiez votre téléphone ${svxPhone} et validez le paiement ${svxOperator}.`,
+      });
     } catch (error: any) {
       toast({ title: "Erreur", description: error.message || "Impossible d'initier le paiement", variant: "destructive" });
     } finally {
