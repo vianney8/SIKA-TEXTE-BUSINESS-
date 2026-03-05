@@ -1908,33 +1908,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
   // SOLVEXPAY - Initiate activation payment (push Mobile Money)
-  // Helper: auto-detect operator + country from phone number prefix
-  function detectOperatorCountry(phone: string): { operator: string; country: string } {
-    const p = phone.replace(/[\s\-\(\)]/g, '');
-    if (/^\+?225/.test(p)) {
-      const local = p.replace(/^\+?225/, '');
-      if (/^(07|17|27|57|47)/.test(local)) return { operator: 'MTN', country: 'CI' };
-      if (/^(05|15|25|55|45|35)/.test(local)) return { operator: 'ORANGE', country: 'CI' };
-      if (/^(01|02|03|08|98)/.test(local)) return { operator: 'WAVE', country: 'CI' };
-      if (/^(04|44|64|14|24|34|54)/.test(local)) return { operator: 'MOOV', country: 'CI' };
-      return { operator: 'MTN', country: 'CI' };
-    }
-    if (/^\+?221/.test(p)) {
-      const local = p.replace(/^\+?221/, '');
-      if (/^(70|76|77|78)/.test(local)) return { operator: 'WAVE', country: 'SN' };
-      if (/^(33|30)/.test(local)) return { operator: 'FREE', country: 'SN' };
-      return { operator: 'ORANGE', country: 'SN' };
-    }
-    if (/^\+?229/.test(p)) return { operator: 'MTN', country: 'BJ' };
-    if (/^\+?237/.test(p)) return { operator: 'MTN', country: 'CM' };
-    if (/^\+?228/.test(p)) return { operator: 'TMONEY', country: 'TG' };
-    if (/^\+?226/.test(p)) return { operator: 'ORANGE', country: 'BF' };
-    if (/^\+?223/.test(p)) return { operator: 'ORANGE', country: 'ML' };
-    if (/^\+?242/.test(p)) return { operator: 'AIRTEL', country: 'COG' };
-    if (/^\+?243/.test(p)) return { operator: 'AIRTEL', country: 'COD' };
-    return { operator: 'MTN', country: 'CI' };
-  }
-
   app.post('/api/activation/init-solvexpay', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session.userId;
@@ -1949,119 +1922,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Votre compte est déjà activé' });
       }
 
-      const rawPhone = user.phone;
-      if (!rawPhone) {
-        return res.status(400).json({ message: 'Aucun numéro de téléphone sur votre profil. Veuillez le renseigner dans Paramètres.' });
-      }
-      // Normalise: format with "+" for detection, then strip "+" for the API (digits only)
-      const phoneWithPlus = rawPhone.startsWith('+') ? rawPhone : `+${rawPhone}`;
-      const { operator, country } = detectOperatorCountry(phoneWithPlus);
-      const phone = phoneWithPlus.replace(/^\+/, '');
-
-      const apiKey = process.env.SOLVEXPAY_API_KEY;
-      if (!apiKey) {
-        return res.status(500).json({ message: 'Clé API SolvexPay non configurée' });
-      }
-
       const settings = await storage.getAppSettings();
       const activationSetting = settings.find((s: any) => s.key === 'activation_amount');
+      const solvexpayLinkSetting = settings.find((s: any) => s.key === 'solvexpay_link');
       const activationAmount = parseInt(activationSetting?.value || '3600');
+      const solvexpayLink = solvexpayLinkSetting?.value?.trim();
 
+      if (!solvexpayLink) {
+        return res.status(500).json({ message: 'Lien de paiement SolvexPay non configuré. Contactez le support.' });
+      }
+
+      // Generate a unique reference ID that authenticates this user's payment session
       const reference = `SVX-${userId.substring(0, 8)}-${Date.now()}`;
+      const paymentId = crypto.randomUUID();
 
+      // Store pending payment — reference is used by webhook for user lookup
       await db.insert(bkapayPayments).values({
-        id: crypto.randomUUID(),
+        id: paymentId,
         userId,
         amount: activationAmount.toString(),
         reference,
+        redirectUrl: reference,
         status: 'pending',
         createdAt: new Date()
       });
 
-      console.log('[SOLVEXPAY-INIT] ===== PAYMENT INITIATED =====');
+      console.log('[SOLVEXPAY-INIT] ===== SESSION CREATED =====');
       console.log('[SOLVEXPAY-INIT] User ID:', userId);
-      console.log('[SOLVEXPAY-INIT] Reference:', reference);
+      console.log('[SOLVEXPAY-INIT] Reference (auth ID):', reference);
       console.log('[SOLVEXPAY-INIT] Amount:', activationAmount);
-      console.log('[SOLVEXPAY-INIT] Phone:', phone, '| Operator:', operator, '| Country:', country);
 
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
+      // Append reference as URL param so SolvexPay echoes it back in the webhook
+      const separator = solvexpayLink.includes('?') ? '&' : '?';
+      const redirectUrl = `${solvexpayLink}${separator}reference=${encodeURIComponent(reference)}`;
 
-      const apiResponse = await fetch('https://solvexpay.com/api/v1/deposit', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          amount: activationAmount,
-          phone,
-          operator,
-          country,
-          description: `Activation compte Sika Texte — ${reference}`,
-          customer_name: user.fullName || [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || undefined,
-          customer_email: user.email || undefined,
-          metadata: { user_id: userId, reference }
-        }),
-        signal: controller.signal
-      });
-
-      clearTimeout(timeout);
-
-      const apiData = await apiResponse.json();
-      console.log('[SOLVEXPAY-INIT] Response status:', apiResponse.status);
-      console.log('[SOLVEXPAY-INIT] Response data:', JSON.stringify(apiData));
-      console.log('[SOLVEXPAY-INIT] payment_url value:', apiData.payment_url);
-      console.log('[SOLVEXPAY-INIT] redirect_url value:', apiData.redirect_url);
-
-      if (!apiResponse.ok) {
-        const errCode = apiData?.error?.code || 'UNKNOWN';
-        const errMsg = apiData?.error?.message || 'Erreur lors de la création du paiement';
-        console.error('[SOLVEXPAY-INIT] API Error:', errCode, errMsg);
-        return res.status(apiResponse.status).json({ message: errMsg, code: errCode });
-      }
-
-      // Resolve payment URL — docs use payment_url, some versions may use redirect_url
-      const paymentUrl = apiData.payment_url || apiData.redirect_url || null;
-      console.log('[SOLVEXPAY-INIT] Resolved paymentUrl:', paymentUrl);
-
-      await db.update(bkapayPayments)
-        .set({ redirectUrl: apiData.id })
-        .where(eq(bkapayPayments.reference, reference));
-
-      // For Wave (and any operator returning a payment_url): send redirect response
-      // so the browser navigates directly to SolvexPay's hosted payment page
-      if (paymentUrl) {
-        console.log('[SOLVEXPAY-INIT] Redirecting to payment page:', paymentUrl);
-        return res.json({
-          success: true,
-          transactionId: apiData.id,
-          reference,
-          amount: activationAmount,
-          status: apiData.status,
-          paymentUrl,
-          redirect: true,
-          gateway: 'solvexpay'
-        });
-      }
-
-      // For USSD operators (MTN, Orange, Moov, TMoney...): no redirect, return transaction info
       res.json({
         success: true,
-        transactionId: apiData.id,
         reference,
         amount: activationAmount,
-        status: apiData.status,
-        paymentUrl: null,
-        redirect: false,
+        redirectUrl,
         gateway: 'solvexpay'
       });
     } catch (error: any) {
       console.error('[SOLVEXPAY-INIT] Error:', error);
-      if (error?.name === 'AbortError') {
-        return res.status(504).json({ message: 'Délai d\'attente dépassé — veuillez réessayer' });
-      }
-      res.status(500).json({ message: 'Erreur lors de l\'initiation du paiement' });
+      res.status(500).json({ message: 'Erreur lors de la création de la session de paiement' });
     }
   });
 
@@ -2140,18 +2044,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Payload invalide' });
       }
 
-      const { id: transactionId, amount } = transaction;
+      const { id: transactionId, reference: txReference, amount } = transaction;
 
-      // Primary lookup: transaction.id stored in redirectUrl during deposit init
+      // Primary lookup: our reference stored in redirectUrl (payment-link flow)
+      // Fallback: match by transaction.id in redirectUrl (legacy API-push flow)
       let payment = null;
-      const byTxId = await db.select().from(bkapayPayments)
-        .where(eq(bkapayPayments.redirectUrl, transactionId))
-        .orderBy(desc(bkapayPayments.createdAt))
-        .limit(1);
-      payment = byTxId[0] || null;
+
+      if (txReference) {
+        const byRef = await db.select().from(bkapayPayments)
+          .where(eq(bkapayPayments.reference, txReference))
+          .orderBy(desc(bkapayPayments.createdAt))
+          .limit(1);
+        payment = byRef[0] || null;
+        if (payment) console.log('[SOLVEXPAY-WEBHOOK] ✓ Matched by transaction.reference:', txReference);
+      }
+
+      if (!payment && transactionId) {
+        const byTxId = await db.select().from(bkapayPayments)
+          .where(eq(bkapayPayments.redirectUrl, transactionId))
+          .orderBy(desc(bkapayPayments.createdAt))
+          .limit(1);
+        payment = byTxId[0] || null;
+        if (payment) console.log('[SOLVEXPAY-WEBHOOK] ✓ Matched by transaction.id:', transactionId);
+      }
 
       if (!payment) {
-        console.log('[SOLVEXPAY-WEBHOOK] Payment not found for transaction:', transactionId);
+        console.log('[SOLVEXPAY-WEBHOOK] Payment not found. txId:', transactionId, '| txRef:', txReference);
         return res.status(404).json({ error: 'Payment not found' });
       }
 
