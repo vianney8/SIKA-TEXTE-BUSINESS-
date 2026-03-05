@@ -27,7 +27,7 @@ import session from "express-session";
 import { db } from "./db";
 import { eq, sql, and, desc, or } from "drizzle-orm";
 import connectPg from "connect-pg-simple";
-import { randomBytes } from "crypto";
+import { randomBytes, createHmac } from "crypto";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 
 // Session setup
@@ -93,6 +93,18 @@ async function requireAdmin(req: any, res: any, next: any) {
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup sessions
   setupSessions(app);
+
+  // Redirect common payment return URLs to the activation page
+  const paymentReturnPaths = [
+    '/paid', '/payment-success', '/payment-callback',
+    '/paiement', '/paiement-succes', '/paiement-success',
+    '/activation-callback', '/pay-success', '/pay-return'
+  ];
+  paymentReturnPaths.forEach(path => {
+    app.get(path, (_req, res) => {
+      res.redirect(302, '/activation?return=1');
+    });
+  });
 
   // Initialize app settings if they don't exist
   try {
@@ -2125,7 +2137,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // SOLVEXPAY WEBHOOK - Receive payment notifications (HMAC-SHA256 on raw body)
   app.post('/api/webhook/solvexpay', async (req: any, res) => {
     try {
-      const crypto = require('crypto');
 
       console.log('[SOLVEXPAY-WEBHOOK] ===== WEBHOOK RECEIVED =====');
 
@@ -2134,8 +2145,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (webhookSecret && signature) {
         const rawBody = req.rawBody as Buffer;
-        const expected = 'sha256=' + crypto
-          .createHmac('sha256', webhookSecret)
+        const expected = 'sha256=' + createHmac('sha256', webhookSecret)
           .update(rawBody)
           .digest('hex');
 
@@ -2231,7 +2241,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Documentation: https://bkapay.com/documentation/v1.3
   app.post('/api/webhook/bkapay', async (req, res) => {
     try {
-      const crypto = require('crypto');
       
       console.log('[BKAPAY-WEBHOOK-v1.3] ===== WEBHOOK RECEIVED =====');
       
@@ -2246,8 +2255,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // SECURITY: Verify HMAC-SHA256 signature (REQUIRED - as per BKAPay v1.3 docs)
       if (signatureSecret && signature) {
         const payload = JSON.stringify(req.body);
-        const expectedSignature = crypto
-          .createHmac('sha256', signatureSecret)
+        const expectedSignature = createHmac('sha256', signatureSecret)
           .update(payload)
           .digest('hex');
         
