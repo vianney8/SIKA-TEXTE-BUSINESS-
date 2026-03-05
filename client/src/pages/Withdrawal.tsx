@@ -90,13 +90,9 @@ export default function Withdrawal() {
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   
   // Récupérer les liens dynamiques depuis les paramètres admin
-  const { data: activationLink } = useAppSetting('activation_link');
   const { data: telegramSupervisor } = useAppSetting('telegram_supervisor');
-  const { data: bkapayEnabled } = useAppSetting('bkapay_enabled');
-  const { data: bkapayName } = useAppSetting('bkapay_name');
   const { data: solvexpayEnabled } = useAppSetting('solvexpay_enabled');
   const { data: solvexpayName } = useAppSetting('solvexpay_name');
-  const isBkapayActive = bkapayEnabled !== 'false' && !!activationLink && activationLink !== 'h' && activationLink !== '';
   const isSolvexpayActive = solvexpayEnabled !== 'false';
 
   const { data: withdrawalData, refetch: refetchWithdrawalData } = useQuery<WithdrawalData>({
@@ -167,7 +163,6 @@ export default function Withdrawal() {
   });
 
   // Payment state
-  const [isBkapayLoading, setIsBkapayLoading] = useState(false);
 
   // SolvexPay API flow states
   const [svxLoading, setSvxLoading] = useState(false);
@@ -207,11 +202,6 @@ export default function Withdrawal() {
     setSvxCheckCount(0);
     setSvxRedirecting(false);
     if (svxIntervalRef.current) clearInterval(svxIntervalRef.current);
-  };
-
-  // BKAPay payment handler (redirect)
-  const handlePayBkapay = () => {
-    if (activationLink) window.location.href = activationLink;
   };
 
   // SolvexPay payment handler — auto from user profile, no form
@@ -502,24 +492,12 @@ export default function Withdrawal() {
                   </Button>
                 )}
 
-                {isBkapayActive && (
-                  <Button
-                    data-testid="button-payment-bkapay"
-                    onClick={() => { setShowPaymentDialog(false); handlePayBkapay(); }}
-                    disabled={isBkapayLoading}
-                    size="lg"
-                    className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-semibold py-5"
-                  >
-                    {isBkapayLoading ? "Chargement..." : bkapayName || "BKAPay"}
-                  </Button>
-                )}
-
-                {!isSolvexpayActive && !isBkapayActive && (
+                {!isSolvexpayActive && (
                   <div className="text-center py-4">
                     <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
                       <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
-                      <p className="text-amber-700 font-medium">Aucune passerelle disponible</p>
-                      <p className="text-sm text-amber-600 mt-1">Veuillez réessayer plus tard</p>
+                      <p className="text-amber-700 font-medium">Passerelle indisponible</p>
+                      <p className="text-sm text-amber-600 mt-1">Veuillez contacter le support</p>
                     </div>
                   </div>
                 )}

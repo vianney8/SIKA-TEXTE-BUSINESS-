@@ -17,9 +17,6 @@ export default function Activation() {
 
   const { data: solvexpayEnabled } = useAppSetting('solvexpay_enabled');
   const { data: solvexpayName } = useAppSetting('solvexpay_name');
-  const { data: bkapayEnabled } = useAppSetting('bkapay_enabled');
-  const { data: bkapayName } = useAppSetting('bkapay_name');
-  const { data: activationLink } = useAppSetting('activation_link');
   const { data: activationAmountSetting } = useAppSetting('activation_amount');
 
   const activationAmount = activationAmountSetting
@@ -119,7 +116,6 @@ export default function Activation() {
   };
 
   const showSolvexPay = solvexpayEnabled !== 'false';
-  const showBKAPay = bkapayEnabled !== 'false' && activationLink && activationLink.trim() !== '';
 
   const Logo = () => (
     <div className="flex flex-col items-center py-5 bg-white border-b border-gray-100">
@@ -349,26 +345,11 @@ export default function Activation() {
           </Card>
         )}
 
-        {/* BKAPay — direct redirect */}
-        {showBKAPay && (
-          <Card className="border-0 shadow-lg">
-            <CardContent className="p-5">
-              <Button
-                onClick={() => { window.location.href = activationLink!; }}
-                className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-semibold py-3 rounded-xl"
-                data-testid="button-pay-activation"
-              >
-                {bkapayName || "Payer via BKAPay"}
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {!showSolvexPay && !showBKAPay && (
+        {!showSolvexPay && (
           <Card className="border-0 shadow-lg">
             <CardContent className="p-6">
               <div className="bg-red-100 border border-red-300 rounded-lg p-4">
-                <p className="text-sm text-red-700">⚠️ Aucune passerelle de paiement n'est configurée. Veuillez contacter le support.</p>
+                <p className="text-sm text-red-700">⚠️ La passerelle de paiement n'est pas disponible. Veuillez contacter le support.</p>
               </div>
             </CardContent>
           </Card>

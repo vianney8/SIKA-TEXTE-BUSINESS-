@@ -56,8 +56,6 @@ export default function AdminSettings() {
       queryClient.invalidateQueries({ queryKey: ['/api/settings/whatsapp_group'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/telegram_supervisor'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/telegram_group'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/settings/bkapay_enabled'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/settings/bkapay_name'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/solvexpay_enabled'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/solvexpay_name'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/solvexpay_link'] });
@@ -137,19 +135,6 @@ export default function AdminSettings() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div>
-              <Label htmlFor="activation_link">Lien d'activation en ligne</Label>
-              <Input
-                id="activation_link"
-                value={settings.activation_link || ''}
-                onChange={(e) => handleInputChange('activation_link', e.target.value)}
-                placeholder="https://app.payix.me/payment/..."
-                data-testid="input-activation-link"
-              />
-              <p className="text-sm text-muted-foreground mt-1">
-                Lien utilisé pour l'activation du compte utilisateur
-              </p>
-            </div>
 
             <div>
               <Label htmlFor="whatsapp_group">Groupe WhatsApp</Label>
@@ -362,45 +347,6 @@ export default function AdminSettings() {
               </p>
             </div>
 
-            {/* BKAPay */}
-            <div className="space-y-3 p-4 border rounded-lg">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-orange-500 to-red-600 flex items-center justify-center text-white font-bold text-sm">
-                    B
-                  </div>
-                  <div>
-                    <p className="font-medium">BKAPay</p>
-                    <p className="text-sm text-muted-foreground">
-                      {settings.bkapay_enabled !== 'false' ? '✓ Activé' : '✗ Désactivé'}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleInputChange('bkapay_enabled', settings.bkapay_enabled === 'false' ? 'true' : 'false')}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    settings.bkapay_enabled !== 'false' 
-                      ? 'bg-green-500 hover:bg-green-600 text-white' 
-                      : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
-                  }`}
-                  data-testid="toggle-bkapay-enabled"
-                >
-                  {settings.bkapay_enabled !== 'false' ? 'Activé' : 'Désactivé'}
-                </button>
-              </div>
-              <div>
-                <Label htmlFor="bkapay_name" className="text-sm">Nom personnalisé</Label>
-                <Input
-                  id="bkapay_name"
-                  value={settings.bkapay_name || 'Passerelle BKAPay'}
-                  onChange={(e) => handleInputChange('bkapay_name', e.target.value)}
-                  placeholder="Passerelle BKAPay"
-                  data-testid="input-bkapay-name"
-                  className="mt-1"
-                />
-              </div>
-            </div>
 
             <Button 
               onClick={handleSave} 
