@@ -2001,6 +2001,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           description: `Activation compte Sika Texte — ${reference}`,
           customer_name: user.fullName || [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || undefined,
           customer_email: user.email || undefined,
+          return_url: 'https://sikatexte.site/activation?return=1',
           metadata: { user_id: userId, reference }
         }),
         signal: controller.signal
@@ -2065,10 +2066,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // SOLVEXPAY - Check transaction status
+  // SOLVEXPAY - Check transaction status (also activates account if completed)
   app.get('/api/activation/check-solvexpay/:transactionId', requireAuth, async (req: any, res) => {
     try {
       const { transactionId } = req.params;
+      const userId = req.session.userId;
       const apiKey = process.env.SOLVEXPAY_API_KEY;
       if (!apiKey) return res.status(500).json({ message: 'Clé API SolvexPay non configurée' });
 
@@ -2085,13 +2087,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq(bkapayPayments.redirectUrl, transactionId));
       const localPayment = localPayments[0];
 
+      // If SolvexPay confirms completion and account not yet activated → activate now
+      if (data.status === 'completed' && localPayment && localPayment.status !== 'completed') {
+        console.log('[SOLVEXPAY-CHECK] Transaction completed — activating account for user:', localPayment.userId || userId);
+        const activateUserId = localPayment.userId || userId;
+
+        await db.update(bkapayPayments)
+          .set({ status: 'completed', completedAt: new Date() })
+          .where(eq(bkapayPayments.id, localPayment.id));
+
+        await storage.activateAccount(activateUserId);
+
+        console.log('[SOLVEXPAY-CHECK] ✓ Account activated via polling for user:', activateUserId);
+      }
+
+      // Also handle case where transactionId matches but no local record — activate by session user
+      if (data.status === 'completed' && !localPayment) {
+        console.log('[SOLVEXPAY-CHECK] No local payment record — activating by session userId:', userId);
+        await storage.activateAccount(userId);
+      }
+
       res.json({
         id: data.id,
         status: data.status,
         amount: data.amount,
         operator: data.operator,
         phone: data.phone,
-        activated: localPayment?.status === 'completed',
+        activated: data.status === 'completed',
         completedAt: data.completed_at || null
       });
     } catch (error) {

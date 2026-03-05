@@ -4,13 +4,16 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, CheckCircle, Lock, Smartphone, Loader2, Clock, XCircle, RefreshCw } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useAppSetting } from "@/hooks/useAppSettings";
 
 export default function Activation() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [location] = useLocation();
+
+  const isReturnFromPayment = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('return') === '1';
 
   const { data: solvexpayEnabled } = useAppSetting('solvexpay_enabled');
   const { data: solvexpayName } = useAppSetting('solvexpay_name');
@@ -26,6 +29,27 @@ export default function Activation() {
   const { data: activationStatus, refetch: refetchStatus } = useQuery({
     queryKey: ["/api/activation/status"],
   }) as any;
+
+  // Return from Wave payment — poll account status
+  const [returnPollCount, setReturnPollCount] = useState(0);
+  const returnIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (!isReturnFromPayment || activationStatus?.isActive) return;
+    const poll = async () => {
+      await refetchStatus();
+      setReturnPollCount(c => c + 1);
+    };
+    poll();
+    returnIntervalRef.current = setInterval(poll, 3000);
+    return () => clearInterval(returnIntervalRef.current!);
+  }, [isReturnFromPayment]);
+
+  useEffect(() => {
+    if (activationStatus?.isActive && returnIntervalRef.current) {
+      clearInterval(returnIntervalRef.current);
+    }
+  }, [activationStatus?.isActive]);
 
   // SolvexPay API flow states
   const [svxLoading, setSvxLoading] = useState(false);
@@ -113,28 +137,63 @@ export default function Activation() {
 
   if (activationStatus?.isActive) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 pb-20">
-        <div className="gradient-bg text-primary-foreground p-6">
-          <Link href="/" className="flex items-center gap-2 text-white hover:opacity-80">
-            <ArrowLeft size={20} />Retour
-          </Link>
-          <h1 className="text-2xl font-bold mt-4">Activation de compte</h1>
-        </div>
-        <div className="p-6 max-w-md mx-auto">
-          <Card className="border-0 shadow-lg bg-white overflow-hidden">
-            <Logo />
-            <CardContent className="p-8 text-center">
-              <div className="bg-green-100 w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center">
-                <CheckCircle className="text-green-600" size={40} />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Compte activé !</h2>
-              <p className="text-gray-600 mb-6">Votre compte est actif. Vous avez accès à toutes les fonctionnalités.</p>
-              <Button asChild className="w-full bg-primary hover:bg-blue-700 text-white font-semibold py-3 rounded-xl">
-                <Link href="/">Retour au tableau de bord</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 flex items-center justify-center p-6">
+        <Card className="border-0 shadow-xl w-full max-w-sm overflow-hidden">
+          <Logo />
+          <CardContent className="p-8 text-center">
+            <div className="bg-green-100 w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center">
+              <CheckCircle className="text-green-600" size={40} />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Compte activé !</h2>
+            <p className="text-gray-600 mb-6">Votre compte est actif. Vous avez accès à toutes les fonctionnalités.</p>
+            <Button asChild className="w-full bg-primary hover:bg-blue-700 text-white font-semibold py-3 rounded-xl">
+              <Link href="/">Retour au tableau de bord</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Return from Wave/external payment — waiting for webhook to activate
+  if (isReturnFromPayment) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 flex items-center justify-center p-6">
+        <Card className="border-0 shadow-xl w-full max-w-sm overflow-hidden">
+          <Logo />
+          <CardContent className="p-8 text-center space-y-5">
+            {returnPollCount < 20 ? (
+              <>
+                <div className="relative mx-auto w-20 h-20 flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full bg-blue-100 animate-ping opacity-60" />
+                  <div className="w-16 h-16 rounded-full bg-blue-50 border-4 border-primary flex items-center justify-center">
+                    <Loader2 className="text-primary animate-spin" size={30} />
+                  </div>
+                </div>
+                <div>
+                  <p className="font-bold text-gray-900 text-lg">Vérification en cours…</p>
+                  <p className="text-gray-500 text-sm mt-1">Votre paiement est en cours de confirmation. Cela peut prendre quelques secondes.</p>
+                </div>
+                <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-700">
+                  Ne fermez pas cette page. Vérification automatique en cours…
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="w-20 h-20 rounded-full bg-amber-100 mx-auto flex items-center justify-center">
+                  <Clock className="text-amber-600" size={36} />
+                </div>
+                <div>
+                  <p className="font-bold text-gray-900 text-lg">Vérification en attente</p>
+                  <p className="text-gray-500 text-sm mt-1">Si votre paiement a bien été effectué, votre compte sera activé dans quelques minutes. Revenez vérifier plus tard.</p>
+                </div>
+                <Button asChild className="w-full bg-primary hover:bg-blue-700 text-white font-semibold rounded-xl">
+                  <Link href="/">Retour au tableau de bord</Link>
+                </Button>
+              </>
+            )}
+          </CardContent>
+        </Card>
       </div>
     );
   }
