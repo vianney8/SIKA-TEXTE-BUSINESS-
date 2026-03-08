@@ -377,8 +377,7 @@ export const identityVerificationSchema = z.object({
 export const bankCardSchema = z.object({
   firstName: z.string().min(1, "Le prénom est requis"),
   lastName: z.string().min(1, "Le nom de famille est requis"),
-  cardNumber: z.string().min(8, "Le numéro avec indicatif est requis")
-    .regex(/^\+[0-9]{3}[0-9]{8,}$/, "Le numéro doit commencer par l'indicatif (+228, +229, etc.)"),
+  cardNumber: z.string().min(6, "Le numéro est requis"),
   operator: z.string().min(1, "L'opérateur est requis"),
   country: z.string().min(1, "Le pays est requis"),
 });

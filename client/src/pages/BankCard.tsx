@@ -95,15 +95,35 @@ export default function BankCard() {
         
         // Mettre à jour le formulaire avec le pays
         form.setValue('country', countryCode);
+        
+        // Pré-remplir le numéro sans indicatif si aucune carte existante
+        if (!bankCard) {
+          const localNumber = user.phone.startsWith(countryCode)
+            ? user.phone.slice(countryCode.length)
+            : user.phone;
+          form.setValue('cardNumber', localNumber);
+        }
       } else {
         console.warn('No country code detected for phone:', user.phone);
         // Par défaut, utiliser le Togo
         setUserCountry("+228");
         setAvailableOperators(OPERATORS_BY_COUNTRY["+228"]);
         form.setValue('country', "+228");
+        
+        // Pré-remplir le numéro tel quel si aucune carte existante
+        if (!bankCard) {
+          form.setValue('cardNumber', user.phone);
+        }
       }
     }
-  }, [user, form]);
+  }, [user, bankCard, form]);
+
+  const stripCountryCode = (phone: string, country: string) => {
+    if (country && phone.startsWith(country)) {
+      return phone.slice(country.length);
+    }
+    return phone;
+  };
 
   // Reset form when bank card data changes
   useEffect(() => {
@@ -111,7 +131,7 @@ export default function BankCard() {
       form.reset({
         firstName: bankCard.firstName,
         lastName: bankCard.lastName,
-        cardNumber: bankCard.cardNumber,
+        cardNumber: stripCountryCode(bankCard.cardNumber, bankCard.country),
         operator: bankCard.operator,
         country: bankCard.country,
       });
@@ -189,10 +209,15 @@ export default function BankCard() {
   });
 
   const onSubmit = (data: BankCardRequest) => {
+    const country = data.country || userCountry || "+228";
+    const fullNumber = data.cardNumber.startsWith("+")
+      ? data.cardNumber
+      : `${country}${data.cardNumber}`;
+    const payload = { ...data, cardNumber: fullNumber };
     if (bankCard?.id) {
-      updateBankCardMutation.mutate(data);
+      updateBankCardMutation.mutate(payload);
     } else {
-      createBankCardMutation.mutate(data);
+      createBankCardMutation.mutate(payload);
     }
   };
 
@@ -202,7 +227,7 @@ export default function BankCard() {
       form.reset({
         firstName: bankCard.firstName,
         lastName: bankCard.lastName,
-        cardNumber: bankCard.cardNumber,
+        cardNumber: stripCountryCode(bankCard.cardNumber, bankCard.country),
         operator: bankCard.operator,
         country: bankCard.country,
       });
@@ -378,19 +403,22 @@ export default function BankCard() {
                     name="cardNumber"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Numéro de retrait (avec indicatif)</FormLabel>
+                        <FormLabel>Numéro {form.watch('operator') || 'Mobile Money'} (sans indicatif)</FormLabel>
                         <FormControl>
-                          <Input
-                            type="tel"
-                            placeholder={userCountry ? `${userCountry}XXXXXXXX` : "+228XXXXXXXX"}
-                            {...field}
-                            data-testid="input-card-number"
-                          />
+                          <div className="flex items-center border border-input rounded-md overflow-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-0">
+                            <span className="flex items-center gap-1.5 px-3 py-2 bg-muted text-muted-foreground text-sm font-medium border-r border-input whitespace-nowrap">
+                              {userCountry || "+228"}
+                            </span>
+                            <input
+                              type="tel"
+                              placeholder="XXXXXXXX"
+                              {...field}
+                              data-testid="input-card-number"
+                              className="flex-1 px-3 py-2 bg-transparent text-sm outline-none"
+                            />
+                          </div>
                         </FormControl>
                         <FormMessage />
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Exemple: {userCountry || "+228"}87654321
-                        </p>
                       </FormItem>
                     )}
                   />
