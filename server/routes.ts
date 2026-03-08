@@ -1956,10 +1956,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!rawPhone) {
         return res.status(400).json({ message: 'Aucun numéro de téléphone sur votre profil. Veuillez le renseigner dans Paramètres.' });
       }
-      // Normalise: format with "+" for detection, then strip "+" for the API (digits only)
+      // Normalise: format with "+" for detection, then send local number (without country code) to SolvexPay
       const phoneWithPlus = rawPhone.startsWith('+') ? rawPhone : `+${rawPhone}`;
       const { operator, country } = detectOperatorCountry(phoneWithPlus);
-      const phone = phoneWithPlus.replace(/^\+/, '');
+      const digitsOnly = phoneWithPlus.replace(/^\+/, '');
+      // Country code digit lengths by country code
+      const countryCodeDigits: Record<string, string> = {
+        'BJ': '229', 'CI': '225', 'SN': '221', 'TG': '228',
+        'CM': '237', 'BF': '226', 'ML': '223', 'COG': '242', 'COD': '243'
+      };
+      const ccDigits = countryCodeDigits[country];
+      const phone = ccDigits && digitsOnly.startsWith(ccDigits)
+        ? digitsOnly.slice(ccDigits.length)
+        : digitsOnly;
 
       const apiKey = process.env.SOLVEXPAY_API_KEY;
       if (!apiKey) {
