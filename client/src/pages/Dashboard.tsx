@@ -10,11 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAppSetting } from "@/hooks/useAppSettings";
 import { FaTelegram, FaWhatsapp } from "react-icons/fa";
 import { Link } from "wouter";
-import {
-  Zap, Users, ChevronRight, TrendingUp, Clock,
-  Briefcase, Star, Gift, CreditCard, HelpCircle,
-  ArrowRight, Sparkles
-} from "lucide-react";
+import { Zap, ChevronRight, Sparkles } from "lucide-react";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -31,7 +27,6 @@ export default function Dashboard() {
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
   const { data: balance } = useQuery({ queryKey: ["/api/user/balance"] });
-  const { data: transactions = [] } = useQuery<any[]>({ queryKey: ["/api/transactions"] });
 
   const userId = (user as any)?.id || (user as any)?.sub || 'anonymous';
 
@@ -92,16 +87,7 @@ export default function Dashboard() {
     } catch (err) { console.error(err); }
   };
 
-  const transactionCount = Array.isArray(transactions) ? transactions.length : 0;
 
-  const quickActions = [
-    { href: "/work",        icon: Briefcase,   label: "Travaux",    sub: "Corriger",     from: "#2563eb", to: "#60a5fa" },
-    { href: "/withdrawal",  icon: CreditCard,  label: "Retrait",    sub: "Mobile Money", from: "#059669", to: "#34d399" },
-    { href: "/team",        icon: Users,        label: "Équipe",     sub: "Parrainer",    from: "#7c3aed", to: "#c084fc" },
-    { href: "/transactions",icon: Clock,        label: "Historique", sub: `${transactionCount} opérat.`, from: "#0891b2", to: "#67e8f9" },
-    { href: "/summary",     icon: TrendingUp,   label: "Stats",      sub: "Mes gains",    from: "#b45309", to: "#fbbf24" },
-    { href: "/assistance",  icon: HelpCircle,   label: "Aide",       sub: "Support",      from: "#be185d", to: "#f472b6" },
-  ];
 
   return (
     <div className="min-h-screen" style={{ background: "#f0f4f8" }}>
@@ -132,43 +118,25 @@ export default function Dashboard() {
             <div className="absolute bottom-0 left-0 w-32 h-32 rounded-full blur-2xl opacity-20"
               style={{ background: "radial-gradient(circle, #a78bfa, transparent)" }} />
 
-            <div className="relative px-5 py-5">
-              {/* Top row */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center"
-                    style={{ background: "rgba(129,140,248,0.2)" }}>
-                    <Sparkles size={16} className="text-indigo-300" />
-                  </div>
-                  <span className="text-indigo-300 text-xs font-bold tracking-widest uppercase">Bonus du jour</span>
+            <div className="relative px-4 py-3.5 flex items-center justify-between gap-3">
+              {/* Gauche : icône + texte */}
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: "rgba(129,140,248,0.2)" }}>
+                  <Sparkles size={16} className="text-indigo-300" />
                 </div>
-                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
-                  pointageDone
-                    ? "bg-green-500/20 text-green-300"
-                    : "bg-yellow-400/20 text-yellow-300 animate-pulse"
-                }`}>
-                  {pointageDone ? "✓ Collecté" : "● Disponible"}
-                </span>
+                <div className="min-w-0">
+                  <p className="text-white font-bold text-sm leading-tight">Bonus du jour</p>
+                  <p className="text-indigo-300 text-xs">300 – 800 FCFA · Cliquez pour collecter</p>
+                </div>
               </div>
 
-              {/* Montant */}
-              <div className="mb-4">
-                <p className="text-white/40 text-[10px] uppercase tracking-widest mb-1">Gagner entre</p>
-                <p className="text-white font-black text-3xl leading-none">300 – 800 <span className="text-indigo-300 text-xl">FCFA</span></p>
-                <p className="text-white/40 text-xs mt-1">Cliquez pour collecter votre bonus quotidien</p>
-              </div>
-
-              {/* Bouton action */}
-              <div className="flex items-center justify-between">
-                <div className="flex gap-1">
-                  {[1,2,3,4,5].map(i => (
-                    <Star key={i} size={12} className="text-yellow-400" fill="#facc15" />
-                  ))}
-                </div>
-                <div className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold"
+              {/* Droite : badge statut */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold"
                   style={{ background: "linear-gradient(90deg, #6366f1, #8b5cf6)" }}>
-                  <Zap size={13} className="text-yellow-300" />
-                  <span className="text-white">{pointageDone ? "Déjà collecté" : "Collecter maintenant"}</span>
+                  <Zap size={12} className="text-yellow-300" />
+                  <span className="text-white text-[11px]">{pointageDone ? "Collecté" : "Collecter"}</span>
                 </div>
               </div>
             </div>
@@ -176,93 +144,9 @@ export default function Dashboard() {
         </div>
 
         {/* ══════════════════════════════════════════
-            ACCÈS RAPIDES — scroll horizontal
+            SECTIONS
         ══════════════════════════════════════════ */}
-        <div className="mt-5">
-          <div className="px-4 mb-3 flex items-center justify-between">
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-wider">Accès rapide</p>
-          </div>
-          <div className="flex gap-3 px-4 overflow-x-auto pb-1 scrollbar-hide">
-            {quickActions.map((item) => (
-              <Link key={item.href} href={item.href}>
-                <div className="flex-shrink-0 w-20 flex flex-col items-center gap-2 cursor-pointer active:scale-90 transition-transform">
-                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-md"
-                    style={{ background: `linear-gradient(135deg, ${item.from}, ${item.to})` }}>
-                    <item.icon size={22} className="text-white" strokeWidth={1.8} />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-gray-700 font-semibold text-xs">{item.label}</p>
-                    <p className="text-gray-400 text-[9px]">{item.sub}</p>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-
-        {/* ══════════════════════════════════════════
-            SECTION PRINCIPALE — cartes premium
-        ══════════════════════════════════════════ */}
-        <div className="px-4 mt-5 space-y-3">
-
-          {/* Travaux — grande carte premium */}
-          <Link href="/work">
-            <div className="relative overflow-hidden rounded-[20px] cursor-pointer active:scale-[0.98] transition-transform"
-              style={{ background: "linear-gradient(135deg, #1d4ed8 0%, #2563eb 50%, #3b82f6 100%)" }}>
-              <div className="absolute -top-8 -right-8 w-36 h-36 rounded-full bg-white/5" />
-              <div className="absolute bottom-0 right-8 w-20 h-20 rounded-full bg-white/5" />
-              <div className="relative p-5 flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-8 h-8 bg-white/15 rounded-xl flex items-center justify-center">
-                      <Briefcase size={16} className="text-white" />
-                    </div>
-                    <span className="text-blue-200 text-[10px] font-bold uppercase tracking-widest">Micro-tâches</span>
-                  </div>
-                  <p className="text-white font-black text-lg leading-tight">Travaux disponibles</p>
-                  <p className="text-blue-200 text-xs mt-1">Corrigez des textes · Gagnez par phrase</p>
-                </div>
-                <div className="w-10 h-10 bg-white/15 rounded-2xl flex items-center justify-center flex-shrink-0">
-                  <ArrowRight size={18} className="text-white" />
-                </div>
-              </div>
-            </div>
-          </Link>
-
-          {/* Deux cartes côte à côte */}
-          <div className="grid grid-cols-2 gap-3">
-            {/* Parrainage */}
-            <Link href="/team">
-              <div className="relative overflow-hidden rounded-[18px] p-4 cursor-pointer active:scale-[0.97] transition-transform"
-                style={{ background: "linear-gradient(135deg, #f97316, #fb923c)" }}>
-                <div className="absolute -top-4 -right-4 w-20 h-20 rounded-full bg-white/10" />
-                <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center mb-3">
-                  <Gift size={17} className="text-white" />
-                </div>
-                <p className="text-white font-bold text-sm">Parrainage</p>
-                <p className="text-orange-100 text-[10px] mt-0.5">Bonus à l'invitation</p>
-                <div className="mt-2 flex items-center gap-1">
-                  <span className="text-white/70 text-[10px] font-semibold">Voir →</span>
-                </div>
-              </div>
-            </Link>
-
-            {/* Statistiques */}
-            <Link href="/summary">
-              <div className="relative overflow-hidden rounded-[18px] p-4 cursor-pointer active:scale-[0.97] transition-transform"
-                style={{ background: "linear-gradient(135deg, #0f766e, #14b8a6)" }}>
-                <div className="absolute -top-4 -right-4 w-20 h-20 rounded-full bg-white/10" />
-                <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center mb-3">
-                  <TrendingUp size={17} className="text-white" />
-                </div>
-                <p className="text-white font-bold text-sm">Statistiques</p>
-                <p className="text-teal-100 text-[10px] mt-0.5">Suivez vos gains</p>
-                <div className="mt-2 flex items-center gap-1">
-                  <span className="text-white/70 text-[10px] font-semibold">Voir →</span>
-                </div>
-              </div>
-            </Link>
-          </div>
+        <div className="px-4 mt-3 space-y-3">
 
           {/* Communautés */}
           <div className="bg-white rounded-[20px] shadow-sm border border-gray-100 overflow-hidden">
