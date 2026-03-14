@@ -1910,37 +1910,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
-  // SOLVEXPAY - Initiate activation payment (push Mobile Money)
-  // Helper: auto-detect operator + country from phone number prefix
+  // UPAY SIKA TEXTE — SR API (Silent Request, sans redirection)
+  // Helper: auto-detect operator + country from phone number prefix (retourne codes lowercase SR)
   function detectOperatorCountry(phone: string): { operator: string; country: string } {
     const p = phone.replace(/[\s\-\(\)]/g, '');
     if (/^\+?225/.test(p)) {
       const local = p.replace(/^\+?225/, '');
-      if (/^(07|17|27|57|47)/.test(local)) return { operator: 'MTN', country: 'CI' };
-      if (/^(05|15|25|55|45|35)/.test(local)) return { operator: 'ORANGE', country: 'CI' };
-      if (/^(01|02|03|08|98)/.test(local)) return { operator: 'WAVE', country: 'CI' };
-      if (/^(04|44|64|14|24|34|54)/.test(local)) return { operator: 'MOOV', country: 'CI' };
-      return { operator: 'MTN', country: 'CI' };
+      if (/^(07|17|27|57|47)/.test(local)) return { operator: 'mtn', country: 'CI' };
+      if (/^(05|15|25|55|45|35)/.test(local)) return { operator: 'orange', country: 'CI' };
+      if (/^(01|02|03|08|98)/.test(local)) return { operator: 'wave', country: 'CI' };
+      if (/^(04|44|64|14|24|34|54)/.test(local)) return { operator: 'moov', country: 'CI' };
+      return { operator: 'mtn', country: 'CI' };
     }
     if (/^\+?221/.test(p)) {
       const local = p.replace(/^\+?221/, '');
-      if (/^(70|76|77|78)/.test(local)) return { operator: 'WAVE', country: 'SN' };
-      if (/^(33|30)/.test(local)) return { operator: 'FREE', country: 'SN' };
-      return { operator: 'ORANGE', country: 'SN' };
+      if (/^(70|76|77|78)/.test(local)) return { operator: 'wave', country: 'SN' };
+      if (/^(33|30)/.test(local)) return { operator: 'free', country: 'SN' };
+      return { operator: 'orange', country: 'SN' };
     }
-    if (/^\+?229/.test(p)) return { operator: 'MTN', country: 'BJ' };
-    if (/^\+?237/.test(p)) return { operator: 'MTN', country: 'CM' };
-    if (/^\+?228/.test(p)) return { operator: 'TMONEY', country: 'TG' };
-    if (/^\+?226/.test(p)) return { operator: 'ORANGE', country: 'BF' };
-    if (/^\+?223/.test(p)) return { operator: 'ORANGE', country: 'ML' };
-    if (/^\+?242/.test(p)) return { operator: 'AIRTEL', country: 'COG' };
-    if (/^\+?243/.test(p)) return { operator: 'AIRTEL', country: 'COD' };
-    return { operator: 'MTN', country: 'CI' };
+    if (/^\+?229/.test(p)) {
+      const local = p.replace(/^\+?229/, '');
+      if (/^(96|97|98|99|56|57|58|59|46|47|48|49)/.test(local)) return { operator: 'moov', country: 'BJ' };
+      return { operator: 'mtn', country: 'BJ' };
+    }
+    if (/^\+?237/.test(p)) return { operator: 'mtn', country: 'CM' };
+    if (/^\+?228/.test(p)) return { operator: 'tmoney', country: 'TG' };
+    if (/^\+?226/.test(p)) return { operator: 'orange', country: 'BF' };
+    if (/^\+?242/.test(p)) return { operator: 'airtel', country: 'COG' };
+    return { operator: 'mtn', country: 'BJ' };
   }
+
+  // Endpoint pour récupérer les infos de paiement du user (opérateur détecté, montant, OTP requis)
+  app.get('/api/activation/payment-info', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
+
+      const settings = await storage.getAppSettings();
+      const activationSetting = settings.find((s: any) => s.key === 'activation_amount');
+      const activationAmount = parseInt(activationSetting?.value || '3600');
+
+      const rawPhone = user.phone || '';
+      const phoneWithPlus = rawPhone.startsWith('+') ? rawPhone : `+${rawPhone}`;
+      const { operator, country } = rawPhone ? detectOperatorCountry(phoneWithPlus) : { operator: 'mtn', country: 'BJ' };
+      const requiresOTP = operator === 'orange' && (country === 'CI' || country === 'SN');
+
+      const maskedPhone = rawPhone
+        ? rawPhone.replace(/(\d{3})\d+(\d{3})/, '$1****$2')
+        : '';
+
+      res.json({
+        activationAmount,
+        operator,
+        country,
+        requiresOTP,
+        maskedPhone,
+        hasPhone: !!rawPhone,
+        otpInstructions: requiresOTP
+          ? (country === 'CI' ? 'Composez le #144# pour obtenir votre OTP Orange CI' : 'Composez le #144*82# pour obtenir votre OTP Orange SN')
+          : null
+      });
+    } catch (error) {
+      console.error('[UPAY-INFO] Error:', error);
+      res.status(500).json({ message: 'Erreur lors de la récupération des infos' });
+    }
+  });
 
   app.post('/api/activation/init-solvexpay', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session.userId;
+      const { otp } = req.body;
       const user = await storage.getUser(userId);
 
       if (!user) {
@@ -1956,30 +1996,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!rawPhone) {
         return res.status(400).json({ message: 'Aucun numéro de téléphone sur votre profil. Veuillez le renseigner dans Paramètres.' });
       }
-      // Normalise: format with "+" for detection, then send local number (without country code) to SolvexPay
+
+      // Normalise: format with "+" for detection, send full number without "+" to SR API
       const phoneWithPlus = rawPhone.startsWith('+') ? rawPhone : `+${rawPhone}`;
       const { operator, country } = detectOperatorCountry(phoneWithPlus);
-      const digitsOnly = phoneWithPlus.replace(/^\+/, '');
-      // Country code digit lengths by country code
-      const countryCodeDigits: Record<string, string> = {
-        'BJ': '229', 'CI': '225', 'SN': '221', 'TG': '228',
-        'CM': '237', 'BF': '226', 'ML': '223', 'COG': '242', 'COD': '243'
-      };
-      const ccDigits = countryCodeDigits[country];
-      const phone = ccDigits && digitsOnly.startsWith(ccDigits)
-        ? digitsOnly.slice(ccDigits.length)
-        : digitsOnly;
+      // SR API attend le numéro complet avec indicatif, sans le "+"
+      const phone = phoneWithPlus.replace(/^\+/, '');
+
+      // Vérifier OTP requis pour Orange CI/SN
+      const requiresOTP = operator === 'orange' && (country === 'CI' || country === 'SN');
+      if (requiresOTP && !otp) {
+        return res.status(400).json({ message: 'Un OTP est requis pour Orange. Composez le #144# (CI) ou #144*82# (SN) pour l\'obtenir.' });
+      }
 
       const apiKey = process.env.SOLVEXPAY_API_KEY;
       if (!apiKey) {
-        return res.status(500).json({ message: 'Clé API SolvexPay non configurée' });
+        return res.status(500).json({ message: 'Clé API non configurée' });
       }
 
       const settings = await storage.getAppSettings();
       const activationSetting = settings.find((s: any) => s.key === 'activation_amount');
       const activationAmount = parseInt(activationSetting?.value || '3600');
 
-      const reference = `SVX-${userId.substring(0, 8)}-${Date.now()}`;
+      const reference = `UPAY-${userId.substring(0, 8)}-${Date.now()}`;
 
       await db.insert(bkapayPayments).values({
         id: crypto.randomUUID(),
@@ -1990,87 +2029,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdAt: new Date()
       });
 
-      console.log('[SOLVEXPAY-INIT] ===== PAYMENT INITIATED =====');
-      console.log('[SOLVEXPAY-INIT] User ID:', userId);
-      console.log('[SOLVEXPAY-INIT] Reference:', reference);
-      console.log('[SOLVEXPAY-INIT] Amount:', activationAmount);
-      console.log('[SOLVEXPAY-INIT] Phone:', phone, '| Operator:', operator, '| Country:', country);
+      console.log('[UPAY-INIT] ===== PAIEMENT SR INITIÉ =====');
+      console.log('[UPAY-INIT] User ID:', userId);
+      console.log('[UPAY-INIT] Reference:', reference);
+      console.log('[UPAY-INIT] Amount:', activationAmount);
+      console.log('[UPAY-INIT] Phone:', phone, '| Operator:', operator, '| Country:', country, '| OTP:', requiresOTP ? 'OUI' : 'NON');
 
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
+      const timeout = setTimeout(() => controller.abort(), 20000);
 
-      const apiResponse = await fetch('https://solvexpay.com/api/v1/deposit', {
+      const srPayload: Record<string, any> = {
+        amount: activationAmount,
+        phone,
+        operator,
+        country,
+        description: `Activation compte UPAY SIKA TEXTE — ${reference}`,
+        customer_name: user.fullName || [user.firstName, user.lastName].filter(Boolean).join(' ') || undefined,
+        customer_email: user.email || undefined,
+      };
+      if (otp) srPayload.otp = otp;
+
+      const apiResponse = await fetch('https://solvexpay.com/api/v1/sr/pay', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          amount: activationAmount,
-          phone,
-          operator,
-          country,
-          description: `Activation compte Sika Texte — ${reference}`,
-          customer_name: user.fullName || [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || undefined,
-          customer_email: user.email || undefined,
-          return_url: 'https://sikatexte.site/activation?return=1',
-          metadata: { user_id: userId, reference }
-        }),
+        body: JSON.stringify(srPayload),
         signal: controller.signal
       });
 
       clearTimeout(timeout);
 
       const apiData = await apiResponse.json();
-      console.log('[SOLVEXPAY-INIT] Response status:', apiResponse.status);
-      console.log('[SOLVEXPAY-INIT] Response data:', JSON.stringify(apiData));
-      console.log('[SOLVEXPAY-INIT] payment_url value:', apiData.payment_url);
-      console.log('[SOLVEXPAY-INIT] redirect_url value:', apiData.redirect_url);
+      console.log('[UPAY-INIT] Response status:', apiResponse.status);
+      console.log('[UPAY-INIT] Response data:', JSON.stringify(apiData));
 
       if (!apiResponse.ok) {
-        const errCode = apiData?.error?.code || 'UNKNOWN';
-        const errMsg = apiData?.error?.message || 'Erreur lors de la création du paiement';
-        console.error('[SOLVEXPAY-INIT] API Error:', errCode, errMsg);
+        const errCode = apiData?.error?.code || apiData?.code || 'UNKNOWN';
+        const errMsg = apiData?.error?.message || apiData?.message || 'Erreur lors de la création du paiement';
+        console.error('[UPAY-INIT] API Error:', errCode, errMsg);
         return res.status(apiResponse.status).json({ message: errMsg, code: errCode });
       }
-
-      // Resolve payment URL — docs use payment_url, some versions may use redirect_url
-      const paymentUrl = apiData.payment_url || apiData.redirect_url || null;
-      console.log('[SOLVEXPAY-INIT] Resolved paymentUrl:', paymentUrl);
 
       await db.update(bkapayPayments)
         .set({ redirectUrl: apiData.id })
         .where(eq(bkapayPayments.reference, reference));
 
-      // For Wave (and any operator returning a payment_url): send redirect response
-      // so the browser navigates directly to SolvexPay's hosted payment page
-      if (paymentUrl) {
-        console.log('[SOLVEXPAY-INIT] Redirecting to payment page:', paymentUrl);
-        return res.json({
-          success: true,
-          transactionId: apiData.id,
-          reference,
-          amount: activationAmount,
-          status: apiData.status,
-          paymentUrl,
-          redirect: true,
-          gateway: 'solvexpay'
-        });
-      }
+      console.log('[UPAY-INIT] ✓ Transaction SR créée:', apiData.id, '| Status:', apiData.status);
 
-      // For USSD operators (MTN, Orange, Moov, TMoney...): no redirect, return transaction info
       res.json({
         success: true,
         transactionId: apiData.id,
         reference,
         amount: activationAmount,
         status: apiData.status,
-        paymentUrl: null,
-        redirect: false,
-        gateway: 'solvexpay'
+        operator,
+        country,
+        message: apiData.message || 'Paiement initié. Validez sur votre téléphone.',
+        gateway: 'upay'
       });
     } catch (error: any) {
-      console.error('[SOLVEXPAY-INIT] Error:', error);
+      console.error('[UPAY-INIT] Error:', error);
       if (error?.name === 'AbortError') {
         return res.status(504).json({ message: 'Délai d\'attente dépassé — veuillez réessayer' });
       }
