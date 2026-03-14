@@ -197,7 +197,6 @@ export default function Dashboard() {
               controls
               playsInline
               className="w-full"
-              style={{ maxHeight: "220px", objectFit: "cover" }}
             />
           </div>
 
