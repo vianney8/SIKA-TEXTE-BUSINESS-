@@ -182,51 +182,6 @@ export default function TeamPage() {
           </div>
         </div>
 
-        {/* Liste filleuls */}
-        {referralData?.referrals && referralData.referrals.length > 0 && (
-          <div className="bg-white rounded-[20px] shadow-sm overflow-hidden">
-            <div className="px-5 pt-5 pb-3 border-b border-gray-50 flex items-center justify-between">
-              <p className="text-gray-800 font-bold text-sm">Mes filleuls</p>
-              <span className="text-gray-400 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
-                {referralData.referrals.length}
-              </span>
-            </div>
-            <div className="divide-y divide-gray-50">
-              {referralData.referrals.map((r) => (
-                <div key={r.id} className="px-5 py-3.5 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-sm"
-                    style={{ background: r.isActive ? "linear-gradient(135deg,#059669,#34d399)" : "linear-gradient(135deg,#94a3b8,#cbd5e1)" }}>
-                    {r.name?.charAt(0).toUpperCase() || "?"}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-gray-800 font-semibold text-sm truncate">{r.name}</p>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                        r.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
-                      }`}>
-                        {r.isActive ? "Actif" : "Inactif"}
-                      </span>
-                      <span className="text-gray-400 text-[10px]">{r.joinDate}</span>
-                    </div>
-                  </div>
-                  <p className="text-green-600 font-black text-sm flex-shrink-0">
-                    +{r.commissionEarned} FCFA
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {(!referralData?.referrals || referralData.referrals.length === 0) && (
-          <div className="bg-white rounded-[20px] shadow-sm px-5 py-10 text-center">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
-              <Users size={28} className="text-gray-300" />
-            </div>
-            <p className="text-gray-500 font-semibold text-sm">Aucun filleul pour l'instant</p>
-            <p className="text-gray-400 text-xs mt-1">Partagez votre lien pour commencer à gagner</p>
-          </div>
-        )}
 
       </div>
       <BottomNavigation currentPage="team" />
