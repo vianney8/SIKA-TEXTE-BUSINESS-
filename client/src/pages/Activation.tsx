@@ -27,36 +27,15 @@ type MethodType = "ussd" | "otp" | "redirect";
 
 const OPERATORS: Record<string, {
   name: string; full: string; bg: string; text: string; border: string; initials: string;
-  method: MethodType; methodLabel: string; maintenance: boolean;
+  method: MethodType; methodLabel: string;
 }> = {
-  mtn:    {
-    name: "MTN",     full: "MTN Mobile Money",  bg: "#FFCC00", text: "#1a1a1a", border: "#e6b800", initials: "MTN",
-    method: "ussd",     methodLabel: "USSD Push",           maintenance: true,
-  },
-  moov:   {
-    name: "Moov",    full: "Moov Money",        bg: "#005BAA", text: "#fff",    border: "#004d99", initials: "MV",
-    method: "ussd",     methodLabel: "USSD Push",           maintenance: true,
-  },
-  orange: {
-    name: "Orange",  full: "Orange Money",      bg: "#FF6600", text: "#fff",    border: "#e55c00", initials: "OM",
-    method: "otp",      methodLabel: "Code OTP requis",     maintenance: true,
-  },
-  wave:   {
-    name: "Wave",    full: "Wave",              bg: "#1B6FEE", text: "#fff",    border: "#1560d4", initials: "W",
-    method: "redirect", methodLabel: "Redirection Wave",    maintenance: false,
-  },
-  tmoney: {
-    name: "T-Money", full: "T-Money",           bg: "#C8102E", text: "#fff",    border: "#a50d25", initials: "TM",
-    method: "ussd",     methodLabel: "USSD Push",           maintenance: true,
-  },
-  free:   {
-    name: "Free",    full: "Free Money",        bg: "#00923F", text: "#fff",    border: "#007a34", initials: "FM",
-    method: "ussd",     methodLabel: "USSD Push",           maintenance: true,
-  },
-  airtel: {
-    name: "Airtel",  full: "Airtel Money",      bg: "#E40000", text: "#fff",    border: "#c20000", initials: "AM",
-    method: "ussd",     methodLabel: "USSD Push",           maintenance: true,
-  },
+  mtn:    { name: "MTN",     full: "MTN Mobile Money",  bg: "#FFCC00", text: "#1a1a1a", border: "#e6b800", initials: "MTN", method: "ussd",     methodLabel: "USSD Push" },
+  moov:   { name: "Moov",    full: "Moov Money",        bg: "#005BAA", text: "#fff",    border: "#004d99", initials: "MV",  method: "ussd",     methodLabel: "USSD Push" },
+  orange: { name: "Orange",  full: "Orange Money",      bg: "#FF6600", text: "#fff",    border: "#e55c00", initials: "OM",  method: "otp",      methodLabel: "Code OTP requis" },
+  wave:   { name: "Wave",    full: "Wave",              bg: "#1B6FEE", text: "#fff",    border: "#1560d4", initials: "W",   method: "redirect", methodLabel: "Redirection Wave" },
+  tmoney: { name: "T-Money", full: "T-Money",           bg: "#C8102E", text: "#fff",    border: "#a50d25", initials: "TM",  method: "ussd",     methodLabel: "USSD Push" },
+  free:   { name: "Free",    full: "Free Money",        bg: "#00923F", text: "#fff",    border: "#007a34", initials: "FM",  method: "ussd",     methodLabel: "USSD Push" },
+  airtel: { name: "Airtel",  full: "Airtel Money",      bg: "#E40000", text: "#fff",    border: "#c20000", initials: "AM",  method: "ussd",     methodLabel: "USSD Push" },
 };
 
 const METHOD_INFO: Record<MethodType, { icon: string; color: string; bg: string; border: string }> = {
@@ -186,6 +165,10 @@ export default function Activation() {
   const requiresOTP     = operator === "orange" && (country === "CI" || country === "SN");
   const otpInstruction  = country === "CI" ? "Composez *144# puis validez" : "Composez *144*82# puis validez";
   const isWave          = operator === "wave";
+
+  // Dynamic maintenance map from admin settings
+  const maintenanceMap: Record<string, boolean> = paymentInfo?.maintenanceMap ?? {};
+  const isOpMaintenance = (c: string, op: string) => maintenanceMap[`${c}_${op}`] === true;
 
   // Effective method label for orange (depends on country)
   const effectiveMethodLabel = operator === "orange"
@@ -367,13 +350,15 @@ export default function Activation() {
       <div className="min-h-screen bg-gray-50">
         <UpayHeader amount={activationAmount} />
 
-        {/* Bannière maintenance générale */}
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-start gap-2">
-          <Wrench size={14} className="text-amber-600 flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-amber-800 font-medium">
-            <strong>Maintenance SolvexPay :</strong> Certains opérateurs sont temporairement indisponibles. Consultez les badges ci-dessous.
-          </p>
-        </div>
+        {/* Bannière maintenance — visible seulement si des opérateurs du pays sélectionné sont en maintenance */}
+        {selectedCountry && selectedCountry.operators.some(op => isOpMaintenance(country, op)) && (
+          <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-start gap-2">
+            <Wrench size={14} className="text-amber-600 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-800 font-medium">
+              <strong>⚠ Maintenance :</strong> Certains opérateurs sont temporairement indisponibles pour ce pays.
+            </p>
+          </div>
+        )}
 
         <div className="-mt-0 bg-gray-50 overflow-hidden">
           <StepIndicator step={1} />
@@ -432,7 +417,7 @@ export default function Activation() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className={`text-sm font-bold ${selected ? "text-blue-900" : "text-gray-800"}`}>{info.name}</p>
-                            {info.maintenance && <MaintenanceBadge />}
+                            {isOpMaintenance(country, op) && <MaintenanceBadge />}
                           </div>
                           <p className="text-[11px] text-gray-400 mb-1">{info.full}</p>
                           <div className="flex items-center gap-1.5 flex-wrap">
@@ -509,11 +494,11 @@ export default function Activation() {
             )}
 
             {/* Maintenance warning sur l'opérateur sélectionné */}
-            {operator && selectedOp?.maintenance && (
+            {operator && isOpMaintenance(country, operator) && (
               <div className="bg-red-50 border border-red-200 rounded-2xl p-3.5 flex gap-3">
                 <AlertTriangle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
                 <div className="text-xs text-red-800">
-                  <p className="font-bold mb-0.5">⚠ {selectedOp.name} — En maintenance</p>
+                  <p className="font-bold mb-0.5">⚠ {selectedOp?.name} — En maintenance</p>
                   <p>SolvexPay signale une maintenance sur cet opérateur. Le paiement peut échouer ou être retardé. Réessayez ultérieurement si nécessaire.</p>
                 </div>
               </div>
@@ -546,11 +531,11 @@ export default function Activation() {
       <UpayHeader amount={activationAmount} />
 
       {/* Bannière maintenance */}
-      {op?.maintenance && (
+      {isOpMaintenance(country, operator) && (
         <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-center gap-2">
           <Wrench size={13} className="text-amber-600 flex-shrink-0" />
           <p className="text-xs text-amber-800 font-medium">
-            <strong>{op.name}</strong> est en maintenance chez SolvexPay. Le paiement peut être retardé.
+            <strong>{op?.name}</strong> est en maintenance chez SolvexPay. Le paiement peut être retardé.
           </p>
         </div>
       )}
@@ -586,7 +571,7 @@ export default function Activation() {
                   <div>
                     <div className="flex items-center gap-1.5">
                       <p className="font-bold text-gray-800 text-sm">{op?.name}</p>
-                      {op?.maintenance && <MaintenanceBadge />}
+                      {isOpMaintenance(country, operator) && <MaintenanceBadge />}
                     </div>
                     <p className="text-xs text-gray-400">{op?.full}</p>
                   </div>

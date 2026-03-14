@@ -1951,6 +1951,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const activationSetting = settings.find((s: any) => s.key === 'activation_amount');
       const activationAmount = parseInt(activationSetting?.value || '3600');
 
+      const maintenanceSetting = settings.find((s: any) => s.key === 'operator_maintenance');
+      const maintenanceMap: Record<string, boolean> = maintenanceSetting?.value
+        ? JSON.parse(maintenanceSetting.value)
+        : {};
+
       const rawPhone = user.phone || '';
       const phoneWithPlus = rawPhone.startsWith('+') ? rawPhone : `+${rawPhone}`;
       const { operator, country } = rawPhone ? detectOperatorCountry(phoneWithPlus) : { operator: 'mtn', country: 'BJ' };
@@ -1967,6 +1972,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         requiresOTP,
         maskedPhone,
         hasPhone: !!rawPhone,
+        maintenanceMap,
         otpInstructions: requiresOTP
           ? (country === 'CI' ? 'Composez le #144# pour obtenir votre OTP Orange CI' : 'Composez le #144*82# pour obtenir votre OTP Orange SN')
           : null
@@ -1974,6 +1980,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('[UPAY-INFO] Error:', error);
       res.status(500).json({ message: 'Erreur lors de la récupération des infos' });
+    }
+  });
+
+  // Admin — get operator maintenance map
+  app.get('/api/admin/operator-maintenance', requireAdmin, async (req: any, res) => {
+    try {
+      const settings = await storage.getAppSettings();
+      const maintenanceSetting = settings.find((s: any) => s.key === 'operator_maintenance');
+      const maintenanceMap = maintenanceSetting?.value ? JSON.parse(maintenanceSetting.value) : {};
+      res.json(maintenanceMap);
+    } catch (error) {
+      res.status(500).json({ message: 'Erreur récupération maintenance' });
+    }
+  });
+
+  // Admin — toggle one operator maintenance status (key = "COUNTRY_operator", e.g. "BJ_mtn")
+  app.put('/api/admin/operator-maintenance/:opKey', requireAdmin, async (req: any, res) => {
+    try {
+      const { opKey } = req.params;
+      const { maintenance } = req.body;
+      if (typeof maintenance !== 'boolean') {
+        return res.status(400).json({ message: 'maintenance doit être un booléen' });
+      }
+      const settings = await storage.getAppSettings();
+      const maintenanceSetting = settings.find((s: any) => s.key === 'operator_maintenance');
+      const maintenanceMap: Record<string, boolean> = maintenanceSetting?.value
+        ? JSON.parse(maintenanceSetting.value)
+        : {};
+      maintenanceMap[opKey] = maintenance;
+      await storage.updateAppSetting('operator_maintenance', JSON.stringify(maintenanceMap));
+      console.log(`[ADMIN] Operator maintenance ${opKey} → ${maintenance}`);
+      res.json({ success: true, opKey, maintenance });
+    } catch (error) {
+      res.status(500).json({ message: 'Erreur mise à jour maintenance' });
     }
   });
 

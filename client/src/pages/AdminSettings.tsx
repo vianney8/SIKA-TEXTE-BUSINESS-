@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Settings, Save } from "lucide-react";
+import { ArrowLeft, Settings, Save, Wrench, CheckCircle } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -16,6 +16,16 @@ interface AppSetting {
   label: string;
   updatedAt: string;
 }
+
+const MAINTENANCE_COUNTRIES = [
+  { code: "BJ",  name: "Bénin",             flag: "🇧🇯", operators: [{ key: "mtn", name: "MTN", bg: "#FFCC00", text: "#000" }, { key: "moov", name: "Moov", bg: "#005BAA", text: "#fff" }] },
+  { code: "CI",  name: "Côte d'Ivoire",     flag: "🇨🇮", operators: [{ key: "mtn", name: "MTN", bg: "#FFCC00", text: "#000" }, { key: "moov", name: "Moov", bg: "#005BAA", text: "#fff" }, { key: "orange", name: "Orange", bg: "#FF6600", text: "#fff" }, { key: "wave", name: "Wave", bg: "#1B6FEE", text: "#fff" }] },
+  { code: "SN",  name: "Sénégal",           flag: "🇸🇳", operators: [{ key: "orange", name: "Orange", bg: "#FF6600", text: "#fff" }, { key: "wave", name: "Wave", bg: "#1B6FEE", text: "#fff" }, { key: "free", name: "Free", bg: "#00923F", text: "#fff" }] },
+  { code: "BF",  name: "Burkina Faso",      flag: "🇧🇫", operators: [{ key: "moov", name: "Moov", bg: "#005BAA", text: "#fff" }, { key: "orange", name: "Orange", bg: "#FF6600", text: "#fff" }] },
+  { code: "TG",  name: "Togo",              flag: "🇹🇬", operators: [{ key: "moov", name: "Moov", bg: "#005BAA", text: "#fff" }, { key: "tmoney", name: "T-Money", bg: "#C8102E", text: "#fff" }] },
+  { code: "CM",  name: "Cameroun",          flag: "🇨🇲", operators: [{ key: "mtn", name: "MTN", bg: "#FFCC00", text: "#000" }, { key: "orange", name: "Orange", bg: "#FF6600", text: "#fff" }] },
+  { code: "COG", name: "Congo-Brazza",      flag: "🇨🇬", operators: [{ key: "mtn", name: "MTN", bg: "#FFCC00", text: "#000" }, { key: "airtel", name: "Airtel", bg: "#E40000", text: "#fff" }] },
+];
 
 export default function AdminSettings() {
   const { toast } = useToast();
@@ -72,6 +82,25 @@ export default function AdminSettings() {
   const handleSave = () => {
     saveSettingsMutation.mutate(settings);
   };
+
+  // Operator maintenance
+  const { data: maintenanceMap = {}, refetch: refetchMaintenance } = useQuery<Record<string, boolean>>({
+    queryKey: ['/api/admin/operator-maintenance'],
+  });
+
+  const toggleMaintenance = useMutation({
+    mutationFn: async ({ opKey, maintenance }: { opKey: string; maintenance: boolean }) =>
+      apiRequest("PUT", `/api/admin/operator-maintenance/${opKey}`, { maintenance }),
+    onSuccess: (_, { opKey, maintenance }) => {
+      toast({
+        title: maintenance ? "⚠ Mis en maintenance" : "✓ Remis en service",
+        description: `Opérateur ${opKey.replace("_", " — ")} : ${maintenance ? "En maintenance" : "Libre"}`,
+      });
+      refetchMaintenance();
+      queryClient.invalidateQueries({ queryKey: ['/api/activation/payment-info'] });
+    },
+    onError: () => toast({ title: "Erreur", variant: "destructive" }),
+  });
 
   const handleInputChange = (key: string, value: string) => {
     setSettings(prev => ({ ...prev, [key]: value }));
@@ -359,6 +388,76 @@ export default function AdminSettings() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* Operator Maintenance Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Wrench className="h-5 w-5 text-amber-600" />
+              Maintenance des opérateurs
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Activez la maintenance par opérateur et par pays. Les utilisateurs verront <span className="font-mono font-bold text-red-600 bg-red-50 px-1 rounded">Maint</span> sur la page de paiement.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {MAINTENANCE_COUNTRIES.map(country => (
+              <div key={country.code}>
+                <div className="flex items-center gap-2 mb-2.5">
+                  <span className="text-xl">{country.flag}</span>
+                  <span className="font-semibold text-sm text-gray-700">{country.name}</span>
+                  <div className="flex-1 h-px bg-gray-100" />
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  {country.operators.map(op => {
+                    const opKey = `${country.code}_${op.key}`;
+                    const isMaintenance = maintenanceMap[opKey] === true;
+                    const isPending = toggleMaintenance.isPending && toggleMaintenance.variables?.opKey === opKey;
+                    return (
+                      <div
+                        key={opKey}
+                        className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all ${
+                          isMaintenance ? "border-red-200 bg-red-50" : "border-gray-100 bg-gray-50"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black shadow-sm"
+                            style={{ backgroundColor: op.bg, color: op.text }}
+                          >
+                            {op.name.substring(0, 2)}
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-gray-800">{op.name}</p>
+                            <p className="text-xs text-gray-400">{opKey}</p>
+                          </div>
+                        </div>
+                        <button
+                          disabled={isPending}
+                          onClick={() => toggleMaintenance.mutate({ opKey, maintenance: !isMaintenance })}
+                          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all border-2 ${
+                            isMaintenance
+                              ? "bg-red-500 border-red-600 text-white hover:bg-red-600"
+                              : "bg-white border-green-400 text-green-700 hover:bg-green-50"
+                          }`}
+                        >
+                          {isPending ? (
+                            <span className="animate-spin">⏳</span>
+                          ) : isMaintenance ? (
+                            <><Wrench size={11} /> Maint</>
+                          ) : (
+                            <><CheckCircle size={11} /> Libre</>
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
       </div>
     </div>
   );
