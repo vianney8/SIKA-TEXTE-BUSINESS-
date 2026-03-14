@@ -499,10 +499,7 @@ export default function TestimonialsSlider() {
   const visibleTestimonials = getVisibleTestimonials();
 
   return (
-    <div className="mt-8">
-      <h3 className="font-semibold mb-4 text-center" data-testid="text-testimonials-title">
-        Ce que disent nos utilisateurs
-      </h3>
+    <div data-testid="text-testimonials-title">
       
       <div className="relative overflow-hidden">
         <div 
@@ -559,26 +556,6 @@ export default function TestimonialsSlider() {
           ))}
         </div>
         
-        {/* Logout Button - Full Width */}
-        <div className="mt-6 text-center">
-          <button
-            onClick={() => {
-              fetch("/api/auth/logout", {
-                method: "POST",
-                credentials: "include",
-              }).then(() => {
-                window.location.href = "/";
-              }).catch(() => {
-                window.location.href = "/";
-              });
-            }}
-            className="w-full inline-flex items-center justify-center space-x-2 bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600 transition-colors"
-            data-testid="button-logout-bottom"
-          >
-            <i className="fas fa-sign-out-alt text-lg"></i>
-            <span>Se déconnecter</span>
-          </button>
-        </div>
       </div>
     </div>
   );
