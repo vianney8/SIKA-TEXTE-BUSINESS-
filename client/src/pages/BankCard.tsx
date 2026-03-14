@@ -1,12 +1,7 @@
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CreditCard, Edit3, Save, Trash2, Plus } from "lucide-react";
+import { CreditCard, Edit3, Save, Shield, ChevronDown } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
-import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -27,449 +22,352 @@ interface BankCardData {
   updatedAt?: string;
 }
 
-// Opérateurs Mobile Money pour tous les pays
-const OPERATORS_BY_COUNTRY: Record<string, string[]> = {
-  "+228": ["T-Money", "Wizall-senegal", "Expresso", "Free Sénégal", "Mtn", "Moov", "Orange Money", "Wave"], // Togo
-  "+229": ["T-Money", "Wizall-senegal", "Expresso", "Free Sénégal", "Mtn", "Moov", "Orange Money", "Wave"], // Bénin
-  "+221": ["T-Money", "Wizall-senegal", "Expresso", "Free Sénégal", "Mtn", "Moov", "Orange Money", "Wave"], // Sénégal
-  "+225": ["T-Money", "Wizall-senegal", "Expresso", "Free Sénégal", "Mtn", "Moov", "Orange Money", "Wave"], // Côte d'Ivoire
-};
+const COUNTRIES = [
+  { prefix: "+229", name: "Bénin",         flag: "🇧🇯" },
+  { prefix: "+225", name: "Côte d'Ivoire", flag: "🇨🇮" },
+  { prefix: "+221", name: "Sénégal",       flag: "🇸🇳" },
+  { prefix: "+226", name: "Burkina Faso",  flag: "🇧🇫" },
+  { prefix: "+228", name: "Togo",          flag: "🇹🇬" },
+  { prefix: "+237", name: "Cameroun",      flag: "🇨🇲" },
+];
 
-// Noms des pays par code
-const COUNTRY_NAMES: Record<string, string> = {
-  "+228": "Togo",
-  "+229": "Bénin",
-  "+221": "Sénégal",
-  "+225": "Côte d'Ivoire"
-};
+const OPERATORS_LIST = ["MTN", "Moov", "Orange Money", "Wave", "Free Mobile", "T-Money", "Wizall"];
 
 export default function BankCard() {
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
-  const [userCountry, setUserCountry] = useState<string>("");
-  const [availableOperators, setAvailableOperators] = useState<string[]>([]);
+  const [selectedPrefix, setSelectedPrefix] = useState("+229");
 
-  // Récupérer les infos utilisateur pour déterminer le pays
-  const { data: user } = useQuery<{id: string, phone: string, fullName: string}>({
-    queryKey: ['/api/auth/user'],
+  const { data: user } = useQuery<{ id: string; phone: string; fullName: string }>({
+    queryKey: ["/api/auth/user"],
   });
 
   const { data: bankCard, isLoading } = useQuery<BankCardData | null>({
-    queryKey: ['/api/bank-card'],
+    queryKey: ["/api/bank-card"],
   });
 
   const form = useForm<BankCardRequest>({
     resolver: zodResolver(bankCardSchema),
     defaultValues: {
-      firstName: bankCard?.firstName || "",
-      lastName: bankCard?.lastName || "",
-      cardNumber: bankCard?.cardNumber || "",
-      operator: bankCard?.operator || "",
-      country: bankCard?.country || "",
+      firstName: "",
+      lastName: "",
+      cardNumber: "",
+      operator: "",
+      country: "+229",
     },
   });
 
-  // Déterminer le pays à partir du numéro de téléphone de l'utilisateur
-  useEffect(() => {
-    if (user?.phone) {
-      console.log('User phone:', user.phone);
-      
-      // Extraire le code pays plus intelligemment
-      let countryCode = "";
-      
-      // Vérifier les codes pays supportés dans l'ordre de priorité
-      const supportedCodes = Object.keys(OPERATORS_BY_COUNTRY);
-      for (const code of supportedCodes) {
-        if (user.phone.startsWith(code)) {
-          countryCode = code;
-          break;
-        }
-      }
-      
-      console.log('Detected country code:', countryCode);
-      console.log('Available operators:', OPERATORS_BY_COUNTRY[countryCode]);
-      
-      if (countryCode && OPERATORS_BY_COUNTRY[countryCode]) {
-        setUserCountry(countryCode);
-        setAvailableOperators(OPERATORS_BY_COUNTRY[countryCode]);
-        
-        // Mettre à jour le formulaire avec le pays
-        form.setValue('country', countryCode);
-        
-        // Pré-remplir le numéro sans indicatif si aucune carte existante
-        if (!bankCard) {
-          const localNumber = user.phone.startsWith(countryCode)
-            ? user.phone.slice(countryCode.length)
-            : user.phone;
-          form.setValue('cardNumber', localNumber);
-        }
-      } else {
-        console.warn('No country code detected for phone:', user.phone);
-        // Par défaut, utiliser le Togo
-        setUserCountry("+228");
-        setAvailableOperators(OPERATORS_BY_COUNTRY["+228"]);
-        form.setValue('country', "+228");
-        
-        // Pré-remplir le numéro tel quel si aucune carte existante
-        if (!bankCard) {
-          form.setValue('cardNumber', user.phone);
-        }
-      }
-    }
-  }, [user, bankCard, form]);
-
   const stripCountryCode = (phone: string, country: string) => {
-    if (country && phone.startsWith(country)) {
-      return phone.slice(country.length);
-    }
+    if (country && phone.startsWith(country)) return phone.slice(country.length);
     return phone;
   };
 
-  // Reset form when bank card data changes
+  // Détecter le pays depuis le téléphone utilisateur
+  useEffect(() => {
+    if (user?.phone && !bankCard) {
+      const found = COUNTRIES.find(c => user.phone.startsWith(c.prefix));
+      const prefix = found?.prefix || "+229";
+      setSelectedPrefix(prefix);
+      form.setValue("country", prefix);
+      const localNum = user.phone.startsWith(prefix) ? user.phone.slice(prefix.length) : user.phone;
+      form.setValue("cardNumber", localNum);
+    }
+  }, [user, bankCard]);
+
+  // Pré-remplir depuis la carte existante
   useEffect(() => {
     if (bankCard) {
+      const prefix = bankCard.country || "+229";
+      setSelectedPrefix(prefix);
       form.reset({
         firstName: bankCard.firstName,
         lastName: bankCard.lastName,
-        cardNumber: stripCountryCode(bankCard.cardNumber, bankCard.country),
+        cardNumber: stripCountryCode(bankCard.cardNumber, prefix),
         operator: bankCard.operator,
-        country: bankCard.country,
+        country: prefix,
       });
     }
-  }, [bankCard, form]);
+  }, [bankCard]);
+
+  // Sync indicatif → form country
+  useEffect(() => {
+    form.setValue("country", selectedPrefix);
+  }, [selectedPrefix]);
 
   const createBankCardMutation = useMutation({
     mutationFn: async (data: BankCardRequest) => {
-      const response = await fetch('/api/bank-card', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
+      const res = await fetch("/api/bank-card", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(data),
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Erreur lors de l\'enregistrement');
-      }
-
-      return response.json();
+      if (!res.ok) { const e = await res.json(); throw new Error(e.message || "Erreur d'enregistrement"); }
+      return res.json();
     },
     onSuccess: () => {
-      toast({
-        title: "Carte enregistrée ! 💳",
-        description: "Votre carte bancaire a été enregistrée avec succès",
-      });
+      toast({ title: "Carte enregistrée ✅", description: "Votre carte a été enregistrée avec succès" });
       setIsEditing(false);
-      queryClient.invalidateQueries({ queryKey: ['/api/bank-card'] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bank-card"] });
     },
-    onError: (error: any) => {
-      toast({
-        title: "Erreur d'enregistrement",
-        description: error.message || "Impossible d'enregistrer la carte",
-        variant: "destructive",
-      });
-    },
+    onError: (e: any) => toast({ title: "Erreur", description: e.message, variant: "destructive" }),
   });
 
   const updateBankCardMutation = useMutation({
     mutationFn: async (data: BankCardRequest) => {
-      const response = await fetch(`/api/bank-card/${bankCard?.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
+      const res = await fetch(`/api/bank-card/${bankCard?.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(data),
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Erreur lors de la mise à jour');
-      }
-
-      return response.json();
+      if (!res.ok) { const e = await res.json(); throw new Error(e.message || "Erreur de mise à jour"); }
+      return res.json();
     },
     onSuccess: () => {
-      toast({
-        title: "Carte mise à jour ! ✅",
-        description: "Vos informations ont été mises à jour avec succès",
-      });
+      toast({ title: "Carte mise à jour ✅", description: "Informations mises à jour avec succès" });
       setIsEditing(false);
-      queryClient.invalidateQueries({ queryKey: ['/api/bank-card'] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bank-card"] });
     },
-    onError: (error: any) => {
-      toast({
-        title: "Erreur de mise à jour",
-        description: error.message || "Impossible de mettre à jour la carte",
-        variant: "destructive",
-      });
-    },
+    onError: (e: any) => toast({ title: "Erreur", description: e.message, variant: "destructive" }),
   });
 
   const onSubmit = (data: BankCardRequest) => {
-    const country = data.country || userCountry || "+228";
-    const fullNumber = data.cardNumber.startsWith("+")
-      ? data.cardNumber
-      : `${country}${data.cardNumber}`;
-    const payload = { ...data, cardNumber: fullNumber };
-    if (bankCard?.id) {
-      updateBankCardMutation.mutate(payload);
-    } else {
-      createBankCardMutation.mutate(payload);
-    }
+    const prefix = selectedPrefix;
+    const fullNumber = data.cardNumber.startsWith("+") ? data.cardNumber : `${prefix}${data.cardNumber}`;
+    const payload = { ...data, cardNumber: fullNumber, country: prefix };
+    if (bankCard?.id) updateBankCardMutation.mutate(payload);
+    else createBankCardMutation.mutate(payload);
   };
 
   const handleCancel = () => {
     setIsEditing(false);
     if (bankCard) {
+      const prefix = bankCard.country || "+229";
+      setSelectedPrefix(prefix);
       form.reset({
         firstName: bankCard.firstName,
         lastName: bankCard.lastName,
-        cardNumber: stripCountryCode(bankCard.cardNumber, bankCard.country),
+        cardNumber: stripCountryCode(bankCard.cardNumber, prefix),
         operator: bankCard.operator,
-        country: bankCard.country,
+        country: prefix,
       });
     }
   };
 
-  const maskCardNumber = (cardNumber: string) => {
-    if (cardNumber.length <= 4) return cardNumber;
-    return `${'*'.repeat(cardNumber.length - 4)}${cardNumber.slice(-4)}`;
-  };
+  const isPending = createBankCardMutation.isPending || updateBankCardMutation.isPending;
+  const selectedCountryInfo = COUNTRIES.find(c => c.prefix === selectedPrefix) || COUNTRIES[0];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen pb-10" style={{ background: "#f0f4f8" }}>
       <PageHeader title="Carte Bancaire" backHref="/profile" />
 
-      <div className="p-4 pb-8">
+      <div className="px-4 space-y-3 mt-3">
+
         {isLoading ? (
-          <Card>
-            <CardContent className="p-6">
-              <div className="animate-pulse">
-                <div className="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
-                <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="bg-white rounded-[20px] p-5 animate-pulse">
+            <div className="h-4 bg-gray-200 rounded w-3/4 mb-3" />
+            <div className="h-4 bg-gray-200 rounded w-1/2" />
+          </div>
         ) : bankCard && !isEditing ? (
-          /* Display Card View */
-          <Card className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
-            <CardContent className="p-6">
-              <div className="flex justify-between items-start mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="bg-white/20 p-2 rounded-full">
-                    <CreditCard className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">Carte de Retrait</h3>
-                    <p className="text-sm opacity-90">Carte principale</p>
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsEditing(true)}
-                  className="text-white hover:bg-white/10"
-                  data-testid="button-edit-card"
-                >
-                  <Edit3 className="w-4 h-4" />
-                </Button>
+          /* ── Vue carte enregistrée ── */
+          <div
+            className="rounded-[20px] p-5 relative overflow-hidden"
+            style={{ background: "linear-gradient(135deg, #1a4fa0, #7c3aed)" }}
+          >
+            <div className="flex items-start justify-between mb-6">
+              <div>
+                <p className="text-blue-200 text-[10px] font-bold uppercase tracking-widest mb-1">Carte de retrait</p>
+                <p className="text-white font-bold text-lg">{bankCard.firstName} {bankCard.lastName}</p>
               </div>
+              <button
+                data-testid="button-edit-card"
+                onClick={() => setIsEditing(true)}
+                className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center"
+              >
+                <Edit3 size={15} className="text-white" />
+              </button>
+            </div>
 
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm opacity-75">Numéro de retrait</p>
-                  <p className="text-xl font-mono tracking-wider" data-testid="text-card-number">
-                    {maskCardNumber(bankCard.cardNumber)}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-sm opacity-75">Opérateur</p>
-                  <p className="font-semibold" data-testid="text-card-operator">
-                    {bankCard.operator}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm opacity-75">Prénom</p>
-                    <p className="font-semibold" data-testid="text-card-firstname">
-                      {bankCard.firstName}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm opacity-75">Nom</p>
-                    <p className="font-semibold" data-testid="text-card-lastname">
-                      {bankCard.lastName}
-                    </p>
-                  </div>
-                </div>
+            <div className="space-y-3">
+              <div>
+                <p className="text-blue-300 text-[10px] font-semibold uppercase">Numéro Mobile Money</p>
+                <p className="text-white font-mono text-base tracking-widest" data-testid="text-card-number">
+                  {bankCard.country} {"*".repeat(Math.max(0, bankCard.cardNumber.replace(bankCard.country, "").length - 4))}
+                  {bankCard.cardNumber.slice(-4)}
+                </p>
               </div>
-            </CardContent>
-          </Card>
+              <div>
+                <p className="text-blue-300 text-[10px] font-semibold uppercase">Opérateur</p>
+                <p className="text-white font-semibold" data-testid="text-card-operator">{bankCard.operator}</p>
+              </div>
+            </div>
+
+            {/* Cercles décoratifs */}
+            <div className="absolute -bottom-8 -right-8 w-32 h-32 rounded-full bg-white/5" />
+            <div className="absolute -bottom-4 -right-4 w-20 h-20 rounded-full bg-white/5" />
+          </div>
         ) : (
-          /* Add/Edit Card Form */
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-3">
-                <div className="bg-blue-100 dark:bg-blue-900 p-2 rounded-full">
-                  <CreditCard className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                </div>
-                <div>
-                  <h3 className="text-xl">
-                    {bankCard ? "Modifier la carte" : "Ajouter une carte"}
-                  </h3>
-                  <p className="text-sm text-muted-foreground font-normal">
-                    {bankCard ? "Modifiez vos informations bancaires" : "Enregistrez votre carte pour les retraits"}
-                  </p>
-                </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    {/* First Name */}
-                    <FormField
-                      control={form.control}
-                      name="firstName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Prénom</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="Votre prénom"
-                              {...field}
-                              data-testid="input-firstname"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    {/* Last Name */}
-                    <FormField
-                      control={form.control}
-                      name="lastName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Nom de famille</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="Votre nom"
-                              {...field}
-                              data-testid="input-lastname"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  {/* Opérateur */}
-                  <FormField
-                    control={form.control}
-                    name="operator"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Opérateur Mobile Money</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-operator">
-                              <SelectValue placeholder="Sélectionnez votre opérateur" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {availableOperators.map((operator) => (
-                              <SelectItem key={operator} value={operator}>
-                                {operator}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {/* Card Number */}
-                  <FormField
-                    control={form.control}
-                    name="cardNumber"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Numéro {form.watch('operator') || 'Mobile Money'} (sans indicatif)</FormLabel>
-                        <FormControl>
-                          <div className="flex items-center border border-input rounded-md overflow-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-0">
-                            <span className="flex items-center gap-1.5 px-3 py-2 bg-muted text-muted-foreground text-sm font-medium border-r border-input whitespace-nowrap">
-                              {userCountry || "+228"}
-                            </span>
-                            <input
-                              type="tel"
-                              placeholder="XXXXXXXX"
-                              {...field}
-                              data-testid="input-card-number"
-                              className="flex-1 px-3 py-2 bg-transparent text-sm outline-none"
-                            />
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <div className="flex gap-3">
-                    <Button
-                      type="submit"
-                      disabled={createBankCardMutation.isPending || updateBankCardMutation.isPending}
-                      className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                      data-testid="button-save-card"
-                    >
-                      <Save className="w-4 h-4 mr-2" />
-                      {createBankCardMutation.isPending || updateBankCardMutation.isPending 
-                        ? "Enregistrement..." 
-                        : bankCard ? "Modifier" : "Enregistrer"
-                      }
-                    </Button>
-
-                    {bankCard && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={handleCancel}
-                        data-testid="button-cancel-edit"
-                      >
-                        Annuler
-                      </Button>
-                    )}
-                  </div>
-                </form>
-              </Form>
-
-
-              {/* Security Notice */}
-              <div className="mt-6 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <CreditCard className="w-5 h-5 text-blue-600 mt-1" />
-                  <div>
-                    <h4 className="font-semibold text-sm mb-2">Sécurité des données</h4>
-                    <div className="text-xs text-muted-foreground space-y-1">
-                      <p>• Vos informations bancaires sont stockées de manière sécurisée</p>
-                      <p>• Seuls les 4 derniers chiffres sont affichés</p>
-                      <p>• Utilisé uniquement pour vos retraits Mobile Money</p>
-                      <p>• Le numéro doit inclure l'indicatif de votre pays</p>
-                    </div>
-                  </div>
-                </div>
+          /* ── Formulaire ajout / modification ── */
+          <div className="bg-white rounded-[20px] shadow-sm border border-gray-100 p-5">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-11 h-11 rounded-[14px] bg-blue-50 flex items-center justify-center">
+                <CreditCard size={20} className="text-blue-600" />
               </div>
-            </CardContent>
-          </Card>
+              <div>
+                <p className="text-gray-800 font-bold text-base">{bankCard ? "Modifier la carte" : "Ajouter une carte"}</p>
+                <p className="text-gray-400 text-xs">{bankCard ? "Modifiez vos informations bancaires" : "Enregistrez votre carte pour les retraits"}</p>
+              </div>
+            </div>
+
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+
+                {/* Prénom + Nom */}
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField control={form.control} name="firstName" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Prénom</FormLabel>
+                      <FormControl>
+                        <input
+                          placeholder="Prénom"
+                          {...field}
+                          data-testid="input-firstname"
+                          className="w-full h-11 px-3 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+
+                  <FormField control={form.control} name="lastName" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Nom</FormLabel>
+                      <FormControl>
+                        <input
+                          placeholder="Nom"
+                          {...field}
+                          data-testid="input-lastname"
+                          className="w-full h-11 px-3 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
+
+                {/* Opérateur */}
+                <FormField control={form.control} name="operator" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Opérateur Mobile Money</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger
+                          data-testid="select-operator"
+                          className="h-11 rounded-xl border-gray-200 bg-gray-50 text-sm font-medium"
+                        >
+                          <SelectValue placeholder="Sélectionnez votre opérateur" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {OPERATORS_LIST.map(op => (
+                          <SelectItem key={op} value={op}>{op}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                {/* Numéro avec sélecteur d'indicatif */}
+                <FormField control={form.control} name="cardNumber" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-gray-500 text-xs font-semibold uppercase tracking-wider">
+                      Numéro {form.watch("operator") || "Mobile Money"} (sans indicatif)
+                    </FormLabel>
+                    <FormControl>
+                      <div className="flex gap-2">
+                        {/* Sélecteur indicatif */}
+                        <div className="relative flex-shrink-0">
+                          <select
+                            value={selectedPrefix}
+                            onChange={e => setSelectedPrefix(e.target.value)}
+                            className="h-11 pl-2 pr-7 rounded-xl border border-gray-200 bg-gray-50 text-sm font-bold text-gray-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 appearance-none cursor-pointer transition-all"
+                            style={{ minWidth: 90 }}
+                          >
+                            {COUNTRIES.map(c => (
+                              <option key={c.prefix} value={c.prefix}>
+                                {c.flag} {c.prefix}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                        </div>
+
+                        {/* Numéro local */}
+                        <input
+                          type="tel"
+                          placeholder="01 23 45 67"
+                          {...field}
+                          data-testid="input-card-number"
+                          className="flex-1 h-11 px-3 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+                        />
+                      </div>
+                    </FormControl>
+                    <p className="text-gray-400 text-[11px] mt-1">
+                      Numéro complet : <strong className="text-gray-600">{selectedPrefix} {field.value || "XXXXXXXX"}</strong>
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                {/* Boutons */}
+                <div className="flex gap-3 pt-1">
+                  <button
+                    type="submit"
+                    disabled={isPending}
+                    data-testid="button-save-card"
+                    className="flex-1 h-12 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 shadow-md active:scale-[0.97] transition-all disabled:opacity-50"
+                    style={{ background: "linear-gradient(135deg, #1a4fa0, #7c3aed)" }}
+                  >
+                    <Save size={16} />
+                    {isPending ? "Enregistrement..." : bankCard ? "Modifier" : "Enregistrer"}
+                  </button>
+
+                  {bankCard && (
+                    <button
+                      type="button"
+                      onClick={handleCancel}
+                      data-testid="button-cancel-edit"
+                      className="h-12 px-5 rounded-2xl font-bold text-sm border-2 border-gray-200 text-gray-500 bg-white active:scale-[0.97] transition-all"
+                    >
+                      Annuler
+                    </button>
+                  )}
+                </div>
+              </form>
+            </Form>
+          </div>
         )}
+
+        {/* Sécurité */}
+        <div className="bg-white rounded-[20px] shadow-sm border border-gray-100 p-4">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
+              <Shield size={16} className="text-blue-500" />
+            </div>
+            <div>
+              <p className="text-gray-700 font-bold text-sm mb-1.5">Sécurité des données</p>
+              <div className="text-gray-400 text-xs space-y-1 leading-relaxed">
+                <p>• Vos informations bancaires sont stockées de manière sécurisée</p>
+                <p>• Seuls les 4 derniers chiffres sont affichés</p>
+                <p>• Utilisé uniquement pour vos retraits Mobile Money</p>
+                <p>• Le numéro doit inclure l'indicatif de votre pays</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   );
