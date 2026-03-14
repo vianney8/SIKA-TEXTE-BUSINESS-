@@ -1,7 +1,6 @@
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
-  LogOut, Briefcase, History, Settings, Wallet,
-  HelpCircle, Code2, TrendingUp, Users, Home, X
+  LogOut, TrendingUp, HelpCircle, Wallet, Home,
+  X, ChevronRight, Shield, Settings
 } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -14,16 +13,47 @@ interface HamburgerMenuProps {
   user: any;
 }
 
-const NAV_ITEMS = [
-  { icon: Home,       label: "Accueil",        href: "/",                 color: "bg-blue-50 text-blue-600" },
-  { icon: Briefcase,  label: "Travaux",         href: "/work",             color: "bg-indigo-50 text-indigo-600" },
-  { icon: TrendingUp, label: "Statistiques",    href: "/summary",          color: "bg-emerald-50 text-emerald-600" },
-  { icon: History,    label: "Transactions",    href: "/transactions",     color: "bg-violet-50 text-violet-600" },
-  { icon: Wallet,     label: "Retrait",         href: "/withdrawal",       color: "bg-orange-50 text-orange-600" },
-  { icon: Users,      label: "Mon équipe",      href: "/team",             color: "bg-pink-50 text-pink-600" },
-  { icon: Settings,   label: "Profil",          href: "/profile",          color: "bg-slate-50 text-slate-600" },
-  { icon: HelpCircle, label: "Assistance",      href: "/assistance",       color: "bg-teal-50 text-teal-600" },
-  { icon: Code2,      label: "API Agrégateur",  href: "/api-agregateur",   color: "bg-gray-50 text-gray-600" },
+const MENU_ITEMS = [
+  {
+    icon: Home,
+    label: "Accueil",
+    desc: "Page principale",
+    href: "/",
+    from: "#1d4ed8",
+    to: "#3b82f6",
+  },
+  {
+    icon: Wallet,
+    label: "Retrait Mobile Money",
+    desc: "Retirer vos gains",
+    href: "/withdrawal",
+    from: "#059669",
+    to: "#34d399",
+  },
+  {
+    icon: TrendingUp,
+    label: "À propos",
+    desc: "Comment ça fonctionne",
+    href: "/summary",
+    from: "#7c3aed",
+    to: "#a855f7",
+  },
+  {
+    icon: HelpCircle,
+    label: "Assistance",
+    desc: "Contactez le support",
+    href: "/assistance",
+    from: "#0891b2",
+    to: "#67e8f9",
+  },
+  {
+    icon: Settings,
+    label: "Mon profil",
+    desc: "Modifier mes informations",
+    href: "/profile",
+    from: "#be185d",
+    to: "#f472b6",
+  },
 ];
 
 export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuProps) {
@@ -39,104 +69,138 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
   };
 
   const firstName = user?.firstName || user?.fullName?.split(" ")[0] || "Utilisateur";
-  const lastName = user?.lastName || user?.fullName?.split(" ").slice(1).join(" ") || "";
-  const initials = `${firstName.charAt(0)}${lastName ? lastName.charAt(0) : ""}`.toUpperCase();
+  const lastName  = user?.lastName  || user?.fullName?.split(" ").slice(1).join(" ") || "";
+  const initials  = `${firstName.charAt(0)}${lastName ? lastName.charAt(0) : ""}`.toUpperCase();
   const isActivated = user?.isActivated || false;
+  const balanceAmt  = (balance as any)?.balance || 0;
 
   return (
     <>
       {/* Overlay */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm"
+          className="fixed inset-0 z-40"
+          style={{ background: "rgba(15,23,42,0.6)", backdropFilter: "blur(4px)" }}
           onClick={onClose}
           data-testid="menu-overlay"
         />
       )}
 
-      {/* Panneau latéral */}
+      {/* ────────────────────────────────────────────
+          BOTTOM SHEET — monte du bas
+      ──────────────────────────────────────────── */}
       <div
-        className={`fixed top-0 left-0 w-[300px] h-full z-50 flex flex-col transform transition-transform duration-300 ease-in-out ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-        style={{ background: "#fff" }}
         data-testid="hamburger-menu"
+        className={`fixed left-0 right-0 bottom-0 z-50 transform transition-transform duration-300 ease-out ${
+          isOpen ? "translate-y-0" : "translate-y-full"
+        }`}
+        style={{
+          background: "#fff",
+          borderRadius: "28px 28px 0 0",
+          maxHeight: "90vh",
+          display: "flex",
+          flexDirection: "column",
+        }}
       >
-        {/* ─── En-tête du menu ─── */}
-        <div
-          className="relative px-5 pt-6 pb-5 flex-shrink-0"
-          style={{ background: "linear-gradient(160deg, #0f172a 0%, #1e3a5f 60%, #1a4fa0 100%)" }}
+        {/* Poignée de glissement */}
+        <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+          <div className="w-10 h-1 rounded-full bg-gray-200" />
+        </div>
+
+        {/* Bouton fermer */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center"
+          style={{ background: "#f1f5f9" }}
         >
-          {/* Bouton fermer */}
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/70 hover:bg-white/20 transition-colors"
-          >
-            <X size={16} />
-          </button>
+          <X size={17} className="text-gray-500" />
+        </button>
 
-          {/* Logo + marque */}
-          <div className="flex items-center gap-2 mb-4">
-            <img src={logoPath} alt="Sika Texte" className="w-6 h-6 rounded-lg object-cover" />
-            <span className="text-white/70 text-xs font-bold tracking-widest uppercase">Sika Texte</span>
-          </div>
+        {/* ── En-tête utilisateur ── */}
+        <div className="px-5 pt-2 pb-4 flex-shrink-0">
+          <div className="flex items-center gap-3">
+            {/* Avatar */}
+            <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-black text-lg flex-shrink-0"
+              style={{ background: "linear-gradient(135deg, #1d4ed8, #7c3aed)" }}
+            >
+              {user?.profileImageUrl
+                ? <img src={user.profileImageUrl} alt="profil" className="w-full h-full rounded-2xl object-cover" />
+                : initials
+              }
+            </div>
 
-          {/* Avatar + nom */}
-          <div className="flex items-center gap-3 mb-4">
-            <Avatar className="w-12 h-12 ring-2 ring-white/20">
-              <AvatarFallback
-                className="text-white font-bold text-base"
-                style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}
-              >
-                {initials}
-              </AvatarFallback>
-            </Avatar>
+            {/* Nom + statut */}
             <div className="flex-1 min-w-0">
-              <p className="text-white font-bold text-sm truncate" data-testid="text-menu-user-name">
+              <p className="text-gray-900 font-black text-base truncate" data-testid="text-menu-user-name">
                 {firstName} {lastName}
               </p>
-              <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full mt-1 ${
-                isActivated
-                  ? "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-400/30"
-                  : "bg-amber-500/20 text-amber-300 ring-1 ring-amber-400/30"
-              }`}>
-                {isActivated ? "● Compte actif" : "○ Inactif"}
-              </span>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <Shield size={10} className={isActivated ? "text-green-500" : "text-amber-500"} />
+                <span className={`text-[10px] font-bold ${isActivated ? "text-green-600" : "text-amber-600"}`}>
+                  {isActivated ? "Compte actif" : "Compte inactif"}
+                </span>
+              </div>
+            </div>
+
+            {/* Solde */}
+            <div
+              className="flex-shrink-0 text-right px-3.5 py-2.5 rounded-2xl"
+              style={{ background: "linear-gradient(135deg, #0f172a, #1e3a5f)" }}
+            >
+              <p className="text-blue-300 text-[9px] uppercase tracking-wider">Solde</p>
+              <p className="text-white font-black text-sm">{formatFCFA(balanceAmt)}</p>
             </div>
           </div>
 
-          {/* Solde */}
-          <div className="bg-white/10 rounded-2xl px-4 py-3">
-            <p className="text-white/50 text-[10px] uppercase tracking-widest font-semibold mb-0.5">Solde disponible</p>
-            <p className="text-white font-black text-xl">{formatFCFA((balance as any)?.balance || 0)}</p>
+          {/* Logo SIKA TEXTE */}
+          <div className="flex items-center gap-1.5 mt-4 mb-1">
+            <img src={logoPath} alt="logo" className="w-5 h-5 rounded-md object-cover" />
+            <span className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">Sika Texte</span>
           </div>
         </div>
 
-        {/* ─── Navigation ─── */}
-        <nav className="flex-1 overflow-y-auto py-3 px-3">
-          {NAV_ITEMS.map((item) => (
+        {/* Séparateur */}
+        <div className="h-px bg-gray-100 mx-5 flex-shrink-0" />
+
+        {/* ── Liste des options ── */}
+        <div className="flex-1 overflow-y-auto px-5 py-3 space-y-1.5">
+          {MENU_ITEMS.map((item) => (
             <Link key={item.href} href={item.href}>
               <div
                 onClick={onClose}
-                className="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-gray-50 active:bg-gray-100 transition-colors cursor-pointer mb-0.5"
+                className="flex items-center gap-3.5 px-4 py-3.5 rounded-2xl active:scale-[0.98] transition-all cursor-pointer"
+                style={{ background: "#f8fafc" }}
               >
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${item.color}`}>
-                  <item.icon size={17} strokeWidth={2} />
+                {/* Icône dégradée */}
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: `linear-gradient(135deg, ${item.from}, ${item.to})` }}
+                >
+                  <item.icon size={18} className="text-white" strokeWidth={2} />
                 </div>
-                <span className="text-gray-700 font-semibold text-sm">{item.label}</span>
+
+                {/* Texte */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-gray-800 font-bold text-sm">{item.label}</p>
+                  <p className="text-gray-400 text-[11px]">{item.desc}</p>
+                </div>
+
+                <ChevronRight size={15} className="text-gray-300 flex-shrink-0" />
               </div>
             </Link>
           ))}
-        </nav>
+        </div>
 
-        {/* ─── Déconnexion ─── */}
-        <div className="px-4 pb-6 pt-2 flex-shrink-0 border-t border-gray-100">
+        {/* ── Déconnexion ── */}
+        <div className="px-5 pt-2 pb-6 flex-shrink-0">
           <button
             onClick={handleLogout}
             data-testid="button-logout"
-            className="w-full flex items-center justify-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-sm py-3 rounded-2xl transition-colors active:scale-95"
+            className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-2xl font-bold text-sm transition-all active:scale-[0.97]"
+            style={{ background: "linear-gradient(135deg, #fef2f2, #fee2e2)", color: "#dc2626" }}
           >
-            <LogOut size={17} strokeWidth={2} />
+            <LogOut size={16} strokeWidth={2.5} />
             Se déconnecter
           </button>
         </div>
