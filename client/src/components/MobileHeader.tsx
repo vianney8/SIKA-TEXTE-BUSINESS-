@@ -27,7 +27,7 @@ export default function MobileHeader({ user, balance, onMenuToggle }: MobileHead
       <div className="absolute top-16 -left-8 w-32 h-32 rounded-full opacity-5" style={{ background: "#38bdf8" }} />
 
       {/* Barre supérieure */}
-      <div className="relative px-4 pt-3 pb-2 flex items-center justify-between">
+      <div className="relative px-4 pt-2 pb-1 flex items-center justify-between">
         <Button
           variant="ghost"
           size="sm"
@@ -59,24 +59,24 @@ export default function MobileHeader({ user, balance, onMenuToggle }: MobileHead
       </div>
 
       {/* Zone utilisateur + solde */}
-      <div className="relative px-5 pt-3 pb-6">
+      <div className="relative px-5 pt-2 pb-4">
 
         {/* Salutation utilisateur */}
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm ring-2 ring-white/20"
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm ring-2 ring-white/20"
               style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}>
               {initials}
             </div>
             <div>
-              <p className="text-white/50 text-xs mb-0.5">Bonjour 👋</p>
+              <p className="text-white/50 text-[11px]">Bonjour 👋</p>
               <p className="text-white font-semibold text-sm leading-tight" data-testid="text-username">
                 {firstName} {lastName}
               </p>
             </div>
           </div>
 
-          <span className={`text-xs font-semibold px-3 py-1 rounded-full ${
+          <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
             isActivated
               ? "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-400/40"
               : "bg-amber-500/20 text-amber-300 ring-1 ring-amber-400/40"
@@ -86,15 +86,15 @@ export default function MobileHeader({ user, balance, onMenuToggle }: MobileHead
         </div>
 
         {/* Solde */}
-        <div className="mb-5">
-          <p className="text-white/40 text-xs font-medium tracking-widest uppercase mb-1">Solde disponible</p>
-          <div className="flex items-center gap-3">
-            <p className="text-white font-black leading-none" style={{ fontSize: "2.4rem" }} data-testid="text-balance">
+        <div className="mb-3">
+          <p className="text-white/40 text-[10px] font-medium tracking-widest uppercase mb-0.5">Solde disponible</p>
+          <div className="flex items-center gap-2">
+            <p className="text-white font-black leading-none" style={{ fontSize: "2rem" }} data-testid="text-balance">
               {isBalanceVisible
                 ? `${(balance || 0).toLocaleString("fr-FR")}`
                 : "••••••"}
             </p>
-            <div className="flex flex-col items-start gap-1">
+            <div className="flex items-center gap-1.5 mt-0.5">
               <span className="text-white/60 text-sm font-semibold">FCFA</span>
               <Button
                 variant="ghost"
@@ -103,7 +103,7 @@ export default function MobileHeader({ user, balance, onMenuToggle }: MobileHead
                 className="text-white/50 hover:bg-white/10 p-1 h-auto rounded-lg"
                 data-testid="button-toggle-balance"
               >
-                {isBalanceVisible ? <Eye size={14} strokeWidth={2} /> : <EyeOff size={14} strokeWidth={2} />}
+                {isBalanceVisible ? <Eye size={13} strokeWidth={2} /> : <EyeOff size={13} strokeWidth={2} />}
               </Button>
             </div>
           </div>
@@ -112,9 +112,9 @@ export default function MobileHeader({ user, balance, onMenuToggle }: MobileHead
         {/* Boutons d'action rapide */}
         <div className="grid grid-cols-2 gap-3">
           <Link href="/transfer" data-testid="button-transfer">
-            <div className="bg-white/10 backdrop-blur-sm border border-white/15 rounded-2xl p-3.5 flex items-center gap-3 cursor-pointer hover:bg-white/15 active:scale-95 transition-all">
-              <div className="w-9 h-9 bg-blue-400/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                <Send size={16} className="text-blue-300" />
+            <div className="bg-white/10 backdrop-blur-sm border border-white/15 rounded-2xl p-3 flex items-center gap-2.5 cursor-pointer hover:bg-white/15 active:scale-95 transition-all">
+              <div className="w-8 h-8 bg-blue-400/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                <Send size={14} className="text-blue-300" />
               </div>
               <div>
                 <p className="text-white font-semibold text-sm">Transfert</p>
@@ -124,9 +124,9 @@ export default function MobileHeader({ user, balance, onMenuToggle }: MobileHead
           </Link>
 
           <Link href="/withdrawal" data-testid="button-withdrawal">
-            <div className="bg-white/10 backdrop-blur-sm border border-white/15 rounded-2xl p-3.5 flex items-center gap-3 cursor-pointer hover:bg-white/15 active:scale-95 transition-all">
-              <div className="w-9 h-9 bg-emerald-400/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                <ArrowDownToLine size={16} className="text-emerald-300" />
+            <div className="bg-white/10 backdrop-blur-sm border border-white/15 rounded-2xl p-3 flex items-center gap-2.5 cursor-pointer hover:bg-white/15 active:scale-95 transition-all">
+              <div className="w-8 h-8 bg-emerald-400/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                <ArrowDownToLine size={14} className="text-emerald-300" />
               </div>
               <div>
                 <p className="text-white font-semibold text-sm">Retrait</p>
