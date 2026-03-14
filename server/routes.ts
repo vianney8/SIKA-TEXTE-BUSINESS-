@@ -1980,7 +1980,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/activation/init-solvexpay', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session.userId;
-      const { otp } = req.body;
+      // Accept phone, operator, country from request body (user-selected)
+      const { otp, phone: bodyPhone, operator: bodyOperator, country: bodyCountry } = req.body;
       const user = await storage.getUser(userId);
 
       if (!user) {
@@ -1992,21 +1993,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Votre compte est déjà activé' });
       }
 
-      const rawPhone = user.phone;
-      if (!rawPhone) {
-        return res.status(400).json({ message: 'Aucun numéro de téléphone sur votre profil. Veuillez le renseigner dans Paramètres.' });
+      // Use body-provided values; fall back to auto-detect from user profile
+      let operator: string;
+      let country: string;
+      let phone: string;
+
+      if (bodyPhone && bodyOperator && bodyCountry) {
+        // User selected their own phone/operator/country
+        operator = bodyOperator.toLowerCase();
+        country = bodyCountry.toUpperCase();
+        // Normalize phone: ensure full number with country code, no "+"
+        const countryPrefixes: Record<string, string> = {
+          BJ: '229', CI: '225', SN: '221', TG: '228', CM: '237', BF: '226', COG: '242'
+        };
+        const prefix = countryPrefixes[country] || '';
+        const digitsOnly = bodyPhone.replace(/\D/g, '');
+        phone = digitsOnly.startsWith(prefix) ? digitsOnly : prefix + digitsOnly;
+      } else {
+        // Fallback: detect from user profile phone
+        const rawPhone = user.phone;
+        if (!rawPhone) {
+          return res.status(400).json({ message: 'Aucun numéro de téléphone disponible. Veuillez en saisir un.' });
+        }
+        const phoneWithPlus = rawPhone.startsWith('+') ? rawPhone : `+${rawPhone}`;
+        const detected = detectOperatorCountry(phoneWithPlus);
+        operator = detected.operator;
+        country = detected.country;
+        phone = phoneWithPlus.replace(/^\+/, '');
       }
 
-      // Normalise: format with "+" for detection, send full number without "+" to SR API
-      const phoneWithPlus = rawPhone.startsWith('+') ? rawPhone : `+${rawPhone}`;
-      const { operator, country } = detectOperatorCountry(phoneWithPlus);
-      // SR API attend le numéro complet avec indicatif, sans le "+"
-      const phone = phoneWithPlus.replace(/^\+/, '');
-
-      // Vérifier OTP requis pour Orange CI/SN
+      // OTP requis pour Orange CI/SN
       const requiresOTP = operator === 'orange' && (country === 'CI' || country === 'SN');
       if (requiresOTP && !otp) {
-        return res.status(400).json({ message: 'Un OTP est requis pour Orange. Composez le #144# (CI) ou #144*82# (SN) pour l\'obtenir.' });
+        return res.status(400).json({ message: 'Un OTP est requis pour Orange. Composez le #144# (CI) ou #144*82# (SN).' });
       }
 
       const apiKey = process.env.SOLVEXPAY_API_KEY;
