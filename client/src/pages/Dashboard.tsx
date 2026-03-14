@@ -10,12 +10,14 @@ import { useToast } from "@/hooks/use-toast";
 import { useAppSetting } from "@/hooks/useAppSettings";
 import { FaTelegram, FaWhatsapp } from "react-icons/fa";
 import { Link } from "wouter";
-import { Zap, ChevronRight, Sparkles } from "lucide-react";
+import { Zap, ChevronRight, Sparkles, Download, Smartphone } from "lucide-react";
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen]     = useState(false);
   const [pointageDone, setPointageDone] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [isInstalled, setIsInstalled]   = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: demoVideoUrl } = useAppSetting("demo_video_url");
@@ -55,6 +57,37 @@ export default function Dashboard() {
       };
     }
   }, [isDragging, dragOffset]);
+
+  // PWA install prompt
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    // Check if already installed
+    if (window.matchMedia("(display-mode: standalone)").matches) {
+      setIsInstalled(true);
+    }
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (installPrompt) {
+      installPrompt.prompt();
+      const { outcome } = await installPrompt.userChoice;
+      if (outcome === "accepted") {
+        setIsInstalled(true);
+        setInstallPrompt(null);
+        toast({ title: "Application installée !", description: "SIKA TEXTE est maintenant sur votre écran d'accueil" });
+      }
+    } else {
+      toast({
+        title: "Installer l'application",
+        description: "Dans votre navigateur, appuyez sur le menu ⋮ puis 'Ajouter à l'écran d'accueil'",
+      });
+    }
+  };
 
   const handlePointage = async () => {
     if (pointageDone) {
@@ -177,7 +210,7 @@ export default function Dashboard() {
               href={whatsappGroup || 'https://whatsapp.com'}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+              className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 active:bg-gray-100 transition-colors border-b border-gray-50"
             >
               <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
                 style={{ background: "linear-gradient(135deg, #25d366, #128c7e)" }}>
@@ -189,6 +222,28 @@ export default function Dashboard() {
               </div>
               <ChevronRight size={15} className="text-gray-300" />
             </a>
+
+            {/* Installer l'application */}
+            {!isInstalled && (
+              <button
+                onClick={handleInstall}
+                className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 active:bg-gray-100 transition-colors text-left"
+              >
+                <div
+                  className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: "linear-gradient(135deg, #1a4fa0, #3b82f6)" }}
+                >
+                  <Smartphone size={18} className="text-white" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-gray-800 font-semibold text-sm">Télécharger l'application</p>
+                  <p className="text-gray-400 text-xs">Ajouter à l'écran d'accueil</p>
+                </div>
+                <div className="flex-shrink-0">
+                  <Download size={16} className="text-blue-500" />
+                </div>
+              </button>
+            )}
           </div>
 
           {/* ══ Vidéo promo ══ */}
