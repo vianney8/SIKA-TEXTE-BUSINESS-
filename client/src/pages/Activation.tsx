@@ -87,16 +87,19 @@ function UpayHeader({ amount }: { amount: string }) {
   );
 }
 
-function StepIndicator({ step }: { step: 1 | 2 }) {
+function StepIndicator({ step, requiresOTP = false }: { step: 1 | 2 | 3; requiresOTP?: boolean }) {
+  const steps = requiresOTP
+    ? [{ n: 1 as const, label: "Coordonnées" }, { n: 2 as const, label: "Code OTP" }, { n: 3 as const, label: "Confirmation" }]
+    : [{ n: 1 as const, label: "Coordonnées" }, { n: 3 as const, label: "Confirmation" }];
   return (
     <div className="flex items-center justify-center gap-2 py-4 bg-white border-b border-gray-100">
-      {[{ n: 1, label: "Coordonnées" }, { n: 2, label: "Confirmation" }].map(({ n, label }) => (
+      {steps.map(({ n, label }, i) => (
         <div key={n} className="flex items-center gap-1.5">
           <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
             step >= n ? "bg-blue-700 text-white shadow-md" : "bg-gray-200 text-gray-500"
-          }`}>{step > n ? <CheckCircle size={14} /> : n}</div>
+          }`}>{step > n ? <CheckCircle size={14} /> : i + 1}</div>
           <span className={`text-xs font-semibold ${step >= n ? "text-blue-700" : "text-gray-400"}`}>{label}</span>
-          {n < 2 && <ChevronRight size={14} className="text-gray-300" />}
+          {i < steps.length - 1 && <ChevronRight size={14} className="text-gray-300" />}
         </div>
       ))}
     </div>
@@ -146,7 +149,7 @@ export default function Activation() {
   const { data: activationStatus, refetch: refetchStatus } = useQuery({ queryKey: ["/api/activation/status"] }) as any;
   const { data: paymentInfo } = useQuery({ queryKey: ["/api/activation/payment-info"] }) as any;
 
-  const [step, setStep]         = useState<1 | 2>(1);
+  const [step, setStep]         = useState<1 | 2 | 3>(1);
   const [country, setCountry]   = useState("");
   const [operator, setOperator] = useState("");
   const [phone, setPhone]       = useState("");
@@ -343,7 +346,6 @@ export default function Activation() {
   // ── ÉTAPE 1 : Coordonnées ─────────────────────────────────────────────────
   if (step === 1) {
     const canContinue = country && operator && phone.replace(/\D/g, "").length >= 6
-      && (!requiresOTP || otp.length >= 4)
       && !isOpMaintenance(country, operator);
     return (
       <div className="min-h-screen bg-gray-50">
@@ -360,7 +362,7 @@ export default function Activation() {
         )}
 
         <div className="-mt-0 bg-gray-50 overflow-hidden">
-          <StepIndicator step={1} />
+          <StepIndicator step={1} requiresOTP={requiresOTP} />
           <div className="px-5 pt-4 pb-28 space-y-5 max-w-md mx-auto">
 
             {/* Sélection pays */}
@@ -483,28 +485,6 @@ export default function Activation() {
               </div>
             )}
 
-            {/* OTP pour Orange CI/SN */}
-            {requiresOTP && (
-              <div className="space-y-2">
-                <div className="bg-orange-50 border border-orange-200 rounded-2xl p-3.5 flex gap-3">
-                  <AlertCircle size={18} className="text-orange-500 flex-shrink-0 mt-0.5" />
-                  <div className="text-sm text-orange-800">
-                    <p className="font-bold mb-0.5">Code OTP requis — Orange Money</p>
-                    <p className="text-xs">{otpInstruction} pour recevoir votre code à 6 chiffres avant de payer.</p>
-                  </div>
-                </div>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  placeholder="Code OTP (6 chiffres)"
-                  value={otp}
-                  onChange={e => setOtp(e.target.value.replace(/\D/g, ""))}
-                  className="rounded-xl border-2 border-orange-300 focus:border-orange-500 text-center text-xl font-black tracking-[0.3em] py-3"
-                />
-              </div>
-            )}
-
             {/* Maintenance warning sur l'opérateur sélectionné */}
             {operator && isOpMaintenance(country, operator) && (
               <div className="bg-red-50 border border-red-200 rounded-2xl p-3.5 flex gap-3">
@@ -519,7 +499,7 @@ export default function Activation() {
             {/* Bouton Continuer */}
             <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 shadow-lg max-w-md mx-auto">
               <Button
-                onClick={() => setStep(2)}
+                onClick={() => requiresOTP ? setStep(2) : setStep(3)}
                 disabled={!canContinue}
                 className="w-full bg-blue-800 hover:bg-blue-900 disabled:opacity-40 text-white font-bold py-4 rounded-2xl text-base shadow-xl flex items-center justify-center gap-2"
               >
@@ -532,7 +512,65 @@ export default function Activation() {
     );
   }
 
-  // ── ÉTAPE 2 : Récapitulatif & confirmation ────────────────────────────────
+  // ── ÉTAPE 2 : Code OTP (Orange CI/SN uniquement) ─────────────────────────
+  if (step === 2 && requiresOTP) {
+    const canContinueOTP = otp.length >= 4;
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <UpayHeader amount={activationAmount} />
+        <div className="bg-gray-50 overflow-hidden">
+          <StepIndicator step={2} requiresOTP={true} />
+          <div className="px-5 pt-4 pb-28 space-y-5 max-w-md mx-auto">
+
+            {/* Instruction OTP */}
+            <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 flex gap-3">
+              <AlertCircle size={18} className="text-orange-500 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-orange-800">
+                <p className="font-bold mb-0.5">Code OTP requis — Orange Money</p>
+                <p className="text-xs">{otpInstruction} pour recevoir votre code avant de payer.</p>
+              </div>
+            </div>
+
+            {/* Champ OTP */}
+            <div>
+              <label className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2.5">
+                Code OTP
+              </label>
+              <Input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="Code OTP"
+                value={otp}
+                onChange={e => setOtp(e.target.value.replace(/\D/g, ""))}
+                className="rounded-xl border-2 border-orange-300 focus:border-orange-500 text-center text-2xl font-black tracking-[0.4em] py-4"
+                autoFocus
+              />
+            </div>
+
+            {/* Boutons */}
+            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 shadow-lg max-w-md mx-auto space-y-2">
+              <Button
+                onClick={() => setStep(3)}
+                disabled={!canContinueOTP}
+                className="w-full bg-blue-800 hover:bg-blue-900 disabled:opacity-40 text-white font-bold py-4 rounded-2xl text-base shadow-xl flex items-center justify-center gap-2"
+              >
+                Continuer <ChevronRight size={18} />
+              </Button>
+              <button
+                onClick={() => setStep(1)}
+                className="w-full text-center text-sm text-blue-600 font-semibold py-1"
+              >
+                ← Retour
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── ÉTAPE 3 : Récapitulatif & confirmation ────────────────────────────────
   const op = selectedOp;
   const displayMethod: MethodType = operator === "orange"
     ? (requiresOTP ? "otp" : "ussd") : (op?.method ?? "ussd");
@@ -553,14 +591,14 @@ export default function Activation() {
       )}
 
       <div className="bg-gray-50 overflow-hidden">
-        <StepIndicator step={2} />
+        <StepIndicator step={3} requiresOTP={requiresOTP} />
         <div className="px-5 pt-4 pb-28 space-y-4 max-w-md mx-auto">
 
           {/* Carte récapitulatif */}
           <Card className="border-0 shadow-xl rounded-3xl overflow-hidden">
             <div className="px-5 py-4 bg-white border-b border-gray-100 flex items-center justify-between">
               <p className="font-bold text-gray-800">Récapitulatif du paiement</p>
-              <button onClick={() => setStep(1)} className="text-blue-600 text-sm font-semibold flex items-center gap-1 hover:text-blue-700">
+              <button onClick={() => requiresOTP ? setStep(2) : setStep(1)} className="text-blue-600 text-sm font-semibold flex items-center gap-1 hover:text-blue-700">
                 <ChevronLeft size={14} /> Modifier
               </button>
             </div>
