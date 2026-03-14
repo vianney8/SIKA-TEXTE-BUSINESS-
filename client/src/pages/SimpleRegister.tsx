@@ -174,15 +174,12 @@ export default function SimpleRegister() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="+225">+225 (CI)</SelectItem>
-                    <SelectItem value="+221">+221 (SN)</SelectItem>
-                    <SelectItem value="+233">+233 (GH)</SelectItem>
-                    <SelectItem value="+223">+223 (ML)</SelectItem>
-                    <SelectItem value="+226">+226 (BF)</SelectItem>
-                    <SelectItem value="+224">+224 (GN)</SelectItem>
-                    <SelectItem value="+227">+227 (NE)</SelectItem>
-                    <SelectItem value="+228">+228 (TG)</SelectItem>
-                    <SelectItem value="+229">+229 (BJ)</SelectItem>
+                    <SelectItem value="+225">🇨🇮 +225 Côte d'Ivoire</SelectItem>
+                    <SelectItem value="+221">🇸🇳 +221 Sénégal</SelectItem>
+                    <SelectItem value="+229">🇧🇯 +229 Bénin</SelectItem>
+                    <SelectItem value="+226">🇧🇫 +226 Burkina Faso</SelectItem>
+                    <SelectItem value="+228">🇹🇬 +228 Togo</SelectItem>
+                    <SelectItem value="+237">🇨🇲 +237 Cameroun</SelectItem>
                   </SelectContent>
                 </Select>
                 <div className="relative flex-1">

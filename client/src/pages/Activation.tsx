@@ -20,7 +20,6 @@ const COUNTRIES = [
   { code: "BF",  name: "Burkina Faso",      flag: "🇧🇫", prefix: "226", operators: ["moov","orange"] },
   { code: "TG",  name: "Togo",              flag: "🇹🇬", prefix: "228", operators: ["moov","tmoney"] },
   { code: "CM",  name: "Cameroun",          flag: "🇨🇲", prefix: "237", operators: ["mtn","orange"] },
-  { code: "COG", name: "Congo-Brazza",      flag: "🇨🇬", prefix: "242", operators: ["mtn","airtel"] },
 ];
 
 type MethodType = "ussd" | "otp" | "redirect";

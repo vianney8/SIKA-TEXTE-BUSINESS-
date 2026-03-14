@@ -14,15 +14,16 @@ import { useAppSetting } from "@/hooks/useAppSettings";
 
 // Country codes for supported countries
 const COUNTRIES = [
-  { code: "+228", name: "Togo", flag: "🇹🇬" },
-  { code: "+229", name: "Bénin", flag: "🇧🇯" },
-  { code: "+226", name: "Burkina Faso", flag: "🇧🇫" },
   { code: "+225", name: "Côte d'Ivoire", flag: "🇨🇮" },
   { code: "+221", name: "Sénégal", flag: "🇸🇳" },
+  { code: "+229", name: "Bénin", flag: "🇧🇯" },
+  { code: "+226", name: "Burkina Faso", flag: "🇧🇫" },
+  { code: "+228", name: "Togo", flag: "🇹🇬" },
+  { code: "+237", name: "Cameroun", flag: "🇨🇲" },
 ];
 
 export default function SimpleLogin() {
-  const [countryCode, setCountryCode] = useState("+228"); // Default to Togo
+  const [countryCode, setCountryCode] = useState("+225"); // Default to Côte d'Ivoire
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);

@@ -1,27 +1,12 @@
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { 
-  User, 
-  Edit, 
-  LogOut, 
-  Briefcase, 
-  History, 
-  CreditCard, 
-  Settings, 
-  Wallet, 
-  HelpCircle,
-  ChevronDown,
-  Code2,
-  TrendingUp,
-  Users,
-  FileText,
-  MoreHorizontal
+import {
+  LogOut, Briefcase, History, Settings, Wallet,
+  HelpCircle, Code2, TrendingUp, Users, Home, X
 } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { formatFCFA } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast";
+import logoPath from "@assets/1764438802465_1773510898637.jpg";
 
 interface HamburgerMenuProps {
   isOpen: boolean;
@@ -29,202 +14,132 @@ interface HamburgerMenuProps {
   user: any;
 }
 
+const NAV_ITEMS = [
+  { icon: Home,       label: "Accueil",        href: "/",                 color: "bg-blue-50 text-blue-600" },
+  { icon: Briefcase,  label: "Travaux",         href: "/work",             color: "bg-indigo-50 text-indigo-600" },
+  { icon: TrendingUp, label: "Statistiques",    href: "/summary",          color: "bg-emerald-50 text-emerald-600" },
+  { icon: History,    label: "Transactions",    href: "/transactions",     color: "bg-violet-50 text-violet-600" },
+  { icon: Wallet,     label: "Retrait",         href: "/withdrawal",       color: "bg-orange-50 text-orange-600" },
+  { icon: Users,      label: "Mon équipe",      href: "/team",             color: "bg-pink-50 text-pink-600" },
+  { icon: Settings,   label: "Profil",          href: "/profile",          color: "bg-slate-50 text-slate-600" },
+  { icon: HelpCircle, label: "Assistance",      href: "/assistance",       color: "bg-teal-50 text-teal-600" },
+  { icon: Code2,      label: "API Agrégateur",  href: "/api-agregateur",   color: "bg-gray-50 text-gray-600" },
+];
+
 export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuProps) {
-  const { toast } = useToast();
-  const { data: balance } = useQuery({
-    queryKey: ["/api/user/balance"],
-  });
+  const { data: balance } = useQuery({ queryKey: ["/api/user/balance"] });
+
   const handleLogout = async () => {
     try {
-      const response = await fetch("/api/auth/logout", {
-        method: "POST",
-        credentials: "include",
-      });
-      
-      if (response.ok) {
-        window.location.href = "/";
-      }
-    } catch (error) {
-      console.error("Erreur lors de la déconnexion:", error);
+      const response = await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+      if (response.ok) window.location.href = "/";
+    } catch {
       window.location.href = "/";
     }
   };
 
-  const menuItems = [
-    {
-      icon: Briefcase,
-      label: "Nouveau travail",
-      href: "/work",
-      testId: "button-new-work",
-    },
-    {
-      icon: CreditCard,
-      label: "Transactions",
-      href: "/transactions",
-      testId: "button-transactions",
-    },
-    {
-      icon: TrendingUp,
-      label: "Statistiques",
-      href: "/summary",
-      testId: "button-statistics",
-    },
-    {
-      icon: Settings,
-      label: "Profil",
-      href: "/profile",
-      testId: "button-profile",
-    },
-  ];
-
-  const handleAssistance = () => {
-    window.location.href = '/assistance';
-    onClose();
-  };
-
-  const handleWithdrawal = () => {
-    window.location.href = '/withdrawal';
-    onClose();
-  };
-
-  const secondaryItems = [
-    {
-      icon: Wallet,
-      label: "Retrait",
-      action: handleWithdrawal,
-      testId: "button-withdrawal",
-      highlight: false,
-    },
-    {
-      icon: Users,
-      label: "Mon équipe",
-      href: "/team",
-      testId: "button-team",
-    },
-    {
-      icon: HelpCircle,
-      label: "Assistance",
-      action: handleAssistance,
-      testId: "button-help",
-    },
-    {
-      icon: Code2,
-      label: "API Agrégateur",
-      href: "/api-agregateur",
-      testId: "button-api-agregateur",
-    },
-  ];
+  const firstName = user?.firstName || user?.fullName?.split(" ")[0] || "Utilisateur";
+  const lastName = user?.lastName || user?.fullName?.split(" ").slice(1).join(" ") || "";
+  const initials = `${firstName.charAt(0)}${lastName ? lastName.charAt(0) : ""}`.toUpperCase();
+  const isActivated = user?.isActivated || false;
 
   return (
     <>
+      {/* Overlay */}
       {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40" 
+        <div
+          className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm"
           onClick={onClose}
           data-testid="menu-overlay"
         />
       )}
-      
-      <div 
-        className={`fixed top-0 left-0 w-80 h-full bg-white shadow-xl z-50 transform transition-transform duration-300 ${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
+
+      {/* Panneau latéral */}
+      <div
+        className={`fixed top-0 left-0 w-[300px] h-full z-50 flex flex-col transform transition-transform duration-300 ease-in-out ${
+          isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
+        style={{ background: "#fff" }}
         data-testid="hamburger-menu"
       >
-        <div className="p-6" style={{ background: "linear-gradient(135deg, #1a237e 0%, #283593 40%, #1565c0 100%)" }}>
-          <div className="flex items-center space-x-4 mb-4">
-            <Avatar className="w-16 h-16 border-2 border-white/20 shadow-lg">
-              <AvatarFallback className="bg-white/20 text-white text-lg font-semibold">
-                {user?.firstName && user?.lastName ? `${user.firstName[0]}${user.lastName[0]}` : user?.fullName?.[0] || "U"}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1">
-              <div className="font-bold text-lg" data-testid="text-menu-user-name">
-                {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.fullName || "Utilisateur"}
-              </div>
-              <Badge variant="secondary" className="mt-1 bg-white/20 text-white border-white/20">
-                NOUVEAU
-              </Badge>
-            </div>
-          </div>
-          
-          <div className="bg-gradient-to-r from-green-500 to-blue-500 rounded-xl p-4 text-center shadow-md">
-            <div className="text-2xl font-bold text-white">
-              {formatFCFA((balance as any)?.balance || 0)}
-            </div>
-            <div className="text-white/90 text-sm font-medium">Solde disponible</div>
-          </div>
-        </div>
-        
-        <nav className="p-4 space-y-2 overflow-y-auto h-[calc(100%-200px)]">
-          {menuItems.map((item) => (
-            <Button
-              key={item.label}
-              asChild
-              variant="ghost"
-              className="w-full justify-start p-4 rounded-xl transition-all duration-200 h-auto hover:bg-blue-50 hover:shadow-sm active:scale-95"
-              onClick={onClose}
-              data-testid={item.testId}
-            >
-              <Link href={item.href}>
-                <div className="flex items-center space-x-3 flex-1">
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-50 rounded-lg flex items-center justify-center">
-                    <item.icon className="text-primary" size={20} strokeWidth={2} />
-                  </div>
-                  <span className="font-semibold text-slate-700">{item.label}</span>
-                </div>
-              </Link>
-            </Button>
-          ))}
-          
-          <div className="pt-4 border-t border-slate-200 mt-4">
-            {secondaryItems.map((item) => (
-              item.action ? (
-                <Button
-                  key={item.label}
-                  variant="ghost"
-                  className="w-full justify-start p-4 rounded-xl transition-all duration-200 h-auto hover:bg-purple-50 hover:shadow-sm active:scale-95"
-                  onClick={item.action}
-                  data-testid={item.testId}
-                >
-                  <div className="flex items-center space-x-3 flex-1">
-                    <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-purple-50 rounded-lg flex items-center justify-center">
-                      <item.icon className="text-purple-600" size={20} strokeWidth={2} />
-                    </div>
-                    <span className="font-semibold text-slate-700">{item.label}</span>
-                  </div>
-                </Button>
-              ) : (
-                <Button
-                  key={item.label}
-                  asChild
-                  variant="ghost"
-                  className="w-full justify-start p-4 rounded-xl transition-all duration-200 h-auto hover:bg-purple-50 hover:shadow-sm active:scale-95"
-                  onClick={onClose}
-                  data-testid={item.testId}
-                >
-                  <Link href={item.href}>
-                    <div className="flex items-center space-x-3 flex-1">
-                      <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-purple-50 rounded-lg flex items-center justify-center">
-                        <item.icon className="text-purple-600" size={20} strokeWidth={2} />
-                      </div>
-                      <span className="font-semibold text-slate-700">{item.label}</span>
-                    </div>
-                  </Link>
-                </Button>
-              )
-            ))}
+        {/* ─── En-tête du menu ─── */}
+        <div
+          className="relative px-5 pt-6 pb-5 flex-shrink-0"
+          style={{ background: "linear-gradient(160deg, #0f172a 0%, #1e3a5f 60%, #1a4fa0 100%)" }}
+        >
+          {/* Bouton fermer */}
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/70 hover:bg-white/20 transition-colors"
+          >
+            <X size={16} />
+          </button>
+
+          {/* Logo + marque */}
+          <div className="flex items-center gap-2 mb-4">
+            <img src={logoPath} alt="Sika Texte" className="w-6 h-6 rounded-lg object-cover" />
+            <span className="text-white/70 text-xs font-bold tracking-widest uppercase">Sika Texte</span>
           </div>
 
-          <Button
-            onClick={handleLogout}
-            className="w-full mt-6 bg-red-500 hover:bg-red-600 text-white rounded-xl py-3 font-semibold flex items-center justify-center gap-2 transition-colors"
-            data-testid="button-logout"
-          >
-            <LogOut size={18} />
-            Se déconnecter
-          </Button>
+          {/* Avatar + nom */}
+          <div className="flex items-center gap-3 mb-4">
+            <Avatar className="w-12 h-12 ring-2 ring-white/20">
+              <AvatarFallback
+                className="text-white font-bold text-base"
+                style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}
+              >
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-bold text-sm truncate" data-testid="text-menu-user-name">
+                {firstName} {lastName}
+              </p>
+              <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full mt-1 ${
+                isActivated
+                  ? "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-400/30"
+                  : "bg-amber-500/20 text-amber-300 ring-1 ring-amber-400/30"
+              }`}>
+                {isActivated ? "● Compte actif" : "○ Inactif"}
+              </span>
+            </div>
+          </div>
+
+          {/* Solde */}
+          <div className="bg-white/10 rounded-2xl px-4 py-3">
+            <p className="text-white/50 text-[10px] uppercase tracking-widest font-semibold mb-0.5">Solde disponible</p>
+            <p className="text-white font-black text-xl">{formatFCFA((balance as any)?.balance || 0)}</p>
+          </div>
+        </div>
+
+        {/* ─── Navigation ─── */}
+        <nav className="flex-1 overflow-y-auto py-3 px-3">
+          {NAV_ITEMS.map((item) => (
+            <Link key={item.href} href={item.href}>
+              <div
+                onClick={onClose}
+                className="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-gray-50 active:bg-gray-100 transition-colors cursor-pointer mb-0.5"
+              >
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${item.color}`}>
+                  <item.icon size={17} strokeWidth={2} />
+                </div>
+                <span className="text-gray-700 font-semibold text-sm">{item.label}</span>
+              </div>
+            </Link>
+          ))}
         </nav>
+
+        {/* ─── Déconnexion ─── */}
+        <div className="px-4 pb-6 pt-2 flex-shrink-0 border-t border-gray-100">
+          <button
+            onClick={handleLogout}
+            data-testid="button-logout"
+            className="w-full flex items-center justify-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-sm py-3 rounded-2xl transition-colors active:scale-95"
+          >
+            <LogOut size={17} strokeWidth={2} />
+            Se déconnecter
+          </button>
+        </div>
       </div>
     </>
   );

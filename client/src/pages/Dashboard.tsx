@@ -4,13 +4,12 @@ import { useAuth } from "@/hooks/useAuth";
 import MobileHeader from "@/components/MobileHeader";
 import HamburgerMenu from "@/components/HamburgerMenu";
 import BottomNavigation from "@/components/BottomNavigation";
-import TestimonialsSlider from "@/components/TestimonialsSlider";
 import MiddleNotification from "@/components/MiddleNotification";
 import { useToast } from "@/hooks/use-toast";
 import { useAppSetting } from "@/hooks/useAppSettings";
 import { FaTelegram } from "react-icons/fa";
 import { Link } from "wouter";
-import { Zap, Users, ChevronRight, TrendingUp, Clock } from "lucide-react";
+import { Zap, Users, ChevronRight, TrendingUp, Clock, Briefcase, Star, Gift } from "lucide-react";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -69,15 +68,15 @@ export default function Dashboard() {
         try {
           const data = await response.json();
           localStorage.setItem(`lastPointage_${userId}`, today);
-          toast({ title: "Pointage réussi !", description: `Vous avez gagné ${data.amount} FCFA` });
+          toast({ title: "✅ Pointage réussi !", description: `+${data.amount} FCFA ajoutés à votre solde` });
         } catch {
           localStorage.setItem(`lastPointage_${userId}`, today);
-          toast({ title: "Pointage réussi !", description: "Votre bonus a été ajouté à votre solde" });
+          toast({ title: "✅ Pointage réussi !", description: "Bonus ajouté à votre solde" });
         }
         queryClient.invalidateQueries({ queryKey: ["/api/user/balance"] });
         queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
       } else {
-        toast({ title: "Erreur", description: "Revenez demain pour votre prochain pointage", variant: "destructive" });
+        toast({ title: "Déjà effectué", description: "Revenez demain pour votre prochain pointage", variant: "destructive" });
       }
     } catch (error) {
       console.error("Pointage error:", error);
@@ -85,7 +84,6 @@ export default function Dashboard() {
   };
 
   const transactionCount = Array.isArray(transactions) ? transactions.length : 0;
-  const isActivated = (user as any)?.isActivated || false;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -98,129 +96,151 @@ export default function Dashboard() {
 
       <HamburgerMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} user={user} />
 
-      <main className="pb-24">
+      <main className="pb-28">
 
-        {/* Activation banner si compte inactif */}
-        {!isActivated && (
-          <div className="mx-4 mt-4">
-            <Link href="/activation">
-              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center justify-between cursor-pointer hover:bg-amber-100 transition-colors active:scale-98">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 bg-amber-100 rounded-xl flex items-center justify-center">
-                    <Zap size={18} className="text-amber-600" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-amber-900 text-sm">Activez votre compte</p>
-                    <p className="text-amber-600 text-xs">Débloquez l'accès complet à la plateforme</p>
-                  </div>
+        {/* ── Bloc pointage quotidien animé ───────────────────────── */}
+        <div className="px-4 pt-4">
+          <button
+            onClick={handlePointage}
+            data-testid="button-pointage"
+            className="w-full rounded-3xl overflow-hidden relative active:scale-95 transition-transform"
+            style={{
+              background: "linear-gradient(135deg, #7c3aed 0%, #a855f7 45%, #ec4899 100%)",
+            }}
+          >
+            {/* cercle décoratif */}
+            <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/10" />
+            <div className="absolute -bottom-4 -left-4 w-24 h-24 rounded-full bg-white/10" />
+
+            <div className="relative flex items-center justify-between px-5 py-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 bg-white/20 rounded-2xl flex items-center justify-center">
+                  <Zap size={22} className="text-yellow-300" />
                 </div>
-                <ChevronRight size={16} className="text-amber-500 flex-shrink-0" />
-              </div>
-            </Link>
-          </div>
-        )}
-
-        <div className="px-4 mt-4 space-y-4">
-
-          {/* Statistiques rapides */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-7 h-7 bg-blue-50 rounded-lg flex items-center justify-center">
-                  <TrendingUp size={14} className="text-blue-600" />
+                <div className="text-left">
+                  <p className="text-white font-bold text-base leading-tight">Pointage quotidien</p>
+                  <p className="text-purple-200 text-xs mt-0.5">Gagnez entre 300 – 800 FCFA / jour</p>
                 </div>
-                <span className="text-gray-400 text-xs font-medium">Transactions</span>
               </div>
-              <p className="text-gray-900 font-bold text-2xl">{transactionCount}</p>
-              <p className="text-gray-400 text-xs mt-0.5">Total effectuées</p>
+              <div className="flex items-center gap-1 bg-yellow-400 text-yellow-900 text-xs font-black px-3 py-1.5 rounded-full shadow-md">
+                <Star size={11} fill="currentColor" />
+                Bonus
+              </div>
             </div>
+          </button>
+        </div>
 
+        {/* ── Cartes rapides ──────────────────────────────────────── */}
+        <div className="px-4 mt-3 grid grid-cols-3 gap-3">
+          <Link href="/work">
+            <div className="bg-white rounded-2xl p-3.5 shadow-sm border border-gray-100 text-center cursor-pointer hover:shadow-md active:scale-95 transition-all">
+              <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center mx-auto mb-2">
+                <Briefcase size={18} className="text-blue-600" />
+              </div>
+              <p className="text-gray-800 font-semibold text-xs">Travaux</p>
+              <p className="text-gray-400 text-[10px] mt-0.5">Corriger</p>
+            </div>
+          </Link>
+
+          <Link href="/transactions">
+            <div className="bg-white rounded-2xl p-3.5 shadow-sm border border-gray-100 text-center cursor-pointer hover:shadow-md active:scale-95 transition-all">
+              <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center mx-auto mb-2">
+                <Clock size={18} className="text-emerald-600" />
+              </div>
+              <p className="text-gray-800 font-semibold text-xs">Historique</p>
+              <p className="text-gray-400 text-[10px] mt-0.5">{transactionCount} opérations</p>
+            </div>
+          </Link>
+
+          <Link href="/team">
+            <div className="bg-white rounded-2xl p-3.5 shadow-sm border border-gray-100 text-center cursor-pointer hover:shadow-md active:scale-95 transition-all">
+              <div className="w-10 h-10 bg-violet-50 rounded-xl flex items-center justify-center mx-auto mb-2">
+                <Users size={18} className="text-violet-600" />
+              </div>
+              <p className="text-gray-800 font-semibold text-xs">Équipe</p>
+              <p className="text-gray-400 text-[10px] mt-0.5">Parrainer</p>
+            </div>
+          </Link>
+        </div>
+
+        {/* ── Sections colorées animées ────────────────────────────── */}
+        <div className="px-4 mt-4 space-y-3">
+
+          {/* Travaux disponibles – gradient vert */}
+          <Link href="/work">
             <div
-              className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 cursor-pointer active:scale-95 transition-transform"
-              onClick={handlePointage}
-              data-testid="button-pointage"
+              className="rounded-2xl p-4 flex items-center justify-between cursor-pointer active:scale-95 transition-transform"
+              style={{ background: "linear-gradient(135deg, #059669 0%, #10b981 100%)" }}
             >
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-7 h-7 bg-purple-50 rounded-lg flex items-center justify-center">
-                  <Zap size={14} className="text-purple-600" />
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                  <TrendingUp size={18} className="text-white" />
                 </div>
-                <span className="text-gray-400 text-xs font-medium">Pointage</span>
+                <div>
+                  <p className="text-white font-bold text-sm">Travaux disponibles</p>
+                  <p className="text-green-100 text-xs">Corrigez des textes et gagnez</p>
+                </div>
               </div>
-              <p className="text-gray-900 font-bold text-lg leading-tight">+300–800</p>
-              <p className="text-gray-400 text-xs mt-0.5">FCFA / jour · Cliquer</p>
+              <ChevronRight size={18} className="text-white/70" />
             </div>
-          </div>
+          </Link>
 
-          {/* Liens rapides */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-50">
-              <p className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Accès rapide</p>
+          {/* Parrainage – gradient orange */}
+          <Link href="/team">
+            <div
+              className="rounded-2xl p-4 flex items-center justify-between cursor-pointer active:scale-95 transition-transform"
+              style={{ background: "linear-gradient(135deg, #f97316 0%, #fb923c 100%)" }}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                  <Gift size={18} className="text-white" />
+                </div>
+                <div>
+                  <p className="text-white font-bold text-sm">Parrainage</p>
+                  <p className="text-orange-100 text-xs">Invitez et gagnez des bonus</p>
+                </div>
+              </div>
+              <ChevronRight size={18} className="text-white/70" />
             </div>
+          </Link>
 
-            <Link href="/work">
-              <div className="px-4 py-3.5 flex items-center justify-between hover:bg-gray-50 active:bg-gray-100 transition-colors cursor-pointer border-b border-gray-50">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-blue-50 rounded-xl flex items-center justify-center">
-                    <TrendingUp size={15} className="text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-gray-800 font-medium text-sm">Travaux disponibles</p>
-                    <p className="text-gray-400 text-xs">Corriger des textes et gagner</p>
-                  </div>
+          {/* Statistiques – gradient bleu */}
+          <Link href="/summary">
+            <div
+              className="rounded-2xl p-4 flex items-center justify-between cursor-pointer active:scale-95 transition-transform"
+              style={{ background: "linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)" }}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                  <TrendingUp size={18} className="text-white" />
                 </div>
-                <ChevronRight size={15} className="text-gray-300" />
-              </div>
-            </Link>
-
-            <Link href="/transactions">
-              <div className="px-4 py-3.5 flex items-center justify-between hover:bg-gray-50 active:bg-gray-100 transition-colors cursor-pointer border-b border-gray-50">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-emerald-50 rounded-xl flex items-center justify-center">
-                    <Clock size={15} className="text-emerald-600" />
-                  </div>
-                  <div>
-                    <p className="text-gray-800 font-medium text-sm">Historique</p>
-                    <p className="text-gray-400 text-xs">Vos transactions récentes</p>
-                  </div>
+                <div>
+                  <p className="text-white font-bold text-sm">Mes statistiques</p>
+                  <p className="text-blue-100 text-xs">Suivez vos gains et activités</p>
                 </div>
-                <ChevronRight size={15} className="text-gray-300" />
               </div>
-            </Link>
+              <ChevronRight size={18} className="text-white/70" />
+            </div>
+          </Link>
 
-            <Link href="/team">
-              <div className="px-4 py-3.5 flex items-center justify-between hover:bg-gray-50 active:bg-gray-100 transition-colors cursor-pointer">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-violet-50 rounded-xl flex items-center justify-center">
-                    <Users size={15} className="text-violet-600" />
-                  </div>
-                  <div>
-                    <p className="text-gray-800 font-medium text-sm">Mon équipe</p>
-                    <p className="text-gray-400 text-xs">Parrainer & gagner des bonus</p>
-                  </div>
-                </div>
-                <ChevronRight size={15} className="text-gray-300" />
-              </div>
-            </Link>
-          </div>
-
-          {/* Bouton Telegram groupe */}
+          {/* Telegram groupe */}
           <a
             href={telegramGroup || 'https://t.me/+A1QL2HAVBkMyMDA0'}
             target="_blank"
             rel="noopener noreferrer"
             data-testid="button-telegram-group"
-            className="flex items-center gap-3 bg-[#0088cc] text-white rounded-2xl px-4 py-3.5 hover:bg-[#0077b3] active:scale-95 transition-all shadow-sm"
+            className="flex items-center gap-3 rounded-2xl px-4 py-3.5 active:scale-95 transition-transform"
+            style={{ background: "linear-gradient(135deg, #0088cc 0%, #229ed9 100%)" }}
           >
-            <FaTelegram size={22} />
-            <div className="flex-1">
-              <p className="font-semibold text-sm">Groupe Telegram officiel</p>
-              <p className="text-blue-200 text-xs">Actualités, annonces et support</p>
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+              <FaTelegram size={20} className="text-white" />
             </div>
-            <ChevronRight size={15} className="text-blue-300" />
+            <div className="flex-1">
+              <p className="text-white font-bold text-sm">Groupe Telegram officiel</p>
+              <p className="text-blue-100 text-xs">Actualités, annonces et support</p>
+            </div>
+            <ChevronRight size={18} className="text-white/70 flex-shrink-0" />
           </a>
-
-          {/* Témoignages */}
-          <TestimonialsSlider />
 
         </div>
       </main>
@@ -244,7 +264,8 @@ export default function Dashboard() {
         }}
         data-testid="button-telegram-float"
       >
-        <div className="w-14 h-14 bg-[#0088cc] rounded-full flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-110 transition-all">
+        <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-xl hover:scale-110 transition-all"
+          style={{ background: "linear-gradient(135deg, #0088cc, #229ed9)" }}>
           <FaTelegram className="text-white text-2xl" />
         </div>
       </a>
