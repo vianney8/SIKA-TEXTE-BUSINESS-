@@ -351,15 +351,6 @@ export default function Activation() {
       <div className="min-h-screen bg-gray-50">
         <UpayHeader amount={activationAmount} />
 
-        {/* Bannière maintenance — visible seulement si des opérateurs du pays sélectionné sont en maintenance */}
-        {selectedCountry && selectedCountry.operators.some(op => isOpMaintenance(country, op)) && (
-          <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-start gap-2">
-            <Wrench size={14} className="text-amber-600 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-amber-800 font-medium">
-              <strong>⚠ Maintenance :</strong> Certains opérateurs sont temporairement indisponibles pour ce pays.
-            </p>
-          </div>
-        )}
 
         <div className="-mt-0 bg-gray-50 overflow-hidden">
           <StepIndicator step={1} requiresOTP={requiresOTP} />
