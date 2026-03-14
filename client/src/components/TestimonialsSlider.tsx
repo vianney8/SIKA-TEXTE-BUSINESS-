@@ -507,37 +507,31 @@ export default function TestimonialsSlider() {
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'
           }`}
         >
-          {visibleTestimonials.map((testimonial, index) => (
+          {visibleTestimonials.map((testimonial) => (
             <div
               key={`${testimonial.id}-${currentIndex}`}
-              className="bg-card dark:bg-card rounded-xl p-4 shadow-sm border border-border"
+              className="bg-gray-50 rounded-xl p-3 border border-gray-100"
               data-testid={`testimonial-${testimonial.id}`}
             >
-              <div className="flex items-center space-x-3 mb-3">
-                <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
-                  <img 
-                    src={testimonial.photo} 
+              <div className="flex items-center gap-2 mb-1.5">
+                <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
+                  <img
+                    src={testimonial.photo}
                     alt={testimonial.name}
                     className="w-full h-full object-cover"
                   />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm text-foreground truncate">
-                    {testimonial.name}
-                  </div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    {testimonial.city}, {testimonial.country}
-                  </div>
+                  <div className="font-bold text-xs text-gray-800 truncate">{testimonial.name}</div>
+                  <div className="text-[10px] text-gray-400 truncate">{testimonial.city}, {testimonial.country}</div>
                 </div>
-                <div className="flex text-yellow-400 text-xs">
+                <div className="flex text-yellow-400">
                   {[...Array(testimonial.rating)].map((_, i) => (
-                    <Star key={i} className="w-3 h-3 fill-current" />
+                    <Star key={i} className="w-2.5 h-2.5 fill-current" />
                   ))}
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                "{testimonial.message}"
-              </p>
+              <p className="text-[11px] text-gray-500 leading-relaxed">"{testimonial.message}"</p>
             </div>
           ))}
         </div>

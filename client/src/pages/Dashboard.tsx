@@ -190,13 +190,26 @@ export default function Dashboard() {
             </a>
           </div>
 
+          {/* ══ Vidéo promo ══ */}
+          <div className="bg-black rounded-[20px] overflow-hidden shadow-sm">
+            <video
+              src="/promo.mp4"
+              controls
+              playsInline
+              className="w-full"
+              style={{ maxHeight: "220px", objectFit: "cover" }}
+            />
+          </div>
+
           {/* ══ Témoignages ══ */}
           <div className="bg-white rounded-[20px] shadow-sm border border-gray-100 overflow-hidden">
-            <div className="px-4 pt-4 pb-0">
-              <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-0.5">Avis</p>
-              <p className="text-gray-800 font-bold text-base mb-3">Ce que disent nos utilisateurs</p>
+            <div className="px-4 pt-3 pb-0 flex items-center justify-between">
+              <div>
+                <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">Avis</p>
+                <p className="text-gray-800 font-bold text-sm">Ce que disent nos utilisateurs</p>
+              </div>
             </div>
-            <div className="px-4 pb-4">
+            <div className="px-3 pb-3 pt-2">
               <TestimonialsSlider />
             </div>
           </div>

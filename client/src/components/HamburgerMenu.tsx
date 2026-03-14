@@ -102,26 +102,30 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
           flexDirection: "column",
         }}
       >
-        {/* Poignée de glissement */}
-        <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
-          <div className="w-10 h-1 rounded-full bg-gray-200" />
+        {/* ── Ligne du haut : poignée + fermer ── */}
+        <div className="flex items-center justify-between px-5 pt-3 pb-2 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <img src={logoPath} alt="logo" className="w-5 h-5 rounded-md object-cover" />
+            <span className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">Sika Texte</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-1 rounded-full bg-gray-200 mx-auto" />
+            <button
+              onClick={onClose}
+              className="w-9 h-9 rounded-full flex items-center justify-center"
+              style={{ background: "#f1f5f9" }}
+            >
+              <X size={17} className="text-gray-500" />
+            </button>
+          </div>
         </div>
 
-        {/* Bouton fermer */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center"
-          style={{ background: "#f1f5f9" }}
-        >
-          <X size={17} className="text-gray-500" />
-        </button>
-
         {/* ── En-tête utilisateur ── */}
-        <div className="px-5 pt-2 pb-4 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            {/* Avatar */}
+        <div className="px-5 pt-1 pb-4 flex-shrink-0">
+          {/* Avatar + nom + statut */}
+          <div className="flex items-center gap-3 mb-3">
             <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-black text-lg flex-shrink-0"
+              className="w-12 h-12 rounded-2xl flex items-center justify-center text-white font-black text-lg flex-shrink-0"
               style={{ background: "linear-gradient(135deg, #1d4ed8, #7c3aed)" }}
             >
               {user?.profileImageUrl
@@ -129,8 +133,6 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
                 : initials
               }
             </div>
-
-            {/* Nom + statut */}
             <div className="flex-1 min-w-0">
               <p className="text-gray-900 font-black text-base truncate" data-testid="text-menu-user-name">
                 {firstName} {lastName}
@@ -142,21 +144,15 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
                 </span>
               </div>
             </div>
-
-            {/* Solde */}
-            <div
-              className="flex-shrink-0 text-right px-3.5 py-2.5 rounded-2xl"
-              style={{ background: "linear-gradient(135deg, #0f172a, #1e3a5f)" }}
-            >
-              <p className="text-blue-300 text-[9px] uppercase tracking-wider">Solde</p>
-              <p className="text-white font-black text-sm">{formatFCFA(balanceAmt)}</p>
-            </div>
           </div>
 
-          {/* Logo SIKA TEXTE */}
-          <div className="flex items-center gap-1.5 mt-4 mb-1">
-            <img src={logoPath} alt="logo" className="w-5 h-5 rounded-md object-cover" />
-            <span className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">Sika Texte</span>
+          {/* Solde — pleine largeur en dessous */}
+          <div
+            className="w-full px-4 py-3 rounded-2xl flex items-center justify-between"
+            style={{ background: "linear-gradient(135deg, #0f172a, #1e3a5f)" }}
+          >
+            <p className="text-blue-300 text-xs font-semibold uppercase tracking-wider">Solde disponible</p>
+            <p className="text-white font-black text-lg">{formatFCFA(balanceAmt)}</p>
           </div>
         </div>
 
