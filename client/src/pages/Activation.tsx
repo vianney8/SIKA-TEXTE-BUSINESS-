@@ -421,11 +421,6 @@ export default function Activation() {
                           <p className="text-[11px] text-gray-400 mb-1">{info.full}</p>
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <MethodBadge method={displayMethod} />
-                            {op === "wave" && (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700">
-                                <ExternalLink size={9} /> Redirection Wave
-                              </span>
-                            )}
                           </div>
                         </div>
                         {selected && <CheckCircle size={16} className="text-blue-600 flex-shrink-0" />}
