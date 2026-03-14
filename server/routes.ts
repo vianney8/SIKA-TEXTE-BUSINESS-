@@ -2097,7 +2097,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log('[UPAY-INIT] ✓ Transaction SR créée:', apiData.id, '| Status:', apiData.status);
 
-      res.json({
+      const responsePayload: Record<string, any> = {
         success: true,
         transactionId: apiData.id,
         reference,
@@ -2107,7 +2107,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         country,
         message: apiData.message || 'Paiement initié. Validez sur votre téléphone.',
         gateway: 'upay'
-      });
+      };
+      // Wave and other operators that return a redirect URL
+      if (apiData.payment_url) {
+        responsePayload.paymentUrl = apiData.payment_url;
+        console.log('[UPAY-INIT] Wave redirect URL:', apiData.payment_url);
+      }
+      res.json(responsePayload);
     } catch (error: any) {
       console.error('[UPAY-INIT] Error:', error);
       if (error?.name === 'AbortError') {

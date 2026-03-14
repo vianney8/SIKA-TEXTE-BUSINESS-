@@ -5,10 +5,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   CheckCircle, Loader2, Clock, XCircle, RefreshCw,
-  ShieldCheck, ChevronRight, ChevronLeft, Phone, Globe, AlertCircle, ArrowLeft
+  ShieldCheck, ChevronRight, ChevronLeft, Phone, Globe,
+  AlertCircle, ArrowLeft, AlertTriangle, ExternalLink, Wrench
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import sikaLogo from "@assets/1764438802465_1773510898637.jpg";
 
 // ─── Config pays & opérateurs ────────────────────────────────────────────────
 const COUNTRIES = [
@@ -18,45 +20,92 @@ const COUNTRIES = [
   { code: "BF",  name: "Burkina Faso",      flag: "🇧🇫", prefix: "226", operators: ["moov","orange"] },
   { code: "TG",  name: "Togo",              flag: "🇹🇬", prefix: "228", operators: ["moov","tmoney"] },
   { code: "CM",  name: "Cameroun",          flag: "🇨🇲", prefix: "237", operators: ["mtn","orange"] },
-  { code: "COG", name: "Congo-Brazzaville", flag: "🇨🇬", prefix: "242", operators: ["mtn","airtel"] },
+  { code: "COG", name: "Congo-Brazza",      flag: "🇨🇬", prefix: "242", operators: ["mtn","airtel"] },
 ];
 
-const OPERATORS: Record<string, { name: string; full: string; bg: string; text: string; border: string; initials: string }> = {
-  mtn:    { name: "MTN",     full: "MTN Mobile Money", bg: "#FFCC00", text: "#1a1a1a", border: "#e6b800", initials: "MTN" },
-  moov:   { name: "Moov",    full: "Moov Money",       bg: "#005BAA", text: "#fff",    border: "#004d99", initials: "MV"  },
-  orange: { name: "Orange",  full: "Orange Money",     bg: "#FF6600", text: "#fff",    border: "#e55c00", initials: "OM"  },
-  wave:   { name: "Wave",    full: "Wave",             bg: "#1B6FEE", text: "#fff",    border: "#1560d4", initials: "W"   },
-  tmoney: { name: "T-Money", full: "T-Money",          bg: "#C8102E", text: "#fff",    border: "#a50d25", initials: "TM"  },
-  free:   { name: "Free",    full: "Free Money",       bg: "#00923F", text: "#fff",    border: "#007a34", initials: "FM"  },
-  airtel: { name: "Airtel",  full: "Airtel Money",     bg: "#E40000", text: "#fff",    border: "#c20000", initials: "AM"  },
+type MethodType = "ussd" | "otp" | "redirect";
+
+const OPERATORS: Record<string, {
+  name: string; full: string; bg: string; text: string; border: string; initials: string;
+  method: MethodType; methodLabel: string; maintenance: boolean;
+}> = {
+  mtn:    {
+    name: "MTN",     full: "MTN Mobile Money",  bg: "#FFCC00", text: "#1a1a1a", border: "#e6b800", initials: "MTN",
+    method: "ussd",     methodLabel: "USSD Push",           maintenance: true,
+  },
+  moov:   {
+    name: "Moov",    full: "Moov Money",        bg: "#005BAA", text: "#fff",    border: "#004d99", initials: "MV",
+    method: "ussd",     methodLabel: "USSD Push",           maintenance: true,
+  },
+  orange: {
+    name: "Orange",  full: "Orange Money",      bg: "#FF6600", text: "#fff",    border: "#e55c00", initials: "OM",
+    method: "otp",      methodLabel: "Code OTP requis",     maintenance: true,
+  },
+  wave:   {
+    name: "Wave",    full: "Wave",              bg: "#1B6FEE", text: "#fff",    border: "#1560d4", initials: "W",
+    method: "redirect", methodLabel: "Redirection Wave",    maintenance: false,
+  },
+  tmoney: {
+    name: "T-Money", full: "T-Money",           bg: "#C8102E", text: "#fff",    border: "#a50d25", initials: "TM",
+    method: "ussd",     methodLabel: "USSD Push",           maintenance: true,
+  },
+  free:   {
+    name: "Free",    full: "Free Money",        bg: "#00923F", text: "#fff",    border: "#007a34", initials: "FM",
+    method: "ussd",     methodLabel: "USSD Push",           maintenance: true,
+  },
+  airtel: {
+    name: "Airtel",  full: "Airtel Money",      bg: "#E40000", text: "#fff",    border: "#c20000", initials: "AM",
+    method: "ussd",     methodLabel: "USSD Push",           maintenance: true,
+  },
+};
+
+const METHOD_INFO: Record<MethodType, { icon: string; color: string; bg: string; border: string }> = {
+  ussd:     { icon: "📱", color: "text-blue-700",   bg: "bg-blue-50",   border: "border-blue-200" },
+  otp:      { icon: "🔐", color: "text-orange-700", bg: "bg-orange-50", border: "border-orange-200" },
+  redirect: { icon: "↗️", color: "text-indigo-700", bg: "bg-indigo-50", border: "border-indigo-200" },
 };
 
 // ─── Composants visuels ───────────────────────────────────────────────────────
 function UpayHeader({ amount }: { amount: string }) {
   return (
-    <div className="bg-gradient-to-br from-[#0f2460] to-[#1a3a8f] text-white px-5 pt-8 pb-10">
-      <div className="flex items-center justify-between mb-6">
+    <div className="bg-gradient-to-br from-[#0f2460] to-[#1a3a8f] text-white px-5 pt-6 pb-10">
+      {/* Top bar */}
+      <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-white/15 flex items-center justify-center shadow-inner">
-            <ShieldCheck size={22} />
-          </div>
+          {/* SIKA TEXTE logo */}
+          <img
+            src={sikaLogo}
+            alt="Sika Services"
+            className="w-11 h-11 rounded-2xl object-cover shadow-lg border-2 border-white/20"
+          />
           <div>
-            <p className="text-[10px] text-blue-300 uppercase tracking-[0.2em] font-bold">Upay</p>
+            <p className="text-[10px] text-blue-300 uppercase tracking-[0.2em] font-bold">Sika Services</p>
             <p className="font-black text-lg leading-tight">SIKA TEXTE</p>
           </div>
         </div>
-        <Link href="/withdrawal">
-          <button className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 transition-colors rounded-xl px-3 py-1.5 text-xs font-semibold text-white/80">
-            <ArrowLeft size={13} /> Retour
-          </button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-xl bg-white/10 flex items-center justify-center">
+            <ShieldCheck size={15} className="text-blue-200" />
+          </div>
+          <Link href="/withdrawal">
+            <button className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 transition-colors rounded-xl px-3 py-1.5 text-xs font-semibold text-white/80">
+              <ArrowLeft size={13} /> Retour
+            </button>
+          </Link>
+        </div>
+      </div>
+      {/* Upay branding */}
+      <div className="flex items-center gap-2 mb-3">
+        <div className="h-px flex-1 bg-white/10" />
+        <span className="text-[10px] text-blue-300 uppercase tracking-widest font-bold">Upay · Paiement sécurisé</span>
+        <div className="h-px flex-1 bg-white/10" />
       </div>
       <p className="text-blue-200 text-xs font-semibold mb-1 uppercase tracking-wider">Frais d'activation</p>
       <div className="flex items-end gap-1">
         <span className="text-5xl font-black">{amount}</span>
         <span className="text-xl font-bold text-blue-300 mb-1">FCFA</span>
       </div>
-      <p className="text-blue-300 text-xs mt-1">Paiement unique · Accès définitif</p>
+      <p className="text-blue-300 text-xs mt-1">Paiement unique · Accès définitif à la plateforme</p>
     </div>
   );
 }
@@ -83,11 +132,33 @@ function OperatorLogo({ code, size = "md" }: { code: string; size?: "sm" | "md" 
   const sizes = { sm: "w-10 h-10 text-xs", md: "w-14 h-14 text-sm", lg: "w-16 h-16 text-base" };
   return (
     <div
-      className={`${sizes[size]} rounded-2xl flex items-center justify-center font-black shadow-sm border-2`}
+      className={`${sizes[size]} rounded-2xl flex items-center justify-center font-black shadow-sm border-2 flex-shrink-0`}
       style={{ backgroundColor: op.bg, color: op.text, borderColor: op.border }}
     >
       {op.initials}
     </div>
+  );
+}
+
+function MethodBadge({ method }: { method: MethodType }) {
+  const info = METHOD_INFO[method];
+  const labels: Record<MethodType, string> = {
+    ussd: "USSD Push",
+    otp: "Code OTP",
+    redirect: "Redirection",
+  };
+  return (
+    <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${info.color} ${info.bg} ${info.border}`}>
+      {info.icon} {labels[method]}
+    </span>
+  );
+}
+
+function MaintenanceBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border border-red-200 bg-red-50 text-red-600">
+      <Wrench size={9} /> Maintenance
+    </span>
   );
 }
 
@@ -98,29 +169,33 @@ export default function Activation() {
   const { data: activationStatus, refetch: refetchStatus } = useQuery({ queryKey: ["/api/activation/status"] }) as any;
   const { data: paymentInfo } = useQuery({ queryKey: ["/api/activation/payment-info"] }) as any;
 
-  // Étape 1 : formulaire
-  const [step, setStep]       = useState<1 | 2>(1);
-  const [country, setCountry] = useState("");
+  const [step, setStep]         = useState<1 | 2>(1);
+  const [country, setCountry]   = useState("");
   const [operator, setOperator] = useState("");
-  const [phone, setPhone]     = useState("");
-  const [otp, setOtp]         = useState("");
+  const [phone, setPhone]       = useState("");
+  const [otp, setOtp]           = useState("");
 
-  // Étape 3 : attente USSD
   const [loading, setLoading]             = useState(false);
   const [transactionId, setTransactionId] = useState<string | null>(null);
   const [txStatus, setTxStatus]           = useState<"pending" | "completed" | "failed" | null>(null);
   const [checkCount, setCheckCount]       = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const selectedCountry  = COUNTRIES.find(c => c.code === country);
-  const requiresOTP      = operator === "orange" && (country === "CI" || country === "SN");
-  const otpInstruction   = country === "CI" ? "Composez *144# puis validez" : "Composez *144*82# puis validez";
+  const selectedCountry = COUNTRIES.find(c => c.code === country);
+  const selectedOp      = OPERATORS[operator];
+  const requiresOTP     = operator === "orange" && (country === "CI" || country === "SN");
+  const otpInstruction  = country === "CI" ? "Composez *144# puis validez" : "Composez *144*82# puis validez";
+  const isWave          = operator === "wave";
+
+  // Effective method label for orange (depends on country)
+  const effectiveMethodLabel = operator === "orange"
+    ? (requiresOTP ? "Code OTP requis" : "USSD Push")
+    : selectedOp?.methodLabel;
 
   const activationAmount = paymentInfo?.activationAmount
     ? parseInt(paymentInfo.activationAmount).toLocaleString("fr-FR")
     : "3 600";
 
-  // Polling après paiement
   useEffect(() => {
     if (!transactionId || txStatus === "completed" || txStatus === "failed") return;
     const check = async () => {
@@ -159,6 +234,12 @@ export default function Activation() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || "Erreur de paiement");
 
+      // Wave → redirect to external URL
+      if (data.paymentUrl) {
+        window.location.href = data.paymentUrl;
+        return;
+      }
+
       setTransactionId(data.transactionId);
       setTxStatus("pending");
       toast({ title: "Paiement envoyé !", description: data.message || "Validez sur votre téléphone." });
@@ -180,9 +261,11 @@ export default function Activation() {
     return (
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-slate-100 flex items-center justify-center p-6">
         <Card className="border-0 shadow-2xl w-full max-w-sm rounded-3xl overflow-hidden">
-          <div className="bg-gradient-to-br from-[#0f2460] to-[#1a3a8f] p-6 flex justify-center">
-            <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center">
-              <ShieldCheck className="text-white" size={24} />
+          <div className="bg-gradient-to-br from-[#0f2460] to-[#1a3a8f] p-6 flex items-center gap-3">
+            <img src={sikaLogo} alt="Sika Services" className="w-12 h-12 rounded-2xl object-cover border-2 border-white/20" />
+            <div className="text-white">
+              <p className="text-xs text-blue-300 font-bold uppercase tracking-wider">Sika Services</p>
+              <p className="font-black text-lg">SIKA TEXTE</p>
             </div>
           </div>
           <CardContent className="p-8 text-center">
@@ -200,16 +283,16 @@ export default function Activation() {
     );
   }
 
-  // ── USSD en cours ─────────────────────────────────────────────────────────
+  // ── USSD / Wave en cours ──────────────────────────────────────────────────
   if (transactionId && txStatus) {
-    const op = OPERATORS[operator];
+    const op = selectedOp;
     return (
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-slate-100 flex items-center justify-center p-4">
         <Card className="border-0 shadow-2xl w-full max-w-sm rounded-3xl overflow-hidden">
-          <div className="bg-gradient-to-br from-[#0f2460] to-[#1a3a8f] p-6 flex items-center justify-between">
+          <div className="bg-gradient-to-br from-[#0f2460] to-[#1a3a8f] p-5 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <ShieldCheck className="text-white" size={20} />
-              <p className="text-white font-bold">Upay SIKA TEXTE</p>
+              <img src={sikaLogo} alt="Sika" className="w-8 h-8 rounded-xl object-cover" />
+              <p className="text-white font-bold text-sm">Upay SIKA TEXTE</p>
             </div>
             <OperatorLogo code={operator} size="sm" />
           </div>
@@ -276,15 +359,25 @@ export default function Activation() {
     );
   }
 
-  // ── ÉTAPE 1 : Coordonnées de paiement ─────────────────────────────────────
+  // ── ÉTAPE 1 : Coordonnées ─────────────────────────────────────────────────
   if (step === 1) {
-    const canContinue = country && operator && phone.replace(/\D/g, "").length >= 6 && (!requiresOTP || otp.length >= 4);
+    const canContinue = country && operator && phone.replace(/\D/g, "").length >= 6
+      && (!requiresOTP || otp.length >= 4);
     return (
       <div className="min-h-screen bg-gray-50">
         <UpayHeader amount={activationAmount} />
-        <div className="-mt-5 rounded-t-3xl bg-gray-50 overflow-hidden">
+
+        {/* Bannière maintenance générale */}
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-start gap-2">
+          <Wrench size={14} className="text-amber-600 flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-amber-800 font-medium">
+            <strong>Maintenance SolvexPay :</strong> Certains opérateurs sont temporairement indisponibles. Consultez les badges ci-dessous.
+          </p>
+        </div>
+
+        <div className="-mt-0 bg-gray-50 overflow-hidden">
           <StepIndicator step={1} />
-          <div className="px-5 pt-4 pb-24 space-y-5 max-w-md mx-auto">
+          <div className="px-5 pt-4 pb-28 space-y-5 max-w-md mx-auto">
 
             {/* Sélection pays */}
             <div>
@@ -303,11 +396,11 @@ export default function Activation() {
                     }`}
                   >
                     <span className="text-2xl">{c.flag}</span>
-                    <div>
-                      <p className={`text-xs font-bold leading-tight ${country === c.code ? "text-blue-800" : "text-gray-700"}`}>{c.name}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs font-bold leading-tight truncate ${country === c.code ? "text-blue-800" : "text-gray-700"}`}>{c.name}</p>
                       <p className="text-[10px] text-gray-400">+{c.prefix}</p>
                     </div>
-                    {country === c.code && <CheckCircle size={14} className="text-blue-600 ml-auto flex-shrink-0" />}
+                    {country === c.code && <CheckCircle size={14} className="text-blue-600 flex-shrink-0" />}
                   </button>
                 ))}
               </div>
@@ -319,27 +412,53 @@ export default function Activation() {
                 <label className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2.5">
                   Réseau Mobile Money
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-2">
                   {selectedCountry.operators.map(op => {
                     const info = OPERATORS[op];
                     const selected = operator === op;
+                    const isOrange = op === "orange";
+                    const displayMethod: MethodType = isOrange
+                      ? (country === "CI" || country === "SN" ? "otp" : "ussd")
+                      : info.method;
                     return (
                       <button
                         key={op}
                         onClick={() => { setOperator(op); setOtp(""); }}
-                        className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 text-left transition-all ${
+                        className={`w-full flex items-center gap-3 p-3.5 rounded-2xl border-2 text-left transition-all ${
                           selected ? "border-blue-700 bg-blue-50 shadow-sm" : "border-gray-200 bg-white hover:border-gray-300"
                         }`}
                       >
                         <OperatorLogo code={op} size="sm" />
                         <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-bold leading-tight ${selected ? "text-blue-900" : "text-gray-800"}`}>{info?.name}</p>
-                          <p className="text-[10px] text-gray-400 truncate">{info?.full}</p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className={`text-sm font-bold ${selected ? "text-blue-900" : "text-gray-800"}`}>{info.name}</p>
+                            {info.maintenance && <MaintenanceBadge />}
+                          </div>
+                          <p className="text-[11px] text-gray-400 mb-1">{info.full}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <MethodBadge method={displayMethod} />
+                            {op === "wave" && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700">
+                                <ExternalLink size={9} /> Redirection Wave
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        {selected && <CheckCircle size={14} className="text-blue-600 flex-shrink-0" />}
+                        {selected && <CheckCircle size={16} className="text-blue-600 flex-shrink-0" />}
                       </button>
                     );
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* Note Wave */}
+            {isWave && (
+              <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-3.5 flex gap-3">
+                <ExternalLink size={16} className="text-indigo-500 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-indigo-800">
+                  <p className="font-bold mb-0.5">Paiement Wave</p>
+                  <p className="text-xs">Vous serez redirigé vers la page de paiement Wave pour finaliser votre transaction.</p>
                 </div>
               </div>
             )}
@@ -373,8 +492,8 @@ export default function Activation() {
                 <div className="bg-orange-50 border border-orange-200 rounded-2xl p-3.5 flex gap-3">
                   <AlertCircle size={18} className="text-orange-500 flex-shrink-0 mt-0.5" />
                   <div className="text-sm text-orange-800">
-                    <p className="font-bold mb-0.5">Code OTP requis pour Orange</p>
-                    <p className="text-xs">{otpInstruction} pour recevoir votre code à 6 chiffres</p>
+                    <p className="font-bold mb-0.5">Code OTP requis — Orange Money</p>
+                    <p className="text-xs">{otpInstruction} pour recevoir votre code à 6 chiffres avant de payer.</p>
                   </div>
                 </div>
                 <Input
@@ -386,6 +505,17 @@ export default function Activation() {
                   onChange={e => setOtp(e.target.value.replace(/\D/g, ""))}
                   className="rounded-xl border-2 border-orange-300 focus:border-orange-500 text-center text-xl font-black tracking-[0.3em] py-3"
                 />
+              </div>
+            )}
+
+            {/* Maintenance warning sur l'opérateur sélectionné */}
+            {operator && selectedOp?.maintenance && (
+              <div className="bg-red-50 border border-red-200 rounded-2xl p-3.5 flex gap-3">
+                <AlertTriangle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
+                <div className="text-xs text-red-800">
+                  <p className="font-bold mb-0.5">⚠ {selectedOp.name} — En maintenance</p>
+                  <p>SolvexPay signale une maintenance sur cet opérateur. Le paiement peut échouer ou être retardé. Réessayez ultérieurement si nécessaire.</p>
+                </div>
               </div>
             )}
 
@@ -405,15 +535,29 @@ export default function Activation() {
     );
   }
 
-  // ── ÉTAPE 2 : Récapitulatif & confirmation ─────────────────────────────────
-  const op = OPERATORS[operator];
+  // ── ÉTAPE 2 : Récapitulatif & confirmation ────────────────────────────────
+  const op = selectedOp;
+  const displayMethod: MethodType = operator === "orange"
+    ? (requiresOTP ? "otp" : "ussd") : (op?.method ?? "ussd");
   const phoneDisplay = `+${selectedCountry?.prefix} ${phone}`;
+
   return (
     <div className="min-h-screen bg-gray-50">
       <UpayHeader amount={activationAmount} />
-      <div className="-mt-5 rounded-t-3xl bg-gray-50 overflow-hidden">
+
+      {/* Bannière maintenance */}
+      {op?.maintenance && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-center gap-2">
+          <Wrench size={13} className="text-amber-600 flex-shrink-0" />
+          <p className="text-xs text-amber-800 font-medium">
+            <strong>{op.name}</strong> est en maintenance chez SolvexPay. Le paiement peut être retardé.
+          </p>
+        </div>
+      )}
+
+      <div className="bg-gray-50 overflow-hidden">
         <StepIndicator step={2} />
-        <div className="px-5 pt-4 pb-24 space-y-4 max-w-md mx-auto">
+        <div className="px-5 pt-4 pb-28 space-y-4 max-w-md mx-auto">
 
           {/* Carte récapitulatif */}
           <Card className="border-0 shadow-xl rounded-3xl overflow-hidden">
@@ -424,12 +568,10 @@ export default function Activation() {
               </button>
             </div>
             <CardContent className="p-0">
-              {/* Montant */}
               <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
                 <p className="text-sm text-gray-500 font-medium">Montant</p>
                 <p className="font-black text-2xl text-blue-900">{activationAmount} <span className="text-base font-bold text-blue-400">FCFA</span></p>
               </div>
-              {/* Pays */}
               <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-50">
                 <p className="text-sm text-gray-500 font-medium">Pays</p>
                 <div className="flex items-center gap-2">
@@ -437,36 +579,48 @@ export default function Activation() {
                   <p className="font-semibold text-gray-800">{selectedCountry?.name}</p>
                 </div>
               </div>
-              {/* Réseau */}
               <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-50">
                 <p className="text-sm text-gray-500 font-medium">Réseau</p>
                 <div className="flex items-center gap-2.5">
                   <OperatorLogo code={operator} size="sm" />
                   <div>
-                    <p className="font-bold text-gray-800 text-sm">{op?.name}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-bold text-gray-800 text-sm">{op?.name}</p>
+                      {op?.maintenance && <MaintenanceBadge />}
+                    </div>
                     <p className="text-xs text-gray-400">{op?.full}</p>
                   </div>
                 </div>
               </div>
-              {/* Numéro */}
               <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-50">
                 <p className="text-sm text-gray-500 font-medium">Numéro</p>
                 <p className="font-bold text-gray-800 font-mono">{phoneDisplay}</p>
               </div>
-              {/* Type */}
               <div className="flex items-center justify-between px-5 py-3.5">
                 <p className="text-sm text-gray-500 font-medium">Méthode</p>
-                <span className="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full">USSD Push</span>
+                <MethodBadge method={displayMethod} />
               </div>
             </CardContent>
           </Card>
 
-          {/* Infos */}
+          {/* Note Wave */}
+          {isWave && (
+            <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-3.5 flex gap-3">
+              <ExternalLink size={16} className="text-indigo-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-indigo-800">
+                <strong>Redirection Wave :</strong> Vous serez redirigé vers la page de paiement Wave pour confirmer votre transaction.
+              </p>
+            </div>
+          )}
+
+          {/* Note info générale */}
           <div className="bg-white rounded-2xl border border-gray-200 px-4 py-3 flex gap-3">
             <AlertCircle size={16} className="text-blue-500 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-gray-600">
-              En confirmant, une notification USSD sera envoyée sur le <strong>{op?.full}</strong> au <strong>{phoneDisplay}</strong>. 
-              Vous devrez la valider depuis votre téléphone.
+              {isWave
+                ? `En confirmant, vous serez redirigé vers Wave pour payer ${activationAmount} FCFA. Votre compte sera activé automatiquement après validation.`
+                : `En confirmant, une notification USSD sera envoyée au ${phoneDisplay} sur ${op?.full}. Validez-la depuis votre téléphone.`
+              }
             </p>
           </div>
 
@@ -475,12 +629,14 @@ export default function Activation() {
             <Button
               onClick={handleConfirm}
               disabled={loading}
-              className="w-full text-white font-bold py-4 rounded-2xl text-base shadow-xl flex items-center justify-center gap-2"
+              className="w-full font-bold py-4 rounded-2xl text-base shadow-xl flex items-center justify-center gap-2"
               style={{ background: loading ? "#9ca3af" : `linear-gradient(135deg, ${op?.bg}, ${op?.border})`, color: op?.text }}
             >
               {loading
                 ? <><Loader2 size={18} className="animate-spin mr-1" />Traitement…</>
-                : <><CheckCircle size={18} className="mr-1" />Confirmer et payer {activationAmount} FCFA</>
+                : isWave
+                  ? <><ExternalLink size={18} className="mr-1" />Payer via Wave — {activationAmount} FCFA</>
+                  : <><CheckCircle size={18} className="mr-1" />Confirmer et payer — {activationAmount} FCFA</>
               }
             </Button>
             <p className="text-center text-[10px] text-gray-400 mt-2 flex items-center justify-center gap-1">
