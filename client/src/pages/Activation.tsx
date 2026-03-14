@@ -343,7 +343,8 @@ export default function Activation() {
   // ── ÉTAPE 1 : Coordonnées ─────────────────────────────────────────────────
   if (step === 1) {
     const canContinue = country && operator && phone.replace(/\D/g, "").length >= 6
-      && (!requiresOTP || otp.length >= 4);
+      && (!requiresOTP || otp.length >= 4)
+      && !isOpMaintenance(country, operator);
     return (
       <div className="min-h-screen bg-gray-50">
         <UpayHeader amount={activationAmount} />
@@ -399,31 +400,49 @@ export default function Activation() {
                   {selectedCountry.operators.map(op => {
                     const info = OPERATORS[op];
                     const selected = operator === op;
+                    const inMaintenance = isOpMaintenance(country, op);
                     const isOrange = op === "orange";
                     const displayMethod: MethodType = isOrange
                       ? (country === "CI" || country === "SN" ? "otp" : "ussd")
                       : info.method;
                     return (
-                      <button
+                      <div
                         key={op}
-                        onClick={() => { setOperator(op); setOtp(""); }}
-                        className={`w-full flex items-center gap-3 p-3.5 rounded-2xl border-2 text-left transition-all ${
-                          selected ? "border-blue-700 bg-blue-50 shadow-sm" : "border-gray-200 bg-white hover:border-gray-300"
+                        onClick={() => {
+                          if (inMaintenance) return;
+                          setOperator(op);
+                          setOtp("");
+                        }}
+                        className={`w-full flex items-center gap-3 p-3.5 rounded-2xl border-2 text-left transition-all select-none ${
+                          inMaintenance
+                            ? "border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed"
+                            : selected
+                              ? "border-blue-700 bg-blue-50 shadow-sm cursor-pointer"
+                              : "border-gray-200 bg-white hover:border-gray-300 cursor-pointer"
                         }`}
                       >
-                        <OperatorLogo code={op} size="sm" />
+                        <div className={inMaintenance ? "grayscale" : ""}>
+                          <OperatorLogo code={op} size="sm" />
+                        </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <p className={`text-sm font-bold ${selected ? "text-blue-900" : "text-gray-800"}`}>{info.name}</p>
-                            {isOpMaintenance(country, op) && <MaintenanceBadge />}
+                            <p className={`text-sm font-bold ${inMaintenance ? "text-gray-400" : selected ? "text-blue-900" : "text-gray-800"}`}>
+                              {info.name}
+                            </p>
+                            {inMaintenance && <MaintenanceBadge />}
                           </div>
                           <p className="text-[11px] text-gray-400 mb-1">{info.full}</p>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <MethodBadge method={displayMethod} />
-                          </div>
+                          {!inMaintenance && (
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <MethodBadge method={displayMethod} />
+                            </div>
+                          )}
+                          {inMaintenance && (
+                            <p className="text-[10px] text-red-400 font-semibold mt-0.5">Indisponible — en maintenance</p>
+                          )}
                         </div>
-                        {selected && <CheckCircle size={16} className="text-blue-600 flex-shrink-0" />}
-                      </button>
+                        {selected && !inMaintenance && <CheckCircle size={16} className="text-blue-600 flex-shrink-0" />}
+                      </div>
                     );
                   })}
                 </div>
