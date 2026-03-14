@@ -84,7 +84,6 @@ function UpayHeader({ amount }: { amount: string }) {
         <span className="text-5xl font-black">{amount}</span>
         <span className="text-xl font-bold text-blue-300 mb-1">FCFA</span>
       </div>
-      <p className="text-blue-300 text-xs mt-1">Paiement unique · Accès définitif à la plateforme</p>
     </div>
   );
 }
