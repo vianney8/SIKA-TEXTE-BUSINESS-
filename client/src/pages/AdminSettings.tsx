@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Settings, Save, Wrench, CheckCircle } from "lucide-react";
+import { ArrowLeft, Settings, Save, Wrench, CheckCircle, Video, Upload, Play } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -30,6 +30,10 @@ const MAINTENANCE_COUNTRIES = [
 export default function AdminSettings() {
   const { toast } = useToast();
   const [settings, setSettings] = useState<{[key: string]: string}>({});
+  const [videoFile, setVideoFile]     = useState<File | null>(null);
+  const [videoPreview, setVideoPreview] = useState<string | null>(null);
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch app settings
   const { data: appSettings, isLoading } = useQuery<AppSetting[]>({
@@ -104,6 +108,43 @@ export default function AdminSettings() {
 
   const handleInputChange = (key: string, value: string) => {
     setSettings(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("video/")) {
+      toast({ title: "Erreur", description: "Seuls les fichiers vidéo sont acceptés", variant: "destructive" });
+      return;
+    }
+    setVideoFile(file);
+    const url = URL.createObjectURL(file);
+    setVideoPreview(url);
+  };
+
+  const handleVideoUpload = async () => {
+    if (!videoFile) return;
+    setIsUploadingVideo(true);
+    try {
+      const formData = new FormData();
+      formData.append("video", videoFile);
+      const response = await fetch("/api/admin/upload-demo-video", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Erreur lors de l'upload");
+      toast({ title: "Vidéo mise à jour !", description: "La vidéo de démonstration a été remplacée avec succès" });
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/demo_video_url"] });
+      setVideoFile(null);
+      setVideoPreview(null);
+      if (videoInputRef.current) videoInputRef.current.value = "";
+    } catch (error: any) {
+      toast({ title: "Erreur", description: error.message || "Impossible d'uploader la vidéo", variant: "destructive" });
+    } finally {
+      setIsUploadingVideo(false);
+    }
   };
 
   return (
@@ -455,6 +496,87 @@ export default function AdminSettings() {
                 </div>
               </div>
             ))}
+          </CardContent>
+        </Card>
+
+        {/* ── Vidéo de démonstration ── */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Video className="h-5 w-5" />
+              Vidéo de démonstration
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Cette vidéo s'affiche sur le dashboard des utilisateurs sous le titre <strong>"Exemple de retrait"</strong>.
+              Vous pouvez la remplacer à tout moment en uploadant un nouveau fichier.
+            </p>
+
+            {/* Aperçu vidéo actuelle */}
+            <div className="bg-gray-50 rounded-xl overflow-hidden border border-gray-200">
+              <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-200">
+                <Play size={14} className="text-gray-500" />
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  {videoPreview ? "Aperçu de la nouvelle vidéo" : "Vidéo actuelle"}
+                </span>
+              </div>
+              <video
+                src={videoPreview || settings.demo_video_url || "/promo.mp4"}
+                controls
+                playsInline
+                className="w-full"
+                style={{ maxHeight: "220px" }}
+                key={videoPreview || "current"}
+              />
+            </div>
+
+            {/* Sélection de fichier */}
+            <div>
+              <Label htmlFor="video-upload">Choisir une nouvelle vidéo</Label>
+              <div
+                onClick={() => videoInputRef.current?.click()}
+                className="mt-2 flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-xl py-6 px-4 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors"
+              >
+                <Upload size={24} className="text-gray-400" />
+                <p className="text-sm text-gray-500 text-center">
+                  {videoFile
+                    ? <span className="text-blue-600 font-semibold">{videoFile.name}</span>
+                    : <>Cliquez pour sélectionner une vidéo<br /><span className="text-xs">MP4, AVI, MOV — max 100 Mo</span></>
+                  }
+                </p>
+              </div>
+              <input
+                ref={videoInputRef}
+                id="video-upload"
+                type="file"
+                accept="video/*"
+                className="hidden"
+                onChange={handleVideoSelect}
+              />
+            </div>
+
+            {/* Bouton upload */}
+            <Button
+              onClick={handleVideoUpload}
+              disabled={!videoFile || isUploadingVideo}
+              className="w-full bg-blue-600 hover:bg-blue-700"
+            >
+              {isUploadingVideo ? (
+                <span className="flex items-center gap-2"><span className="animate-spin">⏳</span> Upload en cours...</span>
+              ) : (
+                <span className="flex items-center gap-2"><Upload size={16} /> Mettre à jour la vidéo</span>
+              )}
+            </Button>
+
+            {videoFile && (
+              <button
+                onClick={() => { setVideoFile(null); setVideoPreview(null); if (videoInputRef.current) videoInputRef.current.value = ""; }}
+                className="w-full text-sm text-gray-500 hover:text-red-500 transition-colors"
+              >
+                Annuler la sélection
+              </button>
+            )}
           </CardContent>
         </Card>
 

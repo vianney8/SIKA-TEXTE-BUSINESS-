@@ -18,6 +18,7 @@ export default function Dashboard() {
   const [pointageDone, setPointageDone] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { data: demoVideoUrl } = useAppSetting("demo_video_url");
   const { data: telegramSupervisor } = useAppSetting('telegram_supervisor');
   const { data: telegramGroup } = useAppSetting('telegram_group');
   const { data: whatsappGroup } = useAppSetting('whatsapp_group');
@@ -198,7 +199,7 @@ export default function Dashboard() {
             </div>
             <div className="px-4 pb-4">
               <video
-                src="/promo.mp4"
+                src={demoVideoUrl || "/promo.mp4"}
                 controls
                 playsInline
                 className="w-full rounded-xl"
