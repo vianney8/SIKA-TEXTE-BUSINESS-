@@ -1,107 +1,117 @@
 import { Link } from "wouter";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, CheckCircle, Users, Globe, Wallet } from "lucide-react";
+import logoPath from "@assets/1764438802465_1773510898637.jpg";
+
+const BENEFITS = [
+  "Corrigez des phrases et gagnez",
+  "Bonus quotidiens garantis",
+  "Retrait Mobile Money rapide",
+];
+
+const STATS = [
+  { icon: Users,  value: "50 000+", label: "Membres actifs" },
+  { icon: Globe,  value: "6 pays",  label: "Afrique de l'Ouest" },
+  { icon: Wallet, value: "24h",     label: "Délai de retrait" },
+];
 
 export default function Landing() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col relative overflow-hidden">
-      {/* Animated background elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-      </div>
+    <div className="min-h-screen flex flex-col" style={{ background: "#f0f4f8" }}>
 
-      <div className="flex-1 flex flex-col justify-center px-6 py-12 relative z-10">
-        <div className="mx-auto w-full max-w-md">
-          {/* Main Card */}
-          <Card className="shadow-2xl border-0 backdrop-blur-xl bg-white/10 dark:bg-slate-800/40">
-            <CardContent className="p-8 md:p-10">
-              {/* Logo Section */}
-              <div className="text-center mb-8 animate-fade-in-up">
-                <div className="bg-gradient-to-br from-blue-500 to-purple-600 w-20 h-20 rounded-2xl mx-auto mb-6 flex items-center justify-center shadow-lg hover:scale-110 transition-transform duration-300">
-                  <i className="fas fa-business-time text-white text-3xl"></i>
-                </div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-3" data-testid="app-title">
-                  SIKA TEXTE
-                </h1>
-                <p className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">BUSINESS</p>
-                <p className="text-gray-500 dark:text-gray-400">Bienvenue dans votre espace financier</p>
-              </div>
+      {/* ── En-tête sombre ── */}
+      <div
+        className="relative flex flex-col items-center justify-end px-6 pt-16 pb-12 flex-shrink-0"
+        style={{
+          background: "linear-gradient(160deg, #0f172a 0%, #1e3a5f 60%, #1a4fa0 100%)",
+          borderRadius: "0 0 36px 36px",
+          minHeight: "52vh",
+        }}
+      >
+        {/* Cercles décoratifs */}
+        <div
+          className="absolute top-8 right-8 w-28 h-28 rounded-full opacity-10"
+          style={{ background: "radial-gradient(circle, #60a5fa, transparent)" }}
+        />
+        <div
+          className="absolute top-20 left-4 w-20 h-20 rounded-full opacity-10"
+          style={{ background: "radial-gradient(circle, #a78bfa, transparent)" }}
+        />
 
-              {/* Description */}
-              <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl p-4 mb-8 backdrop-blur">
-                <p className="text-sm text-gray-700 dark:text-gray-300 text-center font-medium">
-                  ✨ Gagnez de l'argent en corrigeant des phrases • Retirez vos gains en sécurité • Bonus quotidiens
-                </p>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="space-y-3">
-                <Button 
-                  asChild 
-                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-6 rounded-xl text-lg shadow-lg hover:shadow-xl transition-all duration-200"
-                  data-testid="button-login"
-                >
-                  <Link href="/simple-login" className="flex items-center justify-center gap-2">
-                    Se connecter
-                    <ArrowRight className="w-5 h-5" />
-                  </Link>
-                </Button>
-                
-                <Button 
-                  asChild 
-                  variant="outline" 
-                  className="w-full py-6 rounded-xl text-lg font-semibold border-2 hover:bg-white/10 dark:hover:bg-slate-700/30"
-                  data-testid="button-register"
-                >
-                  <Link href="/register" className="flex items-center justify-center gap-2">
-                    Créer un compte
-                    <ArrowRight className="w-5 h-5" />
-                  </Link>
-                </Button>
-              </div>
-
-              {/* Trust Indicators */}
-              <div className="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
-                <p className="text-xs text-gray-500 dark:text-gray-400 text-center mb-4">SÉCURISÉ ET FIABLE</p>
-                <div className="flex justify-center gap-4 text-2xl text-gray-400 dark:text-gray-500">
-                  <i className="fas fa-lock"></i>
-                  <i className="fas fa-shield-alt"></i>
-                  <i className="fas fa-certificate"></i>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Bottom Info */}
-          <div className="mt-8 text-center text-gray-300 dark:text-gray-400 text-sm">
-            <p>Disponible sur web et mobile</p>
+        {/* Logo */}
+        <div className="flex flex-col items-center mb-6 z-10">
+          <div className="w-20 h-20 rounded-[22px] overflow-hidden shadow-xl ring-4 ring-white/20 mb-4">
+            <img src={logoPath} alt="SIKA TEXTE" className="w-full h-full object-cover" />
           </div>
+          <h1 className="text-white font-black text-3xl tracking-tight" data-testid="app-title">
+            SIKA TEXTE
+          </h1>
+          <span
+            className="text-xs font-bold uppercase tracking-[0.2em] mt-1 px-3 py-1 rounded-full"
+            style={{ background: "rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.7)" }}
+          >
+            Business
+          </span>
+          <p className="text-blue-200 text-sm text-center mt-3 leading-relaxed max-w-[260px]">
+            Gagnez de l'argent en corrigeant des textes, directement sur votre téléphone
+          </p>
+        </div>
+
+        {/* Bénéfices */}
+        <div className="w-full z-10 space-y-2.5 max-w-sm">
+          {BENEFITS.map((b, i) => (
+            <div key={i} className="flex items-center gap-2.5">
+              <CheckCircle size={15} className="text-emerald-400 flex-shrink-0" />
+              <span className="text-white/80 text-sm">{b}</span>
+            </div>
+          ))}
         </div>
       </div>
 
-      <style>{`
-        @keyframes blob {
-          0%, 100% {
-            transform: translate(0, 0) scale(1);
-          }
-          33% {
-            transform: translate(30px, -50px) scale(1.1);
-          }
-          66% {
-            transform: translate(-20px, 20px) scale(0.9);
-          }
-        }
-        
-        .animate-blob {
-          animation: blob 7s infinite;
-        }
-        
-        .animation-delay-2000 {
-          animation-delay: 2s;
-        }
-      `}</style>
+      {/* ── Statistiques ── */}
+      <div className="px-5 -mt-5 z-10 flex-shrink-0">
+        <div className="bg-white rounded-[20px] shadow-sm border border-gray-100 flex divide-x divide-gray-100">
+          {STATS.map((s, i) => (
+            <div key={i} className="flex-1 flex flex-col items-center py-4 px-2">
+              <s.icon size={18} className="text-blue-500 mb-1" />
+              <p className="text-gray-900 font-black text-base leading-tight">{s.value}</p>
+              <p className="text-gray-400 text-[10px] text-center">{s.label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Spacer ── */}
+      <div className="flex-1" />
+
+      {/* ── Boutons CTA ── */}
+      <div className="px-5 pb-10 space-y-3">
+        <Link href="/simple-login">
+          <button
+            data-testid="button-login"
+            className="w-full py-4 rounded-2xl font-black text-base text-white transition-all active:scale-[0.97] shadow-lg"
+            style={{ background: "linear-gradient(135deg, #1a4fa0, #3b82f6)" }}
+          >
+            <span className="flex items-center justify-center gap-2">
+              Se connecter <ArrowRight size={18} />
+            </span>
+          </button>
+        </Link>
+
+        <Link href="/register">
+          <button
+            data-testid="button-register"
+            className="w-full py-4 rounded-2xl font-bold text-base border-2 border-gray-200 bg-white text-gray-700 transition-all active:scale-[0.97]"
+          >
+            <span className="flex items-center justify-center gap-2">
+              Créer un compte <ArrowRight size={18} className="text-blue-500" />
+            </span>
+          </button>
+        </Link>
+
+        <p className="text-center text-gray-400 text-xs pt-1">
+          Disponible en Afrique de l'Ouest · Sécurisé · Gratuit
+        </p>
+      </div>
     </div>
   );
 }
