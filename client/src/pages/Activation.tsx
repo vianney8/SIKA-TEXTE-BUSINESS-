@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   CheckCircle, Loader2, Clock, XCircle, RefreshCw,
-  ShieldCheck, ChevronRight, ChevronLeft, Phone, Globe, AlertCircle
+  ShieldCheck, ChevronRight, ChevronLeft, Phone, Globe, AlertCircle, ArrowLeft
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -35,14 +35,21 @@ const OPERATORS: Record<string, { name: string; full: string; bg: string; text: 
 function UpayHeader({ amount }: { amount: string }) {
   return (
     <div className="bg-gradient-to-br from-[#0f2460] to-[#1a3a8f] text-white px-5 pt-8 pb-10">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-11 h-11 rounded-2xl bg-white/15 flex items-center justify-center shadow-inner">
-          <ShieldCheck size={22} />
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl bg-white/15 flex items-center justify-center shadow-inner">
+            <ShieldCheck size={22} />
+          </div>
+          <div>
+            <p className="text-[10px] text-blue-300 uppercase tracking-[0.2em] font-bold">Upay</p>
+            <p className="font-black text-lg leading-tight">SIKA TEXTE</p>
+          </div>
         </div>
-        <div>
-          <p className="text-[10px] text-blue-300 uppercase tracking-[0.2em] font-bold">Upay</p>
-          <p className="font-black text-lg leading-tight">SIKA TEXTE</p>
-        </div>
+        <Link href="/withdrawal">
+          <button className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 transition-colors rounded-xl px-3 py-1.5 text-xs font-semibold text-white/80">
+            <ArrowLeft size={13} /> Retour
+          </button>
+        </Link>
       </div>
       <p className="text-blue-200 text-xs font-semibold mb-1 uppercase tracking-wider">Frais d'activation</p>
       <div className="flex items-end gap-1">

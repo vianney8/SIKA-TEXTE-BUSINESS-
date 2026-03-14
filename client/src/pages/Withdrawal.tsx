@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -87,13 +87,9 @@ export default function Withdrawal() {
   const { toast } = useToast();
   const [amount, setAmount] = useState("");
   const [showSupervisorDialog, setShowSupervisorDialog] = useState(false);
-  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   
   // Récupérer les liens dynamiques depuis les paramètres admin
   const { data: telegramSupervisor } = useAppSetting('telegram_supervisor');
-  const { data: solvexpayEnabled } = useAppSetting('solvexpay_enabled');
-  const { data: solvexpayName } = useAppSetting('solvexpay_name');
-  const isSolvexpayActive = solvexpayEnabled !== 'false';
 
   const { data: withdrawalData, refetch: refetchWithdrawalData } = useQuery<WithdrawalData>({
     queryKey: ['/api/withdrawal'],
@@ -161,76 +157,6 @@ export default function Withdrawal() {
       });
     },
   });
-
-  // Payment state
-
-  // SolvexPay API flow states
-  const [svxLoading, setSvxLoading] = useState(false);
-  const [svxTransactionId, setSvxTransactionId] = useState<string | null>(null);
-  const [svxTxStatus, setSvxTxStatus] = useState<"pending" | "completed" | "failed" | null>(null);
-  const [svxCheckCount, setSvxCheckCount] = useState(0);
-  const [svxRedirecting, setSvxRedirecting] = useState(false);
-  const svxIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Poll SolvexPay transaction status
-  useEffect(() => {
-    if (!svxTransactionId || svxTxStatus === "completed" || svxTxStatus === "failed") return;
-    const check = async () => {
-      try {
-        const res = await fetch(`/api/activation/check-solvexpay/${svxTransactionId}`, { credentials: "include" });
-        if (!res.ok) return;
-        const data = await res.json();
-        setSvxCheckCount(c => c + 1);
-        if (data.status === "completed" || data.activated) {
-          setSvxTxStatus("completed");
-          clearInterval(svxIntervalRef.current!);
-          refetchWithdrawalData();
-        } else if (data.status === "failed") {
-          setSvxTxStatus("failed");
-          clearInterval(svxIntervalRef.current!);
-        }
-      } catch {}
-    };
-    check();
-    svxIntervalRef.current = setInterval(check, 5000);
-    return () => clearInterval(svxIntervalRef.current!);
-  }, [svxTransactionId]);
-
-  const handleSvxReset = () => {
-    setSvxTransactionId(null);
-    setSvxTxStatus(null);
-    setSvxCheckCount(0);
-    setSvxRedirecting(false);
-    if (svxIntervalRef.current) clearInterval(svxIntervalRef.current);
-  };
-
-  // SolvexPay payment handler — auto from user profile, no form
-  const handlePaySolvexpay = async () => {
-    setSvxLoading(true);
-    try {
-      const res = await fetch("/api/activation/init-solvexpay", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || "Erreur lors de l'initiation du paiement");
-
-      if (data.paymentUrl) {
-        setSvxRedirecting(true);
-        setTimeout(() => { window.location.href = data.paymentUrl; }, 600);
-        return;
-      }
-      setSvxTransactionId(data.transactionId);
-      setSvxTxStatus("pending");
-      toast({ title: "USSD envoyé !", description: "Validez le paiement sur votre téléphone." });
-    } catch (err: any) {
-      toast({ title: "Erreur", description: err.message || "Impossible d'initier le paiement", variant: "destructive" });
-    } finally {
-      setSvxLoading(false);
-    }
-  };
 
   const handleWithdraw = () => {
     const withdrawalAmount = parseFloat(amount);
@@ -315,12 +241,14 @@ export default function Withdrawal() {
                 <div className="space-y-4">
                   <Button 
                     data-testid="button-pay-activation"
-                    onClick={() => setShowPaymentDialog(true)}
+                    asChild
                     size="lg" 
                     className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-6 text-lg"
                   >
-                    <CreditCard className="w-6 h-6 mr-2" />
-                    Payer l'activation en ligne
+                    <Link href="/activation">
+                      <CreditCard className="w-6 h-6 mr-2" />
+                      Payer l'activation en ligne
+                    </Link>
                   </Button>
 
                   <div className="bg-orange-50 dark:bg-orange-900 p-4 rounded-lg">
@@ -377,135 +305,6 @@ export default function Withdrawal() {
         </DialogContent>
       </Dialog>
 
-      {/* Payment Gateway Selection Dialog */}
-      <Dialog open={showPaymentDialog} onOpenChange={(open) => { setShowPaymentDialog(open); if (!open) setShowSolvexpayForm(false); }}>
-        <DialogContent className="p-0 overflow-hidden max-w-sm">
-          {/* SIKA TEXTE BUSINESS logo */}
-          <div className="flex flex-col items-center py-4 bg-white border-b border-gray-100">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-blue-700 flex items-center justify-center">
-                <span className="text-white font-black text-xs">ST</span>
-              </div>
-              <div className="leading-none">
-                <p className="font-black text-primary text-sm tracking-tight">SIKA TEXTE</p>
-                <p className="font-semibold text-blue-700 text-[9px] tracking-widest uppercase">Business</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="p-4">
-            <DialogHeader className="mb-3">
-              <DialogTitle className="text-center text-sm">
-                {svxRedirecting ? "Redirection en cours" : svxTxStatus ? "Vérification du paiement" : "Choisissez votre passerelle"}
-              </DialogTitle>
-            </DialogHeader>
-
-            {/* Redirect loading */}
-            {svxRedirecting ? (
-              <div className="text-center space-y-4 py-2">
-                <div className="relative mx-auto w-16 h-16 flex items-center justify-center">
-                  <div className="absolute inset-0 rounded-full bg-blue-100 animate-ping opacity-60" />
-                  <div className="w-14 h-14 rounded-full bg-blue-50 border-4 border-primary flex items-center justify-center">
-                    <Loader2 className="text-primary animate-spin" size={28} />
-                  </div>
-                </div>
-                <div>
-                  <p className="font-bold text-gray-900 text-base">Redirection vers SolvexPay</p>
-                  <p className="text-gray-500 text-xs mt-1">Vous allez être redirigé vers la page de paiement sécurisée.</p>
-                </div>
-                <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-700">
-                  Ne fermez pas cette fenêtre.
-                </div>
-              </div>
-            ) : svxTransactionId && svxTxStatus ? (
-              /* USSD verification */
-              <div className="space-y-4">
-                {svxTxStatus === "pending" && (
-                  <div className="text-center space-y-3">
-                    <div className="relative mx-auto w-16 h-16 flex items-center justify-center">
-                      <div className="absolute inset-0 rounded-full bg-blue-100 animate-ping opacity-60" />
-                      <div className="w-14 h-14 rounded-full bg-blue-50 border-4 border-primary flex items-center justify-center">
-                        <Clock className="text-primary" size={24} />
-                      </div>
-                    </div>
-                    <div>
-                      <p className="font-bold text-gray-900 text-base">En attente de confirmation</p>
-                      <p className="text-gray-500 text-xs mt-1">Validez le paiement sur votre téléphone.</p>
-                    </div>
-                    <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-800 space-y-1 text-left">
-                      <p>📱 Notification USSD envoyée</p>
-                      <p>⏱ Vérification automatique toutes les 5 s</p>
-                      <p className="text-blue-400">Tentative #{svxCheckCount + 1}</p>
-                    </div>
-                    <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
-                      <Loader2 size={12} className="animate-spin" />Actualisation en cours…
-                    </div>
-                  </div>
-                )}
-                {svxTxStatus === "completed" && (
-                  <div className="text-center space-y-3">
-                    <div className="w-16 h-16 rounded-full bg-green-100 mx-auto flex items-center justify-center">
-                      <CheckCircle className="text-green-600" size={36} />
-                    </div>
-                    <div>
-                      <p className="font-bold text-green-800 text-lg">Paiement confirmé !</p>
-                      <p className="text-gray-600 text-xs mt-1">Votre compte est en cours d'activation.</p>
-                    </div>
-                    <Button
-                      onClick={() => { handleSvxReset(); setShowPaymentDialog(false); refetchWithdrawalData(); }}
-                      className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl"
-                    >
-                      Fermer
-                    </Button>
-                  </div>
-                )}
-                {svxTxStatus === "failed" && (
-                  <div className="text-center space-y-3">
-                    <div className="w-16 h-16 rounded-full bg-red-100 mx-auto flex items-center justify-center">
-                      <XCircle className="text-red-600" size={36} />
-                    </div>
-                    <div>
-                      <p className="font-bold text-red-800 text-lg">Paiement échoué</p>
-                      <p className="text-gray-600 text-xs mt-1">Vérifiez votre solde et réessayez.</p>
-                    </div>
-                    <Button onClick={handleSvxReset} className="w-full" variant="outline">
-                      <RefreshCw size={14} className="mr-2" />Réessayer
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              /* Gateway selection */
-              <div className="space-y-3">
-                {isSolvexpayActive && (
-                  <Button
-                    data-testid="button-payment-solvexpay"
-                    onClick={handlePaySolvexpay}
-                    disabled={svxLoading}
-                    size="lg"
-                    className="w-full bg-gradient-to-r from-primary to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-5"
-                  >
-                    {svxLoading
-                      ? <><Loader2 size={16} className="animate-spin mr-2" />Connexion…</>
-                      : <><Smartphone className="w-5 h-5 mr-2" />{solvexpayName || "SolvexPay — Mobile Money"}</>
-                    }
-                  </Button>
-                )}
-
-                {!isSolvexpayActive && (
-                  <div className="text-center py-4">
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                      <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
-                      <p className="text-amber-700 font-medium">Passerelle indisponible</p>
-                      <p className="text-sm text-amber-600 mt-1">Veuillez contacter le support</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
       </>
     );
   }
