@@ -9,9 +9,9 @@ const BENEFITS = [
 ];
 
 const STATS = [
-  { icon: Users,  value: "50 000+", label: "Membres actifs" },
-  { icon: Globe,  value: "6 pays",  label: "Afrique de l'Ouest" },
-  { icon: Wallet, value: "24h",     label: "Délai de retrait" },
+  { icon: Users,  value: "10 000+",           label: "Membres actifs" },
+  { icon: Globe,  value: "6 pays",             label: "Afrique de l'Ouest" },
+  { icon: Wallet, value: "Automatique",        label: "Délai de retrait" },
 ];
 
 export default function Landing() {
