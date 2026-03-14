@@ -5,11 +5,12 @@ import MobileHeader from "@/components/MobileHeader";
 import HamburgerMenu from "@/components/HamburgerMenu";
 import BottomNavigation from "@/components/BottomNavigation";
 import MiddleNotification from "@/components/MiddleNotification";
+import TestimonialsSlider from "@/components/TestimonialsSlider";
 import { useToast } from "@/hooks/use-toast";
 import { useAppSetting } from "@/hooks/useAppSettings";
 import { FaTelegram } from "react-icons/fa";
 import { Link } from "wouter";
-import { Zap, Users, ChevronRight, TrendingUp, Clock, Briefcase, Star, Gift } from "lucide-react";
+import { Zap, Users, ChevronRight, TrendingUp, Clock, Briefcase, Star, Gift, CreditCard, HelpCircle } from "lucide-react";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -104,14 +105,10 @@ export default function Dashboard() {
             onClick={handlePointage}
             data-testid="button-pointage"
             className="w-full rounded-3xl overflow-hidden relative active:scale-95 transition-transform"
-            style={{
-              background: "linear-gradient(135deg, #7c3aed 0%, #a855f7 45%, #ec4899 100%)",
-            }}
+            style={{ background: "linear-gradient(135deg, #7c3aed 0%, #a855f7 45%, #ec4899 100%)" }}
           >
-            {/* cercle décoratif */}
             <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/10" />
             <div className="absolute -bottom-4 -left-4 w-24 h-24 rounded-full bg-white/10" />
-
             <div className="relative flex items-center justify-between px-5 py-4">
               <div className="flex items-center gap-3">
                 <div className="w-11 h-11 bg-white/20 rounded-2xl flex items-center justify-center">
@@ -130,7 +127,7 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* ── Cartes rapides ──────────────────────────────────────── */}
+        {/* ── Cartes rapides (6 icônes) ────────────────────────────── */}
         <div className="px-4 mt-3 grid grid-cols-3 gap-3">
           <Link href="/work">
             <div className="bg-white rounded-2xl p-3.5 shadow-sm border border-gray-100 text-center cursor-pointer hover:shadow-md active:scale-95 transition-all">
@@ -148,7 +145,7 @@ export default function Dashboard() {
                 <Clock size={18} className="text-emerald-600" />
               </div>
               <p className="text-gray-800 font-semibold text-xs">Historique</p>
-              <p className="text-gray-400 text-[10px] mt-0.5">{transactionCount} opérations</p>
+              <p className="text-gray-400 text-[10px] mt-0.5">{transactionCount} opérat.</p>
             </div>
           </Link>
 
@@ -161,12 +158,42 @@ export default function Dashboard() {
               <p className="text-gray-400 text-[10px] mt-0.5">Parrainer</p>
             </div>
           </Link>
+
+          <Link href="/withdrawal">
+            <div className="bg-white rounded-2xl p-3.5 shadow-sm border border-gray-100 text-center cursor-pointer hover:shadow-md active:scale-95 transition-all">
+              <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center mx-auto mb-2">
+                <CreditCard size={18} className="text-orange-500" />
+              </div>
+              <p className="text-gray-800 font-semibold text-xs">Retrait</p>
+              <p className="text-gray-400 text-[10px] mt-0.5">Mobile Money</p>
+            </div>
+          </Link>
+
+          <Link href="/summary">
+            <div className="bg-white rounded-2xl p-3.5 shadow-sm border border-gray-100 text-center cursor-pointer hover:shadow-md active:scale-95 transition-all">
+              <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center mx-auto mb-2">
+                <TrendingUp size={18} className="text-indigo-600" />
+              </div>
+              <p className="text-gray-800 font-semibold text-xs">Stats</p>
+              <p className="text-gray-400 text-[10px] mt-0.5">Mes gains</p>
+            </div>
+          </Link>
+
+          <Link href="/assistance">
+            <div className="bg-white rounded-2xl p-3.5 shadow-sm border border-gray-100 text-center cursor-pointer hover:shadow-md active:scale-95 transition-all">
+              <div className="w-10 h-10 bg-teal-50 rounded-xl flex items-center justify-center mx-auto mb-2">
+                <HelpCircle size={18} className="text-teal-600" />
+              </div>
+              <p className="text-gray-800 font-semibold text-xs">Assistance</p>
+              <p className="text-gray-400 text-[10px] mt-0.5">Support</p>
+            </div>
+          </Link>
         </div>
 
         {/* ── Sections colorées animées ────────────────────────────── */}
         <div className="px-4 mt-4 space-y-3">
 
-          {/* Travaux disponibles – gradient vert */}
+          {/* Travaux disponibles */}
           <Link href="/work">
             <div
               className="rounded-2xl p-4 flex items-center justify-between cursor-pointer active:scale-95 transition-transform"
@@ -185,7 +212,7 @@ export default function Dashboard() {
             </div>
           </Link>
 
-          {/* Parrainage – gradient orange */}
+          {/* Parrainage */}
           <Link href="/team">
             <div
               className="rounded-2xl p-4 flex items-center justify-between cursor-pointer active:scale-95 transition-transform"
@@ -198,25 +225,6 @@ export default function Dashboard() {
                 <div>
                   <p className="text-white font-bold text-sm">Parrainage</p>
                   <p className="text-orange-100 text-xs">Invitez et gagnez des bonus</p>
-                </div>
-              </div>
-              <ChevronRight size={18} className="text-white/70" />
-            </div>
-          </Link>
-
-          {/* Statistiques – gradient bleu */}
-          <Link href="/summary">
-            <div
-              className="rounded-2xl p-4 flex items-center justify-between cursor-pointer active:scale-95 transition-transform"
-              style={{ background: "linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)" }}
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                  <TrendingUp size={18} className="text-white" />
-                </div>
-                <div>
-                  <p className="text-white font-bold text-sm">Mes statistiques</p>
-                  <p className="text-blue-100 text-xs">Suivez vos gains et activités</p>
                 </div>
               </div>
               <ChevronRight size={18} className="text-white/70" />
@@ -241,6 +249,9 @@ export default function Dashboard() {
             </div>
             <ChevronRight size={18} className="text-white/70 flex-shrink-0" />
           </a>
+
+          {/* Témoignages */}
+          <TestimonialsSlider />
 
         </div>
       </main>
