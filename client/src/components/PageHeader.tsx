@@ -1,37 +1,37 @@
-import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 import { Link } from "wouter";
 
 interface PageHeaderProps {
   title: string;
+  subtitle?: string;
   backHref?: string;
   rightElement?: React.ReactNode;
 }
 
-export default function PageHeader({ title, backHref = "/", rightElement }: PageHeaderProps) {
+export default function PageHeader({ title, subtitle, backHref = "/", rightElement }: PageHeaderProps) {
   return (
-    <header
-      className="shadow-md"
-      style={{ background: "linear-gradient(135deg, #1a237e 0%, #283593 40%, #1565c0 100%)" }}
-    >
-      <div className="px-4 py-4 flex items-center justify-between">
-        <Button
-          asChild
-          variant="ghost"
-          size="sm"
-          className="text-white hover:bg-white/20 transition-colors p-2"
-        >
-          <Link href={backHref}>
-            <ArrowLeft size={22} strokeWidth={2.5} />
-          </Link>
-        </Button>
-
-        <h1 className="text-white font-bold text-base tracking-wide">{title}</h1>
-
-        <div className="w-10 flex justify-end">
-          {rightElement || null}
+    <div className="relative overflow-hidden"
+      style={{ background: "linear-gradient(160deg, #0f172a, #1e3a5f, #1a4fa0)" }}>
+      <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl opacity-20"
+        style={{ background: "radial-gradient(circle, #60a5fa, transparent)" }} />
+      <div className="px-4 pt-4 pb-5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link href={backHref}>
+              <div className="w-9 h-9 bg-white/10 rounded-xl flex items-center justify-center active:bg-white/20 transition-colors">
+                <ChevronLeft size={20} className="text-white" />
+              </div>
+            </Link>
+            <div>
+              <h1 className="text-white font-black text-xl">{title}</h1>
+              {subtitle && <p className="text-blue-300 text-xs">{subtitle}</p>}
+            </div>
+          </div>
+          {rightElement && (
+            <div className="flex-shrink-0">{rightElement}</div>
+          )}
         </div>
       </div>
-    </header>
+    </div>
   );
 }

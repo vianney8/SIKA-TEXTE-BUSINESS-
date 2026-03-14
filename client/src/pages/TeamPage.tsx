@@ -1,9 +1,5 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Users, Share2, Gift, QrCode, Copy, Check } from "lucide-react";
+import { Users, Share2, Gift, Copy, Check, ChevronLeft, TrendingUp, UserCheck } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import BottomNavigation from "@/components/BottomNavigation";
 import { useQuery } from "@tanstack/react-query";
@@ -33,277 +29,205 @@ export default function TeamPage() {
     queryKey: ['/api/referrals'],
   });
 
+  const referralLink = referralData?.referralCode
+    ? `https://sikatexte.site/register?ref=${referralData.referralCode}`
+    : "";
+
   const copyReferralCode = async () => {
     if (!referralData?.referralCode) return;
-    
     try {
-      await navigator.clipboard.writeText(referralData.referralCode);
+      await navigator.clipboard.writeText(referralLink);
       setCopied(true);
-      toast({
-        title: "Code copié ! 📋",
-        description: "Votre code de parrainage a été copié dans le presse-papiers",
-      });
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      toast({
-        title: "Erreur",
-        description: "Impossible de copier le code",
-        variant: "destructive",
-      });
+      toast({ title: "✅ Lien copié !", description: "Partagez-le avec vos amis" });
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      toast({ title: "Erreur", description: "Impossible de copier", variant: "destructive" });
     }
   };
 
   const shareReferralCode = async () => {
     if (!referralData?.referralCode) return;
-
-    const shareText = `Rejoignez SIKA TEXTE BUSINESS et gagnez de l'argent en corrigeant des phrases ! Utilisez mon code de parrainage : ${referralData.referralCode}`;
-    
+    const shareText = `Rejoignez SIKA TEXTE et gagnez de l'argent ! Mon lien : ${referralLink}`;
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: 'SIKA TEXTE BUSINESS',
-          text: shareText,
-        });
-      } catch (err) {
-        // Fallback to copy
-        copyReferralCode();
-      }
+        await navigator.share({ title: 'SIKA TEXTE', text: shareText });
+      } catch { copyReferralCode(); }
     } else {
-      // Fallback to copy
       copyReferralCode();
     }
   };
 
+  const total   = referralData?.totalReferrals || 0;
+  const active  = referralData?.activeReferrals || 0;
+  const comm    = referralData?.totalCommission || 0;
+  const monthly = referralData?.monthlyCommission || 0;
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <PageHeader title="Mon Équipe" backHref="/" />
-      <div className="p-4 pb-24">
-        <div className="max-w-md mx-auto space-y-4">
-        
-        {/* Header */}
-        <div className="text-center mb-6">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4">
-            <Users className="w-8 h-8 text-white" />
+    <div className="min-h-screen" style={{ background: "#f0f4f8" }}>
+      {/* Header premium */}
+      <div className="relative overflow-hidden"
+        style={{ background: "linear-gradient(160deg, #0f172a, #1e3a5f, #1a4fa0)" }}>
+        <div className="absolute top-0 right-0 w-40 h-40 rounded-full blur-3xl opacity-20"
+          style={{ background: "radial-gradient(circle, #a78bfa, transparent)" }} />
+        <div className="px-4 pt-4 pb-5">
+          <div className="flex items-center gap-3 mb-4">
+            <Link href="/">
+              <div className="w-9 h-9 bg-white/10 rounded-xl flex items-center justify-center active:bg-white/20">
+                <ChevronLeft size={20} className="text-white" />
+              </div>
+            </Link>
+            <div>
+              <h1 className="text-white font-black text-xl">Mon Équipe</h1>
+              <p className="text-blue-300 text-xs">Parrainez · Gagnez 20% de commission</p>
+            </div>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            Mon Équipe
-          </h1>
-          <p className="text-slate-600 dark:text-slate-400">
-            Parrainez et gagnez 20% de commission
-          </p>
+
+          {/* Statistiques */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white/10 rounded-2xl p-3.5">
+              <div className="flex items-center gap-1.5 mb-1">
+                <Users size={12} className="text-blue-300" />
+                <span className="text-blue-300 text-[10px] uppercase tracking-wider">Parrainés</span>
+              </div>
+              <p className="text-white font-black text-3xl">{total}</p>
+            </div>
+            <div className="bg-white/10 rounded-2xl p-3.5">
+              <div className="flex items-center gap-1.5 mb-1">
+                <UserCheck size={12} className="text-green-400" />
+                <span className="text-blue-300 text-[10px] uppercase tracking-wider">Actifs</span>
+              </div>
+              <p className="text-green-400 font-black text-3xl">{active}</p>
+            </div>
+          </div>
         </div>
+      </div>
 
-        {/* Referral Link Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Share2 className="w-5 h-5 text-blue-600" />
-              Mon Lien de Parrainage
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-lg">
-                <p className="text-xs text-slate-500 mb-2">Lien de parrainage :</p>
-                <p className="text-sm font-mono break-all">
-                  {referralData?.referralCode 
-                    ? `https://sikatexte.site/register?ref=${referralData.referralCode}`
-                    : "Chargement du lien..."
-                  }
-                </p>
-              </div>
-              <Button 
-                onClick={() => {
-                  if (!referralData?.referralCode) {
-                    toast({
-                      title: "Erreur",
-                      description: "Code de parrainage non disponible",
-                      variant: "destructive",
-                    });
-                    return;
-                  }
-                  const referralLink = `https://sikatexte.site/register?ref=${referralData.referralCode}`;
-                  navigator.clipboard.writeText(referralLink);
-                  toast({
-                    title: "Lien copié ! 📋",
-                    description: "Votre lien de parrainage a été copié dans le presse-papiers",
-                  });
-                }}
-                className="w-full flex items-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 border-0"
-                data-testid="button-copy-referral-link"
-                disabled={!referralData?.referralCode}
-              >
-                <Copy className="w-4 h-4" />
-                Copier le lien
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="px-4 pt-4 pb-28 space-y-4">
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 gap-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">
-                  {referralData?.totalReferrals || 0}
-                </div>
-                <p className="text-xs text-slate-600 dark:text-slate-400">
-                  Total parrainés
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">
-                  {referralData?.activeReferrals || 0}
-                </div>
-                <p className="text-xs text-slate-600 dark:text-slate-400">
-                  Comptes activés
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Commission Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Gift className="w-5 h-5 text-yellow-600" />
-              Mes Commissions
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span>Total gagné</span>
-                <span className="font-semibold text-green-600">
-                  {referralData?.totalCommission || 0} FCFA
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span>Ce mois</span>
-                <span className="font-semibold text-blue-600">
-                  {referralData?.monthlyCommission || 0} FCFA
-                </span>
-              </div>
-              <div className="text-xs text-slate-500 bg-slate-100 dark:bg-slate-800 p-2 rounded">
-                💡 Gagnez 20% sur chaque activation de compte parrainé
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* QR Code Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <QrCode className="w-5 h-5 text-purple-600" />
-              Scanner pour parrainer
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center space-y-4">
-              {/* QR Code SVG - Code de parrainage générique */}
-              <div className="mx-auto w-48 h-48 bg-white p-4 rounded-lg shadow-sm">
-                <svg width="100%" height="100%" viewBox="0 0 200 200" className="border">
-                  {/* QR Code pattern - représentation simplifiée */}
-                  <rect width="200" height="200" fill="white"/>
-                  {/* Coins de positionnement */}
-                  <rect x="10" y="10" width="30" height="30" fill="black"/>
-                  <rect x="160" y="10" width="30" height="30" fill="black"/>
-                  <rect x="10" y="160" width="30" height="30" fill="black"/>
-                  <rect x="15" y="15" width="20" height="20" fill="white"/>
-                  <rect x="165" y="15" width="20" height="20" fill="white"/>
-                  <rect x="15" y="165" width="20" height="20" fill="white"/>
-                  <rect x="20" y="20" width="10" height="10" fill="black"/>
-                  <rect x="170" y="20" width="10" height="10" fill="black"/>
-                  <rect x="20" y="170" width="10" height="10" fill="black"/>
-                  
-                  {/* Pattern de données */}
-                  <rect x="50" y="20" width="5" height="5" fill="black"/>
-                  <rect x="60" y="20" width="5" height="5" fill="black"/>
-                  <rect x="75" y="20" width="5" height="5" fill="black"/>
-                  <rect x="85" y="20" width="5" height="5" fill="black"/>
-                  <rect x="100" y="20" width="5" height="5" fill="black"/>
-                  <rect x="115" y="20" width="5" height="5" fill="black"/>
-                  <rect x="130" y="20" width="5" height="5" fill="black"/>
-                  <rect x="145" y="20" width="5" height="5" fill="black"/>
-                  
-                  <rect x="50" y="30" width="5" height="5" fill="black"/>
-                  <rect x="65" y="30" width="5" height="5" fill="black"/>
-                  <rect x="80" y="30" width="5" height="5" fill="black"/>
-                  <rect x="95" y="30" width="5" height="5" fill="black"/>
-                  <rect x="110" y="30" width="5" height="5" fill="black"/>
-                  <rect x="125" y="30" width="5" height="5" fill="black"/>
-                  <rect x="140" y="30" width="5" height="5" fill="black"/>
-                  
-                  {/* Centre du QR */}
-                  <rect x="85" y="85" width="30" height="30" fill="black"/>
-                  <rect x="90" y="90" width="20" height="20" fill="white"/>
-                  <rect x="95" y="95" width="10" height="10" fill="black"/>
-                  
-                  {/* Plus de pattern */}
-                  <rect x="20" y="50" width="5" height="5" fill="black"/>
-                  <rect x="30" y="50" width="5" height="5" fill="black"/>
-                  <rect x="20" y="60" width="5" height="5" fill="black"/>
-                  <rect x="35" y="60" width="5" height="5" fill="black"/>
-                  
-                  <rect x="160" y="50" width="5" height="5" fill="black"/>
-                  <rect x="170" y="50" width="5" height="5" fill="black"/>
-                  <rect x="180" y="50" width="5" height="5" fill="black"/>
-                  
-                  <rect x="50" y="160" width="5" height="5" fill="black"/>
-                  <rect x="60" y="170" width="5" height="5" fill="black"/>
-                  <rect x="70" y="160" width="5" height="5" fill="black"/>
-                  <rect x="80" y="175" width="5" height="5" fill="black"/>
-                  <rect x="90" y="160" width="5" height="5" fill="black"/>
-                  <rect x="100" y="170" width="5" height="5" fill="black"/>
-                  <rect x="110" y="165" width="5" height="5" fill="black"/>
-                  <rect x="120" y="180" width="5" height="5" fill="black"/>
-                </svg>
-              </div>
-              
-              <div className="text-sm text-slate-600 dark:text-slate-400">
-                Scannez ce code QR pour rejoindre avec mon code de parrainage
-              </div>
-              
-              <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-lg">
-                <p className="text-xs text-slate-500 mb-2">Code de parrainage :</p>
-                <p className="text-lg font-mono font-bold">
-                  {referralData?.referralCode || 'SIKA2024USER'}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Share Buttons */}
+        {/* Commissions */}
         <div className="grid grid-cols-2 gap-3">
-          <Button 
-            data-testid="button-copy-referral"
-            onClick={copyReferralCode}
-            variant="outline" 
-            className="flex items-center gap-2"
-          >
-            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-            {copied ? 'Copié !' : 'Copier'}
-          </Button>
-          <Button 
-            data-testid="button-share-referral"
-            onClick={shareReferralCode}
-            className="flex items-center gap-2"
-          >
-            <Share2 className="w-4 h-4" />
-            Partager
-          </Button>
+          <div className="relative overflow-hidden rounded-[18px] p-4"
+            style={{ background: "linear-gradient(135deg, #059669, #34d399)" }}>
+            <div className="absolute -top-4 -right-4 w-20 h-20 rounded-full bg-white/10" />
+            <TrendingUp size={18} className="text-white mb-2" />
+            <p className="text-green-100 text-[10px] uppercase tracking-wider">Total commissions</p>
+            <p className="text-white font-black text-lg">{comm} <span className="text-sm font-semibold">FCFA</span></p>
+          </div>
+          <div className="relative overflow-hidden rounded-[18px] p-4"
+            style={{ background: "linear-gradient(135deg, #7c3aed, #a855f7)" }}>
+            <div className="absolute -top-4 -right-4 w-20 h-20 rounded-full bg-white/10" />
+            <Gift size={18} className="text-white mb-2" />
+            <p className="text-purple-200 text-[10px] uppercase tracking-wider">Ce mois</p>
+            <p className="text-white font-black text-lg">{monthly} <span className="text-sm font-semibold">FCFA</span></p>
+          </div>
         </div>
 
+        {/* Lien de parrainage */}
+        <div className="bg-white rounded-[20px] shadow-sm overflow-hidden">
+          <div className="px-5 pt-5 pb-3 border-b border-gray-50">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center"
+                style={{ background: "linear-gradient(135deg, #f97316, #fb923c)" }}>
+                <Share2 size={15} className="text-white" />
+              </div>
+              <p className="text-gray-800 font-bold text-sm">Mon lien de parrainage</p>
+            </div>
+          </div>
+
+          <div className="px-5 pt-4 pb-5 space-y-3">
+            {/* Code */}
+            <div className="bg-gray-50 rounded-2xl px-4 py-3 border-2 border-dashed border-gray-200">
+              <p className="text-gray-400 text-[10px] uppercase tracking-wider mb-0.5">Code</p>
+              <p className="text-gray-800 font-black text-lg tracking-widest">
+                {referralData?.referralCode || "—"}
+              </p>
+            </div>
+
+            {/* Lien complet */}
+            <div className="bg-blue-50 rounded-xl px-3 py-2.5 border border-blue-100">
+              <p className="text-blue-500 text-xs font-mono break-all"
+                data-testid="button-copy-referral-link">
+                {referralLink || "Chargement..."}
+              </p>
+            </div>
+
+            {/* Boutons */}
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={copyReferralCode}
+                data-testid="button-copy-referral"
+                className="flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm active:scale-[0.97] transition-transform"
+                style={{ background: copied ? "linear-gradient(135deg,#059669,#34d399)" : "linear-gradient(135deg,#2563eb,#1d4ed8)", color: "#fff" }}>
+                {copied ? <Check size={15} /> : <Copy size={15} />}
+                {copied ? "Copié !" : "Copier"}
+              </button>
+              <button
+                onClick={shareReferralCode}
+                data-testid="button-share-referral"
+                className="flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm active:scale-[0.97] transition-transform"
+                style={{ background: "linear-gradient(135deg,#059669,#047857)", color: "#fff" }}>
+                <Share2 size={15} />
+                Partager
+              </button>
+            </div>
+
+            {/* Info bonus */}
+            <div className="bg-amber-50 rounded-2xl p-3 flex items-start gap-2 border border-amber-100">
+              <span className="text-xl flex-shrink-0">💰</span>
+              <p className="text-amber-700 text-xs font-medium leading-relaxed">
+                Gagnez <strong>20%</strong> de commission sur chaque activation de compte parrainé.
+                Plus vous parrainez, plus vous gagnez !
+              </p>
+            </div>
+          </div>
         </div>
+
+        {/* Liste filleuls */}
+        {referralData?.referrals && referralData.referrals.length > 0 && (
+          <div className="bg-white rounded-[20px] shadow-sm overflow-hidden">
+            <div className="px-5 pt-5 pb-3 border-b border-gray-50 flex items-center justify-between">
+              <p className="text-gray-800 font-bold text-sm">Mes filleuls</p>
+              <span className="text-gray-400 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
+                {referralData.referrals.length}
+              </span>
+            </div>
+            <div className="divide-y divide-gray-50">
+              {referralData.referrals.map((r) => (
+                <div key={r.id} className="px-5 py-3.5 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-sm"
+                    style={{ background: r.isActive ? "linear-gradient(135deg,#059669,#34d399)" : "linear-gradient(135deg,#94a3b8,#cbd5e1)" }}>
+                    {r.name?.charAt(0).toUpperCase() || "?"}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-gray-800 font-semibold text-sm truncate">{r.name}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                        r.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                      }`}>
+                        {r.isActive ? "Actif" : "Inactif"}
+                      </span>
+                      <span className="text-gray-400 text-[10px]">{r.joinDate}</span>
+                    </div>
+                  </div>
+                  <p className="text-green-600 font-black text-sm flex-shrink-0">
+                    +{r.commissionEarned} FCFA
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {(!referralData?.referrals || referralData.referrals.length === 0) && (
+          <div className="bg-white rounded-[20px] shadow-sm px-5 py-10 text-center">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <Users size={28} className="text-gray-300" />
+            </div>
+            <p className="text-gray-500 font-semibold text-sm">Aucun filleul pour l'instant</p>
+            <p className="text-gray-400 text-xs mt-1">Partagez votre lien pour commencer à gagner</p>
+          </div>
+        )}
+
       </div>
       <BottomNavigation currentPage="team" />
     </div>

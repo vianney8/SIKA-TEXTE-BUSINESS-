@@ -119,7 +119,7 @@ export default function Dashboard() {
         {/* ══════════════════════════════════════════
             POINTAGE — carte premium noire
         ══════════════════════════════════════════ */}
-        <div className="px-4 pt-4">
+        <div className="px-4 pt-2">
           <button
             onClick={handlePointage}
             data-testid="button-pointage"
