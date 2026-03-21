@@ -180,6 +180,14 @@ export default function Activation() {
     ? parseInt(paymentInfo.activationAmount).toLocaleString("fr-FR")
     : "3 600";
 
+  const phonePlaceholder = country === "BJ"
+    ? "01 23 45 67 89"
+    : country === "CM"
+      ? "7 12 34 56 78"
+      : country === "CI"
+        ? "05 12 34 56 78"
+        : "01 23 45 67";
+
   useEffect(() => {
     if (!transactionId || txStatus === "completed" || txStatus === "failed") return;
     const check = async () => {
@@ -466,7 +474,7 @@ export default function Activation() {
                   <Input
                     type="tel"
                     inputMode="numeric"
-                    placeholder="Ex : 01 23 45 67"
+                    placeholder={`Ex : ${phonePlaceholder}`}
                     value={phone}
                     onChange={e => setPhone(e.target.value.replace(/[^\d\s]/g, ""))}
                     className="flex-1 rounded-xl border-2 border-gray-200 focus:border-blue-600 py-3 text-base font-semibold"
