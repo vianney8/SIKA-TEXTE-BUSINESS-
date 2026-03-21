@@ -183,7 +183,7 @@ export default function Activation() {
   const phonePlaceholder = country === "BJ"
     ? "01 23 45 67 89"
     : country === "CM"
-      ? "7 12 34 56 78"
+      ? "6 12 34 56 78"
       : country === "CI"
         ? "05 12 34 56 78"
         : "01 23 45 67";
