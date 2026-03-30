@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import express, { type Express } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
 import path from "path";
@@ -94,6 +94,11 @@ async function requireAdmin(req: any, res: any, next: any) {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Serve uploaded files (videos, etc.)
+  const uploadsDir = path.join(process.cwd(), "uploads");
+  if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+  app.use("/uploads", express.static(uploadsDir));
+
   // Setup sessions
   setupSessions(app);
 
@@ -1848,7 +1853,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Route upload vidéo de démonstration
   const videoStorage = multer.diskStorage({
     destination: (_req, _file, cb) => {
-      const dest = path.join(process.cwd(), "client", "public");
+      const dest = path.join(process.cwd(), "uploads");
       if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
       cb(null, dest);
     },
@@ -1865,8 +1870,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/admin/upload-demo-video", requireAdmin, videoUpload.single("video"), async (req: any, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: "Aucun fichier vidéo fourni" });
-      await storage.updateAppSetting("demo_video_url", "/demo_video.mp4");
-      res.json({ message: "Vidéo mise à jour avec succès", url: "/demo_video.mp4" });
+      await storage.updateAppSetting("demo_video_url", "/uploads/demo_video.mp4");
+      res.json({ message: "Vidéo mise à jour avec succès", url: "/uploads/demo_video.mp4" });
     } catch (error: any) {
       console.error("Erreur upload vidéo:", error);
       res.status(500).json({ message: error.message || "Erreur lors de l'upload" });
