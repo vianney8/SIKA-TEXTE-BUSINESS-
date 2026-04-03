@@ -67,6 +67,7 @@ app.use((req, res, next) => {
     { key: 'solvexpay_name',            value: 'SolvexPay — Mobile Money',                         label: 'Nom Passerelle SolvexPay' },
     { key: 'solvexpay_link',            value: '',                                                  label: 'Lien de paiement SolvexPay' },
     { key: 'whatsapp_admin_contact',    value: '',                                                  label: 'WhatsApp Administrateur (Contact Mise à jour)' },
+    { key: 'demo_video_url',            value: '/promo.mp4',                                       label: 'Vidéo démonstration accueil' },
   ];
   try {
     for (const s of defaults) {
@@ -77,6 +78,11 @@ app.use((req, res, next) => {
       `);
     }
     log('App settings seeded');
+    // Fix: reset demo_video_url if it points to an upload that no longer exists
+    await db.execute(sql`
+      UPDATE app_settings SET value = '/promo.mp4'
+      WHERE key = 'demo_video_url' AND value = '/uploads/demo_video.mp4'
+    `);
   } catch (err) {
     log('App settings seed skipped (DB temporarily unavailable): ' + (err as Error).message);
   }

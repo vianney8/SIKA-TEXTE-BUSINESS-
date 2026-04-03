@@ -259,6 +259,7 @@ export default function Dashboard() {
                 playsInline
                 className="w-full rounded-xl"
                 style={{ maxHeight: "300px" }}
+                onError={(e) => { (e.target as HTMLVideoElement).src = "/promo.mp4"; }}
               />
             </div>
           </div>
