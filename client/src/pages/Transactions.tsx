@@ -25,6 +25,16 @@ const getConfig = (type: string) => TYPE_CONFIG[type] || {
 
 const isCredit = (type: string) => ["deposit","pointage","transfer_received","referral","recharge"].includes(type);
 
+const generateRef = (id: string): string => {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = ((hash << 5) - hash) + id.charCodeAt(i);
+    hash = hash & hash;
+  }
+  const num = Math.abs(hash) % 1000000;
+  return `REF_SIKA_${num.toString().padStart(6, "0")}`;
+};
+
 export default function Transactions() {
   const [filterType, setFilterType] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -171,16 +181,16 @@ export default function Transactions() {
                         </p>
                         {statusBadge(t.status)}
                       </div>
-                      <p className="text-gray-400 text-[10px] mt-0.5"
+                      <p className="text-blue-500 text-[10px] font-bold mt-0.5 font-mono tracking-wide">
+                        {generateRef(t.id)}
+                      </p>
+                      <p className="text-gray-400 text-[10px]"
                         data-testid={`text-transaction-date-${t.id}`}>
                         {new Date(t.createdAt).toLocaleDateString("fr-FR", {
                           day: "2-digit", month: "short", year: "numeric",
                           hour: "2-digit", minute: "2-digit"
                         })}
                       </p>
-                      {t.description && (
-                        <p className="text-gray-400 text-[10px] truncate">{t.description}</p>
-                      )}
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className={`font-black text-sm ${credit ? "text-green-600" : "text-red-500"}`}

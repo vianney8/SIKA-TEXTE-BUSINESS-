@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   CreditCard, AlertTriangle, Shield, Banknote,
-  Clock, MessageCircle, Edit3, CheckCircle,
-  ArrowDownCircle, Send, XCircle, ChevronRight
+  MessageCircle, Edit3, CheckCircle,
+  ArrowDownCircle, Send, ChevronRight
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -47,12 +47,6 @@ interface BankCardData {
   id: string; firstName: string; lastName: string;
   cardNumber: string; isDefault: boolean;
 }
-
-const STATUS_CONFIG = {
-  completed: { label: "Terminé",   bg: "#d1fae5", color: "#065f46", icon: CheckCircle },
-  pending:   { label: "En cours",  bg: "#fef3c7", color: "#92400e", icon: Clock      },
-  failed:    { label: "Échoué",    bg: "#fee2e2", color: "#991b1b", icon: XCircle    },
-};
 
 export default function Withdrawal() {
   const { toast } = useToast();
@@ -323,50 +317,6 @@ export default function Withdrawal() {
               : <><Send size={16} /> Demander le retrait</>
             }
           </button>
-        </div>
-
-        {/* Historique */}
-        <div className="bg-white rounded-[20px] shadow-sm border border-gray-100 overflow-hidden">
-          <div className="px-5 pt-4 pb-3 border-b border-gray-50">
-            <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">Historique</p>
-            <p className="text-gray-800 font-bold text-sm">Mes retraits</p>
-          </div>
-
-          {withdrawalData?.withdrawalHistory && withdrawalData.withdrawalHistory.length > 0 ? (
-            <div className="divide-y divide-gray-50">
-              {withdrawalData.withdrawalHistory.map((w) => {
-                const cfg = STATUS_CONFIG[w.status] || STATUS_CONFIG.pending;
-                const Icon = cfg.icon;
-                return (
-                  <div key={w.id} className="flex items-center gap-3 px-5 py-3.5">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                      style={{ background: cfg.bg }}>
-                      <Icon size={18} style={{ color: cfg.color }} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-gray-800 font-bold text-sm">{formatFCFA(w.amount)}</p>
-                      <p className="text-gray-400 text-xs">
-                        {new Date(w.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
-                        {w.phoneNumber && <span className="ml-1.5 text-blue-500">· {w.phoneNumber}</span>}
-                      </p>
-                    </div>
-                    <span className="text-[11px] font-bold px-2.5 py-1 rounded-full flex-shrink-0"
-                      style={{ background: cfg.bg, color: cfg.color }}>
-                      {cfg.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center py-10 px-4 text-center">
-              <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mb-3">
-                <Clock size={24} className="text-gray-400" />
-              </div>
-              <p className="text-gray-500 font-semibold text-sm">Aucun retrait effectué</p>
-              <p className="text-gray-400 text-xs mt-1">Vos retraits apparaîtront ici</p>
-            </div>
-          )}
         </div>
 
         {/* Support */}
