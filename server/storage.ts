@@ -589,40 +589,60 @@ export class DatabaseStorage implements IStorage {
       return todayAssignments.map(a => ({ ...a.sentence, assignedDate: a.assignedDate }));
     }
 
-    // Step 3: Keep trying until we have enough sentences
+    // Step 3: Get all sentence IDs already seen by this user (previous days)
+    const previouslySeenRows = await db
+      .select({ sentenceId: userSentenceAssignments.sentenceId })
+      .from(userSentenceAssignments)
+      .where(
+        and(
+          eq(userSentenceAssignments.userId, userId),
+          sql`${userSentenceAssignments.assignedDate} != ${today}`
+        )
+      );
+    const previouslySeenIds = previouslySeenRows.map(r => r.sentenceId);
+
+    // Helper to fetch unseen sentences excluding given IDs
+    const fetchUnseen = async (excludeIds: string[], needed: number): Promise<Sentence[]> => {
+      const allExclude = [...new Set([...excludeIds, ...previouslySeenIds])];
+      if (allExclude.length > 0) {
+        return db
+          .select()
+          .from(sentences)
+          .where(and(eq(sentences.isActive, true), notInArray(sentences.id, allExclude)))
+          .orderBy(sql`random()`)
+          .limit(needed);
+      }
+      return db
+        .select()
+        .from(sentences)
+        .where(eq(sentences.isActive, true))
+        .orderBy(sql`random()`)
+        .limit(needed);
+    };
+
+    // Step 4: Assign unseen sentences, generate more if needed
     const maxAttempts = 5;
     for (let attempt = 0; attempt < maxAttempts && todayAssignments.length < limit; attempt++) {
-      const assignedIds = todayAssignments.map(a => a.sentence.id);
+      const todayIds = todayAssignments.map(a => a.sentence.id);
       const neededCount = limit - todayAssignments.length;
-      
-      // Get random sentences not yet assigned today
-      let availableSentences: Sentence[];
-      if (assignedIds.length > 0) {
-        availableSentences = await db
-          .select()
-          .from(sentences)
-          .where(
-            and(
-              eq(sentences.isActive, true),
-              notInArray(sentences.id, assignedIds)
-            )
-          )
-          .orderBy(sql`random()`)
-          .limit(neededCount);
-      } else {
-        availableSentences = await db
-          .select()
-          .from(sentences)
-          .where(eq(sentences.isActive, true))
-          .orderBy(sql`random()`)
-          .limit(neededCount);
-      }
 
-      // If not enough sentences, generate more
+      let availableSentences = await fetchUnseen(todayIds, neededCount);
+
+      // If not enough unseen sentences, generate more and retry once
       if (availableSentences.length < neededCount) {
         await this.generateMassiveSentencePool();
-        continue; // Retry with new pool
+        availableSentences = await fetchUnseen(todayIds, neededCount);
       }
+
+      // If still not enough, fall back to any sentences not assigned today
+      if (availableSentences.length < neededCount) {
+        const fallback = todayIds.length > 0
+          ? await db.select().from(sentences).where(and(eq(sentences.isActive, true), notInArray(sentences.id, todayIds))).orderBy(sql`random()`).limit(neededCount)
+          : await db.select().from(sentences).where(eq(sentences.isActive, true)).orderBy(sql`random()`).limit(neededCount);
+        availableSentences = fallback;
+      }
+
+      if (availableSentences.length === 0) break;
 
       // Assign sentences
       for (const sentence of availableSentences) {
@@ -652,63 +672,6 @@ export class DatabaseStorage implements IStorage {
           )
         )
         .limit(limit);
-    }
-
-    // Guarantee: keep trying until we have exactly `limit` sentences
-    while (todayAssignments.length < limit) {
-      const assignedIds = todayAssignments.map(a => a.sentence.id);
-      const stillNeeded = limit - todayAssignments.length;
-      
-      // Get ANY active sentences (no exclusion - allows reuse)
-      const fallbackSentences = await db
-        .select()
-        .from(sentences)
-        .where(eq(sentences.isActive, true))
-        .orderBy(sql`random()`)
-        .limit(stillNeeded * 2); // Fetch extra to handle conflicts
-      
-      if (fallbackSentences.length === 0) {
-        // No sentences exist at all - create emergency batch
-        await this.generateMassiveSentencePool();
-        continue;
-      }
-      
-      // Filter out already assigned today, then assign
-      const unassignedToday = fallbackSentences.filter(s => !assignedIds.includes(s.id));
-      const toAssign = unassignedToday.length > 0 ? unassignedToday : fallbackSentences;
-      
-      for (const sentence of toAssign.slice(0, stillNeeded)) {
-        try {
-          await db.insert(userSentenceAssignments).values({
-            userId,
-            sentenceId: sentence.id,
-            assignedDate: today,
-          }).onConflictDoNothing();
-        } catch {
-          continue;
-        }
-      }
-      
-      // Re-fetch current count
-      todayAssignments = await db
-        .select({
-          sentence: sentences,
-          assignedDate: userSentenceAssignments.assignedDate
-        })
-        .from(userSentenceAssignments)
-        .innerJoin(sentences, eq(userSentenceAssignments.sentenceId, sentences.id))
-        .where(
-          and(
-            eq(userSentenceAssignments.userId, userId),
-            eq(userSentenceAssignments.assignedDate, today)
-          )
-        )
-        .limit(limit);
-      
-      // Safety: prevent infinite loop if pool is truly exhausted
-      if (fallbackSentences.length > 0 && toAssign.length === 0) {
-        break;
-      }
     }
 
     return todayAssignments.map(a => ({ ...a.sentence, assignedDate: a.assignedDate }));
