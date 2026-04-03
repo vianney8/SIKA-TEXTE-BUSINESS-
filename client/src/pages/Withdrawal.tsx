@@ -45,7 +45,7 @@ interface Notification {
 }
 interface BankCardData {
   id: string; firstName: string; lastName: string;
-  cardNumber: string; isDefault: boolean;
+  cardNumber: string; isDefault: boolean; operator?: string;
 }
 
 export default function Withdrawal() {
@@ -236,7 +236,14 @@ export default function Withdrawal() {
             <div>
               <p className="text-blue-200 text-[10px] font-bold uppercase tracking-widest mb-0.5">Carte enregistrée</p>
               <p className="text-white font-bold text-base">{bankCard.firstName} {bankCard.lastName}</p>
-              <p className="text-blue-200 text-sm">****{bankCard.cardNumber.slice(-4)}</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-blue-200 text-sm">****{bankCard.cardNumber.slice(-4)}</p>
+                {bankCard.operator && (
+                  <span className="bg-white/20 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    {bankCard.operator}
+                  </span>
+                )}
+              </div>
             </div>
             <Link href="/bank-card" data-testid="button-edit-bank-card">
               <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
