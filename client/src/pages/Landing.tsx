@@ -85,25 +85,25 @@ export default function Landing() {
 
       {/* ── Boutons CTA ── */}
       <div className="px-5 pb-10 space-y-3">
-        <Link href="/simple-login">
+        <Link href="/register">
           <button
-            data-testid="button-login"
+            data-testid="button-register"
             className="w-full py-4 rounded-2xl font-black text-base text-white transition-all active:scale-[0.97] shadow-lg"
             style={{ background: "linear-gradient(135deg, #1a4fa0, #3b82f6)" }}
           >
             <span className="flex items-center justify-center gap-2">
-              Se connecter <ArrowRight size={18} />
+              Créer un compte <ArrowRight size={18} />
             </span>
           </button>
         </Link>
 
-        <Link href="/register">
+        <Link href="/simple-login">
           <button
-            data-testid="button-register"
+            data-testid="button-login"
             className="w-full py-4 rounded-2xl font-bold text-base border-2 border-gray-200 bg-white text-gray-700 transition-all active:scale-[0.97]"
           >
             <span className="flex items-center justify-center gap-2">
-              Créer un compte <ArrowRight size={18} className="text-blue-500" />
+              Se connecter <ArrowRight size={18} className="text-blue-500" />
             </span>
           </button>
         </Link>
