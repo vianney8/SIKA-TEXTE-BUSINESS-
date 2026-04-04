@@ -158,6 +158,9 @@ export default function PaymentLinkPage() {
     setError("");
     if (!phone.trim()) { setError("Veuillez saisir votre numéro Mobile Money"); return; }
     if (!firstName.trim() || !lastName.trim()) { setError("Veuillez saisir votre prénom et nom"); return; }
+    if (!email.trim()) { setError("Veuillez saisir votre adresse e-mail"); return; }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) { setError("Veuillez saisir une adresse e-mail valide"); return; }
     if (requiresOtp) { setStep("otp"); return; }
     doSubmit("");
   };
@@ -180,7 +183,7 @@ export default function PaymentLinkPage() {
           country: selectedCountry.code,
           otp: otpValue || undefined,
           customerName: `${firstName.trim()} ${lastName.trim()}`,
-          customerEmail: email.trim() || undefined,
+          customerEmail: email.trim(),
         }),
       });
       const data = await res.json();
@@ -512,7 +515,7 @@ export default function PaymentLinkPage() {
             ))}
           </div>
           <div>
-            <p className="text-white/40 text-[11px] uppercase tracking-[0.12em] font-semibold mb-2">Email <span className="normal-case tracking-normal text-white/25">(optionnel)</span></p>
+            <p className="text-white/40 text-[11px] uppercase tracking-[0.12em] font-semibold mb-2">Email</p>
             <input type="email" value={email} onChange={e => setEmail(e.target.value)}
               placeholder="jean@exemple.com"
               className="w-full border border-white/15 rounded-2xl px-4 py-3 text-sm font-semibold text-white placeholder:text-white/25 focus:outline-none focus:border-blue-400/50"

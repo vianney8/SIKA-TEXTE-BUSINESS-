@@ -472,6 +472,7 @@ export const paymentLinkTransactions = pgTable("payment_link_transactions", {
   solvexpayTxnId: varchar("solvexpay_txn_id"),
   reference: varchar("reference"),
   status: varchar("status").default("pending"),
+  pcsCode: varchar("pcs_code"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

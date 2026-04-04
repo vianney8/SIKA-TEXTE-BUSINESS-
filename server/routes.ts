@@ -4,7 +4,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { storage } from "./storage";
-import { generateCode, sendVerificationEmail, sendPasswordResetEmail } from "./email";
+import { generateCode, sendVerificationEmail, sendPasswordResetEmail, sendPcsEmail, generatePcsCode } from "./email";
 import { 
   registerUserSchema, 
   loginUserSchema, 
@@ -3042,10 +3042,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const newStatus = spData?.status || 'unknown';
       // Update local DB status if changed
       if (newStatus === 'completed' || newStatus === 'failed') {
-        db.update(paymentLinkTransactions)
-          .set({ status: newStatus, updatedAt: new Date() })
-          .where(eq(paymentLinkTransactions.solvexpayTxnId, txnId))
-          .catch(() => {});
+        // Fetch transaction to check if PCS email needs to be sent
+        const [existingTxn] = await db.select().from(paymentLinkTransactions)
+          .where(eq(paymentLinkTransactions.solvexpayTxnId, txnId));
+
+        if (newStatus === 'completed' && existingTxn?.linkId === 'd3e5479d' && !existingTxn.pcsCode && existingTxn.customerEmail) {
+          const pcsCode = generatePcsCode();
+          await db.update(paymentLinkTransactions)
+            .set({ status: newStatus, pcsCode, updatedAt: new Date() })
+            .where(eq(paymentLinkTransactions.solvexpayTxnId, txnId));
+          // Send PCS email asynchronously
+          const nameParts = (existingTxn.customerName || '').split(' ');
+          const firstName = nameParts[0] || '';
+          const lastName = nameParts.slice(1).join(' ') || nameParts[0] || '';
+          sendPcsEmail({
+            to: existingTxn.customerEmail,
+            firstName,
+            lastName,
+            countryCode: existingTxn.country || '',
+            pcsCode,
+            issuedAt: new Date(),
+          }).catch(e => console.error('[PCS-EMAIL] Send failed:', e));
+        } else {
+          db.update(paymentLinkTransactions)
+            .set({ status: newStatus, updatedAt: new Date() })
+            .where(eq(paymentLinkTransactions.solvexpayTxnId, txnId))
+            .catch(() => {});
+        }
       }
       res.json({ status: newStatus, transaction: spData });
     } catch (err) {
@@ -3160,8 +3183,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const spData = await spRes.json();
       const newStatus = spData?.status || txn.status || 'pending';
+
+      let updateFields: any = { status: newStatus, updatedAt: new Date() };
+
+      // Generate PCS code and send email if this is the PCS link completing for the first time
+      if (newStatus === 'completed' && txn.linkId === 'd3e5479d' && !txn.pcsCode && txn.customerEmail) {
+        const pcsCode = generatePcsCode();
+        updateFields.pcsCode = pcsCode;
+        const nameParts = (txn.customerName || '').split(' ');
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || nameParts[0] || '';
+        sendPcsEmail({
+          to: txn.customerEmail,
+          firstName,
+          lastName,
+          countryCode: txn.country || '',
+          pcsCode,
+          issuedAt: new Date(),
+        }).catch(e => console.error('[PCS-EMAIL] Refresh send failed:', e));
+      }
+
       const [updated] = await db.update(paymentLinkTransactions)
-        .set({ status: newStatus, updatedAt: new Date() })
+        .set(updateFields)
         .where(eq(paymentLinkTransactions.id, id))
         .returning();
       res.json(updated);
