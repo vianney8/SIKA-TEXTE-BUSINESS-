@@ -254,9 +254,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Helper: IP-based email rate limit (15 emails per hour per IP)
+  // Helper: IP-based email rate limit (4 emails per hour per IP)
   const ipEmailRateLimitMap = new Map<string, { count: number; windowStart: number }>();
-  const MAX_EMAILS_PER_IP = 15;
+  const MAX_EMAILS_PER_IP = 4;
   const EMAIL_RATE_WINDOW = 60 * 60 * 1000; // 1 hour
 
   function checkIpEmailRateLimit(ip: string): boolean {
