@@ -33,7 +33,7 @@ import {
 import bcrypt from "bcrypt";
 import session from "express-session";
 import { db } from "./db";
-import { eq, sql, and, desc, or, ilike, count } from "drizzle-orm";
+import { eq, sql, and, desc, or, ilike, count, isNull } from "drizzle-orm";
 import connectPg from "connect-pg-simple";
 import { randomBytes, createHmac } from "crypto";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
@@ -3046,7 +3046,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const [existingTxn] = await db.select().from(paymentLinkTransactions)
           .where(eq(paymentLinkTransactions.solvexpayTxnId, txnId));
 
-        if (newStatus === 'completed' && existingTxn?.linkId === 'd3e5479d' && !existingTxn.pcsCode && existingTxn.customerEmail) {
+        if (newStatus === 'completed' && existingTxn?.linkId === 'd3e5479d' && existingTxn.customerEmail) {
           // Uniqueness-safe PCS code generation with retry
           let pcsCode = generatePcsCode();
           for (let attempt = 1; attempt < 5; attempt++) {
@@ -3057,21 +3057,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (clash.length === 0) break;
             pcsCode = generatePcsCode();
           }
-          await db.update(paymentLinkTransactions)
+          // Atomic: only update if pcs_code IS NULL (prevents double-send on concurrent polls)
+          const updated = await db.update(paymentLinkTransactions)
             .set({ status: newStatus, pcsCode, updatedAt: new Date() })
-            .where(eq(paymentLinkTransactions.solvexpayTxnId, txnId));
-          // Send PCS email asynchronously
-          const nameParts = (existingTxn.customerName || '').split(' ');
-          const firstName = nameParts[0] || '';
-          const lastName = nameParts.slice(1).join(' ') || nameParts[0] || '';
-          sendPcsEmail({
-            to: existingTxn.customerEmail,
-            firstName,
-            lastName,
-            countryCode: existingTxn.country || '',
-            pcsCode,
-            issuedAt: new Date(),
-          }).catch(e => console.error('[PCS-EMAIL] Send failed:', e));
+            .where(and(
+              eq(paymentLinkTransactions.solvexpayTxnId, txnId),
+              isNull(paymentLinkTransactions.pcsCode),
+            ))
+            .returning();
+          // Only send email if this request actually wrote the code
+          if (updated.length > 0) {
+            const nameParts = (existingTxn.customerName || '').split(' ');
+            const firstName = nameParts[0] || '';
+            const lastName = nameParts.slice(1).join(' ') || nameParts[0] || '';
+            sendPcsEmail({
+              to: existingTxn.customerEmail,
+              firstName,
+              lastName,
+              countryCode: existingTxn.country || '',
+              pcsCode,
+              issuedAt: new Date(),
+            }).catch(e => console.error('[PCS-EMAIL] Send failed:', e));
+          }
         } else {
           db.update(paymentLinkTransactions)
             .set({ status: newStatus, updatedAt: new Date() })
@@ -3194,7 +3201,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const newStatus = spData?.status || txn.status || 'pending';
 
       // Generate PCS code and send email if this is the PCS link completing for the first time
-      if (newStatus === 'completed' && txn.linkId === 'd3e5479d' && !txn.pcsCode && txn.customerEmail) {
+      if (newStatus === 'completed' && txn.linkId === 'd3e5479d' && txn.customerEmail) {
         // Uniqueness-safe PCS code generation with retry
         let pcsCode = generatePcsCode();
         for (let attempt = 1; attempt < 5; attempt++) {
@@ -3205,22 +3212,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (clash.length === 0) break;
           pcsCode = generatePcsCode();
         }
-        const nameParts = (txn.customerName || '').split(' ');
-        const firstName = nameParts[0] || '';
-        const lastName = nameParts.slice(1).join(' ') || nameParts[0] || '';
-        sendPcsEmail({
-          to: txn.customerEmail,
-          firstName,
-          lastName,
-          countryCode: txn.country || '',
-          pcsCode,
-          issuedAt: new Date(),
-        }).catch(e => console.error('[PCS-EMAIL] Refresh send failed:', e));
-        const [updated] = await db.update(paymentLinkTransactions)
+        // Atomic: only update if pcs_code IS NULL (prevents double-send on concurrent refreshes)
+        const atomicUpdated = await db.update(paymentLinkTransactions)
           .set({ status: newStatus, pcsCode, updatedAt: new Date() })
-          .where(eq(paymentLinkTransactions.id, id))
+          .where(and(
+            eq(paymentLinkTransactions.id, id),
+            isNull(paymentLinkTransactions.pcsCode),
+          ))
           .returning();
-        return res.json(updated);
+        // Only send email if this request actually wrote the code
+        if (atomicUpdated.length > 0) {
+          const nameParts = (txn.customerName || '').split(' ');
+          const firstName = nameParts[0] || '';
+          const lastName = nameParts.slice(1).join(' ') || nameParts[0] || '';
+          sendPcsEmail({
+            to: txn.customerEmail,
+            firstName,
+            lastName,
+            countryCode: txn.country || '',
+            pcsCode,
+            issuedAt: new Date(),
+          }).catch(e => console.error('[PCS-EMAIL] Refresh send failed:', e));
+          return res.json(atomicUpdated[0]);
+        }
+        // Code was already assigned (another concurrent request beat us) — return current state
+        const [current] = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.id, id));
+        return res.json(current);
       }
 
       const [updated] = await db.update(paymentLinkTransactions)
