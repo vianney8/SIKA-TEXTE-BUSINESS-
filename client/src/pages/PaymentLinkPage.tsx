@@ -240,7 +240,7 @@ export default function PaymentLinkPage() {
         <p className="text-white/60 text-base mb-1">
           <span className="text-white font-bold text-xl">{parseFloat(link.amount).toLocaleString("fr-FR")} {link.currency}</span>
         </p>
-        <p className="text-white/40 text-sm">{link.label}</p>
+        {link.description && <p className="text-white/40 text-sm">{link.description}</p>}
         <div className="mt-8 border-t border-white/10 pt-5">
           <p className="text-white/30 text-xs">Paiement sécurisé par <span className="text-white/50 font-bold">SIKApay</span></p>
         </div>
