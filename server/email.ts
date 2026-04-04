@@ -2,7 +2,7 @@ import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM_EMAIL = "SIKA TEXTE <onboarding@resend.dev>";
+const FROM_EMAIL = "SIKA TEXTE <support@sikatexte.com>";
 
 export function generateCode(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
