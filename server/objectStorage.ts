@@ -172,6 +172,33 @@ export class ObjectStorageService {
     }
     return objectFile;
   }
+
+  // Upload a demo video buffer to private object storage, returns unique object path
+  async uploadDemoVideo(buffer: Buffer, mimeType: string): Promise<string> {
+    const ext = mimeType.split("/")[1] || "mp4";
+    const videoId = randomUUID();
+    const fileName = `${videoId}.${ext}`;
+    let entityDir = this.getPrivateObjectDir();
+    if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
+    const objectPath = `${entityDir}demo-videos/${fileName}`;
+    const { bucketName, objectName } = parseObjectPath(objectPath);
+    const bucket = objectStorageClient.bucket(bucketName);
+    const file = bucket.file(objectName);
+    await file.save(buffer, { contentType: mimeType, resumable: false });
+    return `/api/media/demo-video/${videoId}.${ext}`;
+  }
+
+  async getDemoVideoFile(videoId: string): Promise<File> {
+    let entityDir = this.getPrivateObjectDir();
+    if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
+    const objectPath = `${entityDir}demo-videos/${videoId}`;
+    const { bucketName, objectName } = parseObjectPath(objectPath);
+    const bucket = objectStorageClient.bucket(bucketName);
+    const file = bucket.file(objectName);
+    const [exists] = await file.exists();
+    if (!exists) throw new ObjectNotFoundError();
+    return file;
+  }
 }
 
 function parseObjectPath(path: string): {

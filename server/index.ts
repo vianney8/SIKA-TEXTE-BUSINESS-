@@ -78,11 +78,6 @@ app.use((req, res, next) => {
       `);
     }
     log('App settings seeded');
-    // Fix: reset demo_video_url if it points to an upload that no longer exists
-    await db.execute(sql`
-      UPDATE app_settings SET value = '/promo.mp4'
-      WHERE key = 'demo_video_url' AND value = '/uploads/demo_video.mp4'
-    `);
   } catch (err) {
     log('App settings seed skipped (DB temporarily unavailable): ' + (err as Error).message);
   }

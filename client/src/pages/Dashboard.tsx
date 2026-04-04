@@ -254,6 +254,7 @@ export default function Dashboard() {
             </div>
             <div className="px-4 pb-4">
               <video
+                key={demoVideoUrl || "/promo.mp4"}
                 src={demoVideoUrl || "/promo.mp4"}
                 controls
                 playsInline

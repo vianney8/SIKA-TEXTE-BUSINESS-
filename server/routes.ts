@@ -2007,31 +2007,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Route upload vidéo de démonstration
-  const videoStorage = multer.diskStorage({
-    destination: (_req, _file, cb) => {
-      const dest = path.join(process.cwd(), "uploads");
-      if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
-      cb(null, dest);
-    },
-    filename: (_req, _file, cb) => cb(null, "demo_video.mp4"),
-  });
-  const videoUpload = multer({
-    storage: videoStorage,
+  // Route upload vidéo de démonstration (object storage — persistant)
+  const videoMemUpload = multer({
+    storage: multer.memoryStorage(),
     limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB max
     fileFilter: (_req, file, cb) => {
       if (file.mimetype.startsWith("video/")) cb(null, true);
       else cb(new Error("Seuls les fichiers vidéo sont acceptés"));
     },
   });
-  app.post("/api/admin/upload-demo-video", requireAdmin, videoUpload.single("video"), async (req: any, res) => {
+  app.post("/api/admin/upload-demo-video", requireAdmin, videoMemUpload.single("video"), async (req: any, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: "Aucun fichier vidéo fourni" });
-      await storage.updateAppSetting("demo_video_url", "/uploads/demo_video.mp4");
-      res.json({ message: "Vidéo mise à jour avec succès", url: "/uploads/demo_video.mp4" });
+      const objectStorageService = new ObjectStorageService();
+      const proxyUrl = await objectStorageService.uploadDemoVideo(req.file.buffer, req.file.mimetype);
+      await storage.updateAppSetting("demo_video_url", proxyUrl);
+      res.json({ message: "Vidéo mise à jour avec succès", url: proxyUrl });
     } catch (error: any) {
       console.error("Erreur upload vidéo:", error);
       res.status(500).json({ message: error.message || "Erreur lors de l'upload" });
+    }
+  });
+
+  // Proxy route pour servir les vidéos de démonstration depuis l'object storage
+  app.get("/api/media/demo-video/:videoId", async (req: any, res) => {
+    try {
+      const { videoId } = req.params;
+      const objectStorageService = new ObjectStorageService();
+      const file = await objectStorageService.getDemoVideoFile(videoId);
+      // Stream avec cache longue durée (l'URL change à chaque upload)
+      await objectStorageService.downloadObject(file, res, 7 * 24 * 3600);
+    } catch (error: any) {
+      if (error.name === "ObjectNotFoundError") {
+        return res.status(404).json({ message: "Vidéo introuvable" });
+      }
+      console.error("Erreur lecture vidéo:", error);
+      res.status(500).json({ message: "Erreur lors de la lecture de la vidéo" });
     }
   });
 
