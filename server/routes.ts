@@ -2883,7 +2883,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { label, amount, currency, description } = parsed.data;
 
       // Generate a unique ID first, then build the link URL from it
-      const linkId = crypto.randomUUID();
+      const linkId = crypto.randomUUID().replace(/-/g, '').slice(0, 8);
       const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
       const host = req.headers['x-forwarded-host'] || req.hostname;
       const linkUrl = `${proto}://${host}/pay/${linkId}`;
