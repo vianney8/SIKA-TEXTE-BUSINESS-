@@ -95,7 +95,7 @@ export default function Profile() {
       {/* Header */}
       <div className="relative overflow-hidden"
         style={{ background: "linear-gradient(160deg, #0f172a, #1e3a5f, #1a4fa0)" }}>
-        <div className="absolute top-0 right-0 w-40 h-40 rounded-full blur-3xl opacity-20"
+        <div className="absolute top-0 right-0 w-40 h-40 rounded-full blur-3xl opacity-20 pointer-events-none"
           style={{ background: "radial-gradient(circle, #f472b6, transparent)" }} />
         <div className="px-4 pt-4 pb-6">
           <div className="flex items-center justify-between mb-5">
