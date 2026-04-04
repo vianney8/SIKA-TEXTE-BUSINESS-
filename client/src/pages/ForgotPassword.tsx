@@ -15,6 +15,7 @@ export default function ForgotPassword() {
   const [showPassword, setShowPassword]   = useState(false);
   const [showConfirm, setShowConfirm]     = useState(false);
   const [isLoading, setIsLoading]         = useState(false);
+  const [showResendConfirm, setShowResendConfirm] = useState(false);
   const { toast }                         = useToast();
   const [, setLocation]                   = useLocation();
   const digitRefs                         = useRef<(HTMLInputElement | null)[]>([]);
@@ -246,15 +247,41 @@ export default function ForgotPassword() {
 
           {/* Renvoyer */}
           <p className="text-gray-500 text-sm mb-3">Vous n'avez pas reçu le code ?</p>
-          <button
-            type="button"
-            onClick={() => handleSendCode()}
-            disabled={isLoading}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-full border border-gray-200 bg-white text-gray-700 text-sm font-semibold shadow-sm active:scale-[0.97] transition-all disabled:opacity-50"
-          >
-            <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
-            {isLoading ? "Envoi..." : "Renvoyer le code"}
-          </button>
+
+          {!showResendConfirm ? (
+            <button
+              type="button"
+              onClick={() => setShowResendConfirm(true)}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-full border border-gray-200 bg-white text-gray-700 text-sm font-semibold shadow-sm active:scale-[0.97] transition-all"
+            >
+              <RefreshCw size={14} />
+              Renvoyer le code
+            </button>
+          ) : (
+            <div className="w-full bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+              <p className="text-gray-700 text-sm font-semibold mb-3">
+                Renvoyer un nouveau code à <span className="text-blue-700">{email}</span> ?
+              </p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  type="button"
+                  onClick={() => setShowResendConfirm(false)}
+                  className="px-4 py-2 rounded-full border border-gray-300 bg-white text-gray-600 text-sm font-semibold"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => { setShowResendConfirm(false); await handleSendCode(); }}
+                  disabled={isLoading}
+                  className="px-4 py-2 rounded-full bg-blue-600 text-white text-sm font-bold disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <RefreshCw size={13} className={isLoading ? "animate-spin" : ""} />
+                  {isLoading ? "Envoi..." : "Confirmer"}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
