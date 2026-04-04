@@ -1,73 +1,84 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
 
 const COUNTRIES: {
   code: string; name: string; flag: string; prefix: string; currency: string;
-  phoneDigits: number; phonePlaceholder: string;
-  operators: { code: string; name: string; color: string; label: string }[];
+  phonePlaceholder: string; phoneDigits: number;
+  operators: { code: string; name: string; short: string; color: string; bg: string }[];
 }[] = [
   {
     code: "BJ", name: "Bénin", flag: "🇧🇯", prefix: "+229", currency: "XOF",
-    phoneDigits: 10, phonePlaceholder: "01 23 45 67 89",
+    phonePlaceholder: "01 23 45 67 89", phoneDigits: 10,
     operators: [
-      { code: "mtn", name: "MTN Money", label: "MTN", color: "#FFD700" },
-      { code: "moov", name: "Moov Money", label: "MOOV", color: "#0057A8" },
+      { code: "mtn", name: "MTN Money", short: "MTN", color: "#fff", bg: "#FFCC00" },
+      { code: "moov", name: "Moov Money", short: "MOOV", color: "#fff", bg: "#0057A8" },
     ],
   },
   {
     code: "CI", name: "Côte d'Ivoire", flag: "🇨🇮", prefix: "+225", currency: "XOF",
-    phoneDigits: 8, phonePlaceholder: "01 23 45 67",
+    phonePlaceholder: "05 12 34 56 78", phoneDigits: 10,
     operators: [
-      { code: "mtn", name: "MTN Money", label: "MTN", color: "#FFD700" },
-      { code: "moov", name: "Moov Money", label: "MOOV", color: "#0057A8" },
-      { code: "orange", name: "Orange Money", label: "ORAN", color: "#FF6900" },
-      { code: "wave", name: "Wave", label: "WAVE", color: "#1AC8DB" },
+      { code: "mtn", name: "MTN Money", short: "MTN", color: "#fff", bg: "#FFCC00" },
+      { code: "moov", name: "Moov Money", short: "MOOV", color: "#fff", bg: "#0057A8" },
+      { code: "orange", name: "Orange Money", short: "ORAN", color: "#fff", bg: "#FF6900" },
+      { code: "wave", name: "Wave", short: "WAVE", color: "#fff", bg: "#1AC8DB" },
     ],
   },
   {
     code: "SN", name: "Sénégal", flag: "🇸🇳", prefix: "+221", currency: "XOF",
-    phoneDigits: 8, phonePlaceholder: "01 23 45 67",
+    phonePlaceholder: "01 23 45 67", phoneDigits: 8,
     operators: [
-      { code: "orange", name: "Orange Money", label: "ORAN", color: "#FF6900" },
-      { code: "wave", name: "Wave", label: "WAVE", color: "#1AC8DB" },
-      { code: "free", name: "Free Money", label: "FREE", color: "#CC0000" },
+      { code: "orange", name: "Orange Money", short: "ORAN", color: "#fff", bg: "#FF6900" },
+      { code: "wave", name: "Wave", short: "WAVE", color: "#fff", bg: "#1AC8DB" },
+      { code: "free", name: "Free Money", short: "FREE", color: "#fff", bg: "#CC0000" },
     ],
   },
   {
     code: "BF", name: "Burkina Faso", flag: "🇧🇫", prefix: "+226", currency: "XOF",
-    phoneDigits: 8, phonePlaceholder: "01 23 45 67",
+    phonePlaceholder: "01 23 45 67", phoneDigits: 8,
     operators: [
-      { code: "moov", name: "Moov Money", label: "MOOV", color: "#0057A8" },
-      { code: "orange", name: "Orange Money", label: "ORAN", color: "#FF6900" },
+      { code: "moov", name: "Moov Money", short: "MOOV", color: "#fff", bg: "#0057A8" },
+      { code: "orange", name: "Orange Money", short: "ORAN", color: "#fff", bg: "#FF6900" },
     ],
   },
   {
     code: "TG", name: "Togo", flag: "🇹🇬", prefix: "+228", currency: "XOF",
-    phoneDigits: 8, phonePlaceholder: "01 23 45 67",
+    phonePlaceholder: "01 23 45 67", phoneDigits: 8,
     operators: [
-      { code: "moov", name: "Moov Money", label: "MOOV", color: "#0057A8" },
-      { code: "tmoney", name: "T-Money", label: "T-MNY", color: "#E30613" },
+      { code: "moov", name: "Moov Money", short: "MOOV", color: "#fff", bg: "#0057A8" },
+      { code: "tmoney", name: "T-Money", short: "T-MNY", color: "#fff", bg: "#E30613" },
     ],
   },
   {
     code: "CM", name: "Cameroun", flag: "🇨🇲", prefix: "+237", currency: "XAF",
-    phoneDigits: 9, phonePlaceholder: "6 90 12 34 56",
+    phonePlaceholder: "6 90 12 34 56", phoneDigits: 9,
     operators: [
-      { code: "mtn", name: "MTN Money", label: "MTN", color: "#FFD700" },
-      { code: "orange", name: "Orange Money", label: "ORAN", color: "#FF6900" },
+      { code: "mtn", name: "MTN Money", short: "MTN", color: "#fff", bg: "#FFCC00" },
+      { code: "orange", name: "Orange Money", short: "ORAN", color: "#fff", bg: "#FF6900" },
     ],
   },
   {
     code: "COG", name: "Congo-Brazzaville", flag: "🇨🇬", prefix: "+242", currency: "XAF",
-    phoneDigits: 8, phonePlaceholder: "01 23 45 67",
+    phonePlaceholder: "01 23 45 67", phoneDigits: 8,
     operators: [
-      { code: "mtn", name: "MTN Money", label: "MTN", color: "#FFD700" },
-      { code: "airtel", name: "Airtel Money", label: "AIRT", color: "#E40000" },
+      { code: "mtn", name: "MTN Money", short: "MTN", color: "#fff", bg: "#FFCC00" },
+      { code: "airtel", name: "Airtel Money", short: "AIRT", color: "#fff", bg: "#E40000" },
     ],
   },
 ];
 
 type Step = "form" | "otp" | "pending" | "success" | "failed";
+
+function AnimatedDots() {
+  return (
+    <span className="inline-flex gap-1 ml-1">
+      {[0, 1, 2].map(i => (
+        <span key={i} className="w-1.5 h-1.5 rounded-full bg-current inline-block"
+          style={{ animation: `bounce 1.2s ${i * 0.2}s infinite ease-in-out` }} />
+      ))}
+    </span>
+  );
+}
 
 export default function PaymentLinkPage() {
   const params = useParams<{ linkId: string }>();
@@ -75,6 +86,7 @@ export default function PaymentLinkPage() {
 
   const [link, setLink] = useState<any>(null);
   const [loadError, setLoadError] = useState("");
+  const [visible, setVisible] = useState(false);
 
   const [selectedCountry, setSelectedCountry] = useState(COUNTRIES[0]);
   const [selectedOperator, setSelectedOperator] = useState(COUNTRIES[0].operators[0]);
@@ -90,13 +102,12 @@ export default function PaymentLinkPage() {
   const [txnId, setTxnId] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [pollCount, setPollCount] = useState(0);
+  const otpRef = useRef<HTMLInputElement>(null);
 
   const requiresOtp = selectedOperator.code === "orange" &&
     (selectedCountry.code === "CI" || selectedCountry.code === "SN");
-
   const otpUssdCode = selectedCountry.code === "CI" ? "#144#" : "#144*82#";
 
-  // Load link details
   useEffect(() => {
     if (!linkId) return;
     fetch(`/api/public/payment-links/${linkId}`)
@@ -104,11 +115,10 @@ export default function PaymentLinkPage() {
         if (!r.ok) return r.json().then(d => { throw new Error(d.message || "Lien invalide"); });
         return r.json();
       })
-      .then(data => setLink(data))
+      .then(data => { setLink(data); setTimeout(() => setVisible(true), 80); })
       .catch(err => setLoadError(err.message));
   }, [linkId]);
 
-  // Poll status after payment initiated
   useEffect(() => {
     if (step !== "pending" || !txnId) return;
     let cancelled = false;
@@ -133,32 +143,25 @@ export default function PaymentLinkPage() {
     }
   }, [pollCount, step]);
 
+  useEffect(() => {
+    if (step === "otp") setTimeout(() => otpRef.current?.focus(), 300);
+  }, [step]);
+
   const handleCountryChange = (code: string) => {
     const country = COUNTRIES.find(c => c.code === code) || COUNTRIES[0];
     setSelectedCountry(country);
     setSelectedOperator(country.operators[0]);
-    setPhone("");
-    setOtp("");
+    setPhone(""); setOtp("");
   };
 
-  // Step 1 → validate form, then either go to OTP step or submit directly
   const handleFormNext = () => {
     setError("");
-    const digits = phone.replace(/\D/g, "");
-    if (!digits) { setError("Veuillez saisir votre numéro Mobile Money"); return; }
-    if (digits.length !== selectedCountry.phoneDigits) {
-      setError(`Le numéro doit contenir ${selectedCountry.phoneDigits} chiffres pour ${selectedCountry.name}`);
-      return;
-    }
+    if (!phone.trim()) { setError("Veuillez saisir votre numéro Mobile Money"); return; }
     if (!firstName.trim() || !lastName.trim()) { setError("Veuillez saisir votre prénom et nom"); return; }
-    if (requiresOtp) {
-      setStep("otp");
-      return;
-    }
+    if (requiresOtp) { setStep("otp"); return; }
     doSubmit("");
   };
 
-  // Step 2 → confirm OTP and submit
   const handleOtpConfirm = () => {
     setError("");
     if (!otp.trim()) { setError("Veuillez saisir l'OTP reçu"); return; }
@@ -168,12 +171,11 @@ export default function PaymentLinkPage() {
   const doSubmit = async (otpValue: string) => {
     setSubmitting(true);
     try {
-      const digits = phone.replace(/\D/g, "");
       const res = await fetch(`/api/public/payment-links/${linkId}/pay`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          phone: digits,
+          phone: phone.replace(/\s/g, ""),
           operator: selectedOperator.code,
           country: selectedCountry.code,
           otp: otpValue || undefined,
@@ -182,11 +184,7 @@ export default function PaymentLinkPage() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        setError(data.message || "Erreur lors de l'initiation du paiement");
-        if (requiresOtp) setStep("otp");
-        return;
-      }
+      if (!res.ok) { setError(data.message || "Erreur lors du paiement"); return; }
       setTxnId(data.transactionId);
       setStep("pending");
     } catch {
@@ -196,323 +194,337 @@ export default function PaymentLinkPage() {
     }
   };
 
-  // ── Header ──
-  const Header = () => (
-    <div className="sticky top-0 z-10 bg-white border-b border-gray-100 shadow-sm">
-      <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <img src="/logo.jpg" alt="SIKApay" className="w-8 h-8 rounded-lg object-cover" />
-          <span className="font-black text-blue-700 text-sm">SIKApay</span>
+  const BG = "min-h-screen" ;
+  const bgStyle = { background: "linear-gradient(160deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)" };
+
+  // ── Loading ──
+  if (!link && !loadError) return (
+    <div className={`${BG} flex items-center justify-center`} style={bgStyle}>
+      <div className="flex flex-col items-center gap-4">
+        <div className="relative w-16 h-16">
+          <div className="absolute inset-0 rounded-full border-4 border-white/10" />
+          <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-blue-400 animate-spin" />
         </div>
-        <span className="text-xs text-gray-400">🔒 Paiement sécurisé</span>
+        <p className="text-white/40 text-sm font-medium tracking-wide">Chargement</p>
       </div>
     </div>
   );
 
-  // ── Loading ──
-  if (!link && !loadError) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#f0f4f8" }}>
-        <div className="text-center text-gray-400">
-          <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-3" />
-          <p>Chargement…</p>
-        </div>
-      </div>
-    );
-  }
-
   // ── Error ──
-  if (loadError) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-5" style={{ background: "#f0f4f8" }}>
-        <div className="bg-white rounded-3xl p-8 text-center max-w-sm w-full shadow-lg">
-          <div className="text-5xl mb-4">❌</div>
-          <h2 className="font-bold text-gray-800 text-lg mb-2">Lien invalide</h2>
-          <p className="text-gray-500 text-sm">{loadError}</p>
-        </div>
+  if (loadError) return (
+    <div className={`${BG} flex items-center justify-center px-5`} style={bgStyle}>
+      <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 text-center max-w-sm w-full">
+        <div className="text-5xl mb-4">🔗</div>
+        <h2 className="font-bold text-white text-lg mb-2">Lien introuvable</h2>
+        <p className="text-white/50 text-sm">{loadError}</p>
       </div>
-    );
-  }
+    </div>
+  );
 
   // ── Success ──
-  if (step === "success") {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-5" style={{ background: "#f0f4f8" }}>
-        <div className="bg-white rounded-3xl p-8 text-center max-w-sm w-full shadow-lg">
-          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-4xl">✅</span>
-          </div>
-          <h2 className="font-black text-gray-800 text-xl mb-2">Paiement réussi !</h2>
-          <p className="text-gray-500 text-sm mb-1">
-            <strong>{parseFloat(link.amount).toLocaleString("fr-FR")} {link.currency}</strong> reçu avec succès.
-          </p>
-          <p className="text-gray-400 text-xs">{link.label}</p>
-          <div className="mt-6 pt-5 border-t border-gray-100">
-            <p className="text-xs text-gray-400">Paiement sécurisé par <strong className="text-blue-700">SIKApay</strong></p>
+  if (step === "success") return (
+    <div className={`${BG} flex items-center justify-center px-5`} style={bgStyle}>
+      <div className="text-center max-w-sm w-full animate-in fade-in zoom-in-95 duration-500">
+        <div className="relative w-28 h-28 mx-auto mb-6">
+          <div className="absolute inset-0 rounded-full bg-green-500/20 animate-ping" />
+          <div className="relative w-28 h-28 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center shadow-2xl shadow-green-500/30">
+            <svg className="w-14 h-14 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
           </div>
         </div>
+        <h2 className="font-black text-white text-3xl mb-2">Payé !</h2>
+        <p className="text-white/60 text-base mb-1">
+          <span className="text-white font-bold text-xl">{parseFloat(link.amount).toLocaleString("fr-FR")} {link.currency}</span>
+        </p>
+        <p className="text-white/40 text-sm">{link.label}</p>
+        <div className="mt-8 border-t border-white/10 pt-5">
+          <p className="text-white/30 text-xs">Paiement sécurisé par <span className="text-white/50 font-bold">SIKApay</span></p>
+        </div>
       </div>
-    );
-  }
+    </div>
+  );
 
   // ── Failed ──
-  if (step === "failed") {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-5" style={{ background: "#f0f4f8" }}>
-        <div className="bg-white rounded-3xl p-8 text-center max-w-sm w-full shadow-lg">
-          <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-4xl">❌</span>
-          </div>
-          <h2 className="font-black text-gray-800 text-xl mb-2">Paiement échoué</h2>
-          <p className="text-gray-500 text-sm mb-4">{statusMessage}</p>
-          <button
-            onClick={() => { setStep("form"); setTxnId(""); setPollCount(0); setError(""); setOtp(""); }}
-            className="w-full py-3 rounded-2xl bg-blue-600 text-white font-bold text-sm"
-          >Réessayer</button>
+  if (step === "failed") return (
+    <div className={`${BG} flex items-center justify-center px-5`} style={bgStyle}>
+      <div className="text-center max-w-sm w-full">
+        <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-red-500/20 flex items-center justify-center">
+          <svg className="w-12 h-12 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
         </div>
+        <h2 className="font-black text-white text-2xl mb-2">Paiement échoué</h2>
+        <p className="text-white/50 text-sm mb-8">{statusMessage}</p>
+        <button
+          onClick={() => { setStep("form"); setTxnId(""); setPollCount(0); setError(""); setOtp(""); }}
+          className="w-full py-4 rounded-2xl font-bold text-white text-sm"
+          style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}
+        >Réessayer</button>
       </div>
-    );
-  }
+    </div>
+  );
 
   // ── Pending ──
-  if (step === "pending") {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-5" style={{ background: "#f0f4f8" }}>
-        <div className="bg-white rounded-3xl p-8 text-center max-w-sm w-full shadow-lg">
-          <div className="w-20 h-20 mx-auto mb-4 flex items-center justify-center">
-            <div className="w-16 h-16 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
-          </div>
-          <h2 className="font-black text-gray-800 text-xl mb-2">Validation en cours…</h2>
-          <p className="text-gray-500 text-sm mb-1">
-            Confirmez le paiement de <strong>{parseFloat(link.amount).toLocaleString("fr-FR")} {link.currency}</strong> sur votre téléphone.
-          </p>
-          <p className="text-gray-400 text-xs mt-3">
-            Un message USSD va apparaître sur le numéro <strong>{selectedCountry.prefix} {phone}</strong>
-          </p>
-          <div className="mt-5 bg-blue-50 rounded-2xl p-3 text-xs text-blue-700">
-            ⏳ En attente de validation… ({Math.floor(pollCount * 5 / 60)}m{(pollCount * 5) % 60}s)
-          </div>
-          <button
-            onClick={() => { setStep("form"); setTxnId(""); setPollCount(0); }}
-            className="mt-4 text-xs text-gray-400 underline"
-          >Annuler</button>
+  if (step === "pending") return (
+    <div className={`${BG} flex items-center justify-center px-5`} style={bgStyle}>
+      <div className="text-center max-w-sm w-full">
+        <div className="relative w-24 h-24 mx-auto mb-6">
+          <div className="absolute inset-0 rounded-full border-4 border-white/5" />
+          <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-blue-400 border-r-blue-300 animate-spin" style={{ animationDuration: "1s" }} />
+          <div className="absolute inset-3 rounded-full border-2 border-transparent border-t-indigo-400 animate-spin" style={{ animationDuration: "1.5s", animationDirection: "reverse" }} />
         </div>
+        <h2 className="font-black text-white text-2xl mb-3">Validation en cours</h2>
+        <p className="text-white/60 text-sm mb-1">
+          Confirmez le paiement de{" "}
+          <span className="text-white font-bold">{parseFloat(link.amount).toLocaleString("fr-FR")} {link.currency}</span>{" "}
+          sur votre téléphone.
+        </p>
+        <p className="text-white/30 text-xs mt-3">
+          Message USSD sur <span className="text-white/50">{selectedCountry.prefix} {phone}</span>
+        </p>
+        <div className="mt-6 mx-auto max-w-xs bg-white/5 border border-white/10 rounded-2xl px-5 py-3">
+          <p className="text-blue-300 text-sm font-medium flex items-center justify-center gap-2">
+            <span>⏳</span>
+            <span>En attente</span>
+            <AnimatedDots />
+            <span className="text-white/30 text-xs ml-1">({Math.floor(pollCount * 5 / 60)}m{String((pollCount * 5) % 60).padStart(2, "0")}s)</span>
+          </p>
+        </div>
+        <button
+          onClick={() => { setStep("form"); setTxnId(""); setPollCount(0); }}
+          className="mt-6 text-xs text-white/30 hover:text-white/60 transition-colors underline underline-offset-2"
+        >Annuler</button>
       </div>
-    );
-  }
+    </div>
+  );
 
-  // ── OTP Step (2nd screen) ──
-  if (step === "otp") {
-    return (
-      <div className="min-h-screen pb-10" style={{ background: "#f0f4f8" }}>
-        <Header />
-        <div className="max-w-md mx-auto px-4 pt-6 space-y-4">
-          {/* Recap card */}
-          <div className="bg-white rounded-3xl p-5 shadow-sm text-center">
-            <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Total à payer</p>
-            <p className="font-black text-4xl text-gray-900">
-              {parseFloat(link.amount).toLocaleString("fr-FR")}
-              <span className="text-xl ml-2 text-gray-500">{link.currency}</span>
-            </p>
-            <p className="text-sm font-semibold text-gray-600 mt-1">{link.label}</p>
-            <div className="mt-3 flex items-center justify-center gap-2 text-xs text-gray-500">
-              <span>{selectedCountry.flag}</span>
-              <span className="font-medium">{selectedCountry.prefix} {phone}</span>
-              <span>·</span>
-              <span
-                className="px-2 py-0.5 rounded-full text-white text-[10px] font-bold"
-                style={{ background: selectedOperator.color }}
-              >{selectedOperator.name}</span>
+  // ── OTP Step ──
+  if (step === "otp") return (
+    <div className={`${BG} pb-12`} style={bgStyle}>
+      {/* Header */}
+      <div className="px-5 pt-6 pb-4 flex items-center justify-between">
+        <button onClick={() => { setStep("form"); setOtp(""); setError(""); }}
+          className="w-9 h-9 rounded-2xl bg-white/10 flex items-center justify-center text-white/60 hover:bg-white/15 transition-colors">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <div className="flex items-center gap-2">
+          <img src="/logo.jpg" alt="SIKApay" className="w-7 h-7 rounded-xl object-cover" />
+          <span className="font-black text-white text-sm tracking-wide">SIKApay</span>
+        </div>
+        <div className="w-9" />
+      </div>
+
+      <div className="max-w-md mx-auto px-5 space-y-4 mt-2">
+        {/* Recap */}
+        <div className="bg-white/5 border border-white/10 rounded-3xl p-5 text-center">
+          <div className="flex items-center justify-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-black text-xs"
+              style={{ background: selectedOperator.bg }}>
+              {selectedOperator.short}
             </div>
+            <span className="text-white/60 text-sm">{selectedOperator.name}</span>
+            <span className="text-white/30">·</span>
+            <span className="text-white/60 text-sm">{selectedCountry.prefix} {phone}</span>
           </div>
+          <p className="font-black text-white text-4xl">
+            {parseFloat(link.amount).toLocaleString("fr-FR")}
+            <span className="text-lg text-white/40 ml-2">{link.currency}</span>
+          </p>
+        </div>
 
-          {/* OTP instructions card */}
-          <div className="bg-white rounded-3xl p-5 shadow-sm">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-white font-black text-sm"
-                style={{ background: selectedOperator.color }}>
-                {selectedOperator.label}
-              </div>
-              <div>
-                <p className="font-bold text-gray-800 text-sm">Code OTP requis</p>
-                <p className="text-xs text-gray-400">Orange Money {selectedCountry.name}</p>
-              </div>
+        {/* OTP card */}
+        <div className="bg-white/5 border border-white/10 rounded-3xl p-5">
+          <div className="mb-5">
+            <div className="w-12 h-12 rounded-2xl bg-orange-500/20 flex items-center justify-center mb-3">
+              <span className="text-2xl">📱</span>
             </div>
-
-            <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 mb-4">
-              <p className="text-sm font-bold text-orange-800 mb-1">📱 Étape 1 — Obtenez votre OTP</p>
-              <p className="text-sm text-orange-700">
-                Composez le <strong className="text-orange-900 text-base">{otpUssdCode}</strong> sur votre téléphone.
-              </p>
-              <p className="text-xs text-orange-500 mt-1">L'OTP reçu est valable 5 minutes.</p>
-            </div>
-
-            <p className="text-sm font-bold text-gray-700 mb-2">✏️ Étape 2 — Saisissez l'OTP</p>
+            <p className="text-white font-bold text-base mb-1">Étape 1 — Obtenez votre OTP</p>
+            <p className="text-white/50 text-sm">Composez le{" "}
+              <span className="text-orange-400 font-bold text-base">{otpUssdCode}</span>
+              {" "}sur votre téléphone pour recevoir un code à 6 chiffres.
+            </p>
+          </div>
+          <div className="border-t border-white/10 pt-5">
+            <p className="text-white font-bold text-base mb-3">Étape 2 — Saisissez l'OTP</p>
             <input
+              ref={otpRef}
               type="number"
               value={otp}
-              onChange={e => setOtp(e.target.value)}
-              placeholder="• • • • • •"
-              maxLength={6}
-              autoFocus
-              className="w-full border-2 border-gray-200 rounded-2xl px-4 py-4 text-2xl font-black text-center focus:outline-none focus:border-orange-400 bg-gray-50 tracking-[0.5em]"
+              onChange={e => setOtp(e.target.value.slice(0, 6))}
+              placeholder="000000"
+              className="w-full bg-white/10 border border-white/20 rounded-2xl px-4 py-4 text-white text-3xl font-black text-center focus:outline-none focus:border-orange-400/60 tracking-[0.4em] placeholder:text-white/20 placeholder:tracking-[0.4em]"
             />
-            {error && (
-              <div className="mt-3 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-sm text-red-600">
-                ❌ {error}
-              </div>
-            )}
           </div>
+          {error && (
+            <div className="mt-3 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-2.5 text-red-400 text-sm">
+              {error}
+            </div>
+          )}
+        </div>
 
-          <button
-            onClick={handleOtpConfirm}
-            disabled={submitting || !otp.trim()}
-            className="w-full py-4 rounded-2xl font-black text-base text-white shadow-lg active:scale-[0.97] transition-all disabled:opacity-50"
-            style={{ background: "linear-gradient(135deg, #ea580c, #f97316)" }}
-          >
-            {submitting ? "Validation…" : "Confirmer le paiement"}
-          </button>
+        <button
+          onClick={handleOtpConfirm}
+          disabled={submitting || !otp.trim()}
+          className="w-full py-4 rounded-2xl font-black text-white text-base transition-all active:scale-[0.97] disabled:opacity-40"
+          style={{ background: "linear-gradient(135deg, #ea580c, #f97316)" }}
+        >
+          {submitting ? <span className="flex items-center justify-center gap-2">Validation<AnimatedDots /></span> : "Confirmer le paiement"}
+        </button>
 
-          <button
-            onClick={() => { setStep("form"); setOtp(""); setError(""); }}
-            className="w-full text-center text-sm text-gray-400 underline py-2"
-          >← Retour</button>
+        <p className="text-center text-white/25 text-xs pb-4">Paiement sécurisé par <span className="text-white/40 font-bold">SIKApay</span></p>
+      </div>
+    </div>
+  );
 
-          <div className="text-center pb-4">
-            <p className="text-xs text-gray-400">Paiement sécurisé par <strong className="text-gray-600">SIKApay</strong></p>
-          </div>
+  // ── Main form ──
+  return (
+    <div className={`${BG} pb-12`} style={bgStyle}>
+      <style>{`
+        @keyframes bounce { 0%, 80%, 100% { transform: scale(0); opacity: 0.3 } 40% { transform: scale(1); opacity: 1 } }
+        @keyframes shimmer { 0% { background-position: -200% 0 } 100% { background-position: 200% 0 } }
+        .shine { background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent); background-size: 200% 100%; animation: shimmer 2.5s infinite; }
+      `}</style>
+
+      {/* Header */}
+      <div className="px-5 pt-6 pb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <img src="/logo.jpg" alt="SIKApay" className="w-8 h-8 rounded-xl object-cover ring-1 ring-white/20" />
+          <span className="font-black text-white text-sm tracking-wide">SIKApay</span>
+        </div>
+        <div className="flex items-center gap-1.5 bg-green-500/10 border border-green-500/20 rounded-full px-3 py-1.5">
+          <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+          <span className="text-green-400 text-xs font-semibold">Sécurisé</span>
         </div>
       </div>
-    );
-  }
 
-  // ── Main form (Step 1) ──
-  return (
-    <div className="min-h-screen pb-10" style={{ background: "#f0f4f8" }}>
-      <Header />
+      <div className="max-w-md mx-auto px-4 space-y-3"
+        style={{ opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(12px)", transition: "all 0.4s ease" }}>
 
-      <div className="max-w-md mx-auto px-4 pt-5 space-y-4">
         {/* Link image */}
         {link.imageUrl && (
-          <div className="rounded-3xl overflow-hidden shadow-sm w-full" style={{ maxHeight: 200 }}>
-            <img src={link.imageUrl} alt={link.label} className="w-full object-cover" style={{ maxHeight: 200 }} />
+          <div className="rounded-3xl overflow-hidden ring-1 ring-white/10" style={{ maxHeight: 180 }}>
+            <img src={link.imageUrl} alt={link.label} className="w-full object-cover" style={{ maxHeight: 180 }} />
           </div>
         )}
 
         {/* Amount card */}
-        <div className="bg-white rounded-3xl p-5 shadow-sm text-center">
-          <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Total à payer</p>
-          <p className="font-black text-5xl text-gray-900">
+        <div className="relative overflow-hidden bg-gradient-to-br from-blue-600/30 to-indigo-700/30 border border-blue-500/20 rounded-3xl p-6 text-center shine">
+          <p className="text-white/40 text-xs uppercase tracking-[0.15em] font-semibold mb-2">Total à payer</p>
+          <p className="font-black text-white leading-none" style={{ fontSize: "clamp(2.5rem,10vw,3.5rem)" }}>
             {parseFloat(link.amount).toLocaleString("fr-FR")}
-            <span className="text-2xl ml-2 text-gray-500">{link.currency}</span>
+            <span className="text-white/40 text-xl ml-2 font-bold">{link.currency}</span>
           </p>
-          <p className="font-bold text-gray-700 mt-2 text-base uppercase tracking-wide">{link.label}</p>
-          {link.description && (
-            <p className="text-gray-400 text-xs mt-1">{link.description}</p>
-          )}
+          <p className="text-white/70 font-semibold mt-2 text-sm uppercase tracking-wide">{link.label}</p>
+          {link.description && <p className="text-white/35 text-xs mt-1">{link.description}</p>}
         </div>
 
         {/* Country + Operator + Phone */}
-        <div className="bg-white rounded-3xl p-5 shadow-sm space-y-4">
+        <div className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-5">
           {/* Country */}
           <div>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Pays Mobile Money</p>
-            <select
-              value={selectedCountry.code}
-              onChange={e => handleCountryChange(e.target.value)}
-              className="w-full border border-gray-200 rounded-2xl px-4 py-3 text-sm font-medium text-gray-800 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300"
-            >
-              {COUNTRIES.map(c => (
-                <option key={c.code} value={c.code}>{c.flag} {c.name} ({c.currency})</option>
-              ))}
-            </select>
+            <p className="text-white/40 text-[11px] uppercase tracking-[0.12em] font-semibold mb-2">Pays</p>
+            <div className="relative">
+              <select
+                value={selectedCountry.code}
+                onChange={e => handleCountryChange(e.target.value)}
+                className="w-full appearance-none bg-white/8 border border-white/15 rounded-2xl px-4 py-3 text-sm font-semibold text-white focus:outline-none focus:border-blue-400/50 cursor-pointer"
+                style={{ background: "rgba(255,255,255,0.07)" }}
+              >
+                {COUNTRIES.map(c => (
+                  <option key={c.code} value={c.code} style={{ background: "#1e293b" }}>
+                    {c.flag} {c.name} ({c.currency})
+                  </option>
+                ))}
+              </select>
+              <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-white/40">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
           </div>
 
           {/* Operator */}
           <div>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Opérateur Mobile Money</p>
-            <div className="grid grid-cols-2 gap-2">
-              {selectedCountry.operators.map(op => (
-                <button
-                  key={op.code}
-                  onClick={() => { setSelectedOperator(op); setOtp(""); }}
-                  className={`p-3 rounded-2xl border-2 text-center transition-all ${
-                    selectedOperator.code === op.code
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 bg-gray-50 hover:bg-gray-100"
-                  }`}
-                >
-                  <div className="w-10 h-10 rounded-full mx-auto mb-1 flex items-center justify-center text-white font-black text-xs"
-                    style={{ background: op.color }}>
-                    {op.label}
-                  </div>
-                  <p className="text-xs font-semibold text-gray-700 leading-tight">{op.name}</p>
-                </button>
-              ))}
+            <p className="text-white/40 text-[11px] uppercase tracking-[0.12em] font-semibold mb-2">Opérateur Mobile Money</p>
+            <div className={`grid gap-2 ${selectedCountry.operators.length > 2 ? "grid-cols-2" : "grid-cols-2"}`}>
+              {selectedCountry.operators.map(op => {
+                const active = selectedOperator.code === op.code;
+                return (
+                  <button
+                    key={op.code}
+                    onClick={() => { setSelectedOperator(op); setOtp(""); }}
+                    className={`p-3 rounded-2xl border-2 text-center transition-all duration-200 ${
+                      active ? "border-blue-400/70 bg-blue-500/15 scale-[1.02]" : "border-white/10 bg-white/5 hover:bg-white/8"
+                    }`}
+                  >
+                    <div className="w-10 h-10 rounded-full mx-auto mb-1.5 flex items-center justify-center font-black text-[11px] shadow-lg"
+                      style={{ background: op.bg, color: op.bg === "#FFCC00" ? "#333" : "#fff",
+                        boxShadow: active ? `0 4px 20px ${op.bg}55` : "none" }}>
+                      {op.short}
+                    </div>
+                    <p className="text-xs font-semibold leading-tight"
+                      style={{ color: active ? "#fff" : "rgba(255,255,255,0.55)" }}>{op.name}</p>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           {/* Phone */}
           <div>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Numéro Mobile Money</p>
+            <p className="text-white/40 text-[11px] uppercase tracking-[0.12em] font-semibold mb-2">Numéro Mobile Money</p>
             <div className="flex gap-2">
-              <div className="flex items-center px-3 py-3 bg-gray-100 rounded-2xl text-sm font-semibold text-gray-600 border border-gray-200 whitespace-nowrap">
-                {selectedCountry.flag} {selectedCountry.prefix}
+              <div className="flex items-center gap-1.5 px-3 py-3 rounded-2xl border border-white/10 text-sm font-bold text-white/70 whitespace-nowrap flex-shrink-0"
+                style={{ background: "rgba(255,255,255,0.07)" }}>
+                <span>{selectedCountry.flag}</span>
+                <span>{selectedCountry.prefix}</span>
               </div>
               <input
                 type="tel"
                 value={phone}
                 onChange={e => setPhone(e.target.value)}
                 placeholder={selectedCountry.phonePlaceholder}
-                maxLength={selectedCountry.phoneDigits + 4}
-                className="flex-1 border border-gray-200 rounded-2xl px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-300 bg-gray-50"
+                className="flex-1 bg-white/7 border border-white/15 rounded-2xl px-4 py-3 text-sm font-semibold text-white placeholder:text-white/25 focus:outline-none focus:border-blue-400/50"
+                style={{ background: "rgba(255,255,255,0.07)" }}
               />
             </div>
-            <p className="text-[10px] text-gray-400 mt-1 ml-1">{selectedCountry.phoneDigits} chiffres requis</p>
           </div>
-
-          {/* OTP hint (info only — not the input) */}
-          {requiresOtp && (
-            <div className="bg-orange-50 border border-orange-200 rounded-2xl px-4 py-3 flex items-start gap-2">
-              <span className="text-orange-500 text-base mt-0.5">⚠️</span>
-              <div>
-                <p className="text-xs font-bold text-orange-700">OTP requis pour Orange Money</p>
-                <p className="text-xs text-orange-600 mt-0.5">
-                  Un code OTP vous sera demandé à l'étape suivante. Préparez-le en composant le <strong>{otpUssdCode}</strong>.
-                </p>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Name + Email */}
-        <div className="bg-white rounded-3xl p-5 shadow-sm space-y-3">
+        <div className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Prénom</p>
-              <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)}
-                placeholder="Jean"
-                className="w-full border border-gray-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-gray-50" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Nom</p>
-              <input type="text" value={lastName} onChange={e => setLastName(e.target.value)}
-                placeholder="Dupont"
-                className="w-full border border-gray-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-gray-50" />
-            </div>
+            {[
+              { label: "Prénom", value: firstName, set: setFirstName, ph: "Jean" },
+              { label: "Nom", value: lastName, set: setLastName, ph: "Dupont" },
+            ].map(f => (
+              <div key={f.label}>
+                <p className="text-white/40 text-[11px] uppercase tracking-[0.12em] font-semibold mb-2">{f.label}</p>
+                <input type="text" value={f.value} onChange={e => f.set(e.target.value)}
+                  placeholder={f.ph}
+                  className="w-full border border-white/15 rounded-2xl px-3 py-3 text-sm font-semibold text-white placeholder:text-white/25 focus:outline-none focus:border-blue-400/50"
+                  style={{ background: "rgba(255,255,255,0.07)" }} />
+              </div>
+            ))}
           </div>
           <div>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Email (optionnel)</p>
+            <p className="text-white/40 text-[11px] uppercase tracking-[0.12em] font-semibold mb-2">Email <span className="normal-case tracking-normal text-white/25">(optionnel)</span></p>
             <input type="email" value={email} onChange={e => setEmail(e.target.value)}
               placeholder="jean@exemple.com"
-              className="w-full border border-gray-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-gray-50" />
+              className="w-full border border-white/15 rounded-2xl px-4 py-3 text-sm font-semibold text-white placeholder:text-white/25 focus:outline-none focus:border-blue-400/50"
+              style={{ background: "rgba(255,255,255,0.07)" }} />
           </div>
         </div>
 
         {/* Error */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-sm text-red-600 font-medium">
-            ❌ {error}
+          <div className="bg-red-500/10 border border-red-500/30 rounded-2xl px-4 py-3 text-red-400 text-sm flex items-start gap-2">
+            <span className="flex-shrink-0 mt-0.5">⚠️</span>
+            <span>{error}</span>
           </div>
         )}
 
@@ -520,18 +532,22 @@ export default function PaymentLinkPage() {
         <button
           onClick={handleFormNext}
           disabled={submitting}
-          className="w-full py-4 rounded-2xl font-black text-base text-white shadow-lg active:scale-[0.97] transition-all disabled:opacity-60"
-          style={{ background: "linear-gradient(135deg, #1a4fa0, #3b82f6)" }}
+          className="w-full py-4 rounded-2xl font-black text-base text-white shadow-xl active:scale-[0.97] transition-all duration-150 disabled:opacity-50"
+          style={{ background: "linear-gradient(135deg, #2563eb, #4f46e5)", boxShadow: "0 8px 32px rgba(79,70,229,0.4)" }}
         >
-          {requiresOtp
-            ? `Suivant — Saisir l'OTP`
-            : `Payer ${parseFloat(link.amount).toLocaleString("fr-FR")} ${link.currency}`
+          {submitting
+            ? <span className="flex items-center justify-center gap-2">Initiation<AnimatedDots /></span>
+            : requiresOtp
+              ? <span className="flex items-center justify-center gap-2">
+                  Suivant <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                </span>
+              : `Payer ${parseFloat(link.amount).toLocaleString("fr-FR")} ${link.currency}`
           }
         </button>
 
-        <div className="text-center pb-4">
-          <p className="text-xs text-gray-400">Paiement sécurisé par <strong className="text-gray-600">SIKApay</strong></p>
-        </div>
+        <p className="text-center text-white/20 text-xs pb-4">
+          Paiement sécurisé par <span className="text-white/35 font-bold">SIKApay</span>
+        </p>
       </div>
     </div>
   );
