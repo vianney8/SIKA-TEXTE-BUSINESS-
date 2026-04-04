@@ -1,25 +1,42 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { Mail, Lock, ArrowRight, Eye, EyeOff, CheckCircle, ArrowLeft } from "lucide-react";
+import { Mail, Lock, ArrowRight, Eye, EyeOff, CheckCircle, ArrowLeft, ShieldCheck, RefreshCw, AlertTriangle } from "lucide-react";
 import logoPath from "@assets/1764438802465_1773510898637.jpg";
 
 type Step = "email" | "code" | "newPassword" | "success";
 
 export default function ForgotPassword() {
-  const [step, setStep] = useState<Step>("email");
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [newPassword, setNewPassword] = useState("");
+  const [step, setStep]                   = useState<Step>("email");
+  const [email, setEmail]                 = useState("");
+  const [digits, setDigits]               = useState(["", "", "", "", "", ""]);
+  const [newPassword, setNewPassword]     = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
-  const [, setLocation] = useLocation();
+  const [showPassword, setShowPassword]   = useState(false);
+  const [showConfirm, setShowConfirm]     = useState(false);
+  const [isLoading, setIsLoading]         = useState(false);
+  const { toast }                         = useToast();
+  const [, setLocation]                   = useLocation();
+  const digitRefs                         = useRef<(HTMLInputElement | null)[]>([]);
+  const code                              = digits.join("");
 
-  const handleSendCode = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleDigitChange = useCallback((index: number, value: string) => {
+    const v = value.replace(/\D/g, "").slice(-1);
+    setDigits(prev => { const next = [...prev]; next[index] = v; return next; });
+    if (v && index < 5) digitRefs.current[index + 1]?.focus();
+  }, []);
+
+  const handleDigitKeyDown = useCallback((index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Backspace" && !digits[index] && index > 0) digitRefs.current[index - 1]?.focus();
+  }, [digits]);
+
+  const handleDigitPaste = useCallback((e: React.ClipboardEvent) => {
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    if (pasted.length === 6) { setDigits(pasted.split("")); digitRefs.current[5]?.focus(); }
+  }, []);
+
+  const handleSendCode = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!email) return;
     setIsLoading(true);
     try {
@@ -46,8 +63,8 @@ export default function ForgotPassword() {
     }
   };
 
-  const handleVerifyCode = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleVerifyCode = (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (code.length !== 6) {
       toast({ title: "Erreur", description: "Le code doit contenir 6 chiffres", variant: "destructive" });
       return;
@@ -87,6 +104,12 @@ export default function ForgotPassword() {
 
   const inputClass = "w-full h-12 pl-10 pr-4 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all";
 
+  const goBack = () => {
+    if (step === "email") setLocation("/simple-login");
+    else if (step === "code") setStep("email");
+    else if (step === "newPassword") setStep("code");
+  };
+
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "#f0f4f8" }}>
 
@@ -96,17 +119,16 @@ export default function ForgotPassword() {
         style={{
           background: "linear-gradient(160deg, #0f172a 0%, #1e3a5f 60%, #1a4fa0 100%)",
           borderRadius: "0 0 36px 36px",
-          minHeight: "32vh",
+          minHeight: "28vh",
         }}
       >
-        <div className="absolute top-6 left-5">
-          <button
-            onClick={() => step === "email" ? setLocation("/simple-login") : setStep(step === "code" ? "email" : "code")}
-            className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center"
-          >
-            <ArrowLeft size={18} className="text-white" />
-          </button>
-        </div>
+        {step !== "success" && (
+          <div className="absolute top-6 left-5">
+            <button onClick={goBack} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center">
+              <ArrowLeft size={18} className="text-white" />
+            </button>
+          </div>
+        )}
         <div className="absolute top-6 right-8 w-24 h-24 rounded-full opacity-10"
           style={{ background: "radial-gradient(circle, #60a5fa, transparent)" }} />
         <div className="flex flex-col items-center z-10">
@@ -116,7 +138,7 @@ export default function ForgotPassword() {
           <h1 className="text-white font-black text-xl">Mot de passe oublié</h1>
           <p className="text-blue-200 text-sm mt-0.5">
             {step === "email" && "Entrez votre adresse email"}
-            {step === "code" && "Entrez le code reçu par email"}
+            {step === "code" && "Vérifiez votre boîte mail"}
             {step === "newPassword" && "Choisissez un nouveau mot de passe"}
             {step === "success" && "Mot de passe réinitialisé"}
           </p>
@@ -125,24 +147,22 @@ export default function ForgotPassword() {
 
       {/* Progress dots */}
       {step !== "success" && (
-        <div className="flex justify-center gap-2 mt-6">
-          {["email", "code", "newPassword"].map((s, i) => (
-            <div key={s} className={`h-2 rounded-full transition-all ${step === s ? "w-6 bg-blue-500" : i < ["email", "code", "newPassword"].indexOf(step) ? "w-2 bg-blue-300" : "w-2 bg-gray-300"}`} />
+        <div className="flex justify-center gap-2 mt-5">
+          {(["email", "code", "newPassword"] as const).map((s) => (
+            <div key={s} className={`h-2 rounded-full transition-all ${step === s ? "w-6 bg-blue-500" : (["email","code","newPassword"].indexOf(s) < ["email","code","newPassword"].indexOf(step) ? "w-2 bg-blue-300" : "w-2 bg-gray-300")}`} />
           ))}
         </div>
       )}
 
-      {/* Card */}
-      <div className="flex-1 px-5 mt-4 pb-8">
-        <div className="bg-white rounded-[24px] shadow-sm border border-gray-100 p-5">
-
-          {/* STEP 1: Email */}
-          {step === "email" && (
+      {/* STEP 1: Email */}
+      {step === "email" && (
+        <div className="flex-1 px-5 mt-4 pb-8">
+          <div className="bg-white rounded-[24px] shadow-sm border border-gray-100 p-5">
             <form onSubmit={handleSendCode} className="space-y-4">
+              <p className="text-gray-600 text-sm">
+                Entrez l'adresse email associée à votre compte. Nous vous enverrons un code de réinitialisation.
+              </p>
               <div>
-                <p className="text-gray-700 text-sm mb-4">
-                  Entrez l'adresse email associée à votre compte. Nous vous enverrons un code de réinitialisation.
-                </p>
                 <label className="text-gray-500 text-xs font-semibold uppercase tracking-wider block mb-1.5">Adresse email</label>
                 <div className="relative">
                   <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -165,48 +185,83 @@ export default function ForgotPassword() {
                 {isLoading ? "Envoi en cours..." : <><span>Envoyer le code</span><ArrowRight size={18} /></>}
               </button>
             </form>
-          )}
+          </div>
+        </div>
+      )}
 
-          {/* STEP 2: Code */}
-          {step === "code" && (
-            <form onSubmit={handleVerifyCode} className="space-y-4">
-              <div className="bg-blue-50 rounded-xl p-3 text-sm text-blue-700 mb-2">
-                Un code à 6 chiffres a été envoyé à <strong>{email}</strong>
-              </div>
-              <div>
-                <label className="text-gray-500 text-xs font-semibold uppercase tracking-wider block mb-1.5">Code de vérification</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="123456"
-                  maxLength={6}
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                  required
-                  className="w-full h-14 rounded-xl border border-gray-200 bg-gray-50 text-center text-2xl font-black text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all tracking-[0.3em]"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={code.length !== 6}
-                className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 disabled:opacity-60 transition-all active:scale-[0.97] shadow-md"
-                style={{ background: "linear-gradient(135deg, #1a4fa0, #3b82f6)" }}
-              >
-                <span>Vérifier le code</span><ArrowRight size={18} />
-              </button>
-              <button
-                type="button"
-                onClick={handleSendCode}
-                disabled={isLoading}
-                className="w-full py-3 text-sm text-blue-600 font-semibold"
-              >
-                {isLoading ? "Envoi..." : "Renvoyer le code"}
-              </button>
-            </form>
-          )}
+      {/* STEP 2: Code — nouveau design */}
+      {step === "code" && (
+        <div className="flex-1 flex flex-col items-center px-5 pt-6 pb-8">
+          {/* Icône + Titre */}
+          <div className="flex items-center gap-2 mb-2">
+            <ShieldCheck size={26} className="text-blue-600" />
+            <h2 className="text-gray-900 font-black text-xl">Vérification email</h2>
+          </div>
 
-          {/* STEP 3: New Password */}
-          {step === "newPassword" && (
+          {/* Sous-titre */}
+          <p className="text-gray-500 text-sm text-center mb-4">
+            Un code à 6 chiffres a été envoyé à{" "}
+            <span className="font-bold text-gray-800">{email}</span>.
+          </p>
+
+          {/* Alerte spam */}
+          <div className="w-full bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex gap-2 items-start mb-6">
+            <AlertTriangle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
+            <p className="text-amber-700 text-xs leading-relaxed">
+              Si vous ne voyez pas l'email dans votre boîte de réception,{" "}
+              <strong>vérifiez aussi votre dossier spam ou courriers indésirables</strong>.
+            </p>
+          </div>
+
+          {/* Label */}
+          <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-3 self-start">Code de vérification</p>
+
+          {/* 6 cases */}
+          <div className="flex gap-2.5 mb-2 w-full justify-center" onPaste={handleDigitPaste}>
+            {digits.map((d, i) => (
+              <input
+                key={i}
+                ref={el => { digitRefs.current[i] = el; }}
+                type="text"
+                inputMode="numeric"
+                maxLength={1}
+                value={d}
+                onChange={e => handleDigitChange(i, e.target.value)}
+                onKeyDown={e => handleDigitKeyDown(i, e)}
+                className="w-12 h-14 rounded-xl border-2 border-gray-200 bg-white text-center text-2xl font-black text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all shadow-sm"
+              />
+            ))}
+          </div>
+          <p className="text-gray-400 text-xs mb-6">Valable 15 minutes. Vérifiez aussi vos spams.</p>
+
+          {/* Bouton confirmer */}
+          <button
+            onClick={handleVerifyCode}
+            disabled={code.length !== 6}
+            className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 disabled:opacity-50 shadow-md mb-5 transition-all active:scale-[0.97]"
+            style={{ background: "linear-gradient(135deg, #1a4fa0, #3b82f6)" }}
+          >
+            <span>Confirmer le code</span><ArrowRight size={18} />
+          </button>
+
+          {/* Renvoyer */}
+          <p className="text-gray-500 text-sm mb-3">Vous n'avez pas reçu le code ?</p>
+          <button
+            type="button"
+            onClick={() => handleSendCode()}
+            disabled={isLoading}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full border border-gray-200 bg-white text-gray-700 text-sm font-semibold shadow-sm active:scale-[0.97] transition-all disabled:opacity-50"
+          >
+            <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
+            {isLoading ? "Envoi..." : "Renvoyer le code"}
+          </button>
+        </div>
+      )}
+
+      {/* STEP 3: Nouveau mot de passe */}
+      {step === "newPassword" && (
+        <div className="flex-1 px-5 mt-4 pb-8">
+          <div className="bg-white rounded-[24px] shadow-sm border border-gray-100 p-5">
             <form onSubmit={handleResetPassword} className="space-y-4">
               <div>
                 <label className="text-gray-500 text-xs font-semibold uppercase tracking-wider block mb-1.5">Nouveau mot de passe</label>
@@ -231,16 +286,16 @@ export default function ForgotPassword() {
                 <div className="relative">
                   <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
-                    type={showConfirmPassword ? "text" : "password"}
+                    type={showConfirm ? "text" : "password"}
                     placeholder="Répétez le mot de passe"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
                     className="w-full h-12 pl-10 pr-12 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
                   />
-                  <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  <button type="button" onClick={() => setShowConfirm(!showConfirm)}
                     className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400">
-                    {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
               </div>
@@ -253,27 +308,29 @@ export default function ForgotPassword() {
                 {isLoading ? "Mise à jour..." : <><span>Réinitialiser</span><ArrowRight size={18} /></>}
               </button>
             </form>
-          )}
-
-          {/* STEP 4: Success */}
-          {step === "success" && (
-            <div className="flex flex-col items-center py-6 gap-4">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-                <CheckCircle size={32} className="text-green-500" />
-              </div>
-              <p className="text-gray-800 font-bold text-lg text-center">Mot de passe mis à jour !</p>
-              <p className="text-gray-500 text-sm text-center">Vous pouvez maintenant vous connecter avec votre nouveau mot de passe.</p>
-              <button
-                onClick={() => setLocation("/simple-login")}
-                className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 shadow-md mt-2"
-                style={{ background: "linear-gradient(135deg, #1a4fa0, #3b82f6)" }}
-              >
-                <span>Se connecter</span><ArrowRight size={18} />
-              </button>
-            </div>
-          )}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* STEP 4: Succès */}
+      {step === "success" && (
+        <div className="flex-1 flex flex-col items-center justify-center px-5 pb-8">
+          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-5">
+            <CheckCircle size={40} className="text-green-500" />
+          </div>
+          <p className="text-gray-900 font-black text-xl text-center mb-2">Mot de passe mis à jour !</p>
+          <p className="text-gray-500 text-sm text-center mb-8">
+            Vous pouvez maintenant vous connecter avec votre nouveau mot de passe.
+          </p>
+          <button
+            onClick={() => setLocation("/simple-login")}
+            className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 shadow-md"
+            style={{ background: "linear-gradient(135deg, #1a4fa0, #3b82f6)" }}
+          >
+            <span>Se connecter</span><ArrowRight size={18} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
