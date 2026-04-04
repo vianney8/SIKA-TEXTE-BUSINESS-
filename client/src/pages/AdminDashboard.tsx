@@ -1466,7 +1466,7 @@ export default function AdminDashboard() {
                     <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 rounded-2xl cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
                       <span className="text-2xl mb-1">🖼</span>
                       <span className="text-xs text-gray-500">Cliquer pour choisir une image</span>
-                      <span className="text-[10px] text-gray-400">JPG, PNG, WebP — max 5 Mo</span>
+                      <span className="text-[10px] text-gray-400">JPG, PNG, WebP — max 10 Mo</span>
                       <input type="file" accept="image/*" className="hidden"
                         onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadLinkImage(f); }} />
                     </label>
