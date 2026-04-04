@@ -199,6 +199,33 @@ export class ObjectStorageService {
     if (!exists) throw new ObjectNotFoundError();
     return file;
   }
+
+  // Upload an image for a payment link, returns a proxy URL path
+  async uploadPaymentLinkImage(buffer: Buffer, mimeType: string): Promise<string> {
+    const ext = (mimeType.split("/")[1] || "jpg").replace("jpeg", "jpg");
+    const imageId = randomUUID();
+    const fileName = `${imageId}.${ext}`;
+    let entityDir = this.getPrivateObjectDir();
+    if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
+    const objectPath = `${entityDir}payment-link-images/${fileName}`;
+    const { bucketName, objectName } = parseObjectPath(objectPath);
+    const bucket = objectStorageClient.bucket(bucketName);
+    const file = bucket.file(objectName);
+    await file.save(buffer, { contentType: mimeType, resumable: false });
+    return `/api/media/payment-link-image/${fileName}`;
+  }
+
+  async getPaymentLinkImageFile(imageId: string): Promise<File> {
+    let entityDir = this.getPrivateObjectDir();
+    if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
+    const objectPath = `${entityDir}payment-link-images/${imageId}`;
+    const { bucketName, objectName } = parseObjectPath(objectPath);
+    const bucket = objectStorageClient.bucket(bucketName);
+    const file = bucket.file(objectName);
+    const [exists] = await file.exists();
+    if (!exists) throw new ObjectNotFoundError();
+    return file;
+  }
 }
 
 function parseObjectPath(path: string): {

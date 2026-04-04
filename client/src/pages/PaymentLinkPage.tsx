@@ -267,11 +267,8 @@ export default function PaymentLinkPage() {
       <div className="sticky top-0 z-10 bg-white border-b border-gray-100 shadow-sm">
         <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-              style={{ background: "linear-gradient(135deg, #1a4fa0, #3b82f6)" }}>
-              <span className="text-white font-black text-xs">S</span>
-            </div>
-            <span className="font-black text-blue-700 text-sm">SIKA TEXTE</span>
+            <img src="/logo.jpg" alt="SIKApay" className="w-8 h-8 rounded-lg object-cover" />
+            <span className="font-black text-blue-700 text-sm">SIKApay</span>
           </div>
           <span className="text-xs text-gray-400 flex items-center gap-1">
             🔒 Paiement sécurisé
@@ -280,6 +277,13 @@ export default function PaymentLinkPage() {
       </div>
 
       <div className="max-w-md mx-auto px-4 pt-5 space-y-4">
+        {/* Link image (if set) */}
+        {link.imageUrl && (
+          <div className="rounded-3xl overflow-hidden shadow-sm w-full" style={{ maxHeight: 200 }}>
+            <img src={link.imageUrl} alt={link.label} className="w-full object-cover" style={{ maxHeight: 200 }} />
+          </div>
+        )}
+
         {/* Amount card */}
         <div className="bg-white rounded-3xl p-5 shadow-sm text-center">
           <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Total à payer</p>
@@ -428,9 +432,8 @@ export default function PaymentLinkPage() {
         {/* Footer */}
         <div className="text-center pb-4">
           <p className="text-xs text-gray-400">
-            🔒 Paiement sécurisé par <strong className="text-gray-600">SIKA TEXTE × SolvexPay</strong>
+            Paiement sécurisé par <strong className="text-gray-600">SIKApay</strong>
           </p>
-          <p className="text-xs text-gray-300 mt-1">Vos données sont protégées et chiffrées</p>
         </div>
       </div>
     </div>

@@ -2827,6 +2827,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // PAYMENT LINKS — Admin manages SolvexPay links
   // ══════════════════════════════════════════
 
+  // Upload image for a payment link
+  const imageMemUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      if (file.mimetype.startsWith("image/")) cb(null, true);
+      else cb(new Error("Seuls les fichiers image sont acceptés"));
+    },
+  });
+  app.post("/api/admin/payment-links/upload-image", requireAdmin, imageMemUpload.single("image"), async (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "Aucun fichier image fourni" });
+      const objectStorageService = new ObjectStorageService();
+      const imageUrl = await objectStorageService.uploadPaymentLinkImage(req.file.buffer, req.file.mimetype);
+      res.json({ url: imageUrl });
+    } catch (error: any) {
+      console.error("Erreur upload image lien:", error);
+      res.status(500).json({ message: error.message || "Erreur lors de l'upload" });
+    }
+  });
+
+  // Proxy route to serve payment link images
+  app.get("/api/media/payment-link-image/:imageId", async (req: any, res) => {
+    try {
+      const { imageId } = req.params;
+      const objectStorageService = new ObjectStorageService();
+      const file = await objectStorageService.getPaymentLinkImageFile(imageId);
+      await objectStorageService.downloadObject(file, res, 7 * 24 * 3600);
+    } catch (error: any) {
+      if (error.name === "ObjectNotFoundError") return res.status(404).json({ message: "Image introuvable" });
+      console.error("Erreur lecture image lien:", error);
+      res.status(500).json({ message: "Erreur" });
+    }
+  });
+
   // List all payment links
   app.get('/api/admin/payment-links', requireAdmin, async (_req, res) => {
     try {
@@ -2853,6 +2888,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const host = req.headers['x-forwarded-host'] || req.hostname;
       const linkUrl = `${proto}://${host}/pay/${linkId}`;
 
+      const { imageUrl } = parsed.data;
+
       const [created] = await db.insert(paymentLinks).values({
         id: linkId,
         label,
@@ -2861,6 +2898,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         description: description || null,
         linkUrl,
         solvexpayLinkId: null,
+        imageUrl: imageUrl || null,
         isActive: true,
       }).returning();
 
@@ -2886,6 +2924,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         amount: link.amount,
         currency: link.currency,
         description: link.description,
+        imageUrl: link.imageUrl || null,
       });
     } catch (err) {
       console.error('[PAYMENT-LINKS] Public get error:', err);

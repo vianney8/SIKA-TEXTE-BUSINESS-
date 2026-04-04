@@ -87,8 +87,9 @@ export default function AdminDashboard() {
   const [plLabel, setPlLabel] = useState("");
   const [plAmount, setPlAmount] = useState("");
   const [plDescription, setPlDescription] = useState("");
-  const [plManualUrl, setPlManualUrl] = useState("");
-  const [plUseManual, setPlUseManual] = useState(false);
+  const [plImageUrl, setPlImageUrl] = useState("");
+  const [plImagePreview, setPlImagePreview] = useState("");
+  const [plImageUploading, setPlImageUploading] = useState(false);
   
   // Fetch identity verifications (only when modal is open)
   const { data: identityVerifications } = useQuery({
@@ -157,7 +158,7 @@ export default function AdminDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/payment-links'] });
       setPaymentLinkModal(false);
-      setPlLabel(""); setPlAmount(""); setPlDescription(""); setPlManualUrl(""); setPlUseManual(false);
+      setPlLabel(""); setPlAmount(""); setPlDescription(""); setPlImageUrl(""); setPlImagePreview("");
       toast({ title: "✅ Lien créé avec succès" });
     },
     onError: (err: any) => {
@@ -184,6 +185,27 @@ export default function AdminDashboard() {
     },
   });
 
+  const handleUploadLinkImage = async (file: File) => {
+    setPlImageUploading(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = e => setPlImagePreview(e.target?.result as string);
+      reader.readAsDataURL(file);
+      const form = new FormData();
+      form.append("image", file);
+      const res = await fetch("/api/admin/payment-links/upload-image", { method: "POST", body: form, credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setPlImageUrl(data.url);
+      toast({ title: "✅ Image chargée" });
+    } catch (err: any) {
+      toast({ title: "Erreur upload image", description: err.message, variant: "destructive" });
+      setPlImagePreview("");
+    } finally {
+      setPlImageUploading(false);
+    }
+  };
+
   const handleCreatePaymentLink = () => {
     if (!plLabel.trim()) { toast({ title: "Libellé requis", variant: "destructive" }); return; }
     const amt = parseFloat(plAmount);
@@ -193,6 +215,7 @@ export default function AdminDashboard() {
       amount: amt,
       currency: 'XOF',
       description: plDescription.trim() || undefined,
+      imageUrl: plImageUrl || undefined,
     });
   };
 
@@ -1417,6 +1440,37 @@ export default function AdminDashboard() {
                   <Label className="text-sm font-semibold">Description (optionnel)</Label>
                   <Input className="mt-1" placeholder="ex: Paiement pour activation premium"
                     value={plDescription} onChange={e => setPlDescription(e.target.value)} />
+                </div>
+
+                {/* Image upload */}
+                <div>
+                  <Label className="text-sm font-semibold">Photo du lien (optionnel)</Label>
+                  <p className="text-xs text-gray-400 mt-0.5 mb-2">Apparaît en haut de la page de paiement</p>
+                  {plImagePreview ? (
+                    <div className="relative rounded-2xl overflow-hidden border border-gray-200">
+                      <img src={plImagePreview} alt="Aperçu" className="w-full h-32 object-cover" />
+                      <button
+                        onClick={() => { setPlImagePreview(""); setPlImageUrl(""); }}
+                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold"
+                      >✕</button>
+                      {plImageUploading && (
+                        <div className="absolute inset-0 bg-white/70 flex items-center justify-center">
+                          <div className="w-6 h-6 border-2 border-violet-300 border-t-violet-600 rounded-full animate-spin" />
+                        </div>
+                      )}
+                      {plImageUrl && !plImageUploading && (
+                        <div className="absolute bottom-2 left-2 bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">✓ Chargée</div>
+                      )}
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 rounded-2xl cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
+                      <span className="text-2xl mb-1">🖼</span>
+                      <span className="text-xs text-gray-500">Cliquer pour choisir une image</span>
+                      <span className="text-[10px] text-gray-400">JPG, PNG, WebP — max 5 Mo</span>
+                      <input type="file" accept="image/*" className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadLinkImage(f); }} />
+                    </label>
+                  )}
                 </div>
 
                 <div className="flex gap-2 pt-1">

@@ -437,6 +437,7 @@ export const paymentLinks = pgTable("payment_links", {
   description: text("description"),
   linkUrl: text("link_url"),
   solvexpayLinkId: varchar("solvexpay_link_id"),
+  imageUrl: text("image_url"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -453,7 +454,7 @@ export const createPaymentLinkSchema = z.object({
   amount: z.number().min(100, "Le montant minimum est 100 FCFA"),
   currency: z.string().default('XOF'),
   description: z.string().optional(),
-  manualUrl: z.string().url("URL invalide").optional().or(z.literal('')),
+  imageUrl: z.string().optional(),
 });
 
 // Table pour les liens configurables par l'admin
