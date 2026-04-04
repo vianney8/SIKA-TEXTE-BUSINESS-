@@ -138,7 +138,7 @@ export default function Register() {
       {/* ── Formulaire ── */}
       <div className="flex-1 px-5 -mt-4 z-10 pb-8">
         <div className="bg-white rounded-[24px] shadow-sm border border-gray-100 p-5">
-          <p className="text-gray-800 font-bold text-lg mb-4" data-testid="page-title">Vos informations</p>
+          <p className="text-gray-800 font-bold text-lg mb-4" data-testid="page-title">𝐶𝑅𝐸𝐸 𝑈𝑁 𝐶𝑂𝑀𝑃𝑇𝐸</p>
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit((d) => registerMutation.mutate(d))} className="space-y-4">
