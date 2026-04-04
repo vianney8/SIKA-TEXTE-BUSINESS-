@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Link } from "wouter";
-import { Eye, EyeOff, Phone, User, Mail, Lock, ArrowRight, Gift } from "lucide-react";
+import { Eye, EyeOff, Phone, User, Mail, Lock, ArrowRight, Gift, CheckCircle, MailCheck } from "lucide-react";
 import logoPath from "@assets/1764438802465_1773510898637.jpg";
 
 const COUNTRIES = [
@@ -56,6 +56,11 @@ export default function Register() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [, setLocation]                           = useLocation();
   const { toast }                                 = useToast();
+  const [verifyStep, setVerifyStep]               = useState(false);
+  const [registeredEmail, setRegisteredEmail]     = useState("");
+  const [verifyCode, setVerifyCode]               = useState("");
+  const [isVerifying, setIsVerifying]             = useState(false);
+  const [isSendingCode, setIsSendingCode]         = useState(false);
 
   const urlParams        = new URLSearchParams(window.location.search);
   const referralCodeParam = urlParams.get("ref") || "";
@@ -99,14 +104,52 @@ export default function Register() {
       }
       return response.json();
     },
-    onSuccess: () => {
-      toast({ title: "Compte créé !", description: "Bienvenue sur SIKA TEXTE" });
-      setTimeout(() => { window.location.href = "/"; }, 1000);
+    onSuccess: (_, variables) => {
+      setRegisteredEmail(variables.email);
+      sendVerificationCode(variables.email);
+      setVerifyStep(true);
     },
     onError: (error: any) => {
       toast({ title: "Erreur", description: error.message || "Impossible de créer le compte", variant: "destructive" });
     },
   });
+
+  const sendVerificationCode = async (email: string) => {
+    setIsSendingCode(true);
+    try {
+      await fetch("/api/auth/send-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+    } finally {
+      setIsSendingCode(false);
+    }
+  };
+
+  const handleVerifyCode = async () => {
+    if (verifyCode.length !== 6) {
+      toast({ title: "Erreur", description: "Le code doit contenir 6 chiffres", variant: "destructive" });
+      return;
+    }
+    setIsVerifying(true);
+    try {
+      const res = await fetch("/api/auth/verify-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: registeredEmail, code: verifyCode }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: "Erreur", description: data.message, variant: "destructive" });
+        return;
+      }
+      toast({ title: "Email vérifié !", description: "Bienvenue sur SIKA TEXTE" });
+      setTimeout(() => { window.location.href = "/"; }, 1000);
+    } finally {
+      setIsVerifying(false);
+    }
+  };
 
   const inputClass =
     "w-full h-12 pl-10 pr-4 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all";
@@ -135,7 +178,61 @@ export default function Register() {
         </div>
       </div>
 
+      {/* ── Vérification email ── */}
+      {verifyStep && (
+        <div className="flex-1 px-5 mt-6 pb-8">
+          <div className="bg-white rounded-[24px] shadow-sm border border-gray-100 p-6">
+            <div className="flex flex-col items-center gap-3 mb-6">
+              <div className="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center">
+                <MailCheck size={28} className="text-blue-500" />
+              </div>
+              <p className="text-gray-800 font-bold text-lg text-center">Vérifiez votre email</p>
+              <p className="text-gray-500 text-sm text-center">
+                Un code à 6 chiffres a été envoyé à<br />
+                <strong className="text-gray-700">{registeredEmail}</strong>
+              </p>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-gray-500 text-xs font-semibold uppercase tracking-wider block mb-1.5">Code de vérification</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="123456"
+                  maxLength={6}
+                  value={verifyCode}
+                  onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ""))}
+                  className="w-full h-14 rounded-xl border border-gray-200 bg-gray-50 text-center text-2xl font-black text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all tracking-[0.3em]"
+                />
+              </div>
+              <button
+                onClick={handleVerifyCode}
+                disabled={isVerifying || verifyCode.length !== 6}
+                className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 disabled:opacity-60 shadow-md"
+                style={{ background: "linear-gradient(135deg, #1a4fa0, #3b82f6)" }}
+              >
+                {isVerifying ? "Vérification..." : <><span>Confirmer</span><CheckCircle size={18} /></>}
+              </button>
+              <button
+                onClick={() => sendVerificationCode(registeredEmail)}
+                disabled={isSendingCode}
+                className="w-full py-3 text-sm text-blue-600 font-semibold"
+              >
+                {isSendingCode ? "Envoi..." : "Renvoyer le code"}
+              </button>
+              <button
+                onClick={() => { setVerifyStep(false); window.location.href = "/"; }}
+                className="w-full py-3 text-sm text-gray-500"
+              >
+                Ignorer pour l'instant
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Formulaire ── */}
+      {!verifyStep && (
       <div className="flex-1 px-5 -mt-4 z-10 pb-8">
         <div className="bg-white rounded-[24px] shadow-sm border border-gray-100 p-5">
           <Form {...form}>
@@ -321,6 +418,7 @@ export default function Register() {
           </Form>
         </div>
       </div>
+      )}
     </div>
   );
 }

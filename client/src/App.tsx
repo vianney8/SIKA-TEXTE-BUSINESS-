@@ -35,6 +35,7 @@ import Summary from "@/pages/Summary";
 import Activation from "@/pages/Activation";
 import ActivationSuccess from "@/pages/ActivationSuccess";
 import CiUpdatePage from "@/pages/CiUpdatePage";
+import ForgotPassword from "@/pages/ForgotPassword";
 
 // Wrapper component to handle authenticated user redirects for register page
 function RegisterWithRedirect() {
@@ -134,6 +135,7 @@ function Router() {
           <Route path="/" component={Landing} />
           <Route path="/register" component={RegisterWithRedirect} />
           <Route path="/simple-login" component={SimpleLoginWithRedirect} />
+          <Route path="/forgot-password" component={ForgotPassword} />
         </>
       ) : (
         <>

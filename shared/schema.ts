@@ -42,6 +42,11 @@ export const users: any = pgTable("users", {
   role: varchar("role").default('user'), // 'user' or 'admin'
   isBlocked: boolean("is_blocked").default(false), // Pour bloquer des utilisateurs
   ciUpdateValidated: boolean("ci_update_validated").default(false), // Mise à jour requise Côte d'Ivoire
+  emailVerified: boolean("email_verified").default(false),
+  emailVerificationCode: varchar("email_verification_code"),
+  emailVerificationExpiry: timestamp("email_verification_expiry"),
+  passwordResetToken: varchar("password_reset_token"),
+  passwordResetExpiry: timestamp("password_reset_expiry"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

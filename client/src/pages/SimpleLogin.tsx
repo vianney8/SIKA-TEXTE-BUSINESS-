@@ -6,6 +6,7 @@ import { useLocation } from "wouter";
 import { Lock, Phone, Eye, EyeOff, XCircle, ArrowRight, MessageCircle } from "lucide-react";
 import { FaTelegram } from "react-icons/fa";
 import { useAppSetting } from "@/hooks/useAppSettings";
+import { Link } from "wouter";
 import logoPath from "@assets/1764438802465_1773510898637.jpg";
 
 const COUNTRIES = [
@@ -205,6 +206,13 @@ export default function SimpleLogin() {
               >
                 {isLoading ? "Connexion..." : <><span>Se connecter</span><ArrowRight size={18} /></>}
               </button>
+
+              {/* Mot de passe oublié */}
+              <div className="text-center">
+                <Link href="/forgot-password" className="text-sm text-blue-500 font-semibold">
+                  Mot de passe oublié ?
+                </Link>
+              </div>
 
               {/* Lien inscription */}
               <p className="text-center text-sm text-gray-500 pt-1">

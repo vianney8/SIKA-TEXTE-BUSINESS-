@@ -4,6 +4,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { storage } from "./storage";
+import { generateCode, sendVerificationEmail, sendPasswordResetEmail } from "./email";
 import { 
   registerUserSchema, 
   loginUserSchema, 
@@ -23,7 +24,8 @@ import {
   bankCards,
   bkapayPayments,
   accountStatus,
-  appSettings
+  appSettings,
+  users,
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import session from "express-session";
@@ -249,6 +251,121 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Registration error:", error);
       res.status(500).json({ message: "Erreur lors de la création du compte" });
+    }
+  });
+
+  // Send email verification code
+  app.post('/api/auth/send-verification', async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email) return res.status(400).json({ message: "Email requis" });
+
+      const user = await storage.getUserByEmail(email);
+      if (!user) return res.status(404).json({ message: "Aucun compte associé à cet email" });
+
+      const code = generateCode();
+      const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+      await db.update(users as any)
+        .set({ emailVerificationCode: code, emailVerificationExpiry: expiry })
+        .where(eq((users as any).id, user.id));
+
+      const sent = await sendVerificationEmail(email, user.fullName || user.email, code);
+      if (!sent) return res.status(500).json({ message: "Impossible d'envoyer l'email. Réessayez." });
+
+      res.json({ message: "Code envoyé" });
+    } catch (err) {
+      console.error("[VERIFY EMAIL] Error:", err);
+      res.status(500).json({ message: "Erreur serveur" });
+    }
+  });
+
+  // Verify email code
+  app.post('/api/auth/verify-email', async (req, res) => {
+    try {
+      const { email, code } = req.body;
+      if (!email || !code) return res.status(400).json({ message: "Email et code requis" });
+
+      const user = await storage.getUserByEmail(email);
+      if (!user) return res.status(404).json({ message: "Utilisateur introuvable" });
+
+      if (!user.emailVerificationCode || user.emailVerificationCode !== code) {
+        return res.status(400).json({ message: "Code incorrect" });
+      }
+      if (!user.emailVerificationExpiry || new Date() > new Date(user.emailVerificationExpiry)) {
+        return res.status(400).json({ message: "Code expiré. Demandez un nouveau code." });
+      }
+
+      await db.update(users as any)
+        .set({ emailVerified: true, emailVerificationCode: null, emailVerificationExpiry: null })
+        .where(eq((users as any).id, user.id));
+
+      res.json({ message: "Email vérifié avec succès" });
+    } catch (err) {
+      console.error("[VERIFY EMAIL] Error:", err);
+      res.status(500).json({ message: "Erreur serveur" });
+    }
+  });
+
+  // Request password reset
+  app.post('/api/auth/forgot-password', async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email) return res.status(400).json({ message: "Email requis" });
+
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        // Don't reveal if email exists
+        return res.json({ message: "Si cet email existe, un code vous a été envoyé" });
+      }
+
+      const code = generateCode();
+      const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+      await db.update(users as any)
+        .set({ passwordResetToken: code, passwordResetExpiry: expiry })
+        .where(eq((users as any).id, user.id));
+
+      const sent = await sendPasswordResetEmail(email, user.fullName || user.email, code);
+      if (!sent) return res.status(500).json({ message: "Impossible d'envoyer l'email. Réessayez." });
+
+      res.json({ message: "Si cet email existe, un code vous a été envoyé" });
+    } catch (err) {
+      console.error("[FORGOT PASSWORD] Error:", err);
+      res.status(500).json({ message: "Erreur serveur" });
+    }
+  });
+
+  // Reset password with code
+  app.post('/api/auth/reset-password', async (req, res) => {
+    try {
+      const { email, code, newPassword } = req.body;
+      if (!email || !code || !newPassword) {
+        return res.status(400).json({ message: "Email, code et nouveau mot de passe requis" });
+      }
+      if (newPassword.length < 4) {
+        return res.status(400).json({ message: "Le mot de passe doit contenir au moins 4 caractères" });
+      }
+
+      const user = await storage.getUserByEmail(email);
+      if (!user) return res.status(404).json({ message: "Utilisateur introuvable" });
+
+      if (!user.passwordResetToken || user.passwordResetToken !== code) {
+        return res.status(400).json({ message: "Code incorrect" });
+      }
+      if (!user.passwordResetExpiry || new Date() > new Date(user.passwordResetExpiry)) {
+        return res.status(400).json({ message: "Code expiré. Demandez un nouveau code." });
+      }
+
+      const hashed = await bcrypt.hash(newPassword.trim(), 10);
+      await db.update(users as any)
+        .set({ password: hashed, passwordResetToken: null, passwordResetExpiry: null })
+        .where(eq((users as any).id, user.id));
+
+      res.json({ message: "Mot de passe mis à jour avec succès" });
+    } catch (err) {
+      console.error("[RESET PASSWORD] Error:", err);
+      res.status(500).json({ message: "Erreur serveur" });
     }
   });
 
