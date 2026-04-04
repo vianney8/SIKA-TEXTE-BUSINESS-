@@ -28,6 +28,7 @@ export default function Dashboard() {
   const [position, setPosition] = useState({ x: window.innerWidth - 80, y: window.innerHeight - 180 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [showWhatsAppNotif, setShowWhatsAppNotif] = useState(true);
 
   const { data: balance } = useQuery({ queryKey: ["/api/user/balance"] });
 
@@ -125,6 +126,54 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen" style={{ background: "#f0f4f8" }}>
+
+      {/* ══ Notification chaîne WhatsApp ══ */}
+      {showWhatsAppNotif && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-5"
+          style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(3px)" }}>
+          <div className="bg-white rounded-[24px] w-full max-w-sm shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Header vert WhatsApp */}
+            <div className="px-5 pt-6 pb-4 text-center"
+              style={{ background: "linear-gradient(135deg, #25d366, #128c7e)" }}>
+              <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                <FaWhatsapp size={30} className="text-white" />
+              </div>
+              <h2 className="text-white font-black text-lg leading-tight">
+                Rejoignez notre chaîne WhatsApp !
+              </h2>
+            </div>
+
+            {/* Corps */}
+            <div className="px-5 py-5 text-center">
+              <p className="text-gray-600 text-sm leading-relaxed">
+                Restez informé de toutes les <strong className="text-gray-800">nouveautés, annonces et informations importantes</strong> de SIKA TEXTE en rejoignant notre chaîne officielle WhatsApp.
+              </p>
+            </div>
+
+            {/* Boutons */}
+            <div className="px-5 pb-5 flex flex-col gap-2.5">
+              <a
+                href={whatsappGroup || 'https://whatsapp.com/channel'}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setShowWhatsAppNotif(false)}
+                className="w-full py-3.5 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 shadow-md active:scale-[0.97] transition-all"
+                style={{ background: "linear-gradient(135deg, #25d366, #128c7e)" }}
+              >
+                <FaWhatsapp size={18} />
+                Rejoindre la chaîne
+              </a>
+              <button
+                onClick={() => setShowWhatsAppNotif(false)}
+                className="w-full py-3 rounded-2xl font-bold text-sm text-gray-500 border border-gray-200 bg-gray-50 active:bg-gray-100 transition-all"
+              >
+                OK, peut-être plus tard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <MobileHeader
         user={user}
         balance={(balance as any)?.balance || 0}
@@ -217,8 +266,8 @@ export default function Dashboard() {
                 <FaWhatsapp size={18} className="text-white" />
               </div>
               <div className="flex-1">
-                <p className="text-gray-800 font-semibold text-sm">Groupe WhatsApp</p>
-                <p className="text-gray-400 text-xs">Rejoignez notre communauté</p>
+                <p className="text-gray-800 font-semibold text-sm">Chaîne WhatsApp</p>
+                <p className="text-gray-400 text-xs">Rejoignez notre chaîne d'info</p>
               </div>
               <ChevronRight size={15} className="text-gray-300" />
             </a>
