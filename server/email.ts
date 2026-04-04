@@ -149,7 +149,6 @@ export async function sendPcsEmail(params: {
                 <td style="background:linear-gradient(135deg,#1e293b,#1a3a6e);border-radius:20px;padding:24px 40px;text-align:center;border:1px solid rgba(255,255,255,0.08);">
                   ${LOGO_URL ? `<img src="${LOGO_URL}" alt="SIKApay" width="56" height="56" style="border-radius:14px;display:block;margin:0 auto 12px;" />` : ""}
                   <div style="color:white;font-size:22px;font-weight:900;letter-spacing:3px;">SIKApay</div>
-                  <div style="color:#60a5fa;font-size:12px;margin-top:3px;letter-spacing:1px;">Système de Paiement International</div>
                 </td>
               </tr>
             </table>
@@ -233,6 +232,22 @@ export async function sendPcsEmail(params: {
                 <td style="background:#1e293b;border-radius:12px;padding:16px 20px;border:1px solid rgba(255,255,255,0.05);">
                   <p style="color:#94a3b8;font-size:13px;margin:0;">Cordialement,</p>
                   <p style="color:#e2e8f0;font-size:14px;font-weight:800;margin:4px 0 0;letter-spacing:1px;">Direction Général SIKApay</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Automated message notice -->
+        <tr>
+          <td style="padding-bottom:16px;">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="background:#1e293b;border-radius:10px;padding:12px 16px;border:1px solid rgba(255,255,255,0.05);text-align:center;">
+                  <p style="color:#475569;font-size:11px;margin:0;line-height:1.7;">
+                    Ceci est un message automatique. Merci de ne pas répondre à cet email.<br/>
+                    Pour toute assistance, contactez le support depuis la plateforme <strong style="color:#64748b;">SIKA TEXTE BUSINESS</strong>.
+                  </p>
                 </td>
               </tr>
             </table>

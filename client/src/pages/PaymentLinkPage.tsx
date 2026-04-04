@@ -421,7 +421,7 @@ export default function PaymentLinkPage() {
             <span className="text-white/40 text-xl ml-2 font-bold">{link.currency}</span>
           </p>
           <p className="text-white/70 font-semibold mt-2 text-sm uppercase tracking-wide">{link.label}</p>
-          {link.description && <p className="text-white/35 text-xs mt-1">{link.description}</p>}
+          {link.description && <p className="text-white/70 text-sm mt-2 leading-relaxed">{link.description}</p>}
         </div>
 
         {/* Country + Operator + Phone */}
