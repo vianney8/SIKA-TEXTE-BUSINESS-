@@ -254,6 +254,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Helper: check and update email rate limit (6 emails per hour per user)
+  async function checkEmailRateLimit(userId: string): Promise<{ allowed: boolean; remaining: number }> {
+    const user = await storage.getUser(userId);
+    if (!user) return { allowed: false, remaining: 0 };
+    const now = new Date();
+    const windowStart = user.emailRateLimitWindowStart ? new Date(user.emailRateLimitWindowStart) : null;
+    const ONE_HOUR = 60 * 60 * 1000;
+    const MAX_PER_HOUR = 6;
+    let count = user.emailRateLimitCount ?? 0;
+    // Reset window if older than 1 hour
+    if (!windowStart || now.getTime() - windowStart.getTime() >= ONE_HOUR) {
+      count = 0;
+      await db.update(users as any)
+        .set({ emailRateLimitCount: 1, emailRateLimitWindowStart: now })
+        .where(eq((users as any).id, userId));
+      return { allowed: true, remaining: MAX_PER_HOUR - 1 };
+    }
+    if (count >= MAX_PER_HOUR) {
+      return { allowed: false, remaining: 0 };
+    }
+    await db.update(users as any)
+      .set({ emailRateLimitCount: count + 1 })
+      .where(eq((users as any).id, userId));
+    return { allowed: true, remaining: MAX_PER_HOUR - count - 1 };
+  }
+
   // Send email verification code
   app.post('/api/auth/send-verification', async (req, res) => {
     try {
@@ -263,8 +289,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUserByEmail(email);
       if (!user) return res.status(404).json({ message: "Aucun compte associé à cet email" });
 
+      const rateLimit = await checkEmailRateLimit(user.id);
+      if (!rateLimit.allowed) {
+        return res.status(429).json({ message: "Limite atteinte : 6 emails maximum par heure. Réessayez plus tard." });
+      }
+
       const code = generateCode();
-      const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+      const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
       await db.update(users as any)
         .set({ emailVerificationCode: code, emailVerificationExpiry: expiry })
@@ -273,7 +304,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const sent = await sendVerificationEmail(email, user.fullName || user.email, code);
       if (!sent) return res.status(500).json({ message: "Impossible d'envoyer l'email. Réessayez." });
 
-      res.json({ message: "Code envoyé" });
+      res.json({ message: "Code envoyé", remaining: rateLimit.remaining });
     } catch (err) {
       console.error("[VERIFY EMAIL] Error:", err);
       res.status(500).json({ message: "Erreur serveur" });
@@ -319,6 +350,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ message: "Si cet email existe, un code vous a été envoyé" });
       }
 
+      const rateLimit = await checkEmailRateLimit(user.id);
+      if (!rateLimit.allowed) {
+        return res.status(429).json({ message: "Limite atteinte : 6 emails maximum par heure. Réessayez plus tard." });
+      }
+
       const code = generateCode();
       const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
@@ -329,7 +365,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const sent = await sendPasswordResetEmail(email, user.fullName || user.email, code);
       if (!sent) return res.status(500).json({ message: "Impossible d'envoyer l'email. Réessayez." });
 
-      res.json({ message: "Si cet email existe, un code vous a été envoyé" });
+      res.json({ message: "Si cet email existe, un code vous a été envoyé", remaining: rateLimit.remaining });
     } catch (err) {
       console.error("[FORGOT PASSWORD] Error:", err);
       res.status(500).json({ message: "Erreur serveur" });

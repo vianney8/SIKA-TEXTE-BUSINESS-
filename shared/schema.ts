@@ -47,6 +47,8 @@ export const users: any = pgTable("users", {
   emailVerificationExpiry: timestamp("email_verification_expiry"),
   passwordResetToken: varchar("password_reset_token"),
   passwordResetExpiry: timestamp("password_reset_expiry"),
+  emailRateLimitCount: integer("email_rate_limit_count").default(0),
+  emailRateLimitWindowStart: timestamp("email_rate_limit_window_start"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

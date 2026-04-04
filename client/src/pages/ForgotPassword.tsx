@@ -29,11 +29,15 @@ export default function ForgotPassword() {
         body: JSON.stringify({ email }),
       });
       const data = await res.json();
+      if (res.status === 429) {
+        toast({ title: "Trop de demandes", description: data.message, variant: "destructive" });
+        return;
+      }
       if (!res.ok) {
         toast({ title: "Erreur", description: data.message, variant: "destructive" });
         return;
       }
-      toast({ title: "Code envoyé", description: "Vérifiez votre boîte mail" });
+      toast({ title: "Code envoyé !", description: "Vérifiez votre boîte mail (et vos spams)" });
       setStep("code");
     } catch {
       toast({ title: "Erreur", description: "Erreur de connexion", variant: "destructive" });

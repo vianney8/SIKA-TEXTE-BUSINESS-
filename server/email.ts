@@ -26,7 +26,7 @@ export async function sendVerificationEmail(to: string, fullName: string, code: 
             <div style="background: #eff6ff; border: 2px solid #3b82f6; border-radius: 12px; padding: 20px; text-align: center; margin: 20px 0;">
               <span style="font-size: 36px; font-weight: 900; letter-spacing: 8px; color: #1a4fa0;">${code}</span>
             </div>
-            <p style="color: #6b7280; font-size: 13px;">Ce code expire dans <strong>10 minutes</strong>.</p>
+            <p style="color: #6b7280; font-size: 13px;">Ce code expire dans <strong>15 minutes</strong>.</p>
             <p style="color: #6b7280; font-size: 13px;">Si vous n'avez pas créé de compte SIKA TEXTE, ignorez cet email.</p>
           </div>
           <p style="color: #9ca3af; font-size: 11px; text-align: center; margin-top: 16px;">© SIKA TEXTE Business</p>

@@ -117,11 +117,15 @@ export default function Register() {
   const sendVerificationCode = async (email: string) => {
     setIsSendingCode(true);
     try {
-      await fetch("/api/auth/send-verification", {
+      const res = await fetch("/api/auth/send-verification", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
+      const data = await res.json();
+      if (res.status === 429) {
+        toast({ title: "Trop de demandes", description: data.message, variant: "destructive" });
+      }
     } finally {
       setIsSendingCode(false);
     }
