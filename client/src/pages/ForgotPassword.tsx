@@ -1,10 +1,10 @@
 import { useState, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { Mail, Lock, ArrowRight, Eye, EyeOff, CheckCircle, ArrowLeft, ShieldCheck, RefreshCw, AlertTriangle } from "lucide-react";
+import { Mail, Lock, ArrowRight, Eye, EyeOff, ArrowLeft, ShieldCheck, RefreshCw, AlertTriangle } from "lucide-react";
 import logoPath from "@assets/1764438802465_1773510898637.jpg";
 
-type Step = "email" | "code" | "newPassword" | "success";
+type Step = "email" | "code" | "newPassword";
 
 export default function ForgotPassword() {
   const [step, setStep]                   = useState<Step>("email");
@@ -88,6 +88,7 @@ export default function ForgotPassword() {
       const res = await fetch("/api/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ email, code, newPassword }),
       });
       const data = await res.json();
@@ -95,7 +96,8 @@ export default function ForgotPassword() {
         toast({ title: "Erreur", description: data.message, variant: "destructive" });
         return;
       }
-      setStep("success");
+      toast({ title: "Mot de passe mis à jour !", description: "Vous êtes connecté automatiquement." });
+      setLocation("/");
     } catch {
       toast({ title: "Erreur", description: "Erreur de connexion", variant: "destructive" });
     } finally {
@@ -141,7 +143,6 @@ export default function ForgotPassword() {
             {step === "email" && "Entrez votre adresse email"}
             {step === "code" && "Vérifiez votre boîte mail"}
             {step === "newPassword" && "Choisissez un nouveau mot de passe"}
-            {step === "success" && "Mot de passe réinitialisé"}
           </p>
         </div>
       </div>
@@ -339,25 +340,6 @@ export default function ForgotPassword() {
         </div>
       )}
 
-      {/* STEP 4: Succès */}
-      {step === "success" && (
-        <div className="flex-1 flex flex-col items-center justify-center px-5 pb-8">
-          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-5">
-            <CheckCircle size={40} className="text-green-500" />
-          </div>
-          <p className="text-gray-900 font-black text-xl text-center mb-2">Mot de passe mis à jour !</p>
-          <p className="text-gray-500 text-sm text-center mb-8">
-            Vous pouvez maintenant vous connecter avec votre nouveau mot de passe.
-          </p>
-          <button
-            onClick={() => setLocation("/simple-login")}
-            className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 shadow-md"
-            style={{ background: "linear-gradient(135deg, #1a4fa0, #3b82f6)" }}
-          >
-            <span>Se connecter</span><ArrowRight size={18} />
-          </button>
-        </div>
-      )}
     </div>
   );
 }

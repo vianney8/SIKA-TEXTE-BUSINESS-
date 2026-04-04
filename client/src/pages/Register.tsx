@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Link } from "wouter";
-import { Eye, EyeOff, Phone, User, Mail, Lock, ArrowRight, Gift, ShieldCheck, RefreshCw, AlertTriangle } from "lucide-react";
+import { Eye, EyeOff, Phone, User, Mail, Lock, ArrowRight, Gift } from "lucide-react";
 import logoPath from "@assets/1764438802465_1773510898637.jpg";
 
 const COUNTRIES = [
@@ -52,20 +52,12 @@ function FieldWrap({ label, icon: Icon, children }: { label: string; icon: any; 
 }
 
 export default function Register() {
-  const [showPassword, setShowPassword]           = useState(false);
+  const [showPassword, setShowPassword]               = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [, setLocation]                           = useLocation();
-  const { toast }                                 = useToast();
-  const [verifyStep, setVerifyStep]               = useState(false);
-  const [registeredEmail, setRegisteredEmail]     = useState("");
-  const [digits, setDigits]                       = useState(["", "", "", "", "", ""]);
-  const [isVerifying, setIsVerifying]             = useState(false);
-  const [isSendingCode, setIsSendingCode]         = useState(false);
-  const [showResendConfirm, setShowResendConfirm] = useState(false);
-  const digitRefs                                 = useRef<(HTMLInputElement | null)[]>([]);
-  const verifyCode                                = digits.join("");
+  const [, setLocation]                               = useLocation();
+  const { toast }                                     = useToast();
 
-  const urlParams        = new URLSearchParams(window.location.search);
+  const urlParams         = new URLSearchParams(window.location.search);
   const referralCodeParam = urlParams.get("ref") || "";
 
   const form = useForm<RegisterForm>({
@@ -107,74 +99,14 @@ export default function Register() {
       }
       return response.json();
     },
-    onSuccess: (_, variables) => {
-      setRegisteredEmail(variables.email);
-      sendVerificationCode(variables.email);
-      setVerifyStep(true);
+    onSuccess: () => {
+      toast({ title: "Compte créé !", description: "Bienvenue sur SIKA TEXTE" });
+      setLocation("/");
     },
     onError: (error: any) => {
       toast({ title: "Erreur", description: error.message || "Impossible de créer le compte", variant: "destructive" });
     },
   });
-
-  const handleDigitChange = useCallback((index: number, value: string) => {
-    const v = value.replace(/\D/g, "").slice(-1);
-    setDigits(prev => { const next = [...prev]; next[index] = v; return next; });
-    if (v && index < 5) digitRefs.current[index + 1]?.focus();
-  }, []);
-
-  const handleDigitKeyDown = useCallback((index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace" && !digits[index] && index > 0) digitRefs.current[index - 1]?.focus();
-  }, [digits]);
-
-  const handleDigitPaste = useCallback((e: React.ClipboardEvent) => {
-    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
-    if (pasted.length === 6) {
-      setDigits(pasted.split(""));
-      digitRefs.current[5]?.focus();
-    }
-  }, []);
-
-  const sendVerificationCode = async (email: string) => {
-    setIsSendingCode(true);
-    try {
-      const res = await fetch("/api/auth/send-verification", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      const data = await res.json();
-      if (res.status === 429) {
-        toast({ title: "Trop de demandes", description: data.message, variant: "destructive" });
-      }
-    } finally {
-      setIsSendingCode(false);
-    }
-  };
-
-  const handleVerifyCode = async () => {
-    if (verifyCode.length !== 6) {
-      toast({ title: "Erreur", description: "Le code doit contenir 6 chiffres", variant: "destructive" });
-      return;
-    }
-    setIsVerifying(true);
-    try {
-      const res = await fetch("/api/auth/verify-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: registeredEmail, code: verifyCode }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast({ title: "Erreur", description: data.message, variant: "destructive" });
-        return;
-      }
-      toast({ title: "Email vérifié !", description: "Bienvenue sur SIKA TEXTE" });
-      setTimeout(() => { window.location.href = "/"; }, 1000);
-    } finally {
-      setIsVerifying(false);
-    }
-  };
 
   const inputClass =
     "w-full h-12 pl-10 pr-4 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all";
@@ -203,112 +135,7 @@ export default function Register() {
         </div>
       </div>
 
-      {/* ── Vérification email ── */}
-      {verifyStep && (
-        <div className="flex-1 flex flex-col items-center px-5 pt-8 pb-8">
-          {/* Logo */}
-          <div className="w-16 h-16 rounded-[18px] overflow-hidden shadow-lg ring-4 ring-blue-100 mb-5">
-            <img src={logoPath} alt="SIKA TEXTE" className="w-full h-full object-cover" />
-          </div>
-
-          {/* Icône + Titre */}
-          <div className="flex items-center gap-2 mb-2">
-            <ShieldCheck size={26} className="text-blue-600" />
-            <h2 className="text-gray-900 font-black text-xl">Vérification email</h2>
-          </div>
-
-          {/* Sous-titre */}
-          <p className="text-gray-500 text-sm text-center mb-4">
-            Un code à 6 chiffres a été envoyé à{" "}
-            <span className="font-bold text-gray-800">{registeredEmail}</span>.
-          </p>
-
-          {/* Alerte spam */}
-          <div className="w-full bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex gap-2 items-start mb-6">
-            <AlertTriangle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
-            <p className="text-amber-700 text-xs leading-relaxed">
-              Si vous ne voyez pas l'email dans votre boîte de réception,{" "}
-              <strong>vérifiez aussi votre dossier spam ou courriers indésirables</strong>.
-            </p>
-          </div>
-
-          {/* Label */}
-          <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-3 self-start">Code de vérification</p>
-
-          {/* 6 cases */}
-          <div className="flex gap-2.5 mb-2 w-full justify-center" onPaste={handleDigitPaste}>
-            {digits.map((d, i) => (
-              <input
-                key={i}
-                ref={el => { digitRefs.current[i] = el; }}
-                type="text"
-                inputMode="numeric"
-                maxLength={1}
-                value={d}
-                onChange={e => handleDigitChange(i, e.target.value)}
-                onKeyDown={e => handleDigitKeyDown(i, e)}
-                className="w-12 h-14 rounded-xl border-2 border-gray-200 bg-white text-center text-2xl font-black text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all shadow-sm"
-              />
-            ))}
-          </div>
-          <p className="text-gray-400 text-xs mb-6">Valable 15 minutes. Vérifiez aussi vos spams.</p>
-
-          {/* Bouton confirmer */}
-          <button
-            onClick={handleVerifyCode}
-            disabled={isVerifying || verifyCode.length !== 6}
-            className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 disabled:opacity-50 shadow-md mb-5 transition-all active:scale-[0.97]"
-            style={{ background: "linear-gradient(135deg, #1a4fa0, #3b82f6)" }}
-          >
-            {isVerifying ? "Vérification..." : <><span>Confirmer le code</span><ArrowRight size={18} /></>}
-          </button>
-
-          {/* Renvoyer */}
-          <p className="text-gray-500 text-sm mb-3">Vous n'avez pas reçu le code ?</p>
-
-          {!showResendConfirm ? (
-            <button
-              onClick={() => setShowResendConfirm(true)}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-full border border-gray-200 bg-white text-gray-700 text-sm font-semibold shadow-sm active:scale-[0.97] transition-all"
-            >
-              <RefreshCw size={14} />
-              Renvoyer le code
-            </button>
-          ) : (
-            <div className="w-full bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
-              <p className="text-gray-700 text-sm font-semibold mb-3">
-                Renvoyer un nouveau code à <span className="text-blue-700">{registeredEmail}</span> ?
-              </p>
-              <div className="flex gap-3 justify-center">
-                <button
-                  onClick={() => setShowResendConfirm(false)}
-                  className="px-4 py-2 rounded-full border border-gray-300 bg-white text-gray-600 text-sm font-semibold"
-                >
-                  Annuler
-                </button>
-                <button
-                  onClick={async () => { setShowResendConfirm(false); await sendVerificationCode(registeredEmail); }}
-                  disabled={isSendingCode}
-                  className="px-4 py-2 rounded-full bg-blue-600 text-white text-sm font-bold disabled:opacity-50 flex items-center gap-1.5"
-                >
-                  <RefreshCw size={13} className={isSendingCode ? "animate-spin" : ""} />
-                  {isSendingCode ? "Envoi..." : "Confirmer"}
-                </button>
-              </div>
-            </div>
-          )}
-
-          <button
-            onClick={() => { window.location.href = "/"; }}
-            className="mt-4 text-xs text-gray-400"
-          >
-            Ignorer pour l'instant
-          </button>
-        </div>
-      )}
-
       {/* ── Formulaire ── */}
-      {!verifyStep && (
       <div className="flex-1 px-5 -mt-4 z-10 pb-8">
         <div className="bg-white rounded-[24px] shadow-sm border border-gray-100 p-5">
           <Form {...form}>
@@ -494,7 +321,6 @@ export default function Register() {
           </Form>
         </div>
       </div>
-      )}
     </div>
   );
 }

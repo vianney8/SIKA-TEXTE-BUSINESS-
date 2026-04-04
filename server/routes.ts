@@ -396,7 +396,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .set({ password: hashed, passwordResetToken: null, passwordResetExpiry: null })
         .where(eq((users as any).id, user.id));
 
-      res.json({ message: "Mot de passe mis à jour avec succès" });
+      // Auto-login: créer la session
+      (req as any).session.userId = user.id;
+      await new Promise<void>((resolve, reject) =>
+        (req as any).session.save((err: any) => (err ? reject(err) : resolve()))
+      );
+
+      res.json({ message: "Mot de passe mis à jour avec succès", loggedIn: true });
     } catch (err) {
       console.error("[RESET PASSWORD] Error:", err);
       res.status(500).json({ message: "Erreur serveur" });
