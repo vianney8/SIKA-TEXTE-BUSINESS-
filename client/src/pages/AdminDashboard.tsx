@@ -188,15 +188,15 @@ export default function AdminDashboard() {
     if (!plLabel.trim()) { toast({ title: "Libellé requis", variant: "destructive" }); return; }
     const amt = parseFloat(plAmount);
     if (!amt || amt < 100) { toast({ title: "Montant minimum 100 FCFA", variant: "destructive" }); return; }
-    if (plUseManual && !plManualUrl.trim()) { toast({ title: "URL requise", variant: "destructive" }); return; }
     createLinkMutation.mutate({
       label: plLabel.trim(),
       amount: amt,
       currency: 'XOF',
       description: plDescription.trim() || undefined,
-      manualUrl: plUseManual ? plManualUrl.trim() : undefined,
     });
   };
+
+  const getLinkUrl = (link: any) => `${window.location.origin}/pay/${link.id}`;
 
   // Withdrawal approval mutations
   const approveWithdrawalMutation = useMutation({
@@ -1349,29 +1349,23 @@ export default function AdminDashboard() {
                       {link.description && (
                         <p className="text-xs text-gray-500 mt-0.5 truncate">{link.description}</p>
                       )}
-                      {link.linkUrl ? (
-                        <p className="text-xs text-gray-400 mt-1 truncate font-mono">{link.linkUrl}</p>
-                      ) : (
-                        <p className="text-xs text-orange-500 mt-1 italic">⚠ URL non disponible</p>
-                      )}
+                      <p className="text-xs text-blue-500 mt-1 truncate font-mono">{getLinkUrl(link)}</p>
                     </div>
                     <div className="flex flex-col gap-1.5 flex-shrink-0">
-                      {link.linkUrl && (
-                        <>
-                          <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1"
-                            onClick={() => {
-                              navigator.clipboard.writeText(link.linkUrl);
-                              toast({ title: "Lien copié !" });
-                            }}>
-                            <Copy className="h-3 w-3" /> Copier
+                      <>
+                        <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1"
+                          onClick={() => {
+                            navigator.clipboard.writeText(getLinkUrl(link));
+                            toast({ title: "Lien copié !" });
+                          }}>
+                          <Copy className="h-3 w-3" /> Copier
+                        </Button>
+                        <a href={getLinkUrl(link)} target="_blank" rel="noopener noreferrer">
+                          <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1 w-full">
+                            <ExternalLink className="h-3 w-3" /> Ouvrir
                           </Button>
-                          <a href={link.linkUrl} target="_blank" rel="noopener noreferrer">
-                            <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1 w-full">
-                              <ExternalLink className="h-3 w-3" /> Ouvrir
-                            </Button>
-                          </a>
-                        </>
-                      )}
+                        </a>
+                      </>
                       <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1"
                         onClick={() => toggleLinkMutation.mutate(link.id)}>
                         {link.isActive
@@ -1406,6 +1400,9 @@ export default function AdminDashboard() {
                   className="text-white/80 hover:text-white text-xl font-bold">✕</button>
               </div>
               <div className="p-5 space-y-4">
+                <div className="bg-violet-50 border border-violet-200 rounded-xl px-4 py-3 text-xs text-violet-700">
+                  💡 Un lien de paiement sécurisé sera généré. Le client le visite, saisit ses infos Mobile Money et paie via SolvexPay SR.
+                </div>
                 <div>
                   <Label className="text-sm font-semibold">Libellé *</Label>
                   <Input className="mt-1" placeholder="ex: Synchronisation de compte"
@@ -1422,22 +1419,6 @@ export default function AdminDashboard() {
                     value={plDescription} onChange={e => setPlDescription(e.target.value)} />
                 </div>
 
-                <div className="border rounded-xl p-3 bg-gray-50">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={plUseManual}
-                      onChange={e => setPlUseManual(e.target.checked)}
-                      className="accent-violet-600 w-4 h-4" />
-                    <span className="text-sm font-medium text-gray-700">Saisir l'URL manuellement</span>
-                  </label>
-                  <p className="text-xs text-gray-400 mt-1 ml-6">
-                    Cochez si l'API SolvexPay ne génère pas le lien automatiquement
-                  </p>
-                  {plUseManual && (
-                    <Input className="mt-2" placeholder="https://solvexpay.com/pay/..."
-                      value={plManualUrl} onChange={e => setPlManualUrl(e.target.value)} />
-                  )}
-                </div>
-
                 <div className="flex gap-2 pt-1">
                   <Button variant="outline" className="flex-1"
                     onClick={() => setPaymentLinkModal(false)}>
@@ -1446,7 +1427,7 @@ export default function AdminDashboard() {
                   <Button className="flex-1 bg-violet-600 hover:bg-violet-700 text-white"
                     onClick={handleCreatePaymentLink}
                     disabled={createLinkMutation.isPending}>
-                    {createLinkMutation.isPending ? "Création…" : "Créer le lien"}
+                    {createLinkMutation.isPending ? "Génération…" : "Générer le lien"}
                   </Button>
                 </div>
               </div>

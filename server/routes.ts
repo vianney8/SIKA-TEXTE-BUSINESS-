@@ -2838,74 +2838,150 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create a payment link (calls SolvexPay API then stores result)
+  // Create a payment link (hosted on SIKA TEXTE — SR push via SolvexPay)
   app.post('/api/admin/payment-links', requireAdmin, async (req: any, res) => {
     try {
       const parsed = createPaymentLinkSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ message: parsed.error.errors[0].message });
       }
-      const { label, amount, currency, description, manualUrl } = parsed.data;
+      const { label, amount, currency, description } = parsed.data;
 
-      let linkUrl: string | null = manualUrl || null;
-      let solvexpayLinkId: string | null = null;
-
-      // If no manual URL, try SolvexPay API
-      if (!linkUrl) {
-        const apiKey = process.env.SOLVEXPAY_API_KEY;
-        if (!apiKey) {
-          return res.status(400).json({ message: 'Clé API SolvexPay non configurée. Veuillez saisir l\'URL manuellement.' });
-        }
-        try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 15000);
-          const spRes = await fetch('https://solvexpay.com/api/v1/payment-links', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${apiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              amount,
-              currency: currency || 'XOF',
-              label,
-              description: description || label,
-            }),
-            signal: controller.signal,
-          });
-          clearTimeout(timeout);
-          const spData = await spRes.json();
-          console.log('[PAYMENT-LINKS] SolvexPay response:', JSON.stringify(spData));
-          if (spRes.ok) {
-            linkUrl = spData?.data?.url || spData?.url || spData?.link?.url || null;
-            solvexpayLinkId = spData?.data?.id || spData?.id || spData?.link?.id || null;
-          } else {
-            console.warn('[PAYMENT-LINKS] SolvexPay API failed:', spData);
-            return res.status(422).json({
-              message: `SolvexPay API: ${spData?.message || 'Erreur inconnue'}. Utilisez l'URL manuelle.`,
-            });
-          }
-        } catch (fetchErr: any) {
-          console.error('[PAYMENT-LINKS] Fetch error:', fetchErr.message);
-          return res.status(422).json({
-            message: 'Impossible de contacter SolvexPay. Utilisez l\'URL manuelle.',
-          });
-        }
-      }
+      // Generate a unique ID first, then build the link URL from it
+      const linkId = crypto.randomUUID();
+      const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+      const host = req.headers['x-forwarded-host'] || req.hostname;
+      const linkUrl = `${proto}://${host}/pay/${linkId}`;
 
       const [created] = await db.insert(paymentLinks).values({
+        id: linkId,
         label,
         amount: amount.toString(),
         currency: currency || 'XOF',
         description: description || null,
         linkUrl,
-        solvexpayLinkId,
+        solvexpayLinkId: null,
         isActive: true,
       }).returning();
 
       res.status(201).json(created);
     } catch (err) {
       console.error('[PAYMENT-LINKS] Create error:', err);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  // ── Public routes (no auth required) ──
+
+  // Get payment link details (for the checkout page)
+  app.get('/api/public/payment-links/:linkId', async (req, res) => {
+    try {
+      const { linkId } = req.params;
+      const [link] = await db.select().from(paymentLinks).where(eq(paymentLinks.id, linkId));
+      if (!link) return res.status(404).json({ message: 'Lien introuvable' });
+      if (!link.isActive) return res.status(403).json({ message: 'Ce lien de paiement est désactivé' });
+      res.json({
+        id: link.id,
+        label: link.label,
+        amount: link.amount,
+        currency: link.currency,
+        description: link.description,
+      });
+    } catch (err) {
+      console.error('[PAYMENT-LINKS] Public get error:', err);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  // Initiate SR payment for a payment link (public — called by checkout page)
+  app.post('/api/public/payment-links/:linkId/pay', async (req, res) => {
+    try {
+      const { linkId } = req.params;
+      const [link] = await db.select().from(paymentLinks).where(eq(paymentLinks.id, linkId));
+      if (!link) return res.status(404).json({ message: 'Lien introuvable' });
+      if (!link.isActive) return res.status(403).json({ message: 'Ce lien est désactivé' });
+
+      const { phone, operator, country, otp, customerName, customerEmail } = req.body;
+      if (!phone || !operator || !country) {
+        return res.status(400).json({ message: 'Téléphone, opérateur et pays requis' });
+      }
+
+      const apiKey = process.env.SOLVEXPAY_API_KEY;
+      if (!apiKey) return res.status(500).json({ message: 'Clé API non configurée' });
+
+      const countryPrefixes: Record<string, string> = {
+        BJ: '229', CI: '225', SN: '221', TG: '228', CM: '237', BF: '226', COG: '242'
+      };
+      const prefix = countryPrefixes[country] || '';
+      const digitsOnly = phone.replace(/\D/g, '');
+      const fullPhone = digitsOnly.startsWith(prefix) ? digitsOnly : prefix + digitsOnly;
+
+      const payload: Record<string, any> = {
+        amount: parseFloat(link.amount),
+        phone: fullPhone,
+        operator: operator.toLowerCase(),
+        country,
+        description: `${link.label} — SIKA TEXTE`,
+        customer_name: customerName || undefined,
+        customer_email: customerEmail || undefined,
+      };
+      if (otp) payload.otp = otp;
+
+      console.log('[PAYMENT-LINKS-PAY] Initiating SR for link:', linkId, 'amount:', link.amount, 'phone:', fullPhone, 'operator:', operator);
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20000);
+      const spRes = await fetch('https://solvexpay.com/api/v1/sr/pay', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      const spData = await spRes.json();
+      console.log('[PAYMENT-LINKS-PAY] SolvexPay response status:', spRes.status, JSON.stringify(spData));
+
+      if (!spRes.ok) {
+        const errMsg = spData?.message || spData?.error?.message || 'Erreur SolvexPay';
+        return res.status(spRes.status).json({ message: errMsg });
+      }
+
+      res.json({
+        success: true,
+        transactionId: spData.id,
+        reference: spData.reference,
+        status: spData.status,
+        message: spData.message || 'Paiement initié. Validez sur votre téléphone.',
+        amount: spData.amount,
+        fees: spData.fees,
+      });
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        return res.status(504).json({ message: 'SolvexPay ne répond pas. Réessayez.' });
+      }
+      console.error('[PAYMENT-LINKS-PAY] Error:', err);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  // Check transaction status (public polling)
+  app.get('/api/public/payment-links/check/:txnId', async (req, res) => {
+    try {
+      const { txnId } = req.params;
+      const apiKey = process.env.SOLVEXPAY_API_KEY;
+      if (!apiKey) return res.status(500).json({ message: 'Clé API non configurée' });
+
+      const spRes = await fetch(`https://solvexpay.com/api/v1/transactions/${txnId}`, {
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+      });
+      const spData = await spRes.json();
+      res.json({ status: spData?.status || 'unknown', transaction: spData });
+    } catch (err) {
+      console.error('[PAYMENT-LINKS-CHECK] Error:', err);
       res.status(500).json({ message: 'Erreur serveur' });
     }
   });

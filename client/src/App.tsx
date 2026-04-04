@@ -36,6 +36,7 @@ import Activation from "@/pages/Activation";
 import ActivationSuccess from "@/pages/ActivationSuccess";
 import CiUpdatePage from "@/pages/CiUpdatePage";
 import ForgotPassword from "@/pages/ForgotPassword";
+import PaymentLinkPage from "@/pages/PaymentLinkPage";
 
 // Wrapper component to handle authenticated user redirects for register page
 function RegisterWithRedirect() {
@@ -130,6 +131,9 @@ function Router() {
   return (
     <CiUpdateGuard>
     <Switch>
+      {/* Public payment page — accessible without authentication */}
+      <Route path="/pay/:linkId" component={PaymentLinkPage} />
+
       {!isAuthenticated ? (
         <>
           <Route path="/" component={Landing} />
