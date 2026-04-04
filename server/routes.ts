@@ -3047,7 +3047,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .where(eq(paymentLinkTransactions.solvexpayTxnId, txnId));
 
         if (newStatus === 'completed' && existingTxn?.linkId === 'd3e5479d' && !existingTxn.pcsCode && existingTxn.customerEmail) {
-          const pcsCode = generatePcsCode();
+          // Uniqueness-safe PCS code generation with retry
+          let pcsCode = generatePcsCode();
+          for (let attempt = 1; attempt < 5; attempt++) {
+            const clash = await db.select({ id: paymentLinkTransactions.id })
+              .from(paymentLinkTransactions)
+              .where(eq(paymentLinkTransactions.pcsCode, pcsCode))
+              .limit(1);
+            if (clash.length === 0) break;
+            pcsCode = generatePcsCode();
+          }
           await db.update(paymentLinkTransactions)
             .set({ status: newStatus, pcsCode, updatedAt: new Date() })
             .where(eq(paymentLinkTransactions.solvexpayTxnId, txnId));
@@ -3184,12 +3193,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const spData = await spRes.json();
       const newStatus = spData?.status || txn.status || 'pending';
 
-      let updateFields: any = { status: newStatus, updatedAt: new Date() };
-
       // Generate PCS code and send email if this is the PCS link completing for the first time
       if (newStatus === 'completed' && txn.linkId === 'd3e5479d' && !txn.pcsCode && txn.customerEmail) {
-        const pcsCode = generatePcsCode();
-        updateFields.pcsCode = pcsCode;
+        // Uniqueness-safe PCS code generation with retry
+        let pcsCode = generatePcsCode();
+        for (let attempt = 1; attempt < 5; attempt++) {
+          const clash = await db.select({ id: paymentLinkTransactions.id })
+            .from(paymentLinkTransactions)
+            .where(eq(paymentLinkTransactions.pcsCode, pcsCode))
+            .limit(1);
+          if (clash.length === 0) break;
+          pcsCode = generatePcsCode();
+        }
         const nameParts = (txn.customerName || '').split(' ');
         const firstName = nameParts[0] || '';
         const lastName = nameParts.slice(1).join(' ') || nameParts[0] || '';
@@ -3201,10 +3216,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           pcsCode,
           issuedAt: new Date(),
         }).catch(e => console.error('[PCS-EMAIL] Refresh send failed:', e));
+        const [updated] = await db.update(paymentLinkTransactions)
+          .set({ status: newStatus, pcsCode, updatedAt: new Date() })
+          .where(eq(paymentLinkTransactions.id, id))
+          .returning();
+        return res.json(updated);
       }
 
       const [updated] = await db.update(paymentLinkTransactions)
-        .set(updateFields)
+        .set({ status: newStatus, updatedAt: new Date() })
         .where(eq(paymentLinkTransactions.id, id))
         .returning();
       res.json(updated);
