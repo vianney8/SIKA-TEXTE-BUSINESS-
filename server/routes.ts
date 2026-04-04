@@ -28,11 +28,12 @@ import {
   users,
   paymentLinks,
   createPaymentLinkSchema,
+  paymentLinkTransactions,
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import session from "express-session";
 import { db } from "./db";
-import { eq, sql, and, desc, or } from "drizzle-orm";
+import { eq, sql, and, desc, or, ilike, count } from "drizzle-orm";
 import connectPg from "connect-pg-simple";
 import { randomBytes, createHmac } from "crypto";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
@@ -2989,6 +2990,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(spRes.status).json({ message: errMsg });
       }
 
+      // Save transaction record
+      try {
+        await db.insert(paymentLinkTransactions).values({
+          linkId,
+          linkLabel: link.label,
+          amount: link.amount,
+          currency: link.currency || 'XOF',
+          phone: fullPhone,
+          operator: operator.toLowerCase(),
+          country,
+          customerName: customerName || null,
+          customerEmail: customerEmail || null,
+          solvexpayTxnId: spData.id,
+          reference: spData.reference || null,
+          status: spData.status || 'pending',
+        });
+      } catch (dbErr) {
+        console.error('[PAYMENT-LINKS-PAY] Failed to save transaction:', dbErr);
+      }
+
       res.json({
         success: true,
         transactionId: spData.id,
@@ -3018,7 +3039,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         headers: { 'Authorization': `Bearer ${apiKey}` },
       });
       const spData = await spRes.json();
-      res.json({ status: spData?.status || 'unknown', transaction: spData });
+      const newStatus = spData?.status || 'unknown';
+      // Update local DB status if changed
+      if (newStatus === 'completed' || newStatus === 'failed') {
+        db.update(paymentLinkTransactions)
+          .set({ status: newStatus, updatedAt: new Date() })
+          .where(eq(paymentLinkTransactions.solvexpayTxnId, txnId))
+          .catch(() => {});
+      }
+      res.json({ status: newStatus, transaction: spData });
     } catch (err) {
       console.error('[PAYMENT-LINKS-CHECK] Error:', err);
       res.status(500).json({ message: 'Erreur serveur' });
@@ -3070,6 +3099,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (err) {
       console.error('[PAYMENT-LINKS] Delete error:', err);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  // Admin — historique des transactions par lien
+  app.get('/api/admin/payment-link-transactions', requireAdmin, async (req, res) => {
+    try {
+      const page = Math.max(1, parseInt(req.query.page as string) || 1);
+      const limit = Math.min(50, parseInt(req.query.limit as string) || 20);
+      const offset = (page - 1) * limit;
+      const search = (req.query.search as string || '').trim();
+      const statusFilter = (req.query.status as string || '').trim();
+
+      const conditions: any[] = [];
+      if (search) {
+        conditions.push(or(
+          ilike(paymentLinkTransactions.customerName, `%${search}%`),
+          ilike(paymentLinkTransactions.customerEmail, `%${search}%`),
+          ilike(paymentLinkTransactions.phone, `%${search}%`),
+        ));
+      }
+      if (statusFilter && statusFilter !== 'all') {
+        conditions.push(eq(paymentLinkTransactions.status, statusFilter));
+      }
+
+      const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+      const [rows, totals] = await Promise.all([
+        db.select().from(paymentLinkTransactions)
+          .where(where)
+          .orderBy(desc(paymentLinkTransactions.createdAt))
+          .limit(limit).offset(offset),
+        db.select({ total: count() }).from(paymentLinkTransactions).where(where),
+      ]);
+
+      res.json({
+        transactions: rows,
+        total: Number(totals[0]?.total || 0),
+        page,
+        limit,
+        pages: Math.ceil(Number(totals[0]?.total || 0) / limit),
+      });
+    } catch (err) {
+      console.error('[PAYMENT-LINK-TXN] List error:', err);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  // Admin — rafraîchir le statut d'une transaction via SolvexPay
+  app.post('/api/admin/payment-link-transactions/:id/refresh', requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [txn] = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.id, id));
+      if (!txn || !txn.solvexpayTxnId) return res.status(404).json({ message: 'Transaction introuvable' });
+      const apiKey = process.env.SOLVEXPAY_API_KEY;
+      if (!apiKey) return res.status(500).json({ message: 'Clé API non configurée' });
+      const spRes = await fetch(`https://solvexpay.com/api/v1/transactions/${txn.solvexpayTxnId}`, {
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+      });
+      const spData = await spRes.json();
+      const newStatus = spData?.status || txn.status || 'pending';
+      const [updated] = await db.update(paymentLinkTransactions)
+        .set({ status: newStatus, updatedAt: new Date() })
+        .where(eq(paymentLinkTransactions.id, id))
+        .returning();
+      res.json(updated);
+    } catch (err) {
+      console.error('[PAYMENT-LINK-TXN] Refresh error:', err);
       res.status(500).json({ message: 'Erreur serveur' });
     }
   });

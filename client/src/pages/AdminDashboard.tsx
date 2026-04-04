@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle, XCircle, Settings, MessageCircle, MessageSquareOff, RefreshCw, Link2, Plus, Copy, ToggleLeft, ToggleRight, ExternalLink } from "lucide-react";
+import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle, XCircle, Settings, MessageCircle, MessageSquareOff, RefreshCw, Link2, Plus, Copy, ToggleLeft, ToggleRight, ExternalLink, History, ChevronLeft, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 
@@ -90,6 +90,37 @@ export default function AdminDashboard() {
   const [plImageUrl, setPlImageUrl] = useState("");
   const [plImagePreview, setPlImagePreview] = useState("");
   const [plImageUploading, setPlImageUploading] = useState(false);
+
+  // Payment link transactions history
+  const [txnSearch, setTxnSearch] = useState("");
+  const [txnDebouncedSearch, setTxnDebouncedSearch] = useState("");
+  const [txnStatus, setTxnStatus] = useState("all");
+  const [txnPage, setTxnPage] = useState(1);
+
+  useEffect(() => {
+    const t = setTimeout(() => { setTxnDebouncedSearch(txnSearch); setTxnPage(1); }, 400);
+    return () => clearTimeout(t);
+  }, [txnSearch]);
+
+  const { data: txnData, isLoading: txnLoading, refetch: refetchTxn } = useQuery<any>({
+    queryKey: ['/api/admin/payment-link-transactions', txnDebouncedSearch, txnStatus, txnPage],
+    queryFn: async () => {
+      const params = new URLSearchParams({ page: String(txnPage), limit: "20" });
+      if (txnDebouncedSearch) params.set("search", txnDebouncedSearch);
+      if (txnStatus !== "all") params.set("status", txnStatus);
+      const res = await apiRequest("GET", `/api/admin/payment-link-transactions?${params}`);
+      return res.json();
+    },
+  });
+
+  const refreshTxnMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("POST", `/api/admin/payment-link-transactions/${id}/refresh`);
+      return res.json();
+    },
+    onSuccess: () => { refetchTxn(); toast({ title: "✅ Statut mis à jour" }); },
+    onError: () => toast({ title: "Erreur de mise à jour", variant: "destructive" }),
+  });
 
   // Payment links — edit
   const [editLinkModal, setEditLinkModal] = useState(false);
@@ -1648,6 +1679,123 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
+
+        {/* Payment Link Transactions History */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <CardTitle className="flex items-center gap-2">
+                <History className="h-5 w-5 text-violet-600" />
+                Historique des paiements par lien
+              </CardTitle>
+              <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => refetchTxn()}>
+                <RefreshCw className="h-3 w-3" /> Actualiser
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Search + Filter bar */}
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  className="pl-9 text-sm"
+                  placeholder="Rechercher par nom, email ou numéro…"
+                  value={txnSearch}
+                  onChange={e => setTxnSearch(e.target.value)}
+                />
+              </div>
+              <select
+                value={txnStatus}
+                onChange={e => { setTxnStatus(e.target.value); setTxnPage(1); }}
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-violet-300"
+              >
+                <option value="all">Tous les statuts</option>
+                <option value="pending">En attente</option>
+                <option value="completed">Complété</option>
+                <option value="failed">Échoué</option>
+              </select>
+            </div>
+
+            {/* Stats chips */}
+            {txnData && (
+              <div className="flex gap-2 flex-wrap text-xs">
+                <span className="bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full font-medium">{txnData.total} transaction{txnData.total > 1 ? "s" : ""}</span>
+                {txnData.total > 0 && <span className="bg-violet-50 text-violet-700 px-2.5 py-1 rounded-full font-medium">Page {txnData.page}/{txnData.pages}</span>}
+              </div>
+            )}
+
+            {/* List */}
+            {txnLoading ? (
+              <div className="flex items-center justify-center py-10 text-gray-400 gap-2">
+                <RefreshCw className="h-4 w-4 animate-spin" /> Chargement…
+              </div>
+            ) : !txnData?.transactions?.length ? (
+              <div className="text-center py-10 text-gray-400 text-sm">Aucune transaction trouvée</div>
+            ) : (
+              <div className="space-y-2">
+                {txnData.transactions.map((txn: any) => {
+                  const statusColor = txn.status === "completed" ? "bg-green-100 text-green-700" : txn.status === "failed" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700";
+                  const statusLabel = txn.status === "completed" ? "✅ Complété" : txn.status === "failed" ? "❌ Échoué" : "⏳ En attente";
+                  const operatorColors: Record<string, string> = { mtn: "#FFCC00", orange: "#FF6900", moov: "#0057A8", wave: "#1AC8DB", free: "#CC0000", airtel: "#E40000", tmoney: "#E30613" };
+                  const opColor = operatorColors[txn.operator] || "#888";
+                  return (
+                    <div key={txn.id} className="flex items-start gap-3 p-3 rounded-xl border bg-gray-50/60 hover:bg-gray-100/50 transition-colors">
+                      {/* Operator dot */}
+                      <div className="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center text-white font-black text-[10px]"
+                        style={{ background: opColor }}>
+                        {(txn.operator || "?").toUpperCase().slice(0, 3)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-sm text-gray-800 truncate">{txn.customerName || "—"}</span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusColor}`}>{statusLabel}</span>
+                        </div>
+                        <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                          <span className="text-violet-700 font-bold text-sm">{parseFloat(txn.amount).toLocaleString("fr-FR")} {txn.currency}</span>
+                          <span className="text-gray-500 text-xs font-mono">{txn.phone}</span>
+                          {txn.customerEmail && <span className="text-gray-400 text-xs truncate">{txn.customerEmail}</span>}
+                        </div>
+                        <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                          <span className="text-gray-400 text-[11px]">🔗 {txn.linkLabel || txn.linkId}</span>
+                          <span className="text-gray-300 text-[11px]">{new Date(txn.createdAt).toLocaleString("fr-FR", { day:"2-digit", month:"2-digit", year:"2-digit", hour:"2-digit", minute:"2-digit" })}</span>
+                        </div>
+                        {txn.solvexpayTxnId && (
+                          <span className="text-[10px] text-gray-300 font-mono">ID: {txn.solvexpayTxnId}</span>
+                        )}
+                      </div>
+                      {/* Refresh button */}
+                      {txn.status === "pending" && (
+                        <Button size="sm" variant="outline" className="h-7 px-2 text-xs flex-shrink-0"
+                          onClick={() => refreshTxnMutation.mutate(txn.id)}
+                          disabled={refreshTxnMutation.isPending}>
+                          <RefreshCw className={`h-3 w-3 ${refreshTxnMutation.isPending ? "animate-spin" : ""}`} />
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Pagination */}
+            {txnData && txnData.pages > 1 && (
+              <div className="flex items-center justify-between pt-2">
+                <Button size="sm" variant="outline" className="gap-1 text-xs"
+                  disabled={txnPage <= 1}
+                  onClick={() => setTxnPage(p => p - 1)}>
+                  <ChevronLeft className="h-3 w-3" /> Précédent
+                </Button>
+                <span className="text-xs text-gray-500">Page {txnPage} / {txnData.pages}</span>
+                <Button size="sm" variant="outline" className="gap-1 text-xs"
+                  disabled={txnPage >= txnData.pages}
+                  onClick={() => setTxnPage(p => p + 1)}>
+                  Suivant <ChevronRight className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Users Section with Real-time Search */}
         <Card>

@@ -457,6 +457,26 @@ export const createPaymentLinkSchema = z.object({
   imageUrl: z.string().optional(),
 });
 
+// Table pour l'historique des transactions par lien de paiement
+export const paymentLinkTransactions = pgTable("payment_link_transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  linkId: varchar("link_id"),
+  linkLabel: varchar("link_label"),
+  amount: decimal("amount", { precision: 15, scale: 2 }).notNull(),
+  currency: varchar("currency").default("XOF"),
+  phone: varchar("phone"),
+  operator: varchar("operator"),
+  country: varchar("country"),
+  customerName: varchar("customer_name"),
+  customerEmail: varchar("customer_email"),
+  solvexpayTxnId: varchar("solvexpay_txn_id"),
+  reference: varchar("reference"),
+  status: varchar("status").default("pending"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type PaymentLinkTransaction = typeof paymentLinkTransactions.$inferSelect;
+
 // Table pour les liens configurables par l'admin
 export const appSettings = pgTable("app_settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
