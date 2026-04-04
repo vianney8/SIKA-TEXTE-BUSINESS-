@@ -167,7 +167,7 @@ export default function Dashboard() {
                 onClick={() => setShowWhatsAppNotif(false)}
                 className="w-full py-3 rounded-2xl font-bold text-sm text-gray-500 border border-gray-200 bg-gray-50 active:bg-gray-100 transition-all"
               >
-                OK, peut-être plus tard
+                D'accord
               </button>
             </div>
           </div>
