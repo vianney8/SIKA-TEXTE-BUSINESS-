@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle, XCircle, Settings, MessageCircle, MessageSquareOff, RefreshCw } from "lucide-react";
+import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle, XCircle, Settings, MessageCircle, MessageSquareOff, RefreshCw, Link2, Plus, Copy, ToggleLeft, ToggleRight, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 
@@ -81,6 +81,14 @@ export default function AdminDashboard() {
   // Notification en masse
   const [notifyAllModal, setNotifyAllModal] = useState(false);
   const [notifyAllMessage, setNotifyAllMessage] = useState("");
+
+  // Payment links
+  const [paymentLinkModal, setPaymentLinkModal] = useState(false);
+  const [plLabel, setPlLabel] = useState("");
+  const [plAmount, setPlAmount] = useState("");
+  const [plDescription, setPlDescription] = useState("");
+  const [plManualUrl, setPlManualUrl] = useState("");
+  const [plUseManual, setPlUseManual] = useState(false);
   
   // Fetch identity verifications (only when modal is open)
   const { data: identityVerifications } = useQuery({
@@ -133,6 +141,62 @@ export default function AdminDashboard() {
       });
     }
   });
+
+  // Payment links queries & mutations
+  const { data: paymentLinksList = [], isLoading: isLoadingLinks } = useQuery<any[]>({
+    queryKey: ['/api/admin/payment-links'],
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
+  });
+
+  const createLinkMutation = useMutation({
+    mutationFn: async (body: any) => {
+      const res = await apiRequest('POST', '/api/admin/payment-links', body);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/payment-links'] });
+      setPaymentLinkModal(false);
+      setPlLabel(""); setPlAmount(""); setPlDescription(""); setPlManualUrl(""); setPlUseManual(false);
+      toast({ title: "✅ Lien créé avec succès" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Erreur", description: err?.message || "Échec de la création", variant: "destructive" });
+    },
+  });
+
+  const toggleLinkMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest('PATCH', `/api/admin/payment-links/${id}/toggle`, {});
+      return res.json();
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['/api/admin/payment-links'] }),
+  });
+
+  const deleteLinkMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest('DELETE', `/api/admin/payment-links/${id}`, {});
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/payment-links'] });
+      toast({ title: "Lien supprimé" });
+    },
+  });
+
+  const handleCreatePaymentLink = () => {
+    if (!plLabel.trim()) { toast({ title: "Libellé requis", variant: "destructive" }); return; }
+    const amt = parseFloat(plAmount);
+    if (!amt || amt < 100) { toast({ title: "Montant minimum 100 FCFA", variant: "destructive" }); return; }
+    if (plUseManual && !plManualUrl.trim()) { toast({ title: "URL requise", variant: "destructive" }); return; }
+    createLinkMutation.mutate({
+      label: plLabel.trim(),
+      amount: amt,
+      currency: 'XOF',
+      description: plDescription.trim() || undefined,
+      manualUrl: plUseManual ? plManualUrl.trim() : undefined,
+    });
+  };
 
   // Withdrawal approval mutations
   const approveWithdrawalMutation = useMutation({
@@ -1234,6 +1298,161 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* ══ Liens de Paiement SolvexPay ══ */}
+        <Card className="mb-6">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Link2 className="h-5 w-5 text-violet-600" />
+                Liens de Paiement SolvexPay
+              </CardTitle>
+              <Button
+                size="sm"
+                className="bg-violet-600 hover:bg-violet-700 text-white gap-1"
+                onClick={() => setPaymentLinkModal(true)}
+              >
+                <Plus className="h-4 w-4" />
+                Créer un lien
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {isLoadingLinks ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">Chargement…</p>
+            ) : paymentLinksList.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Link2 className="h-10 w-10 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">Aucun lien de paiement créé</p>
+                <p className="text-xs mt-1">Cliquez sur « Créer un lien » pour commencer</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {paymentLinksList.map((link: any) => (
+                  <div key={link.id}
+                    className="flex items-start gap-3 p-3 rounded-xl border bg-gray-50/60 hover:bg-gray-100/60 transition-colors"
+                  >
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ background: "linear-gradient(135deg, #7c3aed, #a78bfa)" }}>
+                      <Link2 className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-semibold text-sm text-gray-800 truncate">{link.label}</p>
+                        <Badge variant={link.isActive ? "default" : "secondary"} className="text-[10px]">
+                          {link.isActive ? "Actif" : "Inactif"}
+                        </Badge>
+                      </div>
+                      <p className="text-violet-700 font-bold text-sm mt-0.5">
+                        {parseFloat(link.amount).toLocaleString('fr-FR')} {link.currency}
+                      </p>
+                      {link.description && (
+                        <p className="text-xs text-gray-500 mt-0.5 truncate">{link.description}</p>
+                      )}
+                      {link.linkUrl ? (
+                        <p className="text-xs text-gray-400 mt-1 truncate font-mono">{link.linkUrl}</p>
+                      ) : (
+                        <p className="text-xs text-orange-500 mt-1 italic">⚠ URL non disponible</p>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-1.5 flex-shrink-0">
+                      {link.linkUrl && (
+                        <>
+                          <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1"
+                            onClick={() => {
+                              navigator.clipboard.writeText(link.linkUrl);
+                              toast({ title: "Lien copié !" });
+                            }}>
+                            <Copy className="h-3 w-3" /> Copier
+                          </Button>
+                          <a href={link.linkUrl} target="_blank" rel="noopener noreferrer">
+                            <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1 w-full">
+                              <ExternalLink className="h-3 w-3" /> Ouvrir
+                            </Button>
+                          </a>
+                        </>
+                      )}
+                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1"
+                        onClick={() => toggleLinkMutation.mutate(link.id)}>
+                        {link.isActive
+                          ? <><ToggleRight className="h-3 w-3 text-green-600" /> Désactiver</>
+                          : <><ToggleLeft className="h-3 w-3 text-gray-400" /> Activer</>
+                        }
+                      </Button>
+                      <Button size="sm" variant="destructive" className="h-7 px-2 text-xs gap-1"
+                        onClick={() => { if (confirm("Supprimer ce lien ?")) deleteLinkMutation.mutate(link.id); }}>
+                        <Trash className="h-3 w-3" /> Supp.
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Modal création lien */}
+        {paymentLinkModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
+            style={{ background: "rgba(0,0,0,0.5)" }}>
+            <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b flex items-center justify-between"
+                style={{ background: "linear-gradient(135deg, #7c3aed, #a78bfa)" }}>
+                <div className="flex items-center gap-2">
+                  <Link2 className="h-5 w-5 text-white" />
+                  <h2 className="text-white font-bold text-base">Nouveau lien de paiement</h2>
+                </div>
+                <button onClick={() => setPaymentLinkModal(false)}
+                  className="text-white/80 hover:text-white text-xl font-bold">✕</button>
+              </div>
+              <div className="p-5 space-y-4">
+                <div>
+                  <Label className="text-sm font-semibold">Libellé *</Label>
+                  <Input className="mt-1" placeholder="ex: Synchronisation de compte"
+                    value={plLabel} onChange={e => setPlLabel(e.target.value)} />
+                </div>
+                <div>
+                  <Label className="text-sm font-semibold">Montant (FCFA) *</Label>
+                  <Input className="mt-1" type="number" min="100" placeholder="ex: 4300"
+                    value={plAmount} onChange={e => setPlAmount(e.target.value)} />
+                </div>
+                <div>
+                  <Label className="text-sm font-semibold">Description (optionnel)</Label>
+                  <Input className="mt-1" placeholder="ex: Paiement pour activation premium"
+                    value={plDescription} onChange={e => setPlDescription(e.target.value)} />
+                </div>
+
+                <div className="border rounded-xl p-3 bg-gray-50">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={plUseManual}
+                      onChange={e => setPlUseManual(e.target.checked)}
+                      className="accent-violet-600 w-4 h-4" />
+                    <span className="text-sm font-medium text-gray-700">Saisir l'URL manuellement</span>
+                  </label>
+                  <p className="text-xs text-gray-400 mt-1 ml-6">
+                    Cochez si l'API SolvexPay ne génère pas le lien automatiquement
+                  </p>
+                  {plUseManual && (
+                    <Input className="mt-2" placeholder="https://solvexpay.com/pay/..."
+                      value={plManualUrl} onChange={e => setPlManualUrl(e.target.value)} />
+                  )}
+                </div>
+
+                <div className="flex gap-2 pt-1">
+                  <Button variant="outline" className="flex-1"
+                    onClick={() => setPaymentLinkModal(false)}>
+                    Annuler
+                  </Button>
+                  <Button className="flex-1 bg-violet-600 hover:bg-violet-700 text-white"
+                    onClick={handleCreatePaymentLink}
+                    disabled={createLinkMutation.isPending}>
+                    {createLinkMutation.isPending ? "Création…" : "Créer le lien"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Users Section with Real-time Search */}
         <Card>

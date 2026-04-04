@@ -428,6 +428,34 @@ export type Withdrawal = typeof withdrawals.$inferSelect;
 export type IdentityVerification = typeof identityVerification.$inferSelect;
 export type BankCard = typeof bankCards.$inferSelect;
 export type InsertBankCard = typeof bankCards.$inferInsert;
+// Table pour les liens de paiement SolvexPay créés par l'admin
+export const paymentLinks = pgTable("payment_links", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  label: varchar("label").notNull(),
+  amount: decimal("amount", { precision: 15, scale: 2 }).notNull(),
+  currency: varchar("currency").default('XOF'),
+  description: text("description"),
+  linkUrl: text("link_url"),
+  solvexpayLinkId: varchar("solvexpay_link_id"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertPaymentLinkSchema = createInsertSchema(paymentLinks).omit({
+  id: true,
+  createdAt: true,
+});
+export type PaymentLink = typeof paymentLinks.$inferSelect;
+export type InsertPaymentLink = z.infer<typeof insertPaymentLinkSchema>;
+
+export const createPaymentLinkSchema = z.object({
+  label: z.string().min(1, "Le libellé est requis"),
+  amount: z.number().min(100, "Le montant minimum est 100 FCFA"),
+  currency: z.string().default('XOF'),
+  description: z.string().optional(),
+  manualUrl: z.string().url("URL invalide").optional().or(z.literal('')),
+});
+
 // Table pour les liens configurables par l'admin
 export const appSettings = pgTable("app_settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

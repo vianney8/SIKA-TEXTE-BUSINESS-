@@ -26,6 +26,8 @@ import {
   accountStatus,
   appSettings,
   users,
+  paymentLinks,
+  createPaymentLinkSchema,
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import session from "express-session";
@@ -2818,6 +2820,122 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error deleting conversation:', error);
       res.status(500).json({ message: 'Erreur lors de la suppression de la conversation' });
+    }
+  });
+
+  // ══════════════════════════════════════════
+  // PAYMENT LINKS — Admin manages SolvexPay links
+  // ══════════════════════════════════════════
+
+  // List all payment links
+  app.get('/api/admin/payment-links', requireAdmin, async (_req, res) => {
+    try {
+      const links = await db.select().from(paymentLinks).orderBy(desc(paymentLinks.createdAt));
+      res.json(links);
+    } catch (err) {
+      console.error('[PAYMENT-LINKS] List error:', err);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  // Create a payment link (calls SolvexPay API then stores result)
+  app.post('/api/admin/payment-links', requireAdmin, async (req: any, res) => {
+    try {
+      const parsed = createPaymentLinkSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: parsed.error.errors[0].message });
+      }
+      const { label, amount, currency, description, manualUrl } = parsed.data;
+
+      let linkUrl: string | null = manualUrl || null;
+      let solvexpayLinkId: string | null = null;
+
+      // If no manual URL, try SolvexPay API
+      if (!linkUrl) {
+        const apiKey = process.env.SOLVEXPAY_API_KEY;
+        if (!apiKey) {
+          return res.status(400).json({ message: 'Clé API SolvexPay non configurée. Veuillez saisir l\'URL manuellement.' });
+        }
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 15000);
+          const spRes = await fetch('https://solvexpay.com/api/v1/payment-links', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              amount,
+              currency: currency || 'XOF',
+              label,
+              description: description || label,
+            }),
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+          const spData = await spRes.json();
+          console.log('[PAYMENT-LINKS] SolvexPay response:', JSON.stringify(spData));
+          if (spRes.ok) {
+            linkUrl = spData?.data?.url || spData?.url || spData?.link?.url || null;
+            solvexpayLinkId = spData?.data?.id || spData?.id || spData?.link?.id || null;
+          } else {
+            console.warn('[PAYMENT-LINKS] SolvexPay API failed:', spData);
+            return res.status(422).json({
+              message: `SolvexPay API: ${spData?.message || 'Erreur inconnue'}. Utilisez l'URL manuelle.`,
+            });
+          }
+        } catch (fetchErr: any) {
+          console.error('[PAYMENT-LINKS] Fetch error:', fetchErr.message);
+          return res.status(422).json({
+            message: 'Impossible de contacter SolvexPay. Utilisez l\'URL manuelle.',
+          });
+        }
+      }
+
+      const [created] = await db.insert(paymentLinks).values({
+        label,
+        amount: amount.toString(),
+        currency: currency || 'XOF',
+        description: description || null,
+        linkUrl,
+        solvexpayLinkId,
+        isActive: true,
+      }).returning();
+
+      res.status(201).json(created);
+    } catch (err) {
+      console.error('[PAYMENT-LINKS] Create error:', err);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  // Toggle active/inactive
+  app.patch('/api/admin/payment-links/:id/toggle', requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [current] = await db.select().from(paymentLinks).where(eq(paymentLinks.id, id));
+      if (!current) return res.status(404).json({ message: 'Lien introuvable' });
+      const [updated] = await db.update(paymentLinks)
+        .set({ isActive: !current.isActive })
+        .where(eq(paymentLinks.id, id))
+        .returning();
+      res.json(updated);
+    } catch (err) {
+      console.error('[PAYMENT-LINKS] Toggle error:', err);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  // Delete a payment link
+  app.delete('/api/admin/payment-links/:id', requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await db.delete(paymentLinks).where(eq(paymentLinks.id, id));
+      res.json({ success: true });
+    } catch (err) {
+      console.error('[PAYMENT-LINKS] Delete error:', err);
+      res.status(500).json({ message: 'Erreur serveur' });
     }
   });
 
