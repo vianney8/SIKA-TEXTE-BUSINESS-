@@ -3025,6 +3025,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update a payment link
+  app.patch('/api/admin/payment-links/:id', requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [current] = await db.select().from(paymentLinks).where(eq(paymentLinks.id, id));
+      if (!current) return res.status(404).json({ message: 'Lien introuvable' });
+      const { label, amount, description, imageUrl } = req.body;
+      const updates: Record<string, any> = {};
+      if (label !== undefined) updates.label = label;
+      if (amount !== undefined) updates.amount = parseFloat(amount).toString();
+      if (description !== undefined) updates.description = description || null;
+      if (imageUrl !== undefined) updates.imageUrl = imageUrl || null;
+      const [updated] = await db.update(paymentLinks).set(updates).where(eq(paymentLinks.id, id)).returning();
+      res.json(updated);
+    } catch (err) {
+      console.error('[PAYMENT-LINKS] Update error:', err);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
   // Toggle active/inactive
   app.patch('/api/admin/payment-links/:id/toggle', requireAdmin, async (req, res) => {
     try {

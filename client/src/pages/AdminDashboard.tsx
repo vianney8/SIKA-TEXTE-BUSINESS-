@@ -82,7 +82,7 @@ export default function AdminDashboard() {
   const [notifyAllModal, setNotifyAllModal] = useState(false);
   const [notifyAllMessage, setNotifyAllMessage] = useState("");
 
-  // Payment links
+  // Payment links — create
   const [paymentLinkModal, setPaymentLinkModal] = useState(false);
   const [plLabel, setPlLabel] = useState("");
   const [plAmount, setPlAmount] = useState("");
@@ -90,6 +90,16 @@ export default function AdminDashboard() {
   const [plImageUrl, setPlImageUrl] = useState("");
   const [plImagePreview, setPlImagePreview] = useState("");
   const [plImageUploading, setPlImageUploading] = useState(false);
+
+  // Payment links — edit
+  const [editLinkModal, setEditLinkModal] = useState(false);
+  const [editLink, setEditLink] = useState<any>(null);
+  const [elLabel, setElLabel] = useState("");
+  const [elAmount, setElAmount] = useState("");
+  const [elDescription, setElDescription] = useState("");
+  const [elImageUrl, setElImageUrl] = useState("");
+  const [elImagePreview, setElImagePreview] = useState("");
+  const [elImageUploading, setElImageUploading] = useState(false);
   
   // Fetch identity verifications (only when modal is open)
   const { data: identityVerifications } = useQuery({
@@ -184,6 +194,68 @@ export default function AdminDashboard() {
       toast({ title: "Lien supprimé" });
     },
   });
+
+  const updateLinkMutation = useMutation({
+    mutationFn: async ({ id, body }: { id: string; body: any }) => {
+      const res = await apiRequest('PATCH', `/api/admin/payment-links/${id}`, body);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/payment-links'] });
+      setEditLinkModal(false);
+      setEditLink(null);
+      toast({ title: "✅ Lien modifié avec succès" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Erreur", description: err?.message || "Échec de la modification", variant: "destructive" });
+    },
+  });
+
+  const openEditModal = (link: any) => {
+    setEditLink(link);
+    setElLabel(link.label);
+    setElAmount(parseFloat(link.amount).toString());
+    setElDescription(link.description || "");
+    setElImageUrl(link.imageUrl || "");
+    setElImagePreview(link.imageUrl || "");
+    setEditLinkModal(true);
+  };
+
+  const handleUploadEditImage = async (file: File) => {
+    setElImageUploading(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = e => setElImagePreview(e.target?.result as string);
+      reader.readAsDataURL(file);
+      const form = new FormData();
+      form.append("image", file);
+      const res = await fetch("/api/admin/payment-links/upload-image", { method: "POST", body: form, credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setElImageUrl(data.url);
+      toast({ title: "✅ Image chargée" });
+    } catch (err: any) {
+      toast({ title: "Erreur upload image", description: err.message, variant: "destructive" });
+      setElImagePreview(editLink?.imageUrl || "");
+    } finally {
+      setElImageUploading(false);
+    }
+  };
+
+  const handleSaveLink = () => {
+    if (!elLabel.trim()) { toast({ title: "Libellé requis", variant: "destructive" }); return; }
+    const amt = parseFloat(elAmount);
+    if (!amt || amt < 100) { toast({ title: "Montant minimum 100 FCFA", variant: "destructive" }); return; }
+    updateLinkMutation.mutate({
+      id: editLink.id,
+      body: {
+        label: elLabel.trim(),
+        amount: amt,
+        description: elDescription.trim() || "",
+        imageUrl: elImageUrl || "",
+      },
+    });
+  };
 
   const handleUploadLinkImage = async (file: File) => {
     setPlImageUploading(true);
@@ -1390,6 +1462,10 @@ export default function AdminDashboard() {
                         </a>
                       </>
                       <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1"
+                        onClick={() => openEditModal(link)}>
+                        ✏️ Modifier
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1"
                         onClick={() => toggleLinkMutation.mutate(link.id)}>
                         {link.isActive
                           ? <><ToggleRight className="h-3 w-3 text-green-600" /> Désactiver</>
@@ -1482,6 +1558,90 @@ export default function AdminDashboard() {
                     onClick={handleCreatePaymentLink}
                     disabled={createLinkMutation.isPending}>
                     {createLinkMutation.isPending ? "Génération…" : "Générer le lien"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal modification lien */}
+        {editLinkModal && editLink && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
+            style={{ background: "rgba(0,0,0,0.5)" }}>
+            <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between px-5 py-4 rounded-t-3xl"
+                style={{ background: "linear-gradient(135deg, #7c3aed, #a78bfa)" }}>
+                <div>
+                  <p className="font-black text-white text-lg">Modifier le lien</p>
+                  <p className="text-white/70 text-xs font-mono">/pay/{editLink.id}</p>
+                </div>
+                <button onClick={() => setEditLinkModal(false)}
+                  className="text-white/80 hover:text-white text-xl font-bold">✕</button>
+              </div>
+              <div className="p-5 space-y-4">
+                <div>
+                  <Label className="text-sm font-semibold">Libellé *</Label>
+                  <input className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+                    placeholder="ex: Synchronisation de compte"
+                    value={elLabel} onChange={e => setElLabel(e.target.value)} />
+                </div>
+                <div>
+                  <Label className="text-sm font-semibold">Montant (FCFA) *</Label>
+                  <input type="number" min="100"
+                    className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+                    placeholder="ex: 4300"
+                    value={elAmount} onChange={e => setElAmount(e.target.value)} />
+                </div>
+                <div>
+                  <Label className="text-sm font-semibold">Description (optionnel)</Label>
+                  <input className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+                    placeholder="ex: Paiement pour activation premium"
+                    value={elDescription} onChange={e => setElDescription(e.target.value)} />
+                </div>
+                <div>
+                  <Label className="text-sm font-semibold">Photo du lien (optionnel)</Label>
+                  <p className="text-xs text-gray-400 mt-0.5 mb-2">Apparaît en haut de la page de paiement</p>
+                  {elImagePreview ? (
+                    <div className="relative rounded-2xl overflow-hidden border border-gray-200">
+                      <img src={elImagePreview} alt="Aperçu" className="w-full h-32 object-cover" />
+                      <button
+                        onClick={() => { setElImagePreview(""); setElImageUrl(""); }}
+                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold"
+                      >✕</button>
+                      {elImageUploading && (
+                        <div className="absolute inset-0 bg-white/70 flex items-center justify-center">
+                          <div className="w-6 h-6 border-2 border-violet-300 border-t-violet-600 rounded-full animate-spin" />
+                        </div>
+                      )}
+                      {elImageUrl && !elImageUploading && (
+                        <div className="absolute bottom-2 left-2 bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">✓ Chargée</div>
+                      )}
+                      <label className="absolute bottom-2 right-2 bg-violet-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full cursor-pointer">
+                        Changer
+                        <input type="file" accept="image/*" className="hidden"
+                          onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadEditImage(f); }} />
+                      </label>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 rounded-2xl cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
+                      <span className="text-2xl mb-1">🖼</span>
+                      <span className="text-xs text-gray-500">Cliquer pour choisir une image</span>
+                      <span className="text-[10px] text-gray-400">JPG, PNG, WebP — max 10 Mo</span>
+                      <input type="file" accept="image/*" className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadEditImage(f); }} />
+                    </label>
+                  )}
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <Button variant="outline" className="flex-1"
+                    onClick={() => setEditLinkModal(false)}>
+                    Annuler
+                  </Button>
+                  <Button className="flex-1 bg-violet-600 hover:bg-violet-700 text-white"
+                    onClick={handleSaveLink}
+                    disabled={updateLinkMutation.isPending || elImageUploading}>
+                    {updateLinkMutation.isPending ? "Enregistrement…" : "Enregistrer"}
                   </Button>
                 </div>
               </div>
