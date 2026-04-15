@@ -1879,22 +1879,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         let answerText = '';
 
-        // ── Activation CI: step 1 - Ask for confirmation ────────────────────
+        // ── Activation CI: step 1 - Edit original message to ask confirmation ──
         if (data.startsWith('act_approve_pre_')) {
           const userId = data.replace('act_approve_pre_', '');
-          answerText = '⚠️ Confirmez l\'activation du compte';
+          answerText = '⚠️ Confirmez l\'activation';
 
           if (chatId && messageId) {
-            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 chat_id: chatId,
-                text: `⚠️ <b>Confirmation requise</b>\n\nÊtes-vous sûr de vouloir <b>activer</b> ce compte ?`,
-                parse_mode: 'HTML',
+                message_id: messageId,
                 reply_markup: {
                   inline_keyboard: [[
-                    { text: '✅ Oui, activer', callback_data: `act_approve_${userId}` },
+                    { text: '✅ Oui, activer le compte', callback_data: `act_approve_${userId}` },
                     { text: '◀ Annuler', callback_data: `act_cancel_${userId}` }
                   ]]
                 }
@@ -1907,13 +1906,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           answerText = '⚠️ Confirmez le refus';
 
           if (chatId && messageId) {
-            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 chat_id: chatId,
-                text: `⚠️ <b>Confirmation requise</b>\n\nÊtes-vous sûr de vouloir <b>décliner</b> ce compte ?`,
-                parse_mode: 'HTML',
+                message_id: messageId,
                 reply_markup: {
                   inline_keyboard: [[
                     { text: '❌ Oui, décliner', callback_data: `act_decline_${userId}` },
@@ -1924,12 +1922,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           }
 
-        // ── Activation CI: step 2 - Final approve ───────────────────────────
+        // ── Activation CI: step 2 - Final approve (removes buttons permanently) ─
         } else if (data.startsWith('act_approve_') && !data.startsWith('act_approve_pre_')) {
           const userId = data.replace('act_approve_', '');
           try {
             await storage.activateAccount(userId);
-            answerText = '✅ Compte activé avec succès !';
+            answerText = '✅ Compte activé !';
 
             if (chatId && messageId) {
               await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
@@ -1953,7 +1951,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.error('[ACT-CI] Telegram activate error:', err);
           }
 
-        // ── Activation CI: step 2 - Final decline ───────────────────────────
+        // ── Activation CI: step 2 - Final decline (removes buttons permanently) ─
         } else if (data.startsWith('act_decline_') && !data.startsWith('act_decline_pre_')) {
           const userId = data.replace('act_decline_', '');
           answerText = '❌ Compte décliné.';
@@ -1976,9 +1974,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           console.log('[ACT-CI] Activation declined via Telegram for user:', userId);
 
-        // ── Activation CI: cancel ────────────────────────────────────────────
+        // ── Activation CI: cancel - restore original buttons ─────────────────
         } else if (data.startsWith('act_cancel_')) {
+          const userId = data.replace('act_cancel_', '');
           answerText = 'Annulé.';
+
+          if (chatId && messageId) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                message_id: messageId,
+                reply_markup: {
+                  inline_keyboard: [[
+                    { text: '✅ Activer le compte', callback_data: `act_approve_pre_${userId}` },
+                    { text: '❌ Décliner', callback_data: `act_decline_pre_${userId}` }
+                  ]]
+                }
+              })
+            });
+          }
 
         } else if (data.startsWith('ci_approve_')) {
           const userId = data.replace('ci_approve_', '');
