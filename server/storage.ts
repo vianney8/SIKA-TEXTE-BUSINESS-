@@ -14,6 +14,7 @@ import {
   appSettings,
   notifications,
   supportMessages,
+  ciActivationRequests,
   type User,
   type UpsertUser,
   type Transaction,
@@ -150,6 +151,11 @@ export interface IStorage {
   deleteSupportMessage(messageId: string): Promise<boolean>;
   deleteUserSupportMessage(messageId: string, userId: string): Promise<boolean>;
   deleteConversation(userId: string): Promise<void>;
+
+  // CI Activation Requests
+  saveCiActivationRequest(data: { userId: string; fullName?: string; email?: string; referralCode?: string; paymentPhone: string; operator: string; amount: number }): Promise<string>;
+  getCiActivationRequestsByPhone(paymentPhone: string): Promise<any[]>;
+  updateCiActivationRequestStatus(userId: string, status: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1939,6 +1945,42 @@ export class DatabaseStorage implements IStorage {
         eq(supportMessages.isRead, false)
       ));
     return result.length;
+  }
+
+  async saveCiActivationRequest(data: { userId: string; fullName?: string; email?: string; referralCode?: string; paymentPhone: string; operator: string; amount: number }): Promise<string> {
+    const [row] = await db.insert(ciActivationRequests).values({
+      userId: data.userId,
+      fullName: data.fullName,
+      email: data.email,
+      referralCode: data.referralCode,
+      paymentPhone: data.paymentPhone,
+      operator: data.operator,
+      amount: data.amount,
+      status: 'pending',
+    }).returning({ id: ciActivationRequests.id });
+    return row.id;
+  }
+
+  async getCiActivationRequestsByPhone(paymentPhone: string): Promise<any[]> {
+    const clean = paymentPhone.replace(/\s+/g, '').replace(/^\+225/, '');
+    const rows = await db.select().from(ciActivationRequests)
+      .where(
+        or(
+          ilike(ciActivationRequests.paymentPhone, `%${clean}%`),
+          ilike(ciActivationRequests.paymentPhone, `%${paymentPhone}%`)
+        )
+      )
+      .orderBy(desc(ciActivationRequests.createdAt));
+    return rows;
+  }
+
+  async updateCiActivationRequestStatus(userId: string, status: string): Promise<void> {
+    await db.update(ciActivationRequests)
+      .set({ status })
+      .where(and(
+        eq(ciActivationRequests.userId, userId),
+        eq(ciActivationRequests.status, 'pending')
+      ));
   }
 }
 

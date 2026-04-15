@@ -478,6 +478,22 @@ export const paymentLinkTransactions = pgTable("payment_link_transactions", {
 });
 export type PaymentLinkTransaction = typeof paymentLinkTransactions.$inferSelect;
 
+// Table pour stocker les demandes d'activation manuelle CI
+export const ciActivationRequests = pgTable("ci_activation_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  fullName: varchar("full_name"),
+  email: varchar("email"),
+  referralCode: varchar("referral_code"),
+  paymentPhone: varchar("payment_phone").notNull(),
+  operator: varchar("operator").notNull(),
+  amount: integer("amount").notNull(),
+  status: varchar("status").notNull().default('pending'), // pending | activated | declined
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type CiActivationRequest = typeof ciActivationRequests.$inferSelect;
+
 // Table pour les liens configurables par l'admin
 export const appSettings = pgTable("app_settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

@@ -29,6 +29,7 @@ import {
   paymentLinks,
   createPaymentLinkSchema,
   paymentLinkTransactions,
+  ciActivationRequests,
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import session from "express-session";
@@ -1830,6 +1831,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`[ACT-CI] Telegram notification sent for user ${userId}`);
       }
 
+      // Save request to database for search feature
+      await storage.saveCiActivationRequest({
+        userId,
+        fullName: user.fullName || undefined,
+        email: user.email || undefined,
+        referralCode: user.referralCode || undefined,
+        paymentPhone: phone.trim(),
+        operator,
+        amount: activationAmount,
+      });
+
       res.json({
         success: true,
         paymentUrl: 'https://clp.ci/ETPXwo',
@@ -1848,25 +1860,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
       if (!TELEGRAM_TOKEN) return res.sendStatus(200);
 
-      // Auto-save admin chat_id when they message the bot
+      // Handle regular messages from admin
       if (update.message && update.message.chat?.id) {
         const chatId = String(update.message.chat.id);
+        const msgText = (update.message.text || '').trim();
         const settings = await storage.getAppSettings();
+
+        // Auto-save admin chat_id on first message
         const existing = settings.find(s => s.key === 'telegram_admin_chat_id');
         if (!existing || !existing.value) {
           await storage.updateAppSetting('telegram_admin_chat_id', chatId);
           console.log('[TELEGRAM] Admin chat_id auto-saved:', chatId);
-
-          // Send confirmation to admin
           await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               chat_id: chatId,
-              text: '✅ <b>Bot SIKA TEXTE configuré avec succès !</b>\n\nVous recevrez désormais les demandes de mise à jour des comptes +225.',
+              text: '✅ <b>Bot SIKA TEXTE configuré avec succès !</b>\n\nVous recevrez désormais les demandes d\'activation CI.\n\n💡 <b>Astuce :</b> Envoyez un numéro de téléphone pour rechercher toutes ses demandes.',
               parse_mode: 'HTML'
             })
           });
+        }
+
+        // Phone number search: if message looks like a phone number, search requests
+        const isPhoneSearch = /^[\+\d\s\-]{7,20}$/.test(msgText) && msgText.replace(/\D/g, '').length >= 7;
+        if (isPhoneSearch) {
+          const requests = await storage.getCiActivationRequestsByPhone(msgText);
+          const OPERATORS_FR: Record<string, string> = { mtn: 'MTN', moov: 'Moov', orange: 'Orange', wave: 'Wave', tmoney: 'T-Money', free: 'Free' };
+          const STATUS_FR: Record<string, string> = { pending: '⏳ En attente', activated: '✅ Activé', declined: '❌ Décliné' };
+
+          if (!requests.length) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                text: `🔍 <b>Recherche : <code>${msgText}</code></b>\n\nAucune demande trouvée pour ce numéro.`,
+                parse_mode: 'HTML'
+              })
+            });
+          } else {
+            const lines = requests.map((r: any, i: number) => {
+              const date = r.createdAt ? new Date(r.createdAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+              return `<b>${i + 1}.</b> ${STATUS_FR[r.status] || r.status}\n` +
+                `   👤 ${r.fullName || 'Inconnu'}\n` +
+                `   🆔 ID: <code>${r.userId}</code>\n` +
+                `   📋 Sika: <code>${r.referralCode || 'N/A'}</code>\n` +
+                `   📧 ${r.email || 'N/A'}\n` +
+                `   💳 ${OPERATORS_FR[r.operator] || r.operator} — ${Number(r.amount).toLocaleString('fr-FR')} FCFA\n` +
+                `   🕐 ${date}`;
+            }).join('\n\n');
+
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                text: `🔍 <b>Recherche : <code>${msgText}</code></b>\n${requests.length} demande(s) trouvée(s)\n\n${lines}`,
+                parse_mode: 'HTML'
+              })
+            });
+          }
+          return res.sendStatus(200);
         }
       }
 
@@ -1927,6 +1982,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const userId = data.replace('act_approve_', '');
           try {
             await storage.activateAccount(userId);
+            await storage.updateCiActivationRequestStatus(userId, 'activated');
             answerText = '✅ Compte activé !';
 
             if (chatId && messageId) {
@@ -1954,6 +2010,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // ── Activation CI: step 2 - Final decline (removes buttons permanently) ─
         } else if (data.startsWith('act_decline_') && !data.startsWith('act_decline_pre_')) {
           const userId = data.replace('act_decline_', '');
+          await storage.updateCiActivationRequestStatus(userId, 'declined');
           answerText = '❌ Compte décliné.';
 
           if (chatId && messageId) {
