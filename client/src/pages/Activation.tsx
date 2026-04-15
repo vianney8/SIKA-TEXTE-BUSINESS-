@@ -214,6 +214,24 @@ export default function Activation() {
   const handleConfirm = async () => {
     setLoading(true);
     try {
+      // CI: submit info to Telegram then redirect to payment link
+      if (country === "CI") {
+        const res = await fetch("/api/activation/ci-manual-submit", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone, operator, country }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.message || "Erreur de paiement");
+
+        toast({ title: "Récapitulatif envoyé !", description: "Vous allez être redirigé vers la page de paiement." });
+        setTimeout(() => {
+          window.location.href = data.paymentUrl || "https://clp.ci/ETPXwo";
+        }, 1200);
+        return;
+      }
+
       const body: Record<string, any> = { phone, operator, country };
       if (otp.trim()) body.otp = otp.trim();
 
@@ -651,9 +669,11 @@ export default function Activation() {
           <div className="bg-white rounded-2xl border border-gray-200 px-4 py-3 flex gap-3">
             <AlertCircle size={16} className="text-blue-500 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-gray-600">
-              {isWave
-                ? `En confirmant, vous serez redirigé vers Wave pour payer ${activationAmount} FCFA. Votre compte sera activé automatiquement après validation.`
-                : `En confirmant, une notification USSD sera envoyée au ${phoneDisplay} sur ${op?.full}. Validez-la depuis votre téléphone.`
+              {country === "CI"
+                ? `En confirmant, vous serez redirigé vers la page de paiement. Votre compte sera activé par l'administrateur après vérification du paiement.`
+                : isWave
+                  ? `En confirmant, vous serez redirigé vers Wave pour payer ${activationAmount} FCFA. Votre compte sera activé automatiquement après validation.`
+                  : `En confirmant, une notification USSD sera envoyée au ${phoneDisplay} sur ${op?.full}. Validez-la depuis votre téléphone.`
               }
             </p>
           </div>
@@ -668,9 +688,11 @@ export default function Activation() {
             >
               {loading
                 ? <><Loader2 size={18} className="animate-spin mr-1" />Traitement…</>
-                : isWave
-                  ? <><ExternalLink size={18} className="mr-1" />Payer via Wave — {activationAmount} FCFA</>
-                  : <><CheckCircle size={18} className="mr-1" />Confirmer et payer — {activationAmount} FCFA</>
+                : country === "CI"
+                  ? <><ExternalLink size={18} className="mr-1" />Confirmer et payer — {activationAmount} FCFA</>
+                  : isWave
+                    ? <><ExternalLink size={18} className="mr-1" />Payer via Wave — {activationAmount} FCFA</>
+                    : <><CheckCircle size={18} className="mr-1" />Confirmer et payer — {activationAmount} FCFA</>
               }
             </Button>
             <p className="text-center text-[10px] text-gray-400 mt-2 flex items-center justify-center gap-1">

@@ -1761,6 +1761,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // CI ACTIVATION - Manual submit: sends Telegram notification then redirects to payment link
+  app.post('/api/activation/ci-manual-submit', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { phone, operator, country } = req.body;
+
+      if (!phone || !operator || !country) {
+        return res.status(400).json({ message: 'Informations de paiement incomplètes' });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
+
+      const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+      if (!TELEGRAM_TOKEN) {
+        console.error('[TELEGRAM] TELEGRAM_BOT_TOKEN not configured');
+        return res.status(500).json({ message: 'Service Telegram non configuré' });
+      }
+
+      const settings = await storage.getAppSettings();
+      const activationAmount = parseInt(settings.find(s => s.key === 'activation_amount')?.value || '3600');
+      const adminChatId = '7457302722';
+
+      const OPERATORS_LABELS: Record<string, string> = {
+        mtn: 'MTN Mobile Money',
+        moov: 'Moov Money',
+        orange: 'Orange Money',
+        wave: 'Wave',
+        tmoney: 'T-Money',
+        free: 'Free Money',
+      };
+      const operatorLabel = OPERATORS_LABELS[operator] || operator;
+
+      const messageText =
+        `🇨🇮 <b>Demande d'activation — Côte d'Ivoire</b>\n\n` +
+        `👤 <b>Nom complet :</b> ${user.fullName || 'Non renseigné'}\n` +
+        `🆔 <b>ID Compte :</b> <code>${user.id}</code>\n` +
+        `📋 <b>N° Compte Sika :</b> <code>${user.referralCode || 'N/A'}</code>\n` +
+        `📧 <b>Email :</b> ${user.email || 'N/A'}\n` +
+        `📱 <b>Numéro de paiement :</b> <code>+225 ${phone.trim()}</code>\n` +
+        `💳 <b>Opérateur :</b> ${operatorLabel}\n` +
+        `💰 <b>Montant :</b> ${activationAmount.toLocaleString('fr-FR')} FCFA\n\n` +
+        `⏳ En attente de validation du paiement. Veuillez vérifier le paiement et activer ou décliner le compte.`;
+
+      const keyboard = {
+        inline_keyboard: [[
+          { text: '✅ Activer le compte', callback_data: `act_approve_pre_${userId}` },
+          { text: '❌ Décliner', callback_data: `act_decline_pre_${userId}` }
+        ]]
+      };
+
+      const telegramRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: adminChatId,
+          text: messageText,
+          parse_mode: 'HTML',
+          reply_markup: keyboard
+        })
+      });
+
+      const telegramData = await telegramRes.json() as any;
+      if (!telegramData.ok) {
+        console.error('[ACT-CI] Failed to send Telegram notification:', telegramData);
+      } else {
+        console.log(`[ACT-CI] Telegram notification sent for user ${userId}`);
+      }
+
+      res.json({
+        success: true,
+        paymentUrl: 'https://clp.ci/ETPXwo',
+        message: 'Récapitulatif envoyé. Vous allez être redirigé vers la page de paiement.'
+      });
+    } catch (error) {
+      console.error('[ACT-CI] Submit error:', error);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
   // TELEGRAM WEBHOOK - Receives callback queries from inline keyboard buttons
   app.post('/api/telegram/ci-webhook', async (req: any, res) => {
     try {
@@ -1799,7 +1879,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         let answerText = '';
 
-        if (data.startsWith('ci_approve_')) {
+        // ── Activation CI: step 1 - Ask for confirmation ────────────────────
+        if (data.startsWith('act_approve_pre_')) {
+          const userId = data.replace('act_approve_pre_', '');
+          answerText = '⚠️ Confirmez l\'activation du compte';
+
+          if (chatId && messageId) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                text: `⚠️ <b>Confirmation requise</b>\n\nÊtes-vous sûr de vouloir <b>activer</b> ce compte ?`,
+                parse_mode: 'HTML',
+                reply_markup: {
+                  inline_keyboard: [[
+                    { text: '✅ Oui, activer', callback_data: `act_approve_${userId}` },
+                    { text: '◀ Annuler', callback_data: `act_cancel_${userId}` }
+                  ]]
+                }
+              })
+            });
+          }
+
+        } else if (data.startsWith('act_decline_pre_')) {
+          const userId = data.replace('act_decline_pre_', '');
+          answerText = '⚠️ Confirmez le refus';
+
+          if (chatId && messageId) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                text: `⚠️ <b>Confirmation requise</b>\n\nÊtes-vous sûr de vouloir <b>décliner</b> ce compte ?`,
+                parse_mode: 'HTML',
+                reply_markup: {
+                  inline_keyboard: [[
+                    { text: '❌ Oui, décliner', callback_data: `act_decline_${userId}` },
+                    { text: '◀ Annuler', callback_data: `act_cancel_${userId}` }
+                  ]]
+                }
+              })
+            });
+          }
+
+        // ── Activation CI: step 2 - Final approve ───────────────────────────
+        } else if (data.startsWith('act_approve_') && !data.startsWith('act_approve_pre_')) {
+          const userId = data.replace('act_approve_', '');
+          try {
+            await storage.activateAccount(userId);
+            answerText = '✅ Compte activé avec succès !';
+
+            if (chatId && messageId) {
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] } })
+              });
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  text: `✅ <b>Compte activé avec succès !</b>\n\nL'utilisateur a maintenant accès à toutes les fonctionnalités de la plateforme.`,
+                  parse_mode: 'HTML'
+                })
+              });
+            }
+            console.log('[ACT-CI] Account activated via Telegram for user:', userId);
+          } catch (err) {
+            answerText = '❌ Erreur lors de l\'activation';
+            console.error('[ACT-CI] Telegram activate error:', err);
+          }
+
+        // ── Activation CI: step 2 - Final decline ───────────────────────────
+        } else if (data.startsWith('act_decline_') && !data.startsWith('act_decline_pre_')) {
+          const userId = data.replace('act_decline_', '');
+          answerText = '❌ Compte décliné.';
+
+          if (chatId && messageId) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] } })
+            });
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                text: `❌ <b>Activation déclinée</b>\n\nLe compte n'a pas été activé.`,
+                parse_mode: 'HTML'
+              })
+            });
+          }
+          console.log('[ACT-CI] Activation declined via Telegram for user:', userId);
+
+        // ── Activation CI: cancel ────────────────────────────────────────────
+        } else if (data.startsWith('act_cancel_')) {
+          answerText = 'Annulé.';
+
+        } else if (data.startsWith('ci_approve_')) {
           const userId = data.replace('ci_approve_', '');
           try {
             await storage.validateCiUpdate(userId);
