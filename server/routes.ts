@@ -1831,8 +1831,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`[ACT-CI] Telegram notification sent for user ${userId}`);
       }
 
-      // Save request to database for search feature
-      await storage.saveCiActivationRequest({
+      // Save request to database for search feature (non-blocking)
+      storage.saveCiActivationRequest({
         userId,
         fullName: user.fullName || undefined,
         email: user.email || undefined,
@@ -1840,7 +1840,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         paymentPhone: phone.trim(),
         operator,
         amount: activationAmount,
-      });
+      }).catch(err => console.error('[ACT-CI] DB save error:', err));
 
       res.json({
         success: true,

@@ -1962,12 +1962,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCiActivationRequestsByPhone(paymentPhone: string): Promise<any[]> {
-    const clean = paymentPhone.replace(/\s+/g, '').replace(/^\+225/, '');
+    // Strip all non-digit characters for flexible matching
+    const digits = paymentPhone.replace(/\D/g, '');
+    // Last 8 digits (local number without country code)
+    const localDigits = digits.slice(-8);
     const rows = await db.select().from(ciActivationRequests)
       .where(
         or(
-          ilike(ciActivationRequests.paymentPhone, `%${clean}%`),
-          ilike(ciActivationRequests.paymentPhone, `%${paymentPhone}%`)
+          ilike(ciActivationRequests.paymentPhone, `%${digits}%`),
+          ilike(ciActivationRequests.paymentPhone, `%${localDigits}%`),
+          sql`regexp_replace(${ciActivationRequests.paymentPhone}, '[^0-9]', '', 'g') LIKE ${'%' + digits + '%'}`,
+          sql`regexp_replace(${ciActivationRequests.paymentPhone}, '[^0-9]', '', 'g') LIKE ${'%' + localDigits + '%'}`
         )
       )
       .orderBy(desc(ciActivationRequests.createdAt));
