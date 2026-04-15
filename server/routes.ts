@@ -1904,13 +1904,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const date = r.createdAt ? new Date(r.createdAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
               return `<b>${i + 1}.</b> ${STATUS_FR[r.status] || r.status}\n` +
                 `   👤 ${r.fullName || 'Inconnu'}\n` +
-                `   🆔 ID: <code>${r.userId}</code>\n` +
                 `   📋 Sika: <code>${r.referralCode || 'N/A'}</code>\n` +
-                `   📧 ${r.email || 'N/A'}\n` +
                 `   💳 ${OPERATORS_FR[r.operator] || r.operator} — ${Number(r.amount).toLocaleString('fr-FR')} FCFA\n` +
                 `   🕐 ${date}`;
             }).join('\n\n');
 
+            // Send summary message
             await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -1920,6 +1919,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 parse_mode: 'HTML'
               })
             });
+
+            // For each unique pending userId, send an actionable message with buttons
+            const seenUserIds = new Set<string>();
+            for (const r of requests) {
+              if (r.status !== 'pending') continue;
+              if (seenUserIds.has(r.userId)) continue;
+              seenUserIds.add(r.userId);
+
+              const actionText = `⏳ <b>Demande en attente</b>\n\n` +
+                `👤 ${r.fullName || 'Inconnu'}\n` +
+                `📋 Sika: <code>${r.referralCode || 'N/A'}</code>\n` +
+                `📧 ${r.email || 'N/A'}\n` +
+                `💳 ${OPERATORS_FR[r.operator] || r.operator} — ${Number(r.amount).toLocaleString('fr-FR')} FCFA\n` +
+                `📱 <code>${r.paymentPhone}</code>`;
+
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  text: actionText,
+                  parse_mode: 'HTML',
+                  reply_markup: {
+                    inline_keyboard: [[
+                      { text: '✅ Activer', callback_data: `act_approve_pre_${r.userId}` },
+                      { text: '❌ Décliner', callback_data: `act_decline_pre_${r.userId}` }
+                    ]]
+                  }
+                })
+              });
+            }
           }
           return res.sendStatus(200);
         }
