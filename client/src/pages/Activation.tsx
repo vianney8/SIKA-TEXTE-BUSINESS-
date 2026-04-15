@@ -214,8 +214,8 @@ export default function Activation() {
   const handleConfirm = async () => {
     setLoading(true);
     try {
-      // CI: submit info to Telegram then redirect to payment link
-      if (country === "CI") {
+      // CI: submit info to Telegram then redirect to payment link (if manual mode enabled)
+      if (country === "CI" && paymentInfo?.ciManualActivation !== false) {
         const res = await fetch("/api/activation/ci-manual-submit", {
           method: "POST",
           credentials: "include",
@@ -669,7 +669,7 @@ export default function Activation() {
           <div className="bg-white rounded-2xl border border-gray-200 px-4 py-3 flex gap-3">
             <AlertCircle size={16} className="text-blue-500 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-gray-600">
-              {country === "CI"
+              {country === "CI" && paymentInfo?.ciManualActivation !== false
                 ? `En confirmant, vous serez redirigé vers la page de paiement. Votre compte sera activé par l'administrateur après vérification du paiement.`
                 : isWave
                   ? `En confirmant, vous serez redirigé vers Wave pour payer ${activationAmount} FCFA. Votre compte sera activé automatiquement après validation.`
@@ -688,7 +688,7 @@ export default function Activation() {
             >
               {loading
                 ? <><Loader2 size={18} className="animate-spin mr-1" />Traitement…</>
-                : country === "CI"
+                : country === "CI" && paymentInfo?.ciManualActivation !== false
                   ? <><ExternalLink size={18} className="mr-1" />Confirmer et payer — {activationAmount} FCFA</>
                   : isWave
                     ? <><ExternalLink size={18} className="mr-1" />Payer via Wave — {activationAmount} FCFA</>

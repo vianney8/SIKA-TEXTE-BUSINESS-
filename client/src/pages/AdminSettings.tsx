@@ -70,9 +70,11 @@ export default function AdminSettings() {
       queryClient.invalidateQueries({ queryKey: ['/api/settings/whatsapp_group'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/telegram_supervisor'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/telegram_group'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/ci_manual_activation'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/solvexpay_enabled'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/solvexpay_name'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/solvexpay_link'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/activation/payment-info'] });
     },
     onError: (error: any) => {
       toast({
@@ -359,6 +361,37 @@ export default function AdminSettings() {
             <p className="text-sm text-muted-foreground">
               Activez ou désactivez les passerelles de paiement disponibles pour l'activation des comptes utilisateurs.
             </p>
+
+            {/* CI Manual Activation */}
+            <div className="space-y-3 p-4 border rounded-lg border-orange-200 bg-orange-50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-orange-400 to-orange-600 flex items-center justify-center text-white font-bold text-sm">
+                    🇨🇮
+                  </div>
+                  <div>
+                    <p className="font-medium">Activation manuelle — Côte d'Ivoire</p>
+                    <p className="text-sm text-muted-foreground">
+                      {settings.ci_manual_activation !== 'false' ? '✓ Activé — paiement via lien + validation admin Telegram' : '✗ Désactivé — l\'API SolvexPay est utilisée'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleInputChange('ci_manual_activation', settings.ci_manual_activation === 'false' ? 'true' : 'false')}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    settings.ci_manual_activation !== 'false'
+                      ? 'bg-orange-500 hover:bg-orange-600 text-white'
+                      : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
+                  }`}
+                >
+                  {settings.ci_manual_activation !== 'false' ? 'Activé' : 'Désactivé'}
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Quand activé : les utilisateurs CI sont redirigés vers le lien de paiement et le récapitulatif est envoyé au bot Telegram pour validation manuelle. Quand désactivé : SolvexPay traite automatiquement le paiement.
+              </p>
+            </div>
 
             {/* SolvexPay */}
             <div className="space-y-3 p-4 border rounded-lg border-primary/30 bg-primary/5">

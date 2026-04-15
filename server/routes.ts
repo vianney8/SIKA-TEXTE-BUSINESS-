@@ -2353,6 +2353,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? rawPhone.replace(/(\d{3})\d+(\d{3})/, '$1****$2')
         : '';
 
+      const ciManualActivation = settings.find((s: any) => s.key === 'ci_manual_activation')?.value !== 'false';
+
       res.json({
         activationAmount,
         operator,
@@ -2361,6 +2363,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         maskedPhone,
         hasPhone: !!rawPhone,
         maintenanceMap,
+        ciManualActivation,
         otpInstructions: requiresOTP
           ? (country === 'CI' ? 'Composez le #144# pour obtenir votre OTP Orange CI' : 'Composez le #144*82# pour obtenir votre OTP Orange SN')
           : null
