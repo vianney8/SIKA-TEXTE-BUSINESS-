@@ -105,7 +105,7 @@ export default function AdminDashboard() {
   const { data: txnData, isLoading: txnLoading, refetch: refetchTxn } = useQuery<any>({
     queryKey: ['/api/admin/payment-link-transactions', txnDebouncedSearch, txnStatus, txnPage],
     queryFn: async () => {
-      const params = new URLSearchParams({ page: String(txnPage), limit: "20" });
+      const params = new URLSearchParams({ page: String(txnPage), limit: "5" });
       if (txnDebouncedSearch) params.set("search", txnDebouncedSearch);
       if (txnStatus !== "all") params.set("status", txnStatus);
       const res = await apiRequest("GET", `/api/admin/payment-link-transactions?${params}`);
