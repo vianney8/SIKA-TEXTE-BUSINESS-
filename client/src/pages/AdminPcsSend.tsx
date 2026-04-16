@@ -369,7 +369,6 @@ export default function AdminPcsSend() {
   });
 
   const userFound = lookupState === 'found' && !!foundUser;
-  const hasEmail = email.includes('@');
   const busyNew = createOnlyMutation.isPending || createSendMutation.isPending;
 
   return (
@@ -581,9 +580,10 @@ export default function AdminPcsSend() {
 
         {/* ══════════════════════════════
             SECTION 3 — Créer nouveau
+            (uniquement si compte Sika trouvé)
         ══════════════════════════════ */}
         <AnimatePresence>
-          {hasEmail && (
+          {userFound && (
             <motion.div
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
@@ -593,7 +593,7 @@ export default function AdminPcsSend() {
                 {/* En-tête */}
                 <div className="bg-gradient-to-r from-blue-500 to-cyan-500 px-5 py-3.5 flex items-center gap-3">
                   <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center">
-                    <span className="text-white text-xs font-black">{userFound ? '3' : '2'}</span>
+                    <span className="text-white text-xs font-black">3</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Sparkles size={14} className="text-white/80" />
@@ -715,9 +715,9 @@ export default function AdminPcsSend() {
           )}
         </AnimatePresence>
 
-        {/* État initial */}
+        {/* ── État initial : aucune email saisie ── */}
         <AnimatePresence>
-          {!hasEmail && (
+          {lookupState === 'idle' && (
             <motion.div
               initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
               transition={{ delay: 0.2 }}
@@ -730,6 +730,55 @@ export default function AdminPcsSend() {
                 <p className="text-xs text-blue-400 mt-1.5 max-w-xs mx-auto leading-relaxed">
                   Les codes PCS existants et les options de création apparaîtront automatiquement.
                 </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Email valide mais AUCUN compte Sika trouvé → génération bloquée ── */}
+        <AnimatePresence>
+          {lookupState === 'notfound' && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.3 }}
+            >
+              <div className="rounded-2xl border-2 border-rose-200 bg-gradient-to-br from-rose-50 to-red-50 overflow-hidden shadow-md shadow-rose-100">
+                {/* Bande rouge */}
+                <div className="bg-gradient-to-r from-rose-500 to-red-600 px-5 py-3 flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center">
+                    <AlertTriangle size={14} className="text-white" />
+                  </div>
+                  <span className="text-white font-extrabold text-sm">Création bloquée</span>
+                </div>
+
+                <div className="p-6 text-center">
+                  {/* Icône */}
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-rose-100 to-red-100 border-2 border-rose-200 flex items-center justify-center mx-auto mb-4">
+                    <div className="relative">
+                      <Mail size={24} className="text-rose-400" />
+                      <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-rose-500 border-2 border-white flex items-center justify-center">
+                        <span className="text-white text-[9px] font-black">✕</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="font-extrabold text-rose-800 text-sm mb-1.5">
+                    Email non lié à un compte Sika Texte
+                  </p>
+                  <p className="text-xs text-rose-500 leading-relaxed max-w-xs mx-auto">
+                    La génération et l'envoi de codes PCS sont réservés aux abonnés Sika Texte enregistrés.
+                    Vérifiez l'adresse email ou demandez à l'utilisateur de créer un compte.
+                  </p>
+
+                  {/* Séparateur */}
+                  <div className="border-t border-rose-200 my-4" />
+
+                  <div className="flex items-center justify-center gap-2 text-[11px] text-rose-600 font-semibold">
+                    <AlertTriangle size={11} />
+                    Aucun code PCS ne peut être créé pour cet email
+                  </div>
+                </div>
               </div>
             </motion.div>
           )}
