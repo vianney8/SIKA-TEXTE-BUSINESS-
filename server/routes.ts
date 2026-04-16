@@ -883,14 +883,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!pcsFormatRegex.test(normalized)) {
         return res.status(400).json({ message: 'Format de code invalide. Format attendu: PCS-XXXX-XXXX-XXXX-XXXX' });
       }
-      // Save directly — withdrawal validation ensures code belongs to user
+
+      // Check if code exists in pcs_codes and belongs to this user
+      const [existingCode] = await db.select()
+        .from(pcsCodes)
+        .where(and(eq(pcsCodes.code, normalized), eq(pcsCodes.userId, userId)))
+        .limit(1);
+
+      if (!existingCode) {
+        // Code doesn't exist for this user at all
+        return res.status(400).json({
+          message: '❌ Code PCS introuvable. Ce code n\'est pas associé à votre compte. Vérifiez le code reçu ou contactez le support.',
+        });
+      }
+
+      if (existingCode.status !== 'actif') {
+        // Code exists but is inactive — admin hasn't activated it yet
+        return res.status(400).json({
+          message: '⏳ Code PCS inactif. Votre code PCS Secure Pay n\'est pas encore activé. Veuillez patienter jusqu\'à la date d\'activation ou contacter le support.',
+        });
+      }
+
+      // Code is valid and active — save it
       await db.execute(sql`UPDATE users SET saved_pcs_code = ${normalized} WHERE id = ${userId}`);
-      // Also upsert into pcs_codes so withdrawal validation works
-      await db.insert(pcsCodes).values({ userId, code: normalized, status: 'actif' })
-        .onConflictDoUpdate({ target: pcsCodes.code, set: { userId, status: 'actif' } })
-        .catch(() => {}); // ignore if conflict can't be resolved
-      res.json({ success: true, message: 'Code PCS configuré avec succès' });
+      res.json({ success: true, message: '✅ Code PCS configuré avec succès. Vos retraits sont désormais sécurisés.' });
     } catch (err) {
+      console.error('[PCS CONFIG]', err);
       res.status(500).json({ message: 'Erreur serveur' });
     }
   });
@@ -2459,6 +2477,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/settings/:key', async (req: any, res) => {
     try {
       const { key } = req.params;
+      // Force no-cache so clients always get the freshest value (e.g. after video update)
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       const settings = await storage.getAppSettings();
       const setting = settings.find(s => s.key === key);
       res.json({ value: setting?.value || '' });

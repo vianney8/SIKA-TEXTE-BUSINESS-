@@ -5,12 +5,17 @@ export function useAppSetting(key: string) {
   return useQuery({
     queryKey: [`/api/settings/${key}`],
     queryFn: async () => {
-      const response = await fetch(`/api/settings/${key}`);
+      const response = await fetch(`/api/settings/${key}?_=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' },
+      });
       const data = await response.json();
       return data.value || '';
     },
-    staleTime: 0, // Pas de cache - toujours récupérer la valeur fraîche
-    refetchOnWindowFocus: true, // Recharger quand on revient sur l'onglet
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
   });
 }
 
