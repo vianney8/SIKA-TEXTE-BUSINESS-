@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { ArrowUpRight, Lock } from "lucide-react";
+import { ArrowUpRight, Lock, Users } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import PageHeader from "@/components/PageHeader";
 
@@ -69,6 +69,14 @@ export default function Transfer() {
     <div className="min-h-screen bg-gray-50">
       <PageHeader title="Transfert d'argent" backHref="/" />
 
+      {/* Bandeau info abonné */}
+      <div className="mx-4 mt-4 flex items-center gap-2.5 bg-blue-50 border border-blue-100 rounded-xl px-3.5 py-2.5">
+        <Users size={14} className="text-blue-500 flex-shrink-0" />
+        <p className="text-blue-700 text-xs font-semibold leading-relaxed">
+          Transfert d'argent à un abonné SIKA TEXTE uniquement
+        </p>
+      </div>
+
       <div className="p-4 pb-8">
         {!isAccountActive ? (
           <Card className="bg-white rounded-xl shadow-sm border border-border">
@@ -102,7 +110,7 @@ export default function Transfer() {
                     name="recipientPhone"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Numéro destinataire</FormLabel>
+                        <FormLabel>Numéro de l'abonné SIKA TEXTE</FormLabel>
                         <FormControl>
                           <Input
                             type="tel"
