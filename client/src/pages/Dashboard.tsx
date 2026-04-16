@@ -296,37 +296,43 @@ export default function Dashboard() {
           </div>
 
           {/* Serveur & Réseaux Spay — carte seule */}
-          <div className="rounded-[20px] overflow-hidden border border-indigo-100 bg-gradient-to-r from-indigo-50 to-violet-50">
+          <div className="rounded-[20px] overflow-hidden"
+            style={{
+              background: "linear-gradient(120deg, #4f46e5 0%, #7c3aed 50%, #a21caf 100%)",
+              boxShadow: "0 4px 24px rgba(109,40,217,0.35)",
+            }}>
             <Link href="/spay-network">
-              <a className="flex items-center gap-3 px-4 py-3.5 active:opacity-80 transition-opacity cursor-pointer">
-                {/* Logo animé en temps réel */}
-                <div className="relative w-10 h-10 flex-shrink-0">
-                  {/* Cercle rotatif externe */}
-                  <div className="absolute inset-0 rounded-full border-2 border-dashed border-indigo-300 animate-spin"
+              <a className="flex items-center gap-3 px-4 py-4 active:opacity-80 transition-opacity cursor-pointer">
+                {/* Logo animé */}
+                <div className="relative w-11 h-11 flex-shrink-0">
+                  <div className="absolute inset-0 rounded-full border-2 border-dashed border-white/30 animate-spin"
                     style={{ animationDuration: "6s" }} />
-                  {/* Cercle rotatif interne inverse */}
-                  <div className="absolute inset-1 rounded-full border border-violet-300 animate-spin"
+                  <div className="absolute inset-[3px] rounded-full border border-white/20 animate-spin"
                     style={{ animationDuration: "3s", animationDirection: "reverse" }} />
-                  {/* Centre */}
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-7 h-7 rounded-xl flex items-center justify-center"
-                      style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}>
-                      <Server size={14} className="text-white" />
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center"
+                      style={{ background: "rgba(255,255,255,0.18)", backdropFilter: "blur(4px)", border: "1px solid rgba(255,255,255,0.3)" }}>
+                      <Server size={15} className="text-white" />
                     </div>
                   </div>
-                  {/* Point pulsant */}
                   <div className="absolute -top-0.5 -right-0.5">
                     <span className="relative flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-80" />
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400" />
                     </span>
                   </div>
                 </div>
                 <div className="flex-1">
-                  <p className="text-gray-800 font-semibold text-sm">Serveur & Réseaux Spay</p>
-                  <p className="text-indigo-400 text-xs font-mono">sys · online · secure</p>
+                  <p className="text-white font-bold text-sm">Serveur & Réseaux Spay</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-white/60 text-[10px] font-mono">sys</span>
+                    <span className="text-white/40 text-[10px]">·</span>
+                    <span className="text-emerald-300 text-[10px] font-mono font-semibold">online</span>
+                    <span className="text-white/40 text-[10px]">·</span>
+                    <span className="text-white/60 text-[10px] font-mono">secure</span>
+                  </div>
                 </div>
-                <ChevronRight size={15} className="text-indigo-300" />
+                <ChevronRight size={16} className="text-white/60" />
               </a>
             </Link>
           </div>
