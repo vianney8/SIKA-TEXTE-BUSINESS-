@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,8 +11,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import {
-  ArrowLeft, Mail, Plus, Zap, CheckCircle, Copy, RefreshCw, Send,
+  ArrowLeft, Mail, Plus, CheckCircle, Copy, RefreshCw, Send,
   UserCheck, Loader2, ShieldCheck, ShieldOff, Pencil, MailCheck,
+  Sparkles, Zap,
 } from "lucide-react";
 
 const COUNTRIES = [
@@ -24,9 +26,9 @@ const COUNTRIES = [
   { code: "COG", name: "Congo-Brazzaville" },
 ];
 
-const STATUS_OPTIONS: { value: 'actif' | 'inactif'; label: string }[] = [
-  { value: 'actif', label: '✅ Actif' },
-  { value: 'inactif', label: '🔴 Inactif' },
+const STATUS_OPTIONS: { value: 'actif' | 'inactif'; label: string; color: string }[] = [
+  { value: 'actif',   label: 'Actif',   color: 'text-emerald-600' },
+  { value: 'inactif', label: 'Inactif', color: 'text-rose-500' },
 ];
 
 function generatePcsCode(): string {
@@ -35,548 +37,625 @@ function generatePcsCode(): string {
   return `PCS-${seg()}-${seg()}-${seg()}-${seg()}`;
 }
 
-interface ExistingCode {
-  id: string;
-  code: string;
-  status: 'actif' | 'inactif';
-  createdAt: string;
-}
+interface ExistingCode { id: string; code: string; status: 'actif' | 'inactif'; createdAt: string; }
+interface FoundUser { id: string; firstName: string | null; lastName: string | null; fullName: string | null; email: string; phone: string | null; }
 
-interface FoundUser {
-  id: string;
-  firstName: string | null;
-  lastName: string | null;
-  fullName: string | null;
-  email: string;
-  phone: string | null;
-}
-
-/* ─── Sous-composant : ligne d'un code existant ─── */
-function ExistingCodeRow({
-  code,
-  email,
-  firstName,
-  lastName,
-  countryCode,
-  onRefresh,
-}: {
-  code: ExistingCode;
-  email: string;
-  firstName: string;
-  lastName: string;
-  countryCode: string;
-  onRefresh: () => void;
+/* ══════════════ EXISTING CODE ROW ══════════════ */
+function ExistingCodeRow({ code, email, firstName, lastName, countryCode, index, onRefresh }: {
+  code: ExistingCode; email: string; firstName: string; lastName: string;
+  countryCode: string; index: number; onRefresh: () => void;
 }) {
   const { toast } = useToast();
   const [localStatus, setLocalStatus] = useState<'actif' | 'inactif'>(code.status);
   const [copied, setCopied] = useState(false);
-
-  // Sync when parent refreshes
   useEffect(() => { setLocalStatus(code.status); }, [code.status]);
 
   const isDirty = localStatus !== code.status;
+  const isActif = localStatus === 'actif';
 
-  // Mettre à jour uniquement (sans email)
   const updateMutation = useMutation({
     mutationFn: async () => {
       await apiRequest('PATCH', `/api/admin/pcs-codes/${code.id}/status`, { status: localStatus });
     },
     onSuccess: () => {
       onRefresh();
-      toast({ title: "Statut mis à jour", description: `Code …${code.code.slice(-9)} → ${localStatus}` });
+      toast({ title: "✅ Statut mis à jour", description: `Code …${code.code.slice(-9)} → ${localStatus}` });
     },
-    onError: (err: any) => {
-      toast({ title: "Erreur", description: err.message, variant: "destructive" });
-    },
+    onError: (err: any) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
   });
 
-  // Mettre à jour ET envoyer par email
-  const updateSendMutation = useMutation({
+  const sendMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest('POST', `/api/admin/pcs-codes/${code.id}/update-and-send`, {
-        status: localStatus,
-        email,
-        firstName: firstName || 'Cher',
-        lastName: lastName || 'Client',
-        countryCode,
+        status: localStatus, email,
+        firstName: firstName || 'Cher', lastName: lastName || 'Client', countryCode,
       });
       return res.json();
     },
     onSuccess: () => {
       onRefresh();
-      toast({ title: "Mis à jour et email envoyé ✓", description: `Code …${code.code.slice(-9)} → ${localStatus}` });
+      toast({ title: "📧 Email envoyé avec succès", description: `Code …${code.code.slice(-9)} → ${localStatus}` });
     },
-    onError: (err: any) => {
-      toast({ title: "Erreur", description: err.message, variant: "destructive" });
-    },
+    onError: (err: any) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
   });
 
-  const busy = updateMutation.isPending || updateSendMutation.isPending;
-  const canSendEmail = !!countryCode;
-
-  function copy() {
-    navigator.clipboard.writeText(code.code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }
+  const busy = updateMutation.isPending || sendMutation.isPending;
 
   return (
-    <div className={`rounded-xl border-2 p-3.5 transition-all ${
-      localStatus === 'actif'
-        ? 'border-green-200 bg-green-50/50'
-        : 'border-gray-100 bg-gray-50'
-    }`}>
-      {/* Ligne 1 : code + copier + badge statut actuel en DB */}
-      <div className="flex items-center gap-2 mb-2.5">
-        <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
-          code.status === 'actif' ? 'bg-green-100' : 'bg-gray-100'
-        }`}>
-          {code.status === 'actif'
-            ? <ShieldCheck size={13} className="text-green-600" />
-            : <ShieldOff size={13} className="text-gray-400" />
-          }
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-mono text-xs font-bold text-gray-800 truncate">{code.code}</p>
-          <p className={`text-[10px] font-semibold ${code.status === 'actif' ? 'text-green-600' : 'text-gray-400'}`}>
-            {code.status === 'actif' ? 'Actif en base' : 'Inactif en base'}
-            <span className="text-gray-300 font-normal ml-1.5">·</span>
-            <span className="text-gray-400 font-normal ml-1.5">
-              {new Date(code.createdAt).toLocaleDateString('fr-FR')}
-            </span>
-          </p>
-        </div>
-        <button onClick={copy} className="p-1.5 rounded-lg hover:bg-white transition-colors" title="Copier le code">
-          {copied ? <CheckCircle size={13} className="text-green-500" /> : <Copy size={13} className="text-gray-400" />}
-        </button>
-      </div>
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.06, duration: 0.3, ease: 'easeOut' }}
+      className={`relative rounded-2xl border-2 overflow-hidden transition-all duration-300 ${
+        isActif
+          ? 'border-emerald-200 bg-gradient-to-br from-emerald-50 to-green-50/40 shadow-emerald-100/80 shadow-md'
+          : 'border-slate-200 bg-gradient-to-br from-slate-50 to-gray-50/40 shadow-sm'
+      }`}
+    >
+      {/* Bande colorée gauche */}
+      <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl ${
+        isActif ? 'bg-gradient-to-b from-emerald-400 to-green-500' : 'bg-gradient-to-b from-slate-300 to-gray-400'
+      }`} />
 
-      {/* Ligne 2 : sélecteur de nouveau statut */}
-      <div className="flex items-center gap-2 mb-2.5">
-        <Pencil size={11} className="text-gray-400 flex-shrink-0" />
-        <span className="text-[11px] text-gray-500 flex-shrink-0">Nouveau statut :</span>
-        <Select value={localStatus} onValueChange={(v) => setLocalStatus(v as 'actif' | 'inactif')}>
-          <SelectTrigger className="h-8 text-xs flex-1 min-w-0 max-w-[140px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {STATUS_OPTIONS.map(o => (
-              <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {isDirty && (
-          <span className="text-[10px] text-amber-600 font-semibold px-2 py-0.5 bg-amber-50 rounded-full border border-amber-200">
-            Modifié
-          </span>
-        )}
-      </div>
+      <div className="pl-4 pr-3 py-3.5">
+        {/* Ligne 1 : code + badge + copier */}
+        <div className="flex items-start gap-2 mb-3">
+          <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm ${
+            isActif ? 'bg-gradient-to-br from-emerald-400 to-green-500' : 'bg-gradient-to-br from-slate-300 to-gray-400'
+          }`}>
+            {isActif
+              ? <ShieldCheck size={14} className="text-white" />
+              : <ShieldOff size={14} className="text-white" />
+            }
+          </div>
 
-      {/* Ligne 3 : boutons d'action */}
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => updateMutation.mutate()}
-          disabled={busy}
-          className="flex-1 h-8 text-xs gap-1.5 border-gray-200 text-gray-600 hover:bg-gray-100"
-        >
-          {updateMutation.isPending
-            ? <Loader2 size={12} className="animate-spin" />
-            : <CheckCircle size={12} />
-          }
-          Mettre à jour
-        </Button>
-        <Button
-          size="sm"
-          onClick={() => updateSendMutation.mutate()}
-          disabled={busy || !canSendEmail}
-          title={!canSendEmail ? "Sélectionnez un pays d'abord" : undefined}
-          className="flex-1 h-8 text-xs gap-1.5 bg-blue-600 hover:bg-blue-700 text-white"
-        >
-          {updateSendMutation.isPending
-            ? <Loader2 size={12} className="animate-spin" />
-            : <MailCheck size={12} />
-          }
-          Mettre à jour &amp; envoyer
-        </Button>
+          <div className="flex-1 min-w-0">
+            <p className="font-mono text-[13px] font-extrabold text-gray-800 tracking-wide leading-tight">
+              {code.code}
+            </p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                code.status === 'actif'
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : 'bg-slate-100 text-slate-500'
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${code.status === 'actif' ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                {code.status === 'actif' ? 'Actif' : 'Inactif'} en base
+              </span>
+              <span className="text-[10px] text-gray-400">
+                {new Date(code.createdAt).toLocaleDateString('fr-FR')}
+              </span>
+            </div>
+          </div>
+
+          <button
+            onClick={() => { navigator.clipboard.writeText(code.code); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
+            className="p-1.5 rounded-lg hover:bg-white/80 transition-colors"
+          >
+            {copied
+              ? <CheckCircle size={14} className="text-emerald-500" />
+              : <Copy size={14} className="text-gray-400 hover:text-gray-600" />
+            }
+          </button>
+        </div>
+
+        {/* Ligne 2 : sélecteur statut */}
+        <div className="flex items-center gap-2 mb-3">
+          <Pencil size={10} className="text-gray-400 flex-shrink-0" />
+          <span className="text-[11px] text-gray-500 flex-shrink-0 font-medium">Changer :</span>
+          <Select value={localStatus} onValueChange={(v) => setLocalStatus(v as 'actif' | 'inactif')}>
+            <SelectTrigger className={`h-7 text-xs flex-1 max-w-[130px] font-semibold border-2 transition-colors ${
+              localStatus === 'actif'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                : 'border-rose-200 bg-rose-50 text-rose-600'
+            }`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUS_OPTIONS.map(o => (
+                <SelectItem key={o.value} value={o.value} className={`text-xs font-semibold ${o.color}`}>
+                  {o.value === 'actif' ? '✅' : '🔴'} {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <AnimatePresence>
+            {isDirty && (
+              <motion.span
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                className="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full"
+              >
+                ✏️ Modifié
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Ligne 3 : boutons */}
+        <div className="grid grid-cols-2 gap-2">
+          {/* Mettre à jour uniquement */}
+          <button
+            onClick={() => updateMutation.mutate()}
+            disabled={busy}
+            className="flex items-center justify-center gap-1.5 h-9 rounded-xl border-2 border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-[11px] font-bold transition-all hover:shadow-sm disabled:opacity-50"
+          >
+            {updateMutation.isPending
+              ? <Loader2 size={11} className="animate-spin" />
+              : <CheckCircle size={11} />
+            }
+            Mettre à jour
+          </button>
+
+          {/* Mettre à jour + Envoyer par email */}
+          <button
+            onClick={() => sendMutation.mutate()}
+            disabled={busy || !countryCode}
+            title={!countryCode ? "Sélectionnez un pays d'abord" : undefined}
+            className="flex items-center justify-center gap-1.5 h-9 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white text-[11px] font-bold transition-all shadow-md shadow-blue-200 hover:shadow-blue-300 disabled:opacity-50 disabled:shadow-none"
+          >
+            {sendMutation.isPending
+              ? <Loader2 size={11} className="animate-spin" />
+              : <><MailCheck size={11} /><Mail size={9} className="opacity-60" /></>
+            }
+            <span>Mettre à jour &amp; <span className="underline underline-offset-2">envoyer email</span></span>
+          </button>
+        </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
-/* ─── Page principale ─── */
+/* ══════════════ PAGE PRINCIPALE ══════════════ */
 export default function AdminPcsSend() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Destinataire
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [countryCode, setCountryCode] = useState("");
-
-  // Nouveau code
   const [newCode, setNewCode] = useState(generatePcsCode());
   const [newStatus, setNewStatus] = useState<'actif' | 'inactif'>('actif');
   const [copiedNew, setCopiedNew] = useState(false);
-
-  // Lookup utilisateur
   const [lookupState, setLookupState] = useState<'idle' | 'loading' | 'found' | 'notfound'>('idle');
   const [foundUser, setFoundUser] = useState<FoundUser | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Auto-lookup email
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     const trimmed = email.trim();
     const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
     if (!valid) { setLookupState('idle'); setFoundUser(null); return; }
-
     setLookupState('loading');
     debounceRef.current = setTimeout(async () => {
       try {
         const res = await fetch(`/api/admin/user-by-email?email=${encodeURIComponent(trimmed)}`, { credentials: 'include' });
         if (res.ok) {
           const user: FoundUser = await res.json();
-          setFoundUser(user);
-          setLookupState('found');
+          setFoundUser(user); setLookupState('found');
           if (user.firstName) setFirstName(user.firstName);
           else if (user.fullName) {
             const p = user.fullName.trim().split(' ');
             setFirstName(p[0] || ''); setLastName(p.slice(1).join(' ') || '');
           }
           if (user.lastName) setLastName(user.lastName);
-        } else {
-          setFoundUser(null); setLookupState('notfound');
-        }
+        } else { setFoundUser(null); setLookupState('notfound'); }
       } catch { setLookupState('notfound'); }
     }, 600);
-
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [email]);
 
-  // Codes PCS existants
-  const { data: existingCodes = [], isLoading: codesLoading, refetch: refetchCodes } = useQuery<ExistingCode[]>({
+  const { data: existingCodes = [], isLoading: codesLoading, refetch } = useQuery<ExistingCode[]>({
     queryKey: ['/api/admin/users', foundUser?.id, 'pcs-codes'],
-    queryFn: async () => {
-      const res = await apiRequest('GET', `/api/admin/users/${foundUser!.id}/pcs-codes`);
-      return res.json();
-    },
+    queryFn: async () => { const res = await apiRequest('GET', `/api/admin/users/${foundUser!.id}/pcs-codes`); return res.json(); },
     enabled: !!foundUser,
     staleTime: 0,
   });
 
   function refreshCodes() {
     queryClient.invalidateQueries({ queryKey: ['/api/admin/users', foundUser?.id, 'pcs-codes'] });
-    refetchCodes();
+    refetch();
   }
 
-  // Créer uniquement (sans email)
   const createOnlyMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest('POST', '/api/admin/send-pcs', {
-        email,
-        firstName: firstName || 'Cher',
-        lastName: lastName || 'Client',
-        countryCode: countryCode || 'BJ',
-        codes: [newCode],
-        statuses: [newStatus],
-        skipEmail: true,
+        email, firstName: firstName || 'Cher', lastName: lastName || 'Client',
+        countryCode: countryCode || 'BJ', codes: [newCode], statuses: [newStatus], skipEmail: true,
       });
       return res.json();
     },
     onSuccess: () => {
-      refreshCodes();
-      setNewCode(generatePcsCode());
-      setNewStatus('actif');
-      toast({ title: "Code PCS créé", description: "Code enregistré sans envoi d'email." });
+      refreshCodes(); setNewCode(generatePcsCode()); setNewStatus('actif');
+      toast({ title: "✅ Code PCS créé", description: "Enregistré sans envoi d'email." });
     },
-    onError: (err: any) => {
-      toast({ title: "Erreur", description: err.message, variant: "destructive" });
-    },
+    onError: (err: any) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
   });
 
-  // Créer ET envoyer par email
   const createSendMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest('POST', '/api/admin/send-pcs', {
-        email,
-        firstName: firstName || 'Cher',
-        lastName: lastName || 'Client',
-        countryCode,
-        codes: [newCode],
-        statuses: [newStatus],
+        email, firstName: firstName || 'Cher', lastName: lastName || 'Client',
+        countryCode, codes: [newCode], statuses: [newStatus],
       });
       return res.json();
     },
     onSuccess: () => {
-      refreshCodes();
-      setNewCode(generatePcsCode());
-      setNewStatus('actif');
-      toast({ title: "Code créé et email envoyé ✓", description: `Nouveau PCS envoyé à ${email}` });
+      refreshCodes(); setNewCode(generatePcsCode()); setNewStatus('actif');
+      toast({ title: "📧 Code créé et email envoyé !", description: `Nouveau PCS envoyé à ${email}` });
     },
-    onError: (err: any) => {
-      toast({ title: "Erreur", description: err.message, variant: "destructive" });
-    },
+    onError: (err: any) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
   });
 
   const userFound = lookupState === 'found' && !!foundUser;
-  const busyNew = createOnlyMutation.isPending || createSendMutation.isPending;
   const hasEmail = email.includes('@');
+  const busyNew = createOnlyMutation.isPending || createSendMutation.isPending;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
-          <button onClick={() => setLocation('/admin')} className="p-2 rounded-full hover:bg-gray-100">
-            <ArrowLeft size={20} className="text-gray-600" />
-          </button>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
-              <Mail size={16} className="text-white" />
-            </div>
-            <div>
-              <h1 className="font-bold text-gray-900 text-sm">Gestion Codes PCS</h1>
-              <p className="text-xs text-gray-500">Modifier, créer et envoyer par email</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-50/30 to-indigo-50/20">
+
+      {/* ── Header premium ── */}
+      <div className="sticky top-0 z-20">
+        <div className="bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-600 shadow-xl shadow-blue-900/20">
+          <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
+            <button
+              onClick={() => setLocation('/admin')}
+              className="w-9 h-9 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors"
+            >
+              <ArrowLeft size={18} className="text-white" />
+            </button>
+            <div className="flex items-center gap-3 flex-1">
+              <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center shadow-inner">
+                <Sparkles size={18} className="text-white" />
+              </div>
+              <div>
+                <h1 className="font-extrabold text-white text-base tracking-tight">Gestion Codes PCS</h1>
+                <p className="text-blue-100 text-[11px] font-medium">Modifier · Créer · Envoyer par email</p>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-5 space-y-4">
+      <div className="max-w-2xl mx-auto px-4 py-5 space-y-4 pb-10">
 
-        {/* ══════════════════════════════════════════
+        {/* ══════════════════════════════
             SECTION 1 — Destinataire
-        ══════════════════════════════════════════ */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-          <h2 className="font-bold text-gray-800 text-sm mb-4 flex items-center gap-2">
-            <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold">1</span>
-            Destinataire
-          </h2>
-
-          <div className="space-y-3">
-            {/* Email */}
-            <div>
-              <Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Adresse email *</Label>
-              <div className="relative">
-                <Input
-                  type="email"
-                  placeholder="exemple@gmail.com"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  className="h-11 pr-10"
-                />
-                <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                  {lookupState === 'loading' && <Loader2 size={16} className="text-blue-500 animate-spin" />}
-                  {lookupState === 'found' && <UserCheck size={16} className="text-green-500" />}
-                  {lookupState === 'notfound' && <Mail size={16} className="text-gray-300" />}
-                </div>
+        ══════════════════════════════ */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+          <div className="bg-white rounded-2xl shadow-lg shadow-slate-100 border border-slate-100 overflow-hidden">
+            {/* En-tête */}
+            <div className="bg-gradient-to-r from-slate-700 to-slate-800 px-5 py-3.5 flex items-center gap-3">
+              <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center">
+                <span className="text-white text-xs font-black">1</span>
               </div>
+              <span className="text-white font-bold text-sm">Destinataire</span>
+            </div>
 
-              {userFound && foundUser && (
-                <div className="mt-2 flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                  <UserCheck size={14} className="text-green-600 shrink-0" />
-                  <div>
-                    <p className="text-xs text-green-800 font-bold">
-                      {foundUser.fullName || `${foundUser.firstName || ''} ${foundUser.lastName || ''}`.trim() || foundUser.email}
-                    </p>
-                    {foundUser.phone && <p className="text-[10px] text-green-600">{foundUser.phone}</p>}
+            <div className="p-5 space-y-3.5">
+              {/* Email */}
+              <div>
+                <Label className="text-xs font-bold text-slate-600 mb-1.5 block tracking-wide uppercase">
+                  Adresse email *
+                </Label>
+                <div className="relative">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2">
+                    <Mail size={16} className="text-slate-400" />
                   </div>
-                </div>
-              )}
-              {lookupState === 'notfound' && (
-                <p className="mt-1.5 text-xs text-amber-600">Aucun compte Sika Texte trouvé — remplissez le nom manuellement.</p>
-              )}
-            </div>
-
-            {/* Prénom / Nom */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Prénom</Label>
-                <Input placeholder="Prénom" value={firstName} onChange={e => setFirstName(e.target.value)} className="h-10" />
-              </div>
-              <div>
-                <Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Nom</Label>
-                <Input placeholder="Nom" value={lastName} onChange={e => setLastName(e.target.value)} className="h-10" />
-              </div>
-            </div>
-
-            {/* Pays */}
-            <div>
-              <Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Pays *</Label>
-              <Select value={countryCode} onValueChange={setCountryCode}>
-                <SelectTrigger className="h-10">
-                  <SelectValue placeholder="Sélectionner un pays" />
-                </SelectTrigger>
-                <SelectContent>
-                  {COUNTRIES.map(c => (
-                    <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
-
-        {/* ══════════════════════════════════════════
-            SECTION 2 — Codes PCS existants
-            (visible uniquement si utilisateur trouvé)
-        ══════════════════════════════════════════ */}
-        {userFound && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            {/* En-tête section */}
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-50 bg-indigo-50/60">
-              <h2 className="font-bold text-gray-800 text-sm flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold">2</span>
-                Codes PCS existants
-                {codesLoading && <Loader2 size={12} className="animate-spin text-indigo-400 ml-1" />}
-              </h2>
-              <span className="text-[11px] font-semibold text-indigo-600 bg-indigo-100 px-2.5 py-0.5 rounded-full">
-                {existingCodes.length} code{existingCodes.length !== 1 ? 's' : ''}
-              </span>
-            </div>
-
-            <div className="p-4">
-              {!codesLoading && existingCodes.length === 0 && (
-                <div className="text-center py-6">
-                  <ShieldOff size={28} className="text-gray-200 mx-auto mb-2" />
-                  <p className="text-xs text-gray-400">Aucun code PCS associé à cet utilisateur.</p>
-                  <p className="text-[11px] text-gray-300 mt-1">Créez-en un ci-dessous.</p>
-                </div>
-              )}
-
-              {existingCodes.length > 0 && (
-                <div className="space-y-3">
-                  {/* Légende */}
-                  <div className="flex items-center gap-1.5 text-[10px] text-gray-400 pb-1">
-                    <Pencil size={9} />
-                    <span>Modifiez le statut puis cliquez sur <strong>Mettre à jour</strong> ou <strong>Mettre à jour &amp; envoyer</strong></span>
-                  </div>
-
-                  {existingCodes.map(code => (
-                    <ExistingCodeRow
-                      key={code.id}
-                      code={code}
-                      email={email}
-                      firstName={firstName}
-                      lastName={lastName}
-                      countryCode={countryCode}
-                      onRefresh={refreshCodes}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ══════════════════════════════════════════
-            SECTION 3 — Créer un nouveau code PCS
-        ══════════════════════════════════════════ */}
-        {hasEmail && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            {/* En-tête section */}
-            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-gray-50 bg-blue-50/60">
-              <span className={`w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold`}>
-                {userFound ? '3' : '2'}
-              </span>
-              <h2 className="font-bold text-gray-800 text-sm">Créer un nouveau PCS</h2>
-            </div>
-
-            <div className="p-4 space-y-3.5">
-              {/* Code PCS */}
-              <div>
-                <Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Code PCS</Label>
-                <div className="flex gap-2">
                   <Input
-                    value={newCode}
-                    onChange={e => setNewCode(e.target.value.toUpperCase())}
-                    className="h-10 font-mono text-sm bg-slate-50 border-slate-200 flex-1"
-                    placeholder="PCS-XXXX-XXXX-XXXX-XXXX"
+                    type="email"
+                    placeholder="exemple@gmail.com"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    className="h-12 pl-9 pr-10 text-sm border-2 border-slate-200 focus:border-blue-400 rounded-xl transition-colors"
                   />
-                  <button
-                    onClick={() => setNewCode(generatePcsCode())}
-                    className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-400 hover:text-blue-600 transition-colors"
-                    title="Regénérer aléatoirement"
-                  >
-                    <RefreshCw size={15} />
-                  </button>
-                  <button
-                    onClick={() => { navigator.clipboard.writeText(newCode); setCopiedNew(true); setTimeout(() => setCopiedNew(false), 1500); }}
-                    className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-                    title="Copier"
-                  >
-                    {copiedNew ? <CheckCircle size={15} className="text-green-500" /> : <Copy size={15} className="text-gray-400" />}
-                  </button>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    {lookupState === 'loading' && <Loader2 size={16} className="text-blue-500 animate-spin" />}
+                    {lookupState === 'found' && (
+                      <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}>
+                        <UserCheck size={16} className="text-emerald-500" />
+                      </motion.div>
+                    )}
+                  </div>
                 </div>
+
+                <AnimatePresence>
+                  {userFound && foundUser && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                      className="mt-2 overflow-hidden"
+                    >
+                      <div className="flex items-center gap-3 bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 rounded-xl px-4 py-2.5">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-green-500 flex items-center justify-center shadow">
+                          <UserCheck size={14} className="text-white" />
+                        </div>
+                        <div>
+                          <p className="text-emerald-800 font-bold text-xs">
+                            {foundUser.fullName || `${foundUser.firstName || ''} ${foundUser.lastName || ''}`.trim() || foundUser.email}
+                          </p>
+                          {foundUser.phone && <p className="text-emerald-600 text-[10px]">{foundUser.phone}</p>}
+                        </div>
+                        <span className="ml-auto text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">
+                          Trouvé ✓
+                        </span>
+                      </div>
+                    </motion.div>
+                  )}
+                  {lookupState === 'notfound' && (
+                    <motion.p
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                      className="mt-1.5 text-xs text-amber-600 font-medium"
+                    >
+                      ⚠️ Aucun compte Sika Texte trouvé — remplissez le nom manuellement.
+                    </motion.p>
+                  )}
+                </AnimatePresence>
               </div>
 
-              {/* Statut initial */}
+              {/* Prénom / Nom */}
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { label: "Prénom", val: firstName, set: setFirstName },
+                  { label: "Nom", val: lastName, set: setLastName },
+                ].map(f => (
+                  <div key={f.label}>
+                    <Label className="text-xs font-bold text-slate-600 mb-1.5 block tracking-wide uppercase">{f.label}</Label>
+                    <Input
+                      placeholder={f.label}
+                      value={f.val}
+                      onChange={e => f.set(e.target.value)}
+                      className="h-10 border-2 border-slate-200 focus:border-blue-400 rounded-xl text-sm transition-colors"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {/* Pays */}
               <div>
-                <Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Statut initial</Label>
-                <Select value={newStatus} onValueChange={(v) => setNewStatus(v as 'actif' | 'inactif')}>
-                  <SelectTrigger className="h-10">
-                    <SelectValue />
+                <Label className="text-xs font-bold text-slate-600 mb-1.5 block tracking-wide uppercase">Pays *</Label>
+                <Select value={countryCode} onValueChange={setCountryCode}>
+                  <SelectTrigger className="h-11 border-2 border-slate-200 focus:border-blue-400 rounded-xl text-sm">
+                    <SelectValue placeholder="🌍 Sélectionner un pays" />
                   </SelectTrigger>
                   <SelectContent>
-                    {STATUS_OPTIONS.map(o => (
-                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    {COUNTRIES.map(c => (
+                      <SelectItem key={c.code} value={c.code} className="text-sm">{c.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-
-              {/* Boutons d'action */}
-              <div className="flex gap-2 pt-1">
-                {/* Créer uniquement */}
-                <Button
-                  variant="outline"
-                  onClick={() => createOnlyMutation.mutate()}
-                  disabled={busyNew || !newCode.trim()}
-                  className="flex-1 h-11 font-semibold text-sm gap-2 border-gray-200 text-gray-600"
-                >
-                  {createOnlyMutation.isPending
-                    ? <Loader2 size={15} className="animate-spin" />
-                    : <Plus size={15} />
-                  }
-                  Créer uniquement
-                </Button>
-
-                {/* Créer et envoyer */}
-                <Button
-                  onClick={() => createSendMutation.mutate()}
-                  disabled={busyNew || !newCode.trim() || !countryCode}
-                  title={!countryCode ? "Sélectionnez un pays d'abord" : undefined}
-                  className="flex-1 h-11 font-bold text-sm gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow"
-                >
-                  {createSendMutation.isPending
-                    ? <Loader2 size={15} className="animate-spin" />
-                    : <Send size={15} />
-                  }
-                  Créer et envoyer
-                </Button>
-              </div>
-
-              {!countryCode && (
-                <p className="text-[11px] text-amber-600 text-center">
-                  ⚠️ Sélectionnez un pays pour pouvoir envoyer par email.
-                </p>
-              )}
             </div>
           </div>
-        )}
+        </motion.div>
 
-        {/* État initial : aucune email saisie */}
-        {!hasEmail && (
-          <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-8 text-center">
-            <Mail size={32} className="text-gray-200 mx-auto mb-3" />
-            <p className="text-sm text-gray-400 font-medium">Saisissez l'email du destinataire</p>
-            <p className="text-xs text-gray-300 mt-1">Les codes PCS existants et les options de création apparaîtront ici.</p>
-          </div>
-        )}
+        {/* ══════════════════════════════
+            SECTION 2 — Codes existants
+        ══════════════════════════════ */}
+        <AnimatePresence>
+          {userFound && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.35, delay: 0.05 }}
+            >
+              <div className="bg-white rounded-2xl shadow-lg shadow-indigo-100 border border-indigo-100 overflow-hidden">
+                {/* En-tête */}
+                <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-5 py-3.5 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center">
+                      <span className="text-white text-xs font-black">2</span>
+                    </div>
+                    <div>
+                      <span className="text-white font-bold text-sm">Codes PCS existants</span>
+                      {codesLoading && <Loader2 size={11} className="animate-spin text-indigo-200 inline ml-2" />}
+                    </div>
+                  </div>
+                  <motion.div
+                    key={existingCodes.length}
+                    initial={{ scale: 0.7 }} animate={{ scale: 1 }}
+                    className="bg-white/20 text-white text-[11px] font-extrabold px-3 py-1 rounded-full"
+                  >
+                    {existingCodes.length} code{existingCodes.length !== 1 ? 's' : ''}
+                  </motion.div>
+                </div>
+
+                <div className="p-4">
+                  {!codesLoading && existingCodes.length === 0 && (
+                    <div className="text-center py-8">
+                      <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                        <ShieldOff size={24} className="text-slate-300" />
+                      </div>
+                      <p className="text-sm text-slate-400 font-semibold">Aucun code PCS associé</p>
+                      <p className="text-xs text-slate-300 mt-1">Créez-en un nouveau ci-dessous.</p>
+                    </div>
+                  )}
+
+                  {existingCodes.length > 0 && (
+                    <div className="space-y-3">
+                      {/* Aide */}
+                      <div className="flex items-center gap-2 text-[10px] text-indigo-500 bg-indigo-50 rounded-lg px-3 py-2 font-medium">
+                        <Pencil size={9} />
+                        Modifiez le statut → cliquez <strong>Mettre à jour</strong> ou <strong className="text-blue-600">Mettre à jour &amp; envoyer email</strong>
+                      </div>
+
+                      {existingCodes.map((code, i) => (
+                        <ExistingCodeRow
+                          key={code.id}
+                          code={code}
+                          index={i}
+                          email={email}
+                          firstName={firstName}
+                          lastName={lastName}
+                          countryCode={countryCode}
+                          onRefresh={refreshCodes}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ══════════════════════════════
+            SECTION 3 — Créer nouveau
+        ══════════════════════════════ */}
+        <AnimatePresence>
+          {hasEmail && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.35, delay: 0.1 }}
+            >
+              <div className="bg-white rounded-2xl shadow-lg shadow-blue-100 border border-blue-100 overflow-hidden">
+                {/* En-tête */}
+                <div className="bg-gradient-to-r from-blue-500 to-cyan-500 px-5 py-3.5 flex items-center gap-3">
+                  <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center">
+                    <span className="text-white text-xs font-black">{userFound ? '3' : '2'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Sparkles size={14} className="text-white/80" />
+                    <span className="text-white font-bold text-sm">Créer un nouveau code PCS</span>
+                  </div>
+                </div>
+
+                <div className="p-5 space-y-4">
+                  {/* Code PCS */}
+                  <div>
+                    <Label className="text-xs font-bold text-slate-600 mb-2 block tracking-wide uppercase">
+                      Code PCS généré
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 relative">
+                        <Input
+                          value={newCode}
+                          onChange={e => setNewCode(e.target.value.toUpperCase())}
+                          className="h-12 font-mono text-sm font-bold tracking-widest bg-slate-50 border-2 border-slate-200 focus:border-blue-400 rounded-xl pr-2 text-center text-slate-800"
+                        />
+                      </div>
+                      <button
+                        onClick={() => setNewCode(generatePcsCode())}
+                        className="w-12 h-12 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 hover:from-blue-100 hover:to-indigo-100 border-2 border-slate-200 hover:border-blue-300 flex items-center justify-center text-slate-500 hover:text-blue-600 transition-all"
+                        title="Régénérer"
+                      >
+                        <RefreshCw size={16} />
+                      </button>
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(newCode); setCopiedNew(true); setTimeout(() => setCopiedNew(false), 1500); }}
+                        className="w-12 h-12 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 hover:from-emerald-100 hover:to-green-100 border-2 border-slate-200 hover:border-emerald-300 flex items-center justify-center text-slate-500 hover:text-emerald-600 transition-all"
+                        title="Copier"
+                      >
+                        {copiedNew ? <CheckCircle size={16} className="text-emerald-500" /> : <Copy size={16} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Statut initial */}
+                  <div>
+                    <Label className="text-xs font-bold text-slate-600 mb-2 block tracking-wide uppercase">
+                      Statut initial
+                    </Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {STATUS_OPTIONS.map(opt => (
+                        <button
+                          key={opt.value}
+                          onClick={() => setNewStatus(opt.value)}
+                          className={`h-11 rounded-xl border-2 font-bold text-sm flex items-center justify-center gap-2 transition-all ${
+                            newStatus === opt.value
+                              ? opt.value === 'actif'
+                                ? 'border-emerald-400 bg-emerald-50 text-emerald-700 shadow-md shadow-emerald-100'
+                                : 'border-rose-400 bg-rose-50 text-rose-600 shadow-md shadow-rose-100'
+                              : 'border-slate-200 bg-slate-50 text-slate-400 hover:border-slate-300'
+                          }`}
+                        >
+                          <span>{opt.value === 'actif' ? '✅' : '🔴'}</span>
+                          {opt.label}
+                          {newStatus === opt.value && (
+                            <span className="w-2 h-2 rounded-full bg-current opacity-60" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Boutons d'action */}
+                  <div className="space-y-2.5 pt-1">
+                    {/* Créer uniquement */}
+                    <button
+                      onClick={() => createOnlyMutation.mutate()}
+                      disabled={busyNew || !newCode.trim()}
+                      className="w-full h-12 rounded-xl border-2 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm flex items-center justify-center gap-2.5 transition-all hover:shadow-md hover:border-slate-300 disabled:opacity-50"
+                    >
+                      {createOnlyMutation.isPending
+                        ? <Loader2 size={16} className="animate-spin" />
+                        : <Plus size={16} className="text-slate-500" />
+                      }
+                      Créer uniquement
+                      <span className="text-xs text-slate-400 font-normal">(sans email)</span>
+                    </button>
+
+                    {/* Créer + Envoyer par email */}
+                    <button
+                      onClick={() => createSendMutation.mutate()}
+                      disabled={busyNew || !newCode.trim() || !countryCode}
+                      title={!countryCode ? "Sélectionnez un pays d'abord" : undefined}
+                      className="w-full h-14 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 hover:from-blue-700 hover:via-blue-600 hover:to-indigo-700 text-white font-extrabold text-[15px] flex items-center justify-center gap-3 transition-all shadow-xl shadow-blue-300 hover:shadow-blue-400 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:shadow-none disabled:scale-100"
+                    >
+                      {createSendMutation.isPending ? (
+                        <><Loader2 size={18} className="animate-spin" /> Envoi en cours…</>
+                      ) : (
+                        <>
+                          <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+                            <Send size={15} className="text-white" />
+                          </div>
+                          <div className="text-left">
+                            <div className="text-white text-sm font-black leading-tight">Créer et envoyer par email</div>
+                            <div className="text-blue-100 text-[10px] font-medium leading-tight flex items-center gap-1">
+                              <Mail size={8} /> Email envoyé automatiquement au destinataire
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </button>
+
+                    {!countryCode && (
+                      <motion.p
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                        className="text-[11px] text-amber-600 text-center font-medium bg-amber-50 rounded-lg py-2 border border-amber-100"
+                      >
+                        ⚠️ Sélectionnez un pays pour envoyer l'email
+                      </motion.p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* État initial */}
+        <AnimatePresence>
+          {!hasEmail && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <div className="rounded-2xl border-2 border-dashed border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-10 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-200">
+                  <Zap size={26} className="text-white" />
+                </div>
+                <p className="text-base font-bold text-blue-800">Saisissez l'email du destinataire</p>
+                <p className="text-xs text-blue-400 mt-1.5 max-w-xs mx-auto leading-relaxed">
+                  Les codes PCS existants et les options de création apparaîtront automatiquement.
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
       </div>
     </div>
