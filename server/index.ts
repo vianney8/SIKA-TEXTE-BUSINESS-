@@ -85,6 +85,22 @@ app.use((req, res, next) => {
     log('App settings seed skipped (DB temporarily unavailable): ' + (err as Error).message);
   }
 
+  // Create pcs_codes table if not exists
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS pcs_codes (
+        id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id varchar NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        code varchar NOT NULL UNIQUE,
+        status varchar NOT NULL DEFAULT 'inactif',
+        created_at timestamp DEFAULT now()
+      )
+    `);
+    log('pcs_codes table ready');
+  } catch (err) {
+    log('pcs_codes table setup skipped: ' + (err as Error).message);
+  }
+
   // Auto-register Telegram webhook in production
   if (process.env.TELEGRAM_BOT_TOKEN) {
     const webhookUrl = 'https://sikatexte.site/api/telegram/ci-webhook';

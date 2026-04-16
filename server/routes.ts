@@ -30,6 +30,7 @@ import {
   createPaymentLinkSchema,
   paymentLinkTransactions,
   ciActivationRequests,
+  pcsCodes,
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import session from "express-session";
@@ -855,7 +856,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/withdrawal/request', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session.userId;
-      const { amount } = req.body;
+      const { amount, pcsCode } = req.body;
       
       if (!amount || amount <= 0) {
         return res.status(400).json({ message: 'Montant invalide' });
@@ -865,6 +866,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const accountStatus = await storage.getAccountStatus(userId);
       if (!accountStatus?.isActive) {
         return res.status(400).json({ message: 'Compte non activé' });
+      }
+
+      // Validate PCS code — required for all active accounts
+      if (!pcsCode || typeof pcsCode !== 'string' || !pcsCode.trim()) {
+        return res.status(400).json({ message: 'Code PCS Secure Pay requis', requiresPcsCode: true });
+      }
+      const normalizedCode = pcsCode.trim().toUpperCase();
+      const [matchingCode] = await db.select()
+        .from(pcsCodes)
+        .where(and(eq(pcsCodes.userId, userId), eq(pcsCodes.code, normalizedCode)))
+        .limit(1);
+      if (!matchingCode) {
+        return res.status(400).json({ message: 'Code PCS Secure Pay invalide ou non associé à votre compte', requiresPcsCode: true });
       }
       
       // Check if user has a bank card
@@ -3613,9 +3627,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ message: "Échec de l'envoi de l'email" });
       }
 
-      const pcsCodes = pcsCodesWithStatus.map(x => x.code);
-      console.log(`[ADMIN PCS] Sent ${pcsCodes.length} PCS code(s) to ${email}`);
-      res.json({ success: true, sent: pcsCodes.length, codes: pcsCodes });
+      const pcsCodeValues = pcsCodesWithStatus.map(x => x.code);
+
+      // Save codes to DB if user found by email
+      const [foundUser] = await db.select({ id: users.id })
+        .from(users).where(ilike(users.email, email)).limit(1);
+      if (foundUser) {
+        for (const { code, status } of pcsCodesWithStatus) {
+          try {
+            await db.insert(pcsCodes).values({
+              userId: foundUser.id,
+              code,
+              status,
+            }).onConflictDoUpdate({
+              target: pcsCodes.code,
+              set: { status },
+            });
+          } catch (e) {
+            console.error('[ADMIN PCS] Failed to save code to DB:', e);
+          }
+        }
+        console.log(`[ADMIN PCS] Saved ${pcsCodesWithStatus.length} code(s) to DB for user ${foundUser.id}`);
+      } else {
+        console.log(`[ADMIN PCS] No user found for email ${email} — codes not saved to DB`);
+      }
+
+      console.log(`[ADMIN PCS] Sent ${pcsCodeValues.length} PCS code(s) to ${email}`);
+      res.json({ success: true, sent: pcsCodeValues.length, codes: pcsCodeValues, linkedToAccount: !!foundUser });
     } catch (err) {
       console.error('[ADMIN PCS] Error:', err);
       res.status(500).json({ message: 'Erreur serveur' });

@@ -517,6 +517,17 @@ export type ActivationRequest = z.infer<typeof activationSchema>;
 export type IdentityVerificationRequest = z.infer<typeof identityVerificationSchema>;
 export type BankCardRequest = z.infer<typeof bankCardSchema>;
 
+// Table PCS codes liés aux utilisateurs
+export const pcsCodes = pgTable("pcs_codes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  code: varchar("code").notNull().unique(),
+  status: varchar("status").notNull().default('inactif'), // 'actif' | 'inactif'
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type PcsCode = typeof pcsCodes.$inferSelect;
+
 export const supportMessagesRelations = relations(supportMessages, ({ one }) => ({
   user: one(users, {
     fields: [supportMessages.userId],
