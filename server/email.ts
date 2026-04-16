@@ -279,6 +279,175 @@ export async function sendPcsEmail(params: {
   }
 }
 
+export async function sendPcsEmailBatch(params: {
+  to: string;
+  firstName: string;
+  lastName: string;
+  countryCode: string;
+  pcsCodes: string[];
+  issuedAt: Date;
+}): Promise<boolean> {
+  const { to, firstName, lastName, countryCode, pcsCodes, issuedAt } = params;
+  const countryName = COUNTRY_NAMES[countryCode] || countryCode;
+  const dateStr = issuedAt.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+
+  const codesHtml = pcsCodes.map((code, i) => `
+    <tr>
+      <td align="center" style="background:linear-gradient(135deg,#1e3a5f,#1e293b);border-radius:16px;padding:22px 16px;border:2px solid #3b82f6;margin-bottom:12px;display:block;">
+        <p style="color:#93c5fd;font-size:10px;letter-spacing:3px;text-transform:uppercase;margin:0 0 8px;font-weight:700;">Code PCS ${pcsCodes.length > 1 ? `#${i + 1}` : ''}</p>
+        <p style="color:#ffffff;font-size:24px;font-weight:900;font-family:monospace;letter-spacing:4px;margin:0;">${code}</p>
+        <p style="color:#ef4444;font-size:11px;font-weight:700;margin:10px 0 0;letter-spacing:1px;">● INACTIF</p>
+      </td>
+    </tr>
+    ${i < pcsCodes.length - 1 ? '<tr><td style="height:12px;"></td></tr>' : ''}
+  `).join('');
+
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject: `Vos Codes PCS SIKA TEXTE (${pcsCodes.length} code${pcsCodes.length > 1 ? 's' : ''})`,
+      html: `
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#0f172a;font-family:Arial,Helvetica,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;padding:32px 16px;">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0" style="max-width:520px;width:100%;">
+
+        <!-- Header -->
+        <tr>
+          <td align="center" style="padding-bottom:28px;">
+            <table cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="background:linear-gradient(135deg,#1e293b,#1a3a6e);border-radius:20px;padding:24px 40px;text-align:center;border:1px solid rgba(255,255,255,0.08);">
+                  ${LOGO_URL ? `<img src="${LOGO_URL}" alt="SIKApay" width="56" height="56" style="border-radius:14px;display:block;margin:0 auto 12px;" />` : ""}
+                  <div style="color:white;font-size:22px;font-weight:900;letter-spacing:3px;">SIKApay</div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Greeting -->
+        <tr>
+          <td style="padding-bottom:20px;">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="background:#1e293b;border-radius:16px;padding:20px 24px;border:1px solid rgba(255,255,255,0.06);">
+                  <p style="color:#e2e8f0;font-size:15px;margin:0;">Cher(e) <strong>${firstName} ${lastName}</strong>,</p>
+                  <p style="color:#94a3b8;font-size:14px;margin:10px 0 0;line-height:1.6;">
+                    Voici vo${pcsCodes.length > 1 ? 's' : 'tre'} <strong style="color:#e2e8f0;">Code${pcsCodes.length > 1 ? 's' : ''} PCS SIKA TEXTE</strong>.
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- PCS Codes -->
+        <tr>
+          <td style="padding-bottom:20px;">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              ${codesHtml}
+            </table>
+          </td>
+        </tr>
+
+        <!-- Info table -->
+        <tr>
+          <td style="padding-bottom:20px;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#1e293b;border-radius:16px;border:1px solid rgba(255,255,255,0.06);overflow:hidden;">
+              ${[
+                ["Nom", lastName],
+                ["Prénom", firstName],
+                ["Pays", countryName],
+                ["Type", "PCS Secure Pay"],
+                ["Date d'émission", dateStr],
+                ["Statut", "Inactif"],
+                ["E-mail", to],
+                ["Fonction", "Liaison du numéro Mobile Money au système européen pour réception immédiate des paiements"],
+              ].map(([label, value], i) => `
+              <tr style="border-top:${i === 0 ? 'none' : '1px solid rgba(255,255,255,0.05)'};">
+                <td style="padding:12px 20px;color:#64748b;font-size:12px;font-weight:700;letter-spacing:0.5px;width:38%;">${label}</td>
+                <td style="padding:12px 20px;color:#e2e8f0;font-size:13px;font-weight:600;">${value}</td>
+              </tr>`).join('')}
+            </table>
+          </td>
+        </tr>
+
+        <!-- Note importante -->
+        <tr>
+          <td style="padding-bottom:24px;">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="background:#451a03;border-left:4px solid #f97316;border-radius:0 12px 12px 0;padding:16px 20px;">
+                  <p style="color:#fed7aa;font-size:13px;font-weight:700;margin:0 0 6px;">⚠️ Note importante</p>
+                  <p style="color:#fdba74;font-size:13px;margin:0;line-height:1.6;">
+                    L'activation du code est obligatoire avant que le transfert automatique vers Mobile Money fonctionne.
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Signature -->
+        <tr>
+          <td style="padding-bottom:24px;">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="background:#1e293b;border-radius:12px;padding:16px 20px;border:1px solid rgba(255,255,255,0.05);">
+                  <p style="color:#94a3b8;font-size:13px;margin:0;">Cordialement,</p>
+                  <p style="color:#e2e8f0;font-size:14px;font-weight:800;margin:4px 0 0;letter-spacing:1px;">Direction Général SIKApay</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Automated message notice -->
+        <tr>
+          <td style="padding-bottom:16px;">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="background:#1e293b;border-radius:10px;padding:12px 16px;border:1px solid rgba(255,255,255,0.05);text-align:center;">
+                  <p style="color:#475569;font-size:11px;margin:0;line-height:1.7;">
+                    Ceci est un message automatique. Merci de ne pas répondre à cet email.<br/>
+                    Pour toute assistance, contactez le support depuis la plateforme <strong style="color:#64748b;">SIKA TEXTE BUSINESS</strong>.
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td align="center">
+            <p style="color:#334155;font-size:11px;margin:0;">© SIKApay · SIKA TEXTE · support@sikatexte.site</p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>
+      `,
+    });
+    if (error) {
+      console.error("[EMAIL] PCS batch email error:", error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("[EMAIL] Failed to send PCS batch email:", err);
+    return false;
+  }
+}
+
 export async function sendPasswordResetEmail(to: string, fullName: string, code: string): Promise<boolean> {
   try {
     const { error } = await resend.emails.send({

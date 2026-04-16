@@ -31,6 +31,7 @@ import AdminSettings from "@/pages/AdminSettings";
 import AdminMessages from "@/pages/AdminMessages";
 import AdminCiUpdate from "@/pages/AdminCiUpdate";
 import AdminWithdrawals from "@/pages/AdminWithdrawals";
+import AdminPcsSend from "@/pages/AdminPcsSend";
 import Summary from "@/pages/Summary";
 import Activation from "@/pages/Activation";
 import ActivationSuccess from "@/pages/ActivationSuccess";
@@ -161,6 +162,7 @@ function Router() {
           <Route path="/admin/messages" component={AdminMessages} />
           <Route path="/admin/ci-update" component={AdminCiUpdate} />
           <Route path="/admin/withdrawals" component={AdminWithdrawals} />
+          <Route path="/admin/pcs-send" component={AdminPcsSend} />
           <Route path="/identity-verification" component={IdentityVerification} />
           <Route path="/bank-card" component={BankCard} />
           <Route path="/dashboard" component={Dashboard} />

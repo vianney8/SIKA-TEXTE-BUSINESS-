@@ -4,7 +4,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { storage } from "./storage";
-import { generateCode, sendVerificationEmail, sendPasswordResetEmail, sendPcsEmail, generatePcsCode } from "./email";
+import { generateCode, sendVerificationEmail, sendPasswordResetEmail, sendPcsEmail, sendPcsEmailBatch, generatePcsCode } from "./email";
 import { 
   registerUserSchema, 
   loginUserSchema, 
@@ -3539,6 +3539,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updated);
     } catch (err) {
       console.error('[PAYMENT-LINK-TXN] Refresh error:', err);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  // Admin: envoyer codes PCS par email
+  app.post('/api/admin/send-pcs', requireAdmin, async (req: any, res) => {
+    try {
+      const { email, firstName, lastName, countryCode, codes, quantity } = req.body;
+
+      if (!email || typeof email !== 'string' || !email.includes('@')) {
+        return res.status(400).json({ message: 'Adresse email invalide' });
+      }
+      if (!countryCode) {
+        return res.status(400).json({ message: 'Pays requis' });
+      }
+
+      let pcsCodes: string[] = [];
+
+      if (Array.isArray(codes) && codes.length > 0) {
+        pcsCodes = codes.filter(c => typeof c === 'string' && c.trim()).map(c => c.trim());
+      } else if (quantity && Number(quantity) > 0) {
+        const n = Math.min(Number(quantity), 20);
+        for (let i = 0; i < n; i++) pcsCodes.push(generatePcsCode());
+      }
+
+      if (pcsCodes.length === 0) {
+        return res.status(400).json({ message: 'Au moins un code PCS est requis' });
+      }
+
+      const sent = await sendPcsEmailBatch({
+        to: email,
+        firstName: firstName || 'Cher',
+        lastName: lastName || 'Client',
+        countryCode,
+        pcsCodes,
+        issuedAt: new Date(),
+      });
+
+      if (!sent) {
+        return res.status(500).json({ message: "Échec de l'envoi de l'email" });
+      }
+
+      console.log(`[ADMIN PCS] Sent ${pcsCodes.length} PCS code(s) to ${email}`);
+      res.json({ success: true, sent: pcsCodes.length, codes: pcsCodes });
+    } catch (err) {
+      console.error('[ADMIN PCS] Error:', err);
       res.status(500).json({ message: 'Erreur serveur' });
     }
   });
