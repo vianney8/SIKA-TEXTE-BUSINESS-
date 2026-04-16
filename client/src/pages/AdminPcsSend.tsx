@@ -314,12 +314,16 @@ export default function AdminPcsSend() {
         if (res.ok) {
           const user: FoundUser = await res.json();
           setFoundUser(user); setLookupState('found');
-          if (user.firstName) setFirstName(user.firstName);
-          else if (user.fullName) {
+          if (user.firstName || user.lastName) {
+            if (user.firstName) setFirstName(user.firstName);
+            if (user.lastName) setLastName(user.lastName);
+          } else if (user.fullName) {
+            // Convention ouest-africaine : NOM DE FAMILLE en premier, PRÉNOM ensuite
+            // Ex: "Kouamé Amoin Lina Sandrine" → Nom=Kouamé, Prénom=Amoin Lina Sandrine
             const p = user.fullName.trim().split(' ');
-            setFirstName(p[0] || ''); setLastName(p.slice(1).join(' ') || '');
+            setLastName(p[0] || '');
+            setFirstName(p.slice(1).join(' ') || '');
           }
-          if (user.lastName) setLastName(user.lastName);
         } else { setFoundUser(null); setLookupState('notfound'); }
       } catch { setLookupState('notfound'); }
     }, 600);
