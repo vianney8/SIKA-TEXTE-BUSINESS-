@@ -145,6 +145,9 @@ export default function SpayNetwork() {
   const { data: userPcsCodes = [] } = useQuery<UserPcsCode[]>({
     queryKey: ["/api/user/pcs-codes"],
     staleTime: 0,
+    gcTime: 0,
+    refetchInterval: 8000,
+    refetchOnWindowFocus: true,
   });
 
   // Ping measure

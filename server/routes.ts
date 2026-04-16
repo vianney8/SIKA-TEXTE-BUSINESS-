@@ -3382,7 +3382,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all PCS codes for the logged-in user
   app.get('/api/user/pcs-codes', requireAuth, async (req: any, res) => {
     try {
-      const userId = req.user.id;
+      const userId = req.session.userId;
       const codes = await db.select({
         id: pcsCodes.id,
         code: pcsCodes.code,
