@@ -67,7 +67,7 @@ const COUNTRIES: {
   },
 ];
 
-type Step = "form" | "otp" | "pending" | "success" | "failed";
+type Step = "form" | "otp" | "pending" | "success" | "failed" | "redirected";
 
 function AnimatedDots() {
   return (
@@ -105,8 +105,10 @@ export default function PaymentLinkPage() {
   const otpRef = useRef<HTMLInputElement>(null);
 
   const requiresOtp = selectedOperator.code === "orange" &&
-    (selectedCountry.code === "CI" || selectedCountry.code === "SN");
+    (selectedCountry.code === "CI" || selectedCountry.code === "SN") &&
+    !(selectedCountry.code === "CI" && link?.ciRedirect);
   const otpUssdCode = selectedCountry.code === "CI" ? "#144#" : "#144*82#";
+  const isCiRedirect = selectedCountry.code === "CI" && link?.ciRedirect === true;
 
   useEffect(() => {
     if (!linkId) return;
@@ -161,6 +163,12 @@ export default function PaymentLinkPage() {
     if (!email.trim()) { setError("Veuillez saisir votre adresse e-mail"); return; }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim())) { setError("Veuillez saisir une adresse e-mail valide"); return; }
+    // CI redirect: open external payment URL and show confirmation screen
+    if (isCiRedirect) {
+      window.open(link.ciRedirectUrl, "_blank");
+      setStep("redirected");
+      return;
+    }
     if (requiresOtp) { setStep("otp"); return; }
     doSubmit("");
   };
@@ -382,6 +390,41 @@ export default function PaymentLinkPage() {
     </div>
   );
 
+  // ── CI Redirected ──
+  if (step === "redirected") return (
+    <div className={`${BG} flex items-center justify-center px-5`} style={bgStyle}>
+      <div className="text-center max-w-sm w-full animate-in fade-in zoom-in-95 duration-500">
+        <div className="relative w-28 h-28 mx-auto mb-6">
+          <div className="absolute inset-0 rounded-full bg-orange-500/20 animate-pulse" />
+          <div className="relative w-28 h-28 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shadow-2xl shadow-orange-500/30">
+            <span className="text-5xl">🇨🇮</span>
+          </div>
+        </div>
+        <h2 className="font-black text-white text-2xl mb-3">Redirection en cours</h2>
+        <p className="text-white/60 text-sm mb-1">
+          Vous avez été redirigé vers la page de paiement sécurisée.
+        </p>
+        <p className="text-white/40 text-xs mb-6">
+          Si la page ne s'est pas ouverte, cliquez sur le bouton ci-dessous.
+        </p>
+        <button
+          onClick={() => window.open(link.ciRedirectUrl, "_blank")}
+          className="w-full py-4 rounded-2xl font-bold text-white text-sm mb-4"
+          style={{ background: "linear-gradient(135deg, #ea580c, #f97316)" }}
+        >
+          Ouvrir la page de paiement
+        </button>
+        <button
+          onClick={() => setStep("form")}
+          className="text-xs text-white/30 hover:text-white/60 transition-colors underline underline-offset-2"
+        >Retour</button>
+        <div className="mt-6 border-t border-white/10 pt-4">
+          <p className="text-white/25 text-xs">Paiement sécurisé par <span className="text-white/40 font-bold">SIKApay</span></p>
+        </div>
+      </div>
+    </div>
+  );
+
   // ── Main form ──
   return (
     <div className={`${BG} pb-12`} style={bgStyle}>
@@ -531,20 +574,39 @@ export default function PaymentLinkPage() {
           </div>
         )}
 
+        {/* CI redirect notice */}
+        {isCiRedirect && (
+          <div className="bg-orange-500/10 border border-orange-500/30 rounded-2xl px-4 py-3 text-orange-300 text-sm flex items-start gap-2">
+            <span className="flex-shrink-0">🇨🇮</span>
+            <span>Vous serez redirigé vers notre partenaire de paiement sécurisé pour la Côte d'Ivoire.</span>
+          </div>
+        )}
+
         {/* Submit */}
         <button
           onClick={handleFormNext}
           disabled={submitting}
           className="w-full py-4 rounded-2xl font-black text-base text-white shadow-xl active:scale-[0.97] transition-all duration-150 disabled:opacity-50"
-          style={{ background: "linear-gradient(135deg, #2563eb, #4f46e5)", boxShadow: "0 8px 32px rgba(79,70,229,0.4)" }}
+          style={{
+            background: isCiRedirect
+              ? "linear-gradient(135deg, #ea580c, #f97316)"
+              : "linear-gradient(135deg, #2563eb, #4f46e5)",
+            boxShadow: isCiRedirect
+              ? "0 8px 32px rgba(234,88,12,0.4)"
+              : "0 8px 32px rgba(79,70,229,0.4)"
+          }}
         >
           {submitting
             ? <span className="flex items-center justify-center gap-2">Initiation<AnimatedDots /></span>
-            : requiresOtp
+            : isCiRedirect
               ? <span className="flex items-center justify-center gap-2">
-                  Suivant <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                  Accéder au paiement <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                 </span>
-              : `Payer ${parseFloat(link.amount).toLocaleString("fr-FR")} ${link.currency}`
+              : requiresOtp
+                ? <span className="flex items-center justify-center gap-2">
+                    Suivant <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                  </span>
+                : `Payer ${parseFloat(link.amount).toLocaleString("fr-FR")} ${link.currency}`
           }
         </button>
 

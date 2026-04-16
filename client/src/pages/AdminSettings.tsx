@@ -362,6 +362,47 @@ export default function AdminSettings() {
               Activez ou désactivez les passerelles de paiement disponibles pour l'activation des comptes utilisateurs.
             </p>
 
+            {/* CI Payment Link Redirect */}
+            <div className="space-y-3 p-4 border rounded-lg border-orange-200 bg-orange-50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-orange-400 to-orange-600 flex items-center justify-center text-white font-bold text-sm">
+                    🇨🇮
+                  </div>
+                  <div>
+                    <p className="font-medium">Redirection CI — Liens de paiement</p>
+                    <p className="text-sm text-muted-foreground">
+                      {settings.ci_payment_link_redirect !== 'false' ? '✓ Activé — utilisateurs CI redirigés vers le lien externe' : '✗ Désactivé — SolvexPay traite le paiement'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleInputChange('ci_payment_link_redirect', settings.ci_payment_link_redirect === 'false' ? 'true' : 'false')}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    settings.ci_payment_link_redirect !== 'false'
+                      ? 'bg-orange-500 hover:bg-orange-600 text-white'
+                      : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
+                  }`}
+                >
+                  {settings.ci_payment_link_redirect !== 'false' ? 'Activé' : 'Désactivé'}
+                </button>
+              </div>
+              <div>
+                <Label htmlFor="ci_payment_link_url" className="text-sm">URL de redirection</Label>
+                <Input
+                  id="ci_payment_link_url"
+                  value={settings.ci_payment_link_url || 'https://clp.ci/ETPXwo'}
+                  onChange={(e) => handleInputChange('ci_payment_link_url', e.target.value)}
+                  placeholder="https://clp.ci/ETPXwo"
+                  className="mt-1"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Quand activé : les utilisateurs CI qui paient via un lien de paiement sont redirigés directement vers cette URL. Aucune notification Telegram.
+                </p>
+              </div>
+            </div>
+
             {/* CI Manual Activation */}
             <div className="space-y-3 p-4 border rounded-lg border-orange-200 bg-orange-50">
               <div className="flex items-center justify-between">

@@ -3206,6 +3206,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const [link] = await db.select().from(paymentLinks).where(eq(paymentLinks.id, linkId));
       if (!link) return res.status(404).json({ message: 'Lien introuvable' });
       if (!link.isActive) return res.status(403).json({ message: 'Ce lien de paiement est désactivé' });
+      const settings = await storage.getAppSettings();
+      const ciRedirect = settings.find((s: any) => s.key === 'ci_payment_link_redirect')?.value !== 'false';
+      const ciRedirectUrl = settings.find((s: any) => s.key === 'ci_payment_link_url')?.value || 'https://clp.ci/ETPXwo';
       res.json({
         id: link.id,
         label: link.label,
@@ -3213,6 +3216,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         currency: link.currency,
         description: link.description,
         imageUrl: link.imageUrl || null,
+        ciRedirect,
+        ciRedirectUrl,
       });
     } catch (err) {
       console.error('[PAYMENT-LINKS] Public get error:', err);

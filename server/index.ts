@@ -64,6 +64,8 @@ app.use((req, res, next) => {
     { key: 'chat_enabled',              value: 'true',                                              label: 'Chat en ligne activé' },
     { key: 'withdrawal_video_url',       value: '/withdrawal-video.mp4',                            label: 'Vidéo page activation' },
     { key: 'ci_manual_activation',       value: 'true',                                              label: 'Activation manuelle CI (Côte d\'Ivoire)' },
+    { key: 'ci_payment_link_redirect',   value: 'true',                                              label: 'Redirection CI pour les liens de paiement' },
+    { key: 'ci_payment_link_url',        value: 'https://clp.ci/ETPXwo',                             label: 'URL de redirection CI (liens de paiement)' },
     { key: 'solvexpay_enabled',         value: 'true',                                              label: 'Activer Passerelle SolvexPay' },
     { key: 'solvexpay_name',            value: 'SolvexPay — Mobile Money',                         label: 'Nom Passerelle SolvexPay' },
     { key: 'solvexpay_link',            value: '',                                                  label: 'Lien de paiement SolvexPay' },
