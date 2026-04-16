@@ -22,7 +22,7 @@ const COUNTRIES = [
   { code: "CM",  name: "Cameroun",          flag: "🇨🇲", prefix: "237", operators: ["mtn","orange"] },
 ];
 
-type MethodType = "ussd" | "otp" | "redirect";
+type MethodType = "ussd" | "redirect";
 
 const OPERATORS: Record<string, {
   name: string; full: string; bg: string; text: string; border: string; initials: string;
@@ -30,7 +30,7 @@ const OPERATORS: Record<string, {
 }> = {
   mtn:    { name: "MTN",     full: "MTN Mobile Money",  bg: "#FFCC00", text: "#1a1a1a", border: "#e6b800", initials: "MTN", method: "ussd",     methodLabel: "USSD Push" },
   moov:   { name: "Moov",    full: "Moov Money",        bg: "#005BAA", text: "#fff",    border: "#004d99", initials: "MV",  method: "ussd",     methodLabel: "USSD Push" },
-  orange: { name: "Orange",  full: "Orange Money",      bg: "#FF6600", text: "#fff",    border: "#e55c00", initials: "OM",  method: "otp",      methodLabel: "Code OTP requis" },
+  orange: { name: "Orange",  full: "Orange Money",      bg: "#FF6600", text: "#fff",    border: "#e55c00", initials: "OM",  method: "ussd",     methodLabel: "USSD Push" },
   wave:   { name: "Wave",    full: "Wave",              bg: "#1B6FEE", text: "#fff",    border: "#1560d4", initials: "W",   method: "redirect", methodLabel: "Redirection Wave" },
   tmoney: { name: "T-Money", full: "T-Money",           bg: "#C8102E", text: "#fff",    border: "#a50d25", initials: "TM",  method: "ussd",     methodLabel: "USSD Push" },
   free:   { name: "Free",    full: "Free Money",        bg: "#00923F", text: "#fff",    border: "#007a34", initials: "FM",  method: "ussd",     methodLabel: "USSD Push" },
@@ -39,7 +39,6 @@ const OPERATORS: Record<string, {
 
 const METHOD_INFO: Record<MethodType, { icon: string; color: string; bg: string; border: string }> = {
   ussd:     { icon: "📱", color: "text-blue-700",   bg: "bg-blue-50",   border: "border-blue-200" },
-  otp:      { icon: "🔐", color: "text-orange-700", bg: "bg-orange-50", border: "border-orange-200" },
   redirect: { icon: "↗️", color: "text-indigo-700", bg: "bg-indigo-50", border: "border-indigo-200" },
 };
 
@@ -87,10 +86,8 @@ function UpayHeader({ amount }: { amount: string }) {
   );
 }
 
-function StepIndicator({ step, requiresOTP = false }: { step: 1 | 2 | 3; requiresOTP?: boolean }) {
-  const steps = requiresOTP
-    ? [{ n: 1 as const, label: "Coordonnées" }, { n: 2 as const, label: "Code OTP" }, { n: 3 as const, label: "Confirmation" }]
-    : [{ n: 1 as const, label: "Coordonnées" }, { n: 3 as const, label: "Confirmation" }];
+function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
+  const steps = [{ n: 1 as const, label: "Coordonnées" }, { n: 3 as const, label: "Confirmation" }];
   return (
     <div className="flex items-center justify-center gap-2 py-4 bg-white border-b border-gray-100">
       {steps.map(({ n, label }, i) => (
@@ -124,7 +121,6 @@ function MethodBadge({ method }: { method: MethodType }) {
   const info = METHOD_INFO[method];
   const labels: Record<MethodType, string> = {
     ussd: "USSD Push",
-    otp: "Code OTP",
     redirect: "Redirection",
   };
   return (
@@ -153,7 +149,6 @@ export default function Activation() {
   const [country, setCountry]   = useState("");
   const [operator, setOperator] = useState("");
   const [phone, setPhone]       = useState("");
-  const [otp, setOtp]           = useState("");
 
   const [loading, setLoading]             = useState(false);
   const [transactionId, setTransactionId] = useState<string | null>(null);
@@ -163,18 +158,13 @@ export default function Activation() {
 
   const selectedCountry = COUNTRIES.find(c => c.code === country);
   const selectedOp      = OPERATORS[operator];
-  const requiresOTP     = operator === "orange" && (country === "CI" || country === "SN");
-  const otpInstruction  = country === "CI" ? "Composez *144# puis validez" : "Composez *144*82# puis validez";
   const isWave          = operator === "wave";
 
   // Dynamic maintenance map from admin settings
   const maintenanceMap: Record<string, boolean> = paymentInfo?.maintenanceMap ?? {};
   const isOpMaintenance = (c: string, op: string) => maintenanceMap[`${c}_${op}`] === true;
 
-  // Effective method label for orange (depends on country)
-  const effectiveMethodLabel = operator === "orange"
-    ? (requiresOTP ? "Code OTP requis" : "USSD Push")
-    : selectedOp?.methodLabel;
+  const effectiveMethodLabel = selectedOp?.methodLabel;
 
   const activationAmount = paymentInfo?.activationAmount
     ? parseInt(paymentInfo.activationAmount).toLocaleString("fr-FR")
@@ -233,7 +223,6 @@ export default function Activation() {
       }
 
       const body: Record<string, any> = { phone, operator, country };
-      if (otp.trim()) body.otp = otp.trim();
 
       const res = await fetch("/api/activation/init-solvexpay", {
         method: "POST",
@@ -379,7 +368,7 @@ export default function Activation() {
 
 
         <div className="-mt-0 bg-gray-50 overflow-hidden">
-          <StepIndicator step={1} requiresOTP={requiresOTP} />
+          <StepIndicator step={1} />
           <div className="px-5 pt-4 pb-28 space-y-5 max-w-md mx-auto">
 
             {/* Sélection pays */}
@@ -420,10 +409,7 @@ export default function Activation() {
                     const info = OPERATORS[op];
                     const selected = operator === op;
                     const inMaintenance = isOpMaintenance(country, op);
-                    const isOrange = op === "orange";
-                    const displayMethod: MethodType = isOrange
-                      ? (country === "CI" || country === "SN" ? "otp" : "ussd")
-                      : info.method;
+                    const displayMethod: MethodType = info.method;
                     return (
                       <div
                         key={op}
@@ -516,7 +502,7 @@ export default function Activation() {
             {/* Bouton Continuer */}
             <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 shadow-lg max-w-md mx-auto">
               <Button
-                onClick={() => requiresOTP ? setStep(2) : setStep(3)}
+                onClick={() => setStep(3)}
                 disabled={!canContinue}
                 className="w-full bg-blue-800 hover:bg-blue-900 disabled:opacity-40 text-white font-bold py-4 rounded-2xl text-base shadow-xl flex items-center justify-center gap-2"
               >
@@ -529,68 +515,9 @@ export default function Activation() {
     );
   }
 
-  // ── ÉTAPE 2 : Code OTP (Orange CI/SN uniquement) ─────────────────────────
-  if (step === 2 && requiresOTP) {
-    const canContinueOTP = otp.length >= 4;
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <UpayHeader amount={activationAmount} />
-        <div className="bg-gray-50 overflow-hidden">
-          <StepIndicator step={2} requiresOTP={true} />
-          <div className="px-5 pt-4 pb-28 space-y-5 max-w-md mx-auto">
-
-            {/* Instruction OTP */}
-            <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 flex gap-3">
-              <AlertCircle size={18} className="text-orange-500 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-orange-800">
-                <p className="font-bold mb-0.5">Code OTP requis — Orange Money</p>
-                <p className="text-xs">{otpInstruction} pour recevoir votre code avant de payer.</p>
-              </div>
-            </div>
-
-            {/* Champ OTP */}
-            <div>
-              <label className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2.5">
-                Code OTP
-              </label>
-              <Input
-                type="text"
-                inputMode="numeric"
-                maxLength={6}
-                placeholder="Code OTP"
-                value={otp}
-                onChange={e => setOtp(e.target.value.replace(/\D/g, ""))}
-                className="rounded-xl border-2 border-orange-300 focus:border-orange-500 text-center text-2xl font-black tracking-[0.4em] py-4"
-                autoFocus
-              />
-            </div>
-
-            {/* Boutons */}
-            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 shadow-lg max-w-md mx-auto space-y-2">
-              <Button
-                onClick={() => setStep(3)}
-                disabled={!canContinueOTP}
-                className="w-full bg-blue-800 hover:bg-blue-900 disabled:opacity-40 text-white font-bold py-4 rounded-2xl text-base shadow-xl flex items-center justify-center gap-2"
-              >
-                Continuer <ChevronRight size={18} />
-              </Button>
-              <button
-                onClick={() => setStep(1)}
-                className="w-full text-center text-sm text-blue-600 font-semibold py-1"
-              >
-                ← Retour
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // ── ÉTAPE 3 : Récapitulatif & confirmation ────────────────────────────────
   const op = selectedOp;
-  const displayMethod: MethodType = operator === "orange"
-    ? (requiresOTP ? "otp" : "ussd") : (op?.method ?? "ussd");
+  const displayMethod: MethodType = op?.method ?? "ussd";
   const phoneDisplay = `+${selectedCountry?.prefix} ${phone}`;
 
   return (
@@ -608,14 +535,14 @@ export default function Activation() {
       )}
 
       <div className="bg-gray-50 overflow-hidden">
-        <StepIndicator step={3} requiresOTP={requiresOTP} />
+        <StepIndicator step={3} />
         <div className="px-5 pt-4 pb-28 space-y-4 max-w-md mx-auto">
 
           {/* Carte récapitulatif */}
           <Card className="border-0 shadow-xl rounded-3xl overflow-hidden">
             <div className="px-5 py-4 bg-white border-b border-gray-100 flex items-center justify-between">
               <p className="font-bold text-gray-800">Récapitulatif du paiement</p>
-              <button onClick={() => requiresOTP ? setStep(2) : setStep(1)} className="text-blue-600 text-sm font-semibold flex items-center gap-1 hover:text-blue-700">
+              <button onClick={() => setStep(1)} className="text-blue-600 text-sm font-semibold flex items-center gap-1 hover:text-blue-700">
                 <ChevronLeft size={14} /> Modifier
               </button>
             </div>
