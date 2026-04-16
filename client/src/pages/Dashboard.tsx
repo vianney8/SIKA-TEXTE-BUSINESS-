@@ -296,18 +296,37 @@ export default function Dashboard() {
           </div>
 
           {/* Serveur & Réseaux Spay — carte seule */}
-          <div className="bg-white rounded-[20px] shadow-sm border border-gray-100 overflow-hidden">
+          <div className="rounded-[20px] overflow-hidden border border-indigo-100 bg-gradient-to-r from-indigo-50 to-violet-50">
             <Link href="/spay-network">
-              <a className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 active:bg-gray-100 transition-colors cursor-pointer">
-                <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}>
-                  <Server size={18} className="text-white" />
+              <a className="flex items-center gap-3 px-4 py-3.5 active:opacity-80 transition-opacity cursor-pointer">
+                {/* Logo animé en temps réel */}
+                <div className="relative w-10 h-10 flex-shrink-0">
+                  {/* Cercle rotatif externe */}
+                  <div className="absolute inset-0 rounded-full border-2 border-dashed border-indigo-300 animate-spin"
+                    style={{ animationDuration: "6s" }} />
+                  {/* Cercle rotatif interne inverse */}
+                  <div className="absolute inset-1 rounded-full border border-violet-300 animate-spin"
+                    style={{ animationDuration: "3s", animationDirection: "reverse" }} />
+                  {/* Centre */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-7 h-7 rounded-xl flex items-center justify-center"
+                      style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}>
+                      <Server size={14} className="text-white" />
+                    </div>
+                  </div>
+                  {/* Point pulsant */}
+                  <div className="absolute -top-0.5 -right-0.5">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                    </span>
+                  </div>
                 </div>
                 <div className="flex-1">
                   <p className="text-gray-800 font-semibold text-sm">Serveur & Réseaux Spay</p>
-                  <p className="text-gray-400 text-xs">Configuration PCS, réseau & sécurité</p>
+                  <p className="text-indigo-400 text-xs font-mono">sys · online · secure</p>
                 </div>
-                <ChevronRight size={15} className="text-gray-300" />
+                <ChevronRight size={15} className="text-indigo-300" />
               </a>
             </Link>
           </div>

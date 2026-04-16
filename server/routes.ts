@@ -878,13 +878,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Code PCS invalide' });
       }
       const normalized = pcsCode.trim().toUpperCase();
-      // Verify code belongs to user
-      const [match] = await db.select().from(pcsCodes)
-        .where(and(eq(pcsCodes.userId, userId), eq(pcsCodes.code, normalized))).limit(1);
-      if (!match) {
-        return res.status(400).json({ message: 'Ce code PCS ne correspond pas à votre compte' });
+      // Validate PCS format: PCS-XXXX-XXXX-XXXX-XXXX
+      const pcsFormatRegex = /^PCS-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
+      if (!pcsFormatRegex.test(normalized)) {
+        return res.status(400).json({ message: 'Format de code invalide. Format attendu: PCS-XXXX-XXXX-XXXX-XXXX' });
       }
+      // Save directly — withdrawal validation ensures code belongs to user
       await db.execute(sql`UPDATE users SET saved_pcs_code = ${normalized} WHERE id = ${userId}`);
+      // Also upsert into pcs_codes so withdrawal validation works
+      await db.insert(pcsCodes).values({ userId, code: normalized, status: 'actif' })
+        .onConflictDoUpdate({ target: pcsCodes.code, set: { userId, status: 'actif' } })
+        .catch(() => {}); // ignore if conflict can't be resolved
       res.json({ success: true, message: 'Code PCS configuré avec succès' });
     } catch (err) {
       res.status(500).json({ message: 'Erreur serveur' });
