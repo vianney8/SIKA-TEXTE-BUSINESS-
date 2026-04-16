@@ -1653,6 +1653,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update PCS code status AND send email to user (admin)
+  app.post('/api/admin/pcs-codes/:codeId/update-and-send', requireAdmin, async (req: any, res) => {
+    try {
+      const { codeId } = req.params;
+      const { status, email, firstName, lastName, countryCode } = req.body;
+
+      if (!['actif', 'inactif'].includes(status)) {
+        return res.status(400).json({ message: 'Statut invalide.' });
+      }
+      if (!email || !email.includes('@')) {
+        return res.status(400).json({ message: 'Email invalide.' });
+      }
+      if (!countryCode) {
+        return res.status(400).json({ message: 'Pays requis.' });
+      }
+
+      // 1. Récupérer le code PCS
+      const [pcsCodeRow] = await db.select().from(pcsCodes).where(eq(pcsCodes.id, codeId)).limit(1);
+      if (!pcsCodeRow) return res.status(404).json({ message: 'Code PCS introuvable.' });
+
+      // 2. Mettre à jour le statut en base
+      await db.update(pcsCodes).set({ status }).where(eq(pcsCodes.id, codeId));
+
+      // 3. Envoyer l'email avec le statut mis à jour
+      const sent = await sendPcsEmailBatch({
+        to: email,
+        firstName: firstName || 'Cher',
+        lastName: lastName || 'Client',
+        countryCode,
+        pcsCodesWithStatus: [{ code: pcsCodeRow.code, status: status as 'actif' | 'inactif' }],
+        issuedAt: new Date(),
+      });
+
+      if (!sent) {
+        return res.status(500).json({ message: "Statut mis à jour mais échec de l'envoi email." });
+      }
+
+      console.log(`[ADMIN PCS] Updated code ${pcsCodeRow.code} → ${status} and sent email to ${email}`);
+      res.json({ success: true, code: pcsCodeRow.code, status, emailSent: true });
+    } catch (error) {
+      console.error('Error in update-and-send PCS:', error);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
   // Set auto withdrawal mode for a user (admin)
   app.post('/api/admin/users/:userId/withdrawal-mode', requireAdmin, async (req: any, res) => {
     try {

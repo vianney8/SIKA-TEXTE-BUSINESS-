@@ -4,13 +4,14 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import {
-  ArrowLeft, Mail, Plus, Zap, CheckCircle, Copy,
-  RefreshCw, Send, UserCheck, Loader2, ToggleLeft, ToggleRight,
-  ShieldCheck, ShieldOff,
+  ArrowLeft, Mail, Plus, Zap, CheckCircle, Copy, RefreshCw, Send,
+  UserCheck, Loader2, ShieldCheck, ShieldOff, Pencil, MailCheck,
 } from "lucide-react";
 
 const COUNTRIES = [
@@ -21,6 +22,11 @@ const COUNTRIES = [
   { code: "TG", name: "Togo" },
   { code: "CM", name: "Cameroun" },
   { code: "COG", name: "Congo-Brazzaville" },
+];
+
+const STATUS_OPTIONS: { value: 'actif' | 'inactif'; label: string }[] = [
+  { value: 'actif', label: '✅ Actif' },
+  { value: 'inactif', label: '🔴 Inactif' },
 ];
 
 function generatePcsCode(): string {
@@ -36,11 +42,6 @@ interface ExistingCode {
   createdAt: string;
 }
 
-interface NewCodeEntry {
-  code: string;
-  status: 'actif' | 'inactif';
-}
-
 interface FoundUser {
   id: string;
   firstName: string | null;
@@ -50,78 +51,214 @@ interface FoundUser {
   phone: string | null;
 }
 
-interface SentResult {
+/* ─── Sous-composant : ligne d'un code existant ─── */
+function ExistingCodeRow({
+  code,
+  email,
+  firstName,
+  lastName,
+  countryCode,
+  onRefresh,
+}: {
+  code: ExistingCode;
   email: string;
-  codes: string[];
-  sentAt: Date;
+  firstName: string;
+  lastName: string;
+  countryCode: string;
+  onRefresh: () => void;
+}) {
+  const { toast } = useToast();
+  const [localStatus, setLocalStatus] = useState<'actif' | 'inactif'>(code.status);
+  const [copied, setCopied] = useState(false);
+
+  // Sync when parent refreshes
+  useEffect(() => { setLocalStatus(code.status); }, [code.status]);
+
+  const isDirty = localStatus !== code.status;
+
+  // Mettre à jour uniquement (sans email)
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest('PATCH', `/api/admin/pcs-codes/${code.id}/status`, { status: localStatus });
+    },
+    onSuccess: () => {
+      onRefresh();
+      toast({ title: "Statut mis à jour", description: `Code …${code.code.slice(-9)} → ${localStatus}` });
+    },
+    onError: (err: any) => {
+      toast({ title: "Erreur", description: err.message, variant: "destructive" });
+    },
+  });
+
+  // Mettre à jour ET envoyer par email
+  const updateSendMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', `/api/admin/pcs-codes/${code.id}/update-and-send`, {
+        status: localStatus,
+        email,
+        firstName: firstName || 'Cher',
+        lastName: lastName || 'Client',
+        countryCode,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      onRefresh();
+      toast({ title: "Mis à jour et email envoyé ✓", description: `Code …${code.code.slice(-9)} → ${localStatus}` });
+    },
+    onError: (err: any) => {
+      toast({ title: "Erreur", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const busy = updateMutation.isPending || updateSendMutation.isPending;
+  const canSendEmail = !!countryCode;
+
+  function copy() {
+    navigator.clipboard.writeText(code.code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  return (
+    <div className={`rounded-xl border-2 p-3.5 transition-all ${
+      localStatus === 'actif'
+        ? 'border-green-200 bg-green-50/50'
+        : 'border-gray-100 bg-gray-50'
+    }`}>
+      {/* Ligne 1 : code + copier + badge statut actuel en DB */}
+      <div className="flex items-center gap-2 mb-2.5">
+        <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
+          code.status === 'actif' ? 'bg-green-100' : 'bg-gray-100'
+        }`}>
+          {code.status === 'actif'
+            ? <ShieldCheck size={13} className="text-green-600" />
+            : <ShieldOff size={13} className="text-gray-400" />
+          }
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-mono text-xs font-bold text-gray-800 truncate">{code.code}</p>
+          <p className={`text-[10px] font-semibold ${code.status === 'actif' ? 'text-green-600' : 'text-gray-400'}`}>
+            {code.status === 'actif' ? 'Actif en base' : 'Inactif en base'}
+            <span className="text-gray-300 font-normal ml-1.5">·</span>
+            <span className="text-gray-400 font-normal ml-1.5">
+              {new Date(code.createdAt).toLocaleDateString('fr-FR')}
+            </span>
+          </p>
+        </div>
+        <button onClick={copy} className="p-1.5 rounded-lg hover:bg-white transition-colors" title="Copier le code">
+          {copied ? <CheckCircle size={13} className="text-green-500" /> : <Copy size={13} className="text-gray-400" />}
+        </button>
+      </div>
+
+      {/* Ligne 2 : sélecteur de nouveau statut */}
+      <div className="flex items-center gap-2 mb-2.5">
+        <Pencil size={11} className="text-gray-400 flex-shrink-0" />
+        <span className="text-[11px] text-gray-500 flex-shrink-0">Nouveau statut :</span>
+        <Select value={localStatus} onValueChange={(v) => setLocalStatus(v as 'actif' | 'inactif')}>
+          <SelectTrigger className="h-8 text-xs flex-1 min-w-0 max-w-[140px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {STATUS_OPTIONS.map(o => (
+              <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {isDirty && (
+          <span className="text-[10px] text-amber-600 font-semibold px-2 py-0.5 bg-amber-50 rounded-full border border-amber-200">
+            Modifié
+          </span>
+        )}
+      </div>
+
+      {/* Ligne 3 : boutons d'action */}
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => updateMutation.mutate()}
+          disabled={busy}
+          className="flex-1 h-8 text-xs gap-1.5 border-gray-200 text-gray-600 hover:bg-gray-100"
+        >
+          {updateMutation.isPending
+            ? <Loader2 size={12} className="animate-spin" />
+            : <CheckCircle size={12} />
+          }
+          Mettre à jour
+        </Button>
+        <Button
+          size="sm"
+          onClick={() => updateSendMutation.mutate()}
+          disabled={busy || !canSendEmail}
+          title={!canSendEmail ? "Sélectionnez un pays d'abord" : undefined}
+          className="flex-1 h-8 text-xs gap-1.5 bg-blue-600 hover:bg-blue-700 text-white"
+        >
+          {updateSendMutation.isPending
+            ? <Loader2 size={12} className="animate-spin" />
+            : <MailCheck size={12} />
+          }
+          Mettre à jour &amp; envoyer
+        </Button>
+      </div>
+    </div>
+  );
 }
 
+/* ─── Page principale ─── */
 export default function AdminPcsSend() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Destinataire
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [countryCode, setCountryCode] = useState("");
 
-  const [newCodeEntries, setNewCodeEntries] = useState<NewCodeEntry[]>([]);
-  const [newCodeInput, setNewCodeInput] = useState("");
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [lastResult, setLastResult] = useState<SentResult | null>(null);
-  const [sendNewByEmail, setSendNewByEmail] = useState(true);
+  // Nouveau code
+  const [newCode, setNewCode] = useState(generatePcsCode());
+  const [newStatus, setNewStatus] = useState<'actif' | 'inactif'>('actif');
+  const [copiedNew, setCopiedNew] = useState(false);
 
+  // Lookup utilisateur
   const [lookupState, setLookupState] = useState<'idle' | 'loading' | 'found' | 'notfound'>('idle');
   const [foundUser, setFoundUser] = useState<FoundUser | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Debounced email lookup
+  // Auto-lookup email
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-
     const trimmed = email.trim();
-    const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
-
-    if (!isValidEmail) {
-      setLookupState('idle');
-      setFoundUser(null);
-      return;
-    }
+    const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
+    if (!valid) { setLookupState('idle'); setFoundUser(null); return; }
 
     setLookupState('loading');
     debounceRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/admin/user-by-email?email=${encodeURIComponent(trimmed)}`, {
-          credentials: 'include',
-        });
+        const res = await fetch(`/api/admin/user-by-email?email=${encodeURIComponent(trimmed)}`, { credentials: 'include' });
         if (res.ok) {
           const user: FoundUser = await res.json();
           setFoundUser(user);
           setLookupState('found');
-          if (user.firstName) {
-            setFirstName(user.firstName);
-          } else if (user.fullName) {
-            const parts = user.fullName.trim().split(' ');
-            setFirstName(parts[0] || '');
-            setLastName(parts.slice(1).join(' ') || '');
+          if (user.firstName) setFirstName(user.firstName);
+          else if (user.fullName) {
+            const p = user.fullName.trim().split(' ');
+            setFirstName(p[0] || ''); setLastName(p.slice(1).join(' ') || '');
           }
           if (user.lastName) setLastName(user.lastName);
         } else {
-          setFoundUser(null);
-          setLookupState('notfound');
+          setFoundUser(null); setLookupState('notfound');
         }
-      } catch {
-        setLookupState('notfound');
-      }
+      } catch { setLookupState('notfound'); }
     }, 600);
 
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [email]);
 
-  // Fetch existing PCS codes when user is found
-  const { data: existingCodes = [], isLoading: codesLoading } = useQuery<ExistingCode[]>({
+  // Codes PCS existants
+  const { data: existingCodes = [], isLoading: codesLoading, refetch: refetchCodes } = useQuery<ExistingCode[]>({
     queryKey: ['/api/admin/users', foundUser?.id, 'pcs-codes'],
     queryFn: async () => {
       const res = await apiRequest('GET', `/api/admin/users/${foundUser!.id}/pcs-codes`);
@@ -131,121 +268,70 @@ export default function AdminPcsSend() {
     staleTime: 0,
   });
 
-  // Toggle status of an existing code (no email)
-  async function toggleExistingStatus(code: ExistingCode) {
-    setUpdatingId(code.id);
-    const newStatus: 'actif' | 'inactif' = code.status === 'actif' ? 'inactif' : 'actif';
-    try {
-      await apiRequest('PATCH', `/api/admin/pcs-codes/${code.id}/status`, { status: newStatus });
-      // Mise à jour immédiate du cache local
-      queryClient.setQueryData(
-        ['/api/admin/users', foundUser?.id, 'pcs-codes'],
-        (old: ExistingCode[] | undefined) =>
-          old ? old.map(c => c.id === code.id ? { ...c, status: newStatus } : c) : old
-      );
-      // Refetch en arrière-plan pour garantir la cohérence
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/users', foundUser?.id, 'pcs-codes'] });
-      toast({
-        title: `Statut mis à jour`,
-        description: `Code PCS …${code.code.slice(-9)} → ${newStatus === 'actif' ? '✅ Actif' : '🔴 Inactif'}`,
-      });
-    } catch (err: any) {
-      toast({
-        title: "Erreur de mise à jour",
-        description: err.message || "Impossible de mettre à jour le statut",
-        variant: "destructive",
-      });
-    } finally {
-      setUpdatingId(null);
-    }
+  function refreshCodes() {
+    queryClient.invalidateQueries({ queryKey: ['/api/admin/users', foundUser?.id, 'pcs-codes'] });
+    refetchCodes();
   }
 
-  // Send new code(s) by email
-  const sendMutation = useMutation({
+  // Créer uniquement (sans email)
+  const createOnlyMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/admin/send-pcs", {
+      const res = await apiRequest('POST', '/api/admin/send-pcs', {
         email,
-        firstName: firstName || "Cher",
-        lastName: lastName || "Client",
-        countryCode,
-        codes: newCodeEntries.map(e => e.code),
-        statuses: newCodeEntries.map(e => e.status),
-      });
-      return res.json();
-    },
-    onSuccess: (data) => {
-      setLastResult({ email, codes: data.codes, sentAt: new Date() });
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/users', foundUser?.id, 'pcs-codes'] });
-      toast({
-        title: "Email envoyé avec succès",
-        description: `${data.sent} code(s) PCS envoyé(s) à ${email}`,
-      });
-      setNewCodeEntries([]);
-    },
-    onError: (err: any) => {
-      toast({ title: "Échec de l'envoi", description: err.message || "Erreur lors de l'envoi", variant: "destructive" });
-    },
-  });
-
-  // Save new code(s) to DB only (no email)
-  const saveOnlyMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/admin/send-pcs", {
-        email,
-        firstName: firstName || "Cher",
-        lastName: lastName || "Client",
-        countryCode: countryCode || "BJ",
-        codes: newCodeEntries.map(e => e.code),
-        statuses: newCodeEntries.map(e => e.status),
+        firstName: firstName || 'Cher',
+        lastName: lastName || 'Client',
+        countryCode: countryCode || 'BJ',
+        codes: [newCode],
+        statuses: [newStatus],
         skipEmail: true,
       });
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/users', foundUser?.id, 'pcs-codes'] });
-      toast({ title: "Code(s) enregistré(s)", description: "Codes ajoutés au compte sans envoi d'email" });
-      setNewCodeEntries([]);
+      refreshCodes();
+      setNewCode(generatePcsCode());
+      setNewStatus('actif');
+      toast({ title: "Code PCS créé", description: "Code enregistré sans envoi d'email." });
     },
     onError: (err: any) => {
       toast({ title: "Erreur", description: err.message, variant: "destructive" });
     },
   });
 
-  function addNewCode() {
-    const code = newCodeInput.trim() ? newCodeInput.trim().toUpperCase() : generatePcsCode();
-    setNewCodeEntries(prev => [...prev, { code, status: 'inactif' }]);
-    setNewCodeInput("");
-  }
+  // Créer ET envoyer par email
+  const createSendMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', '/api/admin/send-pcs', {
+        email,
+        firstName: firstName || 'Cher',
+        lastName: lastName || 'Client',
+        countryCode,
+        codes: [newCode],
+        statuses: [newStatus],
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      refreshCodes();
+      setNewCode(generatePcsCode());
+      setNewStatus('actif');
+      toast({ title: "Code créé et email envoyé ✓", description: `Nouveau PCS envoyé à ${email}` });
+    },
+    onError: (err: any) => {
+      toast({ title: "Erreur", description: err.message, variant: "destructive" });
+    },
+  });
 
-  function removeNewCode(idx: number) {
-    setNewCodeEntries(prev => prev.filter((_, i) => i !== idx));
-  }
-
-  function regenerateNewCode(idx: number) {
-    setNewCodeEntries(prev => prev.map((e, i) => i === idx ? { ...e, code: generatePcsCode() } : e));
-  }
-
-  function toggleNewStatus(idx: number) {
-    setNewCodeEntries(prev => prev.map((e, i) =>
-      i === idx ? { ...e, status: e.status === 'actif' ? 'inactif' : 'actif' } : e
-    ));
-  }
-
-  function copyCode(code: string) {
-    navigator.clipboard.writeText(code);
-    setCopiedId(code);
-    setTimeout(() => setCopiedId(null), 1500);
-  }
-
-  const canSendNew = email.includes('@') && countryCode && newCodeEntries.length > 0 && !sendMutation.isPending && !saveOnlyMutation.isPending;
   const userFound = lookupState === 'found' && !!foundUser;
+  const busyNew = createOnlyMutation.isPending || createSendMutation.isPending;
+  const hasEmail = email.includes('@');
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
-          <button onClick={() => setLocation('/admin')} className="p-2 rounded-full hover:bg-gray-100 transition-colors">
+          <button onClick={() => setLocation('/admin')} className="p-2 rounded-full hover:bg-gray-100">
             <ArrowLeft size={20} className="text-gray-600" />
           </button>
           <div className="flex items-center gap-2">
@@ -254,21 +340,25 @@ export default function AdminPcsSend() {
             </div>
             <div>
               <h1 className="font-bold text-gray-900 text-sm">Gestion Codes PCS</h1>
-              <p className="text-xs text-gray-500">Modifier statuts & envoyer par email</p>
+              <p className="text-xs text-gray-500">Modifier, créer et envoyer par email</p>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
+      <div className="max-w-2xl mx-auto px-4 py-5 space-y-4">
 
-        {/* ── Section 1 : Destinataire ── */}
+        {/* ══════════════════════════════════════════
+            SECTION 1 — Destinataire
+        ══════════════════════════════════════════ */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
           <h2 className="font-bold text-gray-800 text-sm mb-4 flex items-center gap-2">
-            <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">1</span>
+            <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold">1</span>
             Destinataire
           </h2>
+
           <div className="space-y-3">
+            {/* Email */}
             <div>
               <Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Adresse email *</Label>
               <div className="relative">
@@ -282,38 +372,43 @@ export default function AdminPcsSend() {
                 <div className="absolute right-3 top-1/2 -translate-y-1/2">
                   {lookupState === 'loading' && <Loader2 size={16} className="text-blue-500 animate-spin" />}
                   {lookupState === 'found' && <UserCheck size={16} className="text-green-500" />}
-                  {lookupState === 'notfound' && <Mail size={16} className="text-gray-400" />}
+                  {lookupState === 'notfound' && <Mail size={16} className="text-gray-300" />}
                 </div>
               </div>
+
               {userFound && foundUser && (
                 <div className="mt-2 flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
                   <UserCheck size={14} className="text-green-600 shrink-0" />
-                  <span className="text-xs text-green-700 font-semibold">
-                    {foundUser.fullName || `${foundUser.firstName || ''} ${foundUser.lastName || ''}`.trim() || foundUser.email}
-                    {foundUser.phone && <span className="font-normal text-green-600 ml-1">· {foundUser.phone}</span>}
-                  </span>
+                  <div>
+                    <p className="text-xs text-green-800 font-bold">
+                      {foundUser.fullName || `${foundUser.firstName || ''} ${foundUser.lastName || ''}`.trim() || foundUser.email}
+                    </p>
+                    {foundUser.phone && <p className="text-[10px] text-green-600">{foundUser.phone}</p>}
+                  </div>
                 </div>
               )}
               {lookupState === 'notfound' && (
-                <p className="mt-1.5 text-xs text-amber-600">Aucun compte trouvé — remplissez le nom manuellement</p>
+                <p className="mt-1.5 text-xs text-amber-600">Aucun compte Sika Texte trouvé — remplissez le nom manuellement.</p>
               )}
             </div>
 
+            {/* Prénom / Nom */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Prénom</Label>
-                <Input placeholder="Prénom" value={firstName} onChange={e => setFirstName(e.target.value)} className="h-11" />
+                <Input placeholder="Prénom" value={firstName} onChange={e => setFirstName(e.target.value)} className="h-10" />
               </div>
               <div>
                 <Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Nom</Label>
-                <Input placeholder="Nom" value={lastName} onChange={e => setLastName(e.target.value)} className="h-11" />
+                <Input placeholder="Nom" value={lastName} onChange={e => setLastName(e.target.value)} className="h-10" />
               </div>
             </div>
 
+            {/* Pays */}
             <div>
               <Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Pays *</Label>
               <Select value={countryCode} onValueChange={setCountryCode}>
-                <SelectTrigger className="h-11">
+                <SelectTrigger className="h-10">
                   <SelectValue placeholder="Sélectionner un pays" />
                 </SelectTrigger>
                 <SelectContent>
@@ -326,233 +421,160 @@ export default function AdminPcsSend() {
           </div>
         </div>
 
-        {/* ── Section 2 : Codes PCS existants (visible si utilisateur trouvé) ── */}
+        {/* ══════════════════════════════════════════
+            SECTION 2 — Codes PCS existants
+            (visible uniquement si utilisateur trouvé)
+        ══════════════════════════════════════════ */}
         {userFound && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-            <h2 className="font-bold text-gray-800 text-sm mb-4 flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold">2</span>
-              Codes PCS existants
-              {codesLoading && <Loader2 size={13} className="animate-spin text-gray-400 ml-1" />}
-              {!codesLoading && (
-                <span className="ml-auto text-xs text-gray-400 font-normal">{existingCodes.length} code{existingCodes.length !== 1 ? 's' : ''}</span>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            {/* En-tête section */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-50 bg-indigo-50/60">
+              <h2 className="font-bold text-gray-800 text-sm flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold">2</span>
+                Codes PCS existants
+                {codesLoading && <Loader2 size={12} className="animate-spin text-indigo-400 ml-1" />}
+              </h2>
+              <span className="text-[11px] font-semibold text-indigo-600 bg-indigo-100 px-2.5 py-0.5 rounded-full">
+                {existingCodes.length} code{existingCodes.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+
+            <div className="p-4">
+              {!codesLoading && existingCodes.length === 0 && (
+                <div className="text-center py-6">
+                  <ShieldOff size={28} className="text-gray-200 mx-auto mb-2" />
+                  <p className="text-xs text-gray-400">Aucun code PCS associé à cet utilisateur.</p>
+                  <p className="text-[11px] text-gray-300 mt-1">Créez-en un ci-dessous.</p>
+                </div>
               )}
-            </h2>
 
-            {!codesLoading && existingCodes.length === 0 && (
-              <p className="text-xs text-gray-400 text-center py-4">Aucun code PCS enregistré pour cet utilisateur.</p>
-            )}
-
-            {existingCodes.length > 0 && (
-              <div className="space-y-2">
-                {existingCodes.map(code => (
-                  <div key={code.id} className={`flex items-center gap-2 p-3 rounded-xl border-2 transition-all ${
-                    code.status === 'actif'
-                      ? 'border-green-100 bg-green-50/60'
-                      : 'border-gray-100 bg-gray-50'
-                  }`}>
-                    {/* Icône statut */}
-                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                      code.status === 'actif' ? 'bg-green-100' : 'bg-gray-100'
-                    }`}>
-                      {code.status === 'actif'
-                        ? <ShieldCheck size={14} className="text-green-600" />
-                        : <ShieldOff size={14} className="text-gray-400" />
-                      }
-                    </div>
-
-                    {/* Code + statut */}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-mono text-xs font-bold text-gray-800 truncate">{code.code}</p>
-                      <p className={`text-[10px] font-semibold mt-0.5 ${
-                        code.status === 'actif' ? 'text-green-600' : 'text-gray-400'
-                      }`}>
-                        {code.status === 'actif' ? '● Actif' : '○ Inactif'}
-                        {code.createdAt && (
-                          <span className="text-gray-400 font-normal ml-2">
-                            · {new Date(code.createdAt).toLocaleDateString('fr-FR')}
-                          </span>
-                        )}
-                      </p>
-                    </div>
-
-                    {/* Copier */}
-                    <button
-                      onClick={() => copyCode(code.code)}
-                      className="p-1.5 rounded-lg hover:bg-white transition-colors flex-shrink-0"
-                      title="Copier"
-                    >
-                      {copiedId === code.code
-                        ? <CheckCircle size={13} className="text-green-500" />
-                        : <Copy size={13} className="text-gray-400 hover:text-gray-600" />
-                      }
-                    </button>
-
-                    {/* Toggle statut */}
-                    <button
-                      onClick={() => toggleExistingStatus(code)}
-                      disabled={updatingId === code.id}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all flex-shrink-0 ${
-                        code.status === 'actif'
-                          ? 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'
-                          : 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100'
-                      } disabled:opacity-50`}
-                    >
-                      {updatingId === code.id
-                        ? <Loader2 size={11} className="animate-spin" />
-                        : code.status === 'actif'
-                          ? <><ToggleLeft size={12} /> Désactiver</>
-                          : <><ToggleRight size={12} /> Activer</>
-                      }
-                    </button>
+              {existingCodes.length > 0 && (
+                <div className="space-y-3">
+                  {/* Légende */}
+                  <div className="flex items-center gap-1.5 text-[10px] text-gray-400 pb-1">
+                    <Pencil size={9} />
+                    <span>Modifiez le statut puis cliquez sur <strong>Mettre à jour</strong> ou <strong>Mettre à jour &amp; envoyer</strong></span>
                   </div>
-                ))}
-              </div>
-            )}
+
+                  {existingCodes.map(code => (
+                    <ExistingCodeRow
+                      key={code.id}
+                      code={code}
+                      email={email}
+                      firstName={firstName}
+                      lastName={lastName}
+                      countryCode={countryCode}
+                      onRefresh={refreshCodes}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
-        {/* ── Section 3 : Créer un nouveau code ── */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-          <h2 className="font-bold text-gray-800 text-sm mb-4 flex items-center gap-2">
-            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
-              userFound ? 'bg-blue-100 text-blue-600' : 'bg-blue-100 text-blue-600'
-            }`}>{userFound ? '3' : '2'}</span>
-            Nouveau code PCS
-          </h2>
+        {/* ══════════════════════════════════════════
+            SECTION 3 — Créer un nouveau code PCS
+        ══════════════════════════════════════════ */}
+        {hasEmail && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            {/* En-tête section */}
+            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-gray-50 bg-blue-50/60">
+              <span className={`w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold`}>
+                {userFound ? '3' : '2'}
+              </span>
+              <h2 className="font-bold text-gray-800 text-sm">Créer un nouveau PCS</h2>
+            </div>
 
-          {/* Codes créés */}
-          {newCodeEntries.length > 0 && (
-            <div className="space-y-2 mb-4">
-              {newCodeEntries.map((entry, idx) => (
-                <div key={idx} className="space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={entry.code}
-                      onChange={e => setNewCodeEntries(prev => prev.map((e2, i) => i === idx ? { ...e2, code: e.target.value.toUpperCase() } : e2))}
-                      className="h-10 font-mono text-sm bg-slate-50 border-slate-200 flex-1"
-                      placeholder="PCS-XXXX-XXXX-XXXX-XXXX"
-                    />
-                    <button
-                      onClick={() => regenerateNewCode(idx)}
-                      className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-blue-600 transition-colors"
-                      title="Régénérer"
-                    >
-                      <RefreshCw size={14} />
-                    </button>
-                    <button
-                      onClick={() => copyCode(entry.code)}
-                      className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                    >
-                      {copiedId === entry.code
-                        ? <CheckCircle size={14} className="text-green-500" />
-                        : <Copy size={14} className="text-gray-400" />
-                      }
-                    </button>
-                    <button
-                      onClick={() => removeNewCode(idx)}
-                      className="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
-                    >
-                      ✕
-                    </button>
-                  </div>
+            <div className="p-4 space-y-3.5">
+              {/* Code PCS */}
+              <div>
+                <Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Code PCS</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={newCode}
+                    onChange={e => setNewCode(e.target.value.toUpperCase())}
+                    className="h-10 font-mono text-sm bg-slate-50 border-slate-200 flex-1"
+                    placeholder="PCS-XXXX-XXXX-XXXX-XXXX"
+                  />
                   <button
-                    onClick={() => toggleNewStatus(idx)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                      entry.status === 'actif'
-                        ? 'bg-green-50 border-green-200 text-green-700'
-                        : 'bg-red-50 border-red-200 text-red-600'
-                    }`}
+                    onClick={() => setNewCode(generatePcsCode())}
+                    className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-400 hover:text-blue-600 transition-colors"
+                    title="Regénérer aléatoirement"
                   >
-                    {entry.status === 'actif'
-                      ? <><ToggleRight size={14} /> Actif</>
-                      : <><ToggleLeft size={14} /> Inactif</>
-                    }
+                    <RefreshCw size={15} />
+                  </button>
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(newCode); setCopiedNew(true); setTimeout(() => setCopiedNew(false), 1500); }}
+                    className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                    title="Copier"
+                  >
+                    {copiedNew ? <CheckCircle size={15} className="text-green-500" /> : <Copy size={15} className="text-gray-400" />}
                   </button>
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
 
-          {/* Ajouter */}
-          <div className="flex gap-2 mb-5">
-            <Input
-              placeholder="Entrer un code ou laisser vide pour générer"
-              value={newCodeInput}
-              onChange={e => setNewCodeInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && addNewCode()}
-              className="h-10 text-sm font-mono"
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={addNewCode}
-              className="shrink-0 h-10 gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50"
-            >
-              {newCodeInput.trim() ? <><Plus size={14} /> Ajouter</> : <><Zap size={14} /> Générer</>}
-            </Button>
-          </div>
+              {/* Statut initial */}
+              <div>
+                <Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Statut initial</Label>
+                <Select value={newStatus} onValueChange={(v) => setNewStatus(v as 'actif' | 'inactif')}>
+                  <SelectTrigger className="h-10">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_OPTIONS.map(o => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          {/* Boutons d'action */}
-          {newCodeEntries.length > 0 && (
-            <div className="space-y-2.5 border-t border-gray-100 pt-4">
-              {/* Option envoyer par email */}
-              <Button
-                onClick={() => sendMutation.mutate()}
-                disabled={!canSendNew || !countryCode}
-                className="w-full h-12 font-bold rounded-xl bg-blue-600 hover:bg-blue-700 shadow gap-2"
-              >
-                {sendMutation.isPending
-                  ? <><Loader2 size={16} className="animate-spin" /> Envoi en cours…</>
-                  : <><Send size={16} /> Enregistrer &amp; envoyer par email ({newCodeEntries.length} code{newCodeEntries.length > 1 ? 's' : ''})</>
-                }
-              </Button>
-
-              {/* Option enregistrer sans email */}
-              {userFound && (
+              {/* Boutons d'action */}
+              <div className="flex gap-2 pt-1">
+                {/* Créer uniquement */}
                 <Button
                   variant="outline"
-                  onClick={() => saveOnlyMutation.mutate()}
-                  disabled={!canSendNew}
-                  className="w-full h-11 font-bold rounded-xl border-gray-200 text-gray-600 gap-2"
+                  onClick={() => createOnlyMutation.mutate()}
+                  disabled={busyNew || !newCode.trim()}
+                  className="flex-1 h-11 font-semibold text-sm gap-2 border-gray-200 text-gray-600"
                 >
-                  {saveOnlyMutation.isPending
-                    ? <><Loader2 size={16} className="animate-spin" /> Enregistrement…</>
-                    : <><CheckCircle size={16} /> Enregistrer uniquement (sans email)</>
+                  {createOnlyMutation.isPending
+                    ? <Loader2 size={15} className="animate-spin" />
+                    : <Plus size={15} />
                   }
+                  Créer uniquement
                 </Button>
+
+                {/* Créer et envoyer */}
+                <Button
+                  onClick={() => createSendMutation.mutate()}
+                  disabled={busyNew || !newCode.trim() || !countryCode}
+                  title={!countryCode ? "Sélectionnez un pays d'abord" : undefined}
+                  className="flex-1 h-11 font-bold text-sm gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow"
+                >
+                  {createSendMutation.isPending
+                    ? <Loader2 size={15} className="animate-spin" />
+                    : <Send size={15} />
+                  }
+                  Créer et envoyer
+                </Button>
+              </div>
+
+              {!countryCode && (
+                <p className="text-[11px] text-amber-600 text-center">
+                  ⚠️ Sélectionnez un pays pour pouvoir envoyer par email.
+                </p>
               )}
             </div>
-          )}
+          </div>
+        )}
 
-          {newCodeEntries.length === 0 && (
-            <p className="text-xs text-gray-400 text-center">
-              Générez ou saisissez un code pour l'ajouter au compte et l'envoyer.
-            </p>
-          )}
-        </div>
-
-        {/* ── Résultat dernier envoi ── */}
-        {lastResult && (
-          <div className="bg-green-50 border border-green-200 rounded-2xl p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <CheckCircle size={18} className="text-green-600" />
-              <h3 className="font-bold text-green-800 text-sm">Email envoyé avec succès</h3>
-            </div>
-            <p className="text-xs text-green-700 mb-3">
-              <strong>{lastResult.codes.length} code{lastResult.codes.length > 1 ? 's' : ''}</strong> envoyé{lastResult.codes.length > 1 ? 's' : ''} à <strong>{lastResult.email}</strong>
-              <br />
-              {lastResult.sentAt.toLocaleString('fr-FR')}
-            </p>
-            <div className="space-y-1.5">
-              {lastResult.codes.map((code, i) => (
-                <div key={i} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-green-100">
-                  <span className="font-mono text-sm text-slate-800 font-semibold">{code}</span>
-                  <button onClick={() => copyCode(code)} className="text-green-600 hover:text-green-800">
-                    {copiedId === code ? <CheckCircle size={13} className="text-green-500" /> : <Copy size={13} />}
-                  </button>
-                </div>
-              ))}
-            </div>
+        {/* État initial : aucune email saisie */}
+        {!hasEmail && (
+          <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-8 text-center">
+            <Mail size={32} className="text-gray-200 mx-auto mb-3" />
+            <p className="text-sm text-gray-400 font-medium">Saisissez l'email du destinataire</p>
+            <p className="text-xs text-gray-300 mt-1">Les codes PCS existants et les options de création apparaîtront ici.</p>
           </div>
         )}
 
