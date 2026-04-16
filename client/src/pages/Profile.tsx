@@ -55,6 +55,7 @@ export default function Profile() {
   const updateProfileMutation = useMutation({
     mutationFn: async (data: ProfileForm) => {
       if (!data.phone || data.phone.trim() === "") throw new Error("Le numéro de téléphone ne peut pas être vide");
+      if (!data.email || data.email.trim() === "") throw new Error("L'adresse email est obligatoire");
       return await apiRequest("PUT", "/api/user/profile", { ...data, phone: countryCode + data.phone.trim() });
     },
     onSuccess: () => {
@@ -242,9 +243,13 @@ export default function Profile() {
                   />
 
                   <FormField control={profileForm.control} name="email"
+                    rules={{
+                      required: "L'adresse email est obligatoire",
+                      pattern: { value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i, message: "Adresse email invalide" },
+                    }}
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-gray-600 text-xs font-bold uppercase tracking-wider">Email (optionnel)</FormLabel>
+                        <FormLabel className="text-gray-600 text-xs font-bold uppercase tracking-wider">Email *</FormLabel>
                         <FormControl>
                           <Input type="email" placeholder="votre@email.com" {...field} data-testid="input-email"
                             className="rounded-xl border-2 border-gray-100 bg-gray-50 focus:bg-white focus:border-blue-300 py-3 text-sm font-medium" />

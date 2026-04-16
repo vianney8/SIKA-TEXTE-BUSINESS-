@@ -731,7 +731,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.session.userId;
       const { fullName, phone, email } = req.body;
-      
+
+      if (!email || !email.trim()) {
+        return res.status(400).json({ message: "L'adresse email est obligatoire" });
+      }
+      const emailRegex = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
+      if (!emailRegex.test(email.trim())) {
+        return res.status(400).json({ message: "Adresse email invalide" });
+      }
+
       const user = await storage.upsertUser({
         id: userId,
         fullName,
