@@ -1653,7 +1653,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update PCS code status AND send email to user (admin)
+  // Delete PCS code (admin)
+  app.delete('/api/admin/pcs-codes/:codeId', requireAdmin, async (req: any, res) => {
+    try {
+      const { codeId } = req.params;
+      const [existing] = await db.select().from(pcsCodes).where(eq(pcsCodes.id, codeId)).limit(1);
+      if (!existing) return res.status(404).json({ message: 'Code PCS introuvable.' });
+      await db.delete(pcsCodes).where(eq(pcsCodes.id, codeId));
+      console.log(`[ADMIN PCS] Deleted code ${existing.code} (id: ${codeId})`);
+      res.json({ success: true, deleted: existing.code });
+    } catch (error) {
+      console.error('Error deleting PCS code:', error);
+      res.status(500).json({ message: 'Erreur lors de la suppression du code PCS.' });
+    }
+  });
+
   app.post('/api/admin/pcs-codes/:codeId/update-and-send', requireAdmin, async (req: any, res) => {
     try {
       const { codeId } = req.params;

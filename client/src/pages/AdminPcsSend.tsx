@@ -13,7 +13,7 @@ import { apiRequest } from "@/lib/queryClient";
 import {
   ArrowLeft, Mail, Plus, CheckCircle, Copy, RefreshCw, Send,
   UserCheck, Loader2, ShieldCheck, ShieldOff, Pencil, MailCheck,
-  Sparkles, Zap,
+  Sparkles, Zap, Trash2, AlertTriangle,
 } from "lucide-react";
 
 const COUNTRIES = [
@@ -48,6 +48,7 @@ function ExistingCodeRow({ code, email, firstName, lastName, countryCode, index,
   const { toast } = useToast();
   const [localStatus, setLocalStatus] = useState<'actif' | 'inactif'>(code.status);
   const [copied, setCopied] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   useEffect(() => { setLocalStatus(code.status); }, [code.status]);
 
   const isDirty = localStatus !== code.status;
@@ -79,13 +80,29 @@ function ExistingCodeRow({ code, email, firstName, lastName, countryCode, index,
     onError: (err: any) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
   });
 
-  const busy = updateMutation.isPending || sendMutation.isPending;
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest('DELETE', `/api/admin/pcs-codes/${code.id}`);
+    },
+    onSuccess: () => {
+      onRefresh();
+      toast({ title: "🗑️ Code PCS supprimé", description: `Code ${code.code} supprimé définitivement.` });
+    },
+    onError: (err: any) => {
+      setConfirmDelete(false);
+      toast({ title: "Erreur", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const busy = updateMutation.isPending || sendMutation.isPending || deleteMutation.isPending;
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: -20, scale: 0.95 }}
       transition={{ delay: index * 0.06, duration: 0.3, ease: 'easeOut' }}
+      layout
       className={`relative rounded-2xl border-2 overflow-hidden transition-all duration-300 ${
         isActif
           ? 'border-emerald-200 bg-gradient-to-br from-emerald-50 to-green-50/40 shadow-emerald-100/80 shadow-md'
@@ -128,14 +145,26 @@ function ExistingCodeRow({ code, email, firstName, lastName, countryCode, index,
             </div>
           </div>
 
+          {/* Copier */}
           <button
             onClick={() => { navigator.clipboard.writeText(code.code); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
             className="p-1.5 rounded-lg hover:bg-white/80 transition-colors"
+            title="Copier le code"
           >
             {copied
               ? <CheckCircle size={14} className="text-emerald-500" />
               : <Copy size={14} className="text-gray-400 hover:text-gray-600" />
             }
+          </button>
+
+          {/* Supprimer */}
+          <button
+            onClick={() => setConfirmDelete(true)}
+            disabled={busy}
+            className="p-1.5 rounded-lg hover:bg-rose-50 transition-colors group"
+            title="Supprimer ce code PCS"
+          >
+            <Trash2 size={14} className="text-gray-300 group-hover:text-rose-500 transition-colors" />
           </button>
         </div>
 
@@ -173,9 +202,8 @@ function ExistingCodeRow({ code, email, firstName, lastName, countryCode, index,
           </AnimatePresence>
         </div>
 
-        {/* Ligne 3 : boutons */}
+        {/* Ligne 3 : boutons action */}
         <div className="grid grid-cols-2 gap-2">
-          {/* Mettre à jour uniquement */}
           <button
             onClick={() => updateMutation.mutate()}
             disabled={busy}
@@ -187,8 +215,6 @@ function ExistingCodeRow({ code, email, firstName, lastName, countryCode, index,
             }
             Mettre à jour
           </button>
-
-          {/* Mettre à jour + Envoyer par email */}
           <button
             onClick={() => sendMutation.mutate()}
             disabled={busy || !countryCode}
@@ -203,6 +229,58 @@ function ExistingCodeRow({ code, email, firstName, lastName, countryCode, index,
           </button>
         </div>
       </div>
+
+      {/* ── Confirmation de suppression (overlay) ── */}
+      <AnimatePresence>
+        {confirmDelete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-white/95 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center gap-3 p-5 z-10"
+          >
+            {/* Icône danger */}
+            <motion.div
+              initial={{ scale: 0, rotate: -10 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 18 }}
+              className="w-14 h-14 rounded-2xl bg-gradient-to-br from-rose-400 to-red-600 flex items-center justify-center shadow-lg shadow-rose-200"
+            >
+              <Trash2 size={24} className="text-white" />
+            </motion.div>
+
+            {/* Texte */}
+            <div className="text-center">
+              <p className="font-extrabold text-gray-800 text-sm">Supprimer ce code ?</p>
+              <p className="text-[11px] text-gray-500 mt-1 font-mono font-semibold">{code.code}</p>
+              <p className="text-[10px] text-rose-500 mt-1.5 flex items-center justify-center gap-1 font-medium">
+                <AlertTriangle size={9} /> Cette action est irréversible
+              </p>
+            </div>
+
+            {/* Boutons */}
+            <div className="flex gap-2 w-full">
+              <button
+                onClick={() => setConfirmDelete(false)}
+                disabled={deleteMutation.isPending}
+                className="flex-1 h-10 rounded-xl border-2 border-gray-200 bg-white text-gray-600 text-xs font-bold hover:bg-gray-50 transition-all"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => deleteMutation.mutate()}
+                disabled={deleteMutation.isPending}
+                className="flex-1 h-10 rounded-xl bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all shadow-md shadow-rose-200 disabled:opacity-60"
+              >
+                {deleteMutation.isPending
+                  ? <><Loader2 size={12} className="animate-spin" /> Suppression…</>
+                  : <><Trash2 size={12} /> Supprimer définitivement</>
+                }
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
