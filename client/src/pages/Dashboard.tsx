@@ -325,11 +325,7 @@ export default function Dashboard() {
                 <div className="flex-1">
                   <p className="text-white font-bold text-sm">Serveur & Réseaux Spay</p>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-white/60 text-[10px] font-mono">sys</span>
-                    <span className="text-white/40 text-[10px]">·</span>
-                    <span className="text-emerald-300 text-[10px] font-mono font-semibold">online</span>
-                    <span className="text-white/40 text-[10px]">·</span>
-                    <span className="text-white/60 text-[10px] font-mono">secure</span>
+                    <span className="text-white/70 text-[10px] font-medium">Plateforme européenne</span>
                   </div>
                 </div>
                 <ChevronRight size={16} className="text-white/60" />

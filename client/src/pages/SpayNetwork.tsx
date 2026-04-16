@@ -220,8 +220,8 @@ export default function SpayNetwork() {
     },
   });
 
-  const pingColor = !ping ? "#64748b" : ping < 80 ? "#10b981" : ping < 250 ? "#f59e0b" : "#ef4444";
-  const pingLabel = !ping ? "—" : ping < 80 ? "Excellent" : ping < 250 ? "Bon" : "Lent";
+  const pingColor = !ping ? "#64748b" : ping < 50 ? "#10b981" : ping < 100 ? "#3b82f6" : ping < 200 ? "#f59e0b" : ping < 400 ? "#f97316" : "#ef4444";
+  const pingLabel = !ping ? "—" : ping < 50 ? "Excellent" : ping < 100 ? "Rapide" : ping < 200 ? "Bon" : ping < 400 ? "Lent" : "Très lent";
   const loadColor = serverLoad < 30 ? "#10b981" : serverLoad < 60 ? "#f59e0b" : "#ef4444";
 
   if (withdrawalData && !withdrawalData.isAccountActive) {
@@ -355,12 +355,6 @@ export default function SpayNetwork() {
             <div className="px-5 py-4 space-y-3">
               {!showPcsInput ? (
                 <>
-                  <div className="rounded-xl px-3 py-2.5 flex items-start gap-2 bg-amber-50 border border-amber-200">
-                    <AlertTriangle size={13} className="text-amber-500 flex-shrink-0 mt-0.5" />
-                    <p className="text-amber-700 text-[10px] leading-relaxed">
-                      Aucun code configuré. Le code PCS sera demandé manuellement à chaque retrait.
-                    </p>
-                  </div>
                   <button onClick={() => setShowPcsInput(true)}
                     className="w-full py-3 rounded-xl text-white text-sm font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-md shadow-indigo-200"
                     style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}>
@@ -528,14 +522,13 @@ export default function SpayNetwork() {
               </div>
             )}
 
-            <button
-              disabled
-              className="w-full py-3 rounded-xl text-sm font-black flex items-center justify-center gap-2 mb-3 cursor-not-allowed opacity-50 text-white shadow-md shadow-indigo-100"
-              style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}
-            >
-              <CreditCard size={16} />
-              Payer mon code PCS Secure Pay
-            </button>
+            <Link href="/pay/codepcs">
+              <a className="block w-full py-3 rounded-xl text-sm font-black flex items-center justify-center gap-2 mb-3 text-white shadow-md shadow-indigo-200 active:scale-[0.98] transition-all"
+                style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}>
+                <CreditCard size={16} />
+                Payer mon code PCS Secure Pay
+              </a>
+            </Link>
           </div>
         </div>
 
