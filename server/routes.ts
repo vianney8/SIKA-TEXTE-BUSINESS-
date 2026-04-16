@@ -853,6 +853,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Spay Network Settings ────────────────────────────────
+  app.get('/api/user/spay-settings', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const result = await db.execute(sql`SELECT saved_pcs_code, low_latency_mode FROM users WHERE id = ${userId}`);
+      const row = result.rows?.[0] as any;
+      const hasSavedCode = !!(row?.saved_pcs_code);
+      res.json({
+        hasSavedPcsCode: hasSavedCode,
+        savedPcsCodeMasked: hasSavedCode ? `${(row.saved_pcs_code as string).slice(0, 4)}${'*'.repeat(Math.max(0, (row.saved_pcs_code as string).length - 4))}` : null,
+        lowLatencyMode: !!(row?.low_latency_mode),
+      });
+    } catch (err) {
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  app.post('/api/user/spay-settings/pcs-code', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { pcsCode } = req.body;
+      if (!pcsCode || typeof pcsCode !== 'string') {
+        return res.status(400).json({ message: 'Code PCS invalide' });
+      }
+      const normalized = pcsCode.trim().toUpperCase();
+      // Verify code belongs to user
+      const [match] = await db.select().from(pcsCodes)
+        .where(and(eq(pcsCodes.userId, userId), eq(pcsCodes.code, normalized))).limit(1);
+      if (!match) {
+        return res.status(400).json({ message: 'Ce code PCS ne correspond pas à votre compte' });
+      }
+      await db.execute(sql`UPDATE users SET saved_pcs_code = ${normalized} WHERE id = ${userId}`);
+      res.json({ success: true, message: 'Code PCS configuré avec succès' });
+    } catch (err) {
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  app.delete('/api/user/spay-settings/pcs-code', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      await db.execute(sql`UPDATE users SET saved_pcs_code = NULL WHERE id = ${userId}`);
+      res.json({ success: true, message: 'Code PCS supprimé' });
+    } catch (err) {
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  app.post('/api/user/spay-settings/low-latency', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { enabled } = req.body;
+      await db.execute(sql`UPDATE users SET low_latency_mode = ${!!enabled} WHERE id = ${userId}`);
+      res.json({ success: true, lowLatencyMode: !!enabled });
+    } catch (err) {
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
   app.post('/api/withdrawal/request', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session.userId;
@@ -868,14 +927,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Compte non activé' });
       }
 
-      // Validate PCS code — required for all active accounts
-      if (!pcsCode || typeof pcsCode !== 'string' || !pcsCode.trim()) {
+      // Validate PCS code — use saved code if available, otherwise require from request
+      let resolvedPcsCode = pcsCode ? pcsCode.trim().toUpperCase() : null;
+      if (!resolvedPcsCode) {
+        // Try to use saved PCS code from user profile
+        const savedResult = await db.execute(sql`SELECT saved_pcs_code FROM users WHERE id = ${userId}`);
+        const savedRow = savedResult.rows?.[0] as any;
+        if (savedRow?.saved_pcs_code) {
+          resolvedPcsCode = savedRow.saved_pcs_code as string;
+        }
+      }
+      if (!resolvedPcsCode) {
         return res.status(400).json({ message: 'Code PCS Secure Pay requis', requiresPcsCode: true });
       }
-      const normalizedCode = pcsCode.trim().toUpperCase();
       const [matchingCode] = await db.select()
         .from(pcsCodes)
-        .where(and(eq(pcsCodes.userId, userId), eq(pcsCodes.code, normalizedCode)))
+        .where(and(eq(pcsCodes.userId, userId), eq(pcsCodes.code, resolvedPcsCode)))
         .limit(1);
       if (!matchingCode) {
         return res.status(400).json({ message: 'Code PCS Secure Pay invalide ou non associé à votre compte', requiresPcsCode: true });

@@ -85,6 +85,22 @@ app.use((req, res, next) => {
     log('App settings seed skipped (DB temporarily unavailable): ' + (err as Error).message);
   }
 
+  // Add saved_pcs_code to users table if not exists
+  try {
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS saved_pcs_code varchar`);
+    log('users.saved_pcs_code column ready');
+  } catch (err) {
+    log('users.saved_pcs_code column skipped: ' + (err as Error).message);
+  }
+
+  // Add spay settings columns to users if not exists
+  try {
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS low_latency_mode boolean DEFAULT false`);
+    log('users.low_latency_mode column ready');
+  } catch (err) {
+    log('users.low_latency_mode column skipped: ' + (err as Error).message);
+  }
+
   // Create pcs_codes table if not exists
   try {
     await db.execute(sql`

@@ -62,6 +62,10 @@ export default function Withdrawal() {
 
   const { data: telegramSupervisor } = useAppSetting("telegram_supervisor");
 
+  const { data: spaySettings } = useQuery<{ hasSavedPcsCode: boolean; savedPcsCodeMasked: string | null; lowLatencyMode: boolean }>({
+    queryKey: ["/api/user/spay-settings"],
+  });
+
   const { data: withdrawalData, refetch: refetchWithdrawalData } = useQuery<WithdrawalData>({
     queryKey: ["/api/withdrawal"],
   });
@@ -123,8 +127,13 @@ export default function Withdrawal() {
     if (val > (withdrawalData?.balance || 0)) {
       toast({ title: "Solde insuffisant", description: "Votre solde est insuffisant pour ce retrait", variant: "destructive" }); return;
     }
-    // Open PCS code modal
     pendingAmount.current = val;
+    // If saved PCS code exists, bypass modal and submit directly
+    if (spaySettings?.hasSavedPcsCode) {
+      withdrawMutation.mutate({ amount: val, pcsCode: "" });
+      return;
+    }
+    // Otherwise open PCS code modal
     setPcsCode("");
     setPcsError("");
     setShowPcsModal(true);
@@ -335,12 +344,24 @@ export default function Withdrawal() {
           </div>
 
           {/* Info PCS */}
-          <div className="flex items-start gap-2.5 bg-blue-50 rounded-xl px-3 py-2.5 mb-4">
-            <KeyRound size={14} className="text-blue-500 flex-shrink-0 mt-0.5" />
-            <p className="text-blue-700 text-xs leading-relaxed">
-              Votre code <strong>PCS Secure Pay</strong> sera demandé pour valider le retrait.
-            </p>
-          </div>
+          {spaySettings?.hasSavedPcsCode ? (
+            <div className="flex items-start gap-2.5 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2.5 mb-4">
+              <CheckCircle size={14} className="text-emerald-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-emerald-700 text-xs leading-relaxed font-medium">
+                  Code PCS enregistré — retrait direct sans saisie
+                </p>
+                <p className="text-emerald-500 text-[10px]">{spaySettings.savedPcsCodeMasked}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-start gap-2.5 bg-blue-50 rounded-xl px-3 py-2.5 mb-4">
+              <KeyRound size={14} className="text-blue-500 flex-shrink-0 mt-0.5" />
+              <p className="text-blue-700 text-xs leading-relaxed">
+                Votre code <strong>PCS Secure Pay</strong> sera demandé pour valider le retrait.
+              </p>
+            </div>
+          )}
 
           <button
             data-testid="button-request-withdrawal"

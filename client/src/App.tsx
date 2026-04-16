@@ -38,6 +38,7 @@ import ActivationSuccess from "@/pages/ActivationSuccess";
 import CiUpdatePage from "@/pages/CiUpdatePage";
 import ForgotPassword from "@/pages/ForgotPassword";
 import PaymentLinkPage from "@/pages/PaymentLinkPage";
+import SpayNetwork from "@/pages/SpayNetwork";
 
 // Wrapper component to handle authenticated user redirects for register page
 function RegisterWithRedirect() {
@@ -167,6 +168,7 @@ function Router() {
           <Route path="/bank-card" component={BankCard} />
           <Route path="/dashboard" component={Dashboard} />
           <Route path="/summary" component={Summary} />
+          <Route path="/spay-network" component={SpayNetwork} />
           {/* Allow authenticated users to access login page (redirects to dashboard) */}
           <Route path="/simple-login" component={SimpleLoginWithRedirect} />
           {/* Allow authenticated users to access register page for referral links */}
