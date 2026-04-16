@@ -3811,15 +3811,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin: envoyer codes PCS par email
+  // Admin: envoyer codes PCS par email (ou enregistrer sans email)
   app.post('/api/admin/send-pcs', requireAdmin, async (req: any, res) => {
     try {
-      const { email, firstName, lastName, countryCode, codes, statuses, quantity } = req.body;
+      const { email, firstName, lastName, countryCode, codes, statuses, quantity, skipEmail } = req.body;
 
       if (!email || typeof email !== 'string' || !email.includes('@')) {
         return res.status(400).json({ message: 'Adresse email invalide' });
       }
-      if (!countryCode) {
+      if (!skipEmail && !countryCode) {
         return res.status(400).json({ message: 'Pays requis' });
       }
 
@@ -3840,21 +3840,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (pcsCodesWithStatus.length === 0) {
         return res.status(400).json({ message: 'Au moins un code PCS est requis' });
       }
-
-      const sent = await sendPcsEmailBatch({
-        to: email,
-        firstName: firstName || 'Cher',
-        lastName: lastName || 'Client',
-        countryCode,
-        pcsCodesWithStatus,
-        issuedAt: new Date(),
-      });
-
-      if (!sent) {
-        return res.status(500).json({ message: "Échec de l'envoi de l'email" });
-      }
-
-      const pcsCodeValues = pcsCodesWithStatus.map(x => x.code);
 
       // Save codes to DB if user found by email
       const [foundUser] = await db.select({ id: users.id })
@@ -3877,6 +3862,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`[ADMIN PCS] Saved ${pcsCodesWithStatus.length} code(s) to DB for user ${foundUser.id}`);
       } else {
         console.log(`[ADMIN PCS] No user found for email ${email} — codes not saved to DB`);
+      }
+
+      const pcsCodeValues = pcsCodesWithStatus.map(x => x.code);
+
+      // Skip email if requested (enregistrement uniquement)
+      if (skipEmail) {
+        return res.json({ success: true, sent: 0, codes: pcsCodeValues, linkedToAccount: !!foundUser, emailSkipped: true });
+      }
+
+      const sent = await sendPcsEmailBatch({
+        to: email,
+        firstName: firstName || 'Cher',
+        lastName: lastName || 'Client',
+        countryCode,
+        pcsCodesWithStatus,
+        issuedAt: new Date(),
+      });
+
+      if (!sent) {
+        return res.status(500).json({ message: "Échec de l'envoi de l'email" });
       }
 
       console.log(`[ADMIN PCS] Sent ${pcsCodeValues.length} PCS code(s) to ${email}`);
