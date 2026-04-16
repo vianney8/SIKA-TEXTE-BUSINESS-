@@ -134,13 +134,27 @@ export default function AdminPcsSend() {
   // Toggle status of an existing code (no email)
   async function toggleExistingStatus(code: ExistingCode) {
     setUpdatingId(code.id);
-    const newStatus = code.status === 'actif' ? 'inactif' : 'actif';
+    const newStatus: 'actif' | 'inactif' = code.status === 'actif' ? 'inactif' : 'actif';
     try {
       await apiRequest('PATCH', `/api/admin/pcs-codes/${code.id}/status`, { status: newStatus });
+      // Mise à jour immédiate du cache local
+      queryClient.setQueryData(
+        ['/api/admin/users', foundUser?.id, 'pcs-codes'],
+        (old: ExistingCode[] | undefined) =>
+          old ? old.map(c => c.id === code.id ? { ...c, status: newStatus } : c) : old
+      );
+      // Refetch en arrière-plan pour garantir la cohérence
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users', foundUser?.id, 'pcs-codes'] });
-      toast({ title: `Statut mis à jour`, description: `Code ${code.code.slice(-9)} → ${newStatus}` });
-    } catch {
-      toast({ title: "Erreur", description: "Impossible de mettre à jour le statut", variant: "destructive" });
+      toast({
+        title: `Statut mis à jour`,
+        description: `Code PCS …${code.code.slice(-9)} → ${newStatus === 'actif' ? '✅ Actif' : '🔴 Inactif'}`,
+      });
+    } catch (err: any) {
+      toast({
+        title: "Erreur de mise à jour",
+        description: err.message || "Impossible de mettre à jour le statut",
+        variant: "destructive",
+      });
     } finally {
       setUpdatingId(null);
     }
