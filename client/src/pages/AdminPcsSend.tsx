@@ -13,7 +13,8 @@ import { apiRequest } from "@/lib/queryClient";
 import {
   ArrowLeft, Mail, Plus, CheckCircle, Copy, RefreshCw, Send,
   UserCheck, Loader2, ShieldCheck, ShieldOff, Pencil, MailCheck,
-  Sparkles, Zap, Trash2, AlertTriangle,
+  Sparkles, Zap, Trash2, AlertTriangle, Users, ToggleLeft, ToggleRight,
+  ChevronLeft, ChevronRight, KeyRound, Bolt,
 } from "lucide-react";
 
 const COUNTRIES = [
@@ -374,6 +375,47 @@ export default function AdminPcsSend() {
 
   const userFound = lookupState === 'found' && !!foundUser;
   const busyNew = createOnlyMutation.isPending || createSendMutation.isPending;
+
+  /* ── Section 4 : Retraits Automatiques ── */
+  const [autoPage, setAutoPage] = useState(1);
+  const { data: autoData, isLoading: autoLoading, refetch: refetchAuto } = useQuery<{
+    users: { id: string; email: string; full_name: string | null; phone: string | null; auto_withdrawal_mode: string }[];
+    total: number; pages: number;
+  }>({
+    queryKey: ['/api/admin/auto-withdrawal-users', autoPage],
+    queryFn: async () => {
+      const res = await apiRequest('GET', `/api/admin/auto-withdrawal-users?page=${autoPage}`);
+      return res.json();
+    },
+    staleTime: 0,
+  });
+
+  /* ── Section 5 : Titulaires de Codes PCS ── */
+  const [pcsPage, setPcsPage] = useState(1);
+  const { data: pcsData, isLoading: pcsLoading, refetch: refetchPcs } = useQuery<{
+    users: { id: string; email: string; full_name: string | null; phone: string | null; auto_withdrawal_mode: string; pcs_count: number }[];
+    total: number; pages: number;
+  }>({
+    queryKey: ['/api/admin/pcs-holders', pcsPage],
+    queryFn: async () => {
+      const res = await apiRequest('GET', `/api/admin/pcs-holders?page=${pcsPage}`);
+      return res.json();
+    },
+    staleTime: 0,
+  });
+
+  const toggleWithdrawalMutation = useMutation({
+    mutationFn: async ({ userId, mode }: { userId: string; mode: 'auto' | 'manual' }) => {
+      const res = await apiRequest('POST', `/api/admin/users/${userId}/withdrawal-mode`, { mode });
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchAuto();
+      refetchPcs();
+      toast({ title: "✅ Mode de retrait mis à jour" });
+    },
+    onError: (err: any) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
+  });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-50/30 to-indigo-50/20">
@@ -787,6 +829,237 @@ export default function AdminPcsSend() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* ══════════════════════════════════════════════
+            SÉPARATEUR GLOBAL
+        ══════════════════════════════════════════════ */}
+        <div className="flex items-center gap-3 pt-4">
+          <div className="flex-1 h-px bg-gradient-to-r from-transparent via-slate-300 to-transparent" />
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200">
+            <Users size={11} className="text-slate-500" />
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Gestion Globale</span>
+          </div>
+          <div className="flex-1 h-px bg-gradient-to-r from-transparent via-slate-300 to-transparent" />
+        </div>
+
+        {/* ══════════════════════════════════════════════
+            SECTION 4 — Retraits Automatiques Activés
+        ══════════════════════════════════════════════ */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+          <div className="bg-white rounded-2xl shadow-lg shadow-orange-100 border border-orange-100 overflow-hidden">
+            {/* En-tête */}
+            <div className="bg-gradient-to-r from-orange-500 to-amber-500 px-5 py-3.5 flex items-center gap-3">
+              <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center">
+                <Bolt size={13} className="text-white" />
+              </div>
+              <div className="flex-1">
+                <span className="text-white font-bold text-sm">Retraits Automatiques Activés</span>
+                {autoData && (
+                  <span className="ml-2 bg-white/20 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                    {autoData.total} utilisateur{autoData.total !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+              <button onClick={() => refetchAuto()} className="w-7 h-7 rounded-lg bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors">
+                <RefreshCw size={12} className="text-white" />
+              </button>
+            </div>
+
+            <div className="p-4">
+              {autoLoading ? (
+                <div className="space-y-2">
+                  {[1,2,3].map(i => <div key={i} className="h-14 rounded-xl bg-slate-100 animate-pulse" />)}
+                </div>
+              ) : !autoData || autoData.users.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="w-12 h-12 rounded-2xl bg-orange-50 border-2 border-orange-100 flex items-center justify-center mx-auto mb-3">
+                    <Bolt size={20} className="text-orange-300" />
+                  </div>
+                  <p className="text-slate-500 text-sm font-medium">Aucun retrait automatique activé</p>
+                  <p className="text-slate-400 text-xs mt-1">Les utilisateurs avec le mode auto apparaîtront ici</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {autoData.users.map(user => (
+                    <div key={user.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5 bg-orange-50 border border-orange-100">
+                      {/* Avatar */}
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-400 to-amber-500 flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <span className="text-white text-xs font-black">
+                          {(user.full_name || user.email || '?')[0].toUpperCase()}
+                        </span>
+                      </div>
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-slate-800 font-bold text-xs truncate">{user.full_name || user.email}</p>
+                        <p className="text-slate-400 text-[10px] truncate font-mono">{user.email}</p>
+                        {user.phone && <p className="text-slate-400 text-[10px]">{user.phone}</p>}
+                      </div>
+                      {/* Badge + Toggle */}
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-[9px] font-black text-orange-600 bg-orange-100 border border-orange-200 px-2 py-0.5 rounded-full">
+                          ⚡ AUTO
+                        </span>
+                        <button
+                          onClick={() => toggleWithdrawalMutation.mutate({ userId: user.id, mode: 'manual' })}
+                          disabled={toggleWithdrawalMutation.isPending}
+                          className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-bold border-2 border-slate-200 text-slate-600 bg-white hover:bg-slate-50 active:scale-95 transition-all disabled:opacity-50"
+                          title="Désactiver le retrait automatique"
+                        >
+                          <ToggleRight size={14} className="text-orange-500" />
+                          Désactiver
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Pagination */}
+              {autoData && autoData.pages > 1 && (
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+                  <button
+                    onClick={() => setAutoPage(p => Math.max(1, p - 1))}
+                    disabled={autoPage === 1}
+                    className="flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronLeft size={14} /> Préc.
+                  </button>
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    Page {autoPage} / {autoData.pages}
+                  </span>
+                  <button
+                    onClick={() => setAutoPage(p => Math.min(autoData.pages, p + 1))}
+                    disabled={autoPage === autoData.pages}
+                    className="flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Suiv. <ChevronRight size={14} />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </motion.div>
+
+        {/* ══════════════════════════════════════════════
+            SECTION 5 — Titulaires de Codes PCS
+        ══════════════════════════════════════════════ */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.1 }}>
+          <div className="bg-white rounded-2xl shadow-lg shadow-violet-100 border border-violet-100 overflow-hidden">
+            {/* En-tête */}
+            <div className="bg-gradient-to-r from-violet-600 to-purple-600 px-5 py-3.5 flex items-center gap-3">
+              <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center">
+                <KeyRound size={13} className="text-white" />
+              </div>
+              <div className="flex-1">
+                <span className="text-white font-bold text-sm">Titulaires de Codes PCS</span>
+                {pcsData && (
+                  <span className="ml-2 bg-white/20 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                    {pcsData.total} utilisateur{pcsData.total !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+              <button onClick={() => refetchPcs()} className="w-7 h-7 rounded-lg bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors">
+                <RefreshCw size={12} className="text-white" />
+              </button>
+            </div>
+
+            {/* Légende */}
+            <div className="px-5 pt-3 pb-0">
+              <div className="flex items-center gap-2 text-[10px] text-violet-600 bg-violet-50 border border-violet-100 rounded-lg px-3 py-2 font-medium">
+                <KeyRound size={9} />
+                Activez le retrait automatique pour les utilisateurs ayant un code PCS valide
+              </div>
+            </div>
+
+            <div className="p-4">
+              {pcsLoading ? (
+                <div className="space-y-2">
+                  {[1,2,3].map(i => <div key={i} className="h-14 rounded-xl bg-slate-100 animate-pulse" />)}
+                </div>
+              ) : !pcsData || pcsData.users.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="w-12 h-12 rounded-2xl bg-violet-50 border-2 border-violet-100 flex items-center justify-center mx-auto mb-3">
+                    <KeyRound size={20} className="text-violet-300" />
+                  </div>
+                  <p className="text-slate-500 text-sm font-medium">Aucun titulaire de code PCS</p>
+                  <p className="text-slate-400 text-xs mt-1">Les utilisateurs avec au moins un code PCS apparaîtront ici</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {pcsData.users.map(user => {
+                    const isAuto = user.auto_withdrawal_mode === 'auto';
+                    return (
+                      <div key={user.id}
+                        className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-colors ${isAuto ? 'bg-orange-50 border-orange-100' : 'bg-slate-50 border-slate-100'}`}>
+                        {/* Avatar */}
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm ${isAuto ? 'bg-gradient-to-br from-orange-400 to-amber-500' : 'bg-gradient-to-br from-violet-500 to-purple-600'}`}>
+                          <span className="text-white text-xs font-black">
+                            {(user.full_name || user.email || '?')[0].toUpperCase()}
+                          </span>
+                        </div>
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-slate-800 font-bold text-xs truncate">{user.full_name || user.email}</p>
+                            <span className="text-[9px] font-black text-violet-600 bg-violet-100 border border-violet-200 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                              🔑 {user.pcs_count} PCS
+                            </span>
+                          </div>
+                          <p className="text-slate-400 text-[10px] truncate font-mono">{user.email}</p>
+                        </div>
+                        {/* Toggle */}
+                        <div className="flex-shrink-0">
+                          {isAuto ? (
+                            <button
+                              onClick={() => toggleWithdrawalMutation.mutate({ userId: user.id, mode: 'manual' })}
+                              disabled={toggleWithdrawalMutation.isPending}
+                              className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-bold border-2 border-slate-200 text-slate-600 bg-white hover:bg-slate-50 active:scale-95 transition-all disabled:opacity-50"
+                            >
+                              <ToggleRight size={14} className="text-orange-500" />
+                              Désactiver
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => toggleWithdrawalMutation.mutate({ userId: user.id, mode: 'auto' })}
+                              disabled={toggleWithdrawalMutation.isPending}
+                              className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-bold border-2 border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 active:scale-95 transition-all disabled:opacity-50"
+                            >
+                              <ToggleLeft size={14} className="text-emerald-500" />
+                              Activer auto
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Pagination */}
+              {pcsData && pcsData.pages > 1 && (
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+                  <button
+                    onClick={() => setPcsPage(p => Math.max(1, p - 1))}
+                    disabled={pcsPage === 1}
+                    className="flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronLeft size={14} /> Préc.
+                  </button>
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    Page {pcsPage} / {pcsData.pages}
+                  </span>
+                  <button
+                    onClick={() => setPcsPage(p => Math.min(pcsData.pages, p + 1))}
+                    disabled={pcsPage === pcsData.pages}
+                    className="flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Suiv. <ChevronRight size={14} />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </motion.div>
 
       </div>
     </div>

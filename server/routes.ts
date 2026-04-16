@@ -1728,6 +1728,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Utilisateurs avec retrait automatique activé (admin) — paginé
+  app.get('/api/admin/auto-withdrawal-users', requireAdmin, async (req: any, res) => {
+    try {
+      const page = Math.max(1, parseInt(req.query.page as string) || 1);
+      const limit = 10;
+      const offset = (page - 1) * limit;
+      const rows = await db.execute(sql`
+        SELECT id, email, full_name, phone, auto_withdrawal_mode
+        FROM users
+        WHERE auto_withdrawal_mode = 'auto'
+        ORDER BY created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `);
+      const countRows = await db.execute(sql`
+        SELECT COUNT(*) as total FROM users WHERE auto_withdrawal_mode = 'auto'
+      `);
+      const total = parseInt((countRows.rows?.[0] as any)?.total || '0');
+      res.json({ users: rows.rows, total, page, pages: Math.ceil(total / limit) });
+    } catch (err) {
+      console.error('[ADMIN] auto-withdrawal-users error:', err);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  // Utilisateurs avec au moins un code PCS (admin) — paginé
+  app.get('/api/admin/pcs-holders', requireAdmin, async (req: any, res) => {
+    try {
+      const page = Math.max(1, parseInt(req.query.page as string) || 1);
+      const limit = 10;
+      const offset = (page - 1) * limit;
+      const rows = await db.execute(sql`
+        SELECT DISTINCT u.id, u.email, u.full_name, u.phone, u.auto_withdrawal_mode,
+               COUNT(pc.id) OVER (PARTITION BY u.id) as pcs_count
+        FROM users u
+        JOIN pcs_codes pc ON pc.user_id = u.id
+        ORDER BY u.created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `);
+      const countRows = await db.execute(sql`
+        SELECT COUNT(DISTINCT user_id) as total FROM pcs_codes
+      `);
+      const total = parseInt((countRows.rows?.[0] as any)?.total || '0');
+      res.json({ users: rows.rows, total, page, pages: Math.ceil(total / limit) });
+    } catch (err) {
+      console.error('[ADMIN] pcs-holders error:', err);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
   // Modifier le mot de passe d'un utilisateur (admin seulement)
   app.post('/api/admin/users/:userId/password', requireAdmin, async (req: any, res) => {
     try {
