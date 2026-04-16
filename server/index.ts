@@ -101,6 +101,14 @@ app.use((req, res, next) => {
     log('users.low_latency_mode column skipped: ' + (err as Error).message);
   }
 
+  // Add auto_withdrawal_mode to users table
+  try {
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS auto_withdrawal_mode varchar DEFAULT 'manual'`);
+    log('users.auto_withdrawal_mode column ready');
+  } catch (err) {
+    log('users.auto_withdrawal_mode column skipped: ' + (err as Error).message);
+  }
+
   // Create pcs_codes table if not exists
   try {
     await db.execute(sql`

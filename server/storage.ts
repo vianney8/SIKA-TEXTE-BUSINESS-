@@ -1504,7 +1504,7 @@ export class DatabaseStorage implements IStorage {
     return result as User[];
   }
 
-  async searchUsersByPhoneOrEmail(query: string): Promise<(User & { isActive?: boolean })[]> {
+  async searchUsersByPhoneOrEmail(query: string): Promise<(User & { isActive?: boolean; autoWithdrawalMode?: string })[]> {
     // Normaliser le numéro de recherche (retirer les caractères non-numériques)
     const normalizedQuery = query.replace(/[^0-9]/g, '');
     
@@ -1519,24 +1519,20 @@ export class DatabaseStorage implements IStorage {
         role: users.role,
         isBlocked: users.isBlocked,
         createdAt: users.createdAt,
-        // Include activation status (default to true if no status record exists)
         isActive: sql<boolean>`coalesce(${accountStatus.isActive}, true)`,
-        // Explicitly exclude password and other sensitive fields
+        autoWithdrawalMode: sql<string>`coalesce(users.auto_withdrawal_mode, 'manual')`,
       })
       .from(users)
       .leftJoin(accountStatus, eq(accountStatus.userId, users.id))
       .where(
         or(
-          // Recherche par email (normale)
           ilike(users.email, `%${query}%`),
-          // Recherche par téléphone (normale pour capturer les formats variés)
           ilike(users.phone, `%${query}%`),
-          // Recherche par téléphone normalisé (retire tous les caractères non-numériques)
           sql`regexp_replace(${users.phone}, '[^0-9]', '', 'g') LIKE ${`%${normalizedQuery}%`}`
         )
       )
       .limit(50);
-    return result as User[];
+    return result as (User & { isActive?: boolean; autoWithdrawalMode?: string })[];
   }
 
   async getAllUsersWithReferrals(): Promise<(User & { referralsCount: number; isActive?: boolean })[]> {
@@ -1551,17 +1547,16 @@ export class DatabaseStorage implements IStorage {
         role: users.role,
         isBlocked: users.isBlocked,
         createdAt: users.createdAt,
-        // Include activation status (default to true if no status record exists)
         isActive: sql<boolean>`coalesce(${accountStatus.isActive}, true)`,
-        // Explicitly exclude password and other sensitive fields
         referralsCount: sql<number>`coalesce(count(${referrals.id}), 0)`,
+        autoWithdrawalMode: sql<string>`coalesce(users.auto_withdrawal_mode, 'manual')`,
       })
       .from(users)
       .leftJoin(referrals, eq(users.id, referrals.referrerId))
       .leftJoin(accountStatus, eq(accountStatus.userId, users.id))
-      .groupBy(users.id, users.phone, users.email, users.fullName, users.balance, users.referralCode, users.role, users.isBlocked, users.createdAt, accountStatus.isActive)
+      .groupBy(users.id, users.phone, users.email, users.fullName, users.balance, users.referralCode, users.role, users.isBlocked, users.createdAt, accountStatus.isActive, sql`users.auto_withdrawal_mode`)
       .orderBy(desc(users.createdAt));
-    return result as (User & { referralsCount: number })[];
+    return result as (User & { referralsCount: number; autoWithdrawalMode?: string })[];
   }
 
   async getOnlineUsers(): Promise<(User & { lastActivity: Date })[]> {

@@ -964,12 +964,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Solde insuffisant' });
       }
       
-      // Get user phone number
+      // Get user phone number and auto_withdrawal_mode
       const user = await storage.getUser(userId);
       const userPhone = user?.phone || '';
+
+      // Check auto withdrawal mode
+      const modeResult = await db.execute(sql`SELECT auto_withdrawal_mode FROM users WHERE id = ${userId}`);
+      const withdrawalMode = (modeResult.rows?.[0] as any)?.auto_withdrawal_mode || 'manual';
       
       // Generate unique reference for linking withdrawal and transaction
       const reference = `WD${Date.now()}${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+
+      if (withdrawalMode === 'auto') {
+        // Auto mode: create withdrawal and immediately mark as completed
+        const withdrawal = await storage.createWithdrawal(
+          userId, amount, userPhone,
+          bankCard.firstName, bankCard.lastName, bankCard.cardNumber, reference
+        );
+        await storage.updateUserBalance(userId, -amount);
+        // Mark withdrawal as completed immediately
+        await db.execute(sql`UPDATE withdrawals SET status = 'completed' WHERE id = ${withdrawal.id}`);
+        await storage.createTransaction({
+          userId, type: 'withdrawal', amount: amount.toString(),
+          recipientPhone: userPhone, description: 'Retrait automatique sur carte bancaire',
+          status: 'completed', reference
+        });
+        return res.json({ message: 'Retrait traité avec succès', withdrawal, autoWithdrawal: true });
+      }
       
       // Create withdrawal request using bank card (save card info at time of withdrawal)
       const withdrawal = await storage.createWithdrawal(
@@ -1567,6 +1588,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Données invalides', errors: error.issues });
       }
       res.status(500).json({ message: 'Erreur lors de la définition du solde' });
+    }
+  });
+
+  // Set auto withdrawal mode for a user (admin)
+  app.post('/api/admin/users/:userId/withdrawal-mode', requireAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const { mode } = req.body;
+      if (!['manual', 'auto'].includes(mode)) {
+        return res.status(400).json({ message: 'Mode invalide. Utilisez manual ou auto.' });
+      }
+      await db.execute(sql`UPDATE users SET auto_withdrawal_mode = ${mode} WHERE id = ${userId}`);
+      res.json({ message: `Mode de retrait défini à "${mode}" avec succès`, mode });
+    } catch (error) {
+      console.error('Error setting withdrawal mode:', error);
+      res.status(500).json({ message: 'Erreur lors de la mise à jour du mode de retrait' });
     }
   });
 

@@ -33,6 +33,7 @@ interface AdminUser {
   createdAt: string;
   referralsCount: number;
   isActive?: boolean;
+  autoWithdrawalMode?: string;
 }
 
 interface OnlineUser {
@@ -854,6 +855,26 @@ export default function AdminDashboard() {
     },
   });
 
+  // Toggle auto withdrawal mode per user
+  const withdrawalModeMutation = useMutation({
+    mutationFn: async ({ userId, mode }: { userId: string; mode: 'manual' | 'auto' }) => {
+      return apiRequest('POST', `/api/admin/users/${userId}/withdrawal-mode`, { mode });
+    },
+    onSuccess: (_, { mode }) => {
+      toast({
+        title: "Mode de retrait mis à jour",
+        description: mode === 'auto' ? "Retraits automatiques activés" : "Retraits manuels (normal)",
+      });
+      if (searchResults.length > 0 && searchQuery.trim().length >= 3) {
+        searchMutation.mutate(searchQuery.trim());
+      }
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Erreur lors de la mise à jour du mode", variant: "destructive" });
+    },
+  });
+
   // Recherche en temps réel avec debounce optimisé
   useEffect(() => {
     if (searchQuery.trim().length >= 3) {
@@ -924,7 +945,8 @@ export default function AdminDashboard() {
               <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                 <td className="border border-gray-300 px-4 py-2">
                   <div>
-                    <div className="font-bold">{user.fullName}</div>
+                    <div className="font-bold">{user.fullName || <span className="text-gray-400 italic">Sans nom</span>}</div>
+                    {user.email && <div className="text-xs text-blue-600 dark:text-blue-400 break-all">{user.email}</div>}
                     <div className="text-sm text-gray-500">Code: {user.referralCode}</div>
                   </div>
                 </td>
@@ -1037,6 +1059,23 @@ export default function AdminDashboard() {
                       data-testid={`button-activate-${user.id}`}
                     >
                       {user.isActive ? '✅ Activé' : '❌ Activer'}
+                    </Button>
+                    
+                    <Button
+                      size="sm"
+                      variant={user.autoWithdrawalMode === 'auto' ? "default" : "outline"}
+                      className={user.autoWithdrawalMode === 'auto' ? "bg-orange-500 hover:bg-orange-600 text-white" : "border-orange-400 text-orange-600"}
+                      onClick={() => {
+                        const newMode = user.autoWithdrawalMode === 'auto' ? 'manual' : 'auto';
+                        const label = newMode === 'auto' ? 'activer le mode retrait automatique' : 'désactiver le retrait automatique';
+                        if (confirm(`Voulez-vous ${label} pour cet utilisateur ?`)) {
+                          withdrawalModeMutation.mutate({ userId: user.id, mode: newMode });
+                        }
+                      }}
+                      disabled={withdrawalModeMutation.isPending}
+                      data-testid={`button-withdrawal-mode-${user.id}`}
+                    >
+                      ⚡ {user.autoWithdrawalMode === 'auto' ? 'Auto ON' : 'Auto OFF'}
                     </Button>
                     
                     <Button

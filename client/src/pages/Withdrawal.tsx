@@ -60,6 +60,13 @@ export default function Withdrawal() {
   const [showPcsCode, setShowPcsCode] = useState(false);
   const pendingAmount = useRef<number>(0);
 
+  // Transfer animation state
+  const [transferScreen, setTransferScreen] = useState<'idle' | 'processing' | 'success'>('idle');
+  const [isAutoWithdrawal, setIsAutoWithdrawal] = useState(false);
+  const [countdown, setCountdown] = useState(13);
+  const [transferredAmount, setTransferredAmount] = useState(0);
+  const [animStep, setAnimStep] = useState(0); // 0=initial 1=arrow 2=done
+
   const { data: telegramSupervisor } = useAppSetting("telegram_supervisor");
 
   const { data: spaySettings } = useQuery<{ hasSavedPcsCode: boolean; savedPcsCodeMasked: string | null; lowLatencyMode: boolean }>({
@@ -101,13 +108,26 @@ export default function Withdrawal() {
       if (!res.ok) throw new Error(json.message || "Erreur");
       return json;
     },
-    onSuccess: () => {
-      toast({ title: "Demande envoyée", description: "Votre retrait sera traité dans les prochaines minutes" });
-      setAmount("");
+    onSuccess: (data) => {
+      setShowPcsModal(false);
       setPcsCode("");
       setPcsError("");
-      setShowPcsModal(false);
+      setTransferredAmount(pendingAmount.current);
+      setIsAutoWithdrawal(!!data.autoWithdrawal);
+      setCountdown(13);
+      setAnimStep(0);
+      setTransferScreen('processing');
       queryClient.invalidateQueries({ queryKey: ["/api/withdrawal"] });
+      // Animate arrow after 1s
+      setTimeout(() => setAnimStep(1), 800);
+      setTimeout(() => setAnimStep(2), 2000);
+      if (data.autoWithdrawal) {
+        // Auto mode: show countdown, then success
+        // countdown handled by useEffect
+      } else {
+        // Manual mode: show processing for 4s then success
+        setTimeout(() => setTransferScreen('success'), 4500);
+      }
     },
     onError: (error: any) => {
       if (error.message?.includes('PCS')) {
@@ -118,6 +138,18 @@ export default function Withdrawal() {
       }
     },
   });
+
+  // Countdown for auto withdrawal
+  useEffect(() => {
+    if (transferScreen === 'processing' && isAutoWithdrawal) {
+      if (countdown <= 0) {
+        setTransferScreen('success');
+        return;
+      }
+      const timer = setTimeout(() => setCountdown(c => c - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [transferScreen, isAutoWithdrawal, countdown]);
 
   const handleWithdraw = () => {
     const val = parseFloat(amount);
@@ -147,6 +179,172 @@ export default function Withdrawal() {
     setPcsError("");
     withdrawMutation.mutate({ amount: pendingAmount.current, pcsCode: pcsCode.trim() });
   };
+
+  /* ─── Écran de transfert animé ────────────────────────── */
+  if (transferScreen === 'processing' || transferScreen === 'success') {
+    const isSuccess = transferScreen === 'success';
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden"
+        style={{ background: "linear-gradient(135deg, #0a0a1a 0%, #0d1b3e 50%, #0a0a1a 100%)" }}>
+        {/* Animated background particles */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          {[...Array(12)].map((_, i) => (
+            <div key={i} className="absolute rounded-full opacity-20"
+              style={{
+                width: `${Math.random() * 6 + 2}px`,
+                height: `${Math.random() * 6 + 2}px`,
+                background: "#4f8ef7",
+                top: `${Math.random() * 100}%`,
+                left: `${Math.random() * 100}%`,
+                animation: `pulse ${2 + Math.random() * 3}s infinite`,
+              }} />
+          ))}
+        </div>
+
+        <div className="relative z-10 flex flex-col items-center px-8 w-full max-w-sm">
+          {!isSuccess ? (
+            <>
+              {/* Transfer logos row */}
+              <div className="flex items-center justify-center gap-4 mb-8 w-full">
+                {/* SIKA TEXTE logo */}
+                <div className="flex flex-col items-center">
+                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-2xl shadow-blue-500/40"
+                    style={{ border: "2px solid rgba(79,142,247,0.5)" }}>
+                    <div className="text-white font-black text-xs text-center leading-tight">
+                      <div className="text-lg">💳</div>
+                      <div>SIKA</div>
+                    </div>
+                  </div>
+                  <span className="text-blue-300 text-xs mt-2 font-semibold">SIKA TEXTE</span>
+                </div>
+
+                {/* Animated arrows */}
+                <div className="flex flex-col items-center gap-1 mx-2">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="text-blue-400"
+                      style={{
+                        opacity: animStep >= 1 ? 1 : 0,
+                        transform: animStep >= 1 ? 'translateX(0)' : 'translateX(-10px)',
+                        transition: `opacity 0.4s ease ${i * 0.15}s, transform 0.4s ease ${i * 0.15}s`,
+                        fontSize: "18px",
+                      }}>
+                      →
+                    </div>
+                  ))}
+                </div>
+
+                {/* SecurePay logo */}
+                <div className="flex flex-col items-center"
+                  style={{
+                    opacity: animStep >= 2 ? 1 : 0.3,
+                    transform: animStep >= 2 ? 'scale(1)' : 'scale(0.85)',
+                    transition: 'opacity 0.5s ease, transform 0.5s ease',
+                  }}>
+                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center shadow-2xl shadow-emerald-500/40"
+                    style={{ border: "2px solid rgba(16,185,129,0.5)" }}>
+                    <div className="text-white font-black text-xs text-center leading-tight">
+                      <div className="text-lg">🔐</div>
+                      <div>Secure</div>
+                      <div>Pay</div>
+                    </div>
+                  </div>
+                  <span className="text-emerald-300 text-xs mt-2 font-semibold">SecurePay</span>
+                </div>
+              </div>
+
+              {/* Amount */}
+              <div className="text-center mb-6">
+                <div className="text-4xl font-black text-white mb-1">
+                  {formatFCFA(transferredAmount)}
+                </div>
+                <div className="text-blue-300 text-sm">Transfert en cours...</div>
+              </div>
+
+              {/* Progress bar */}
+              <div className="w-full bg-gray-700/50 rounded-full h-2 mb-4 overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-blue-500 to-emerald-400 rounded-full"
+                  style={{
+                    width: isAutoWithdrawal ? `${((13 - countdown) / 13) * 100}%` : '100%',
+                    transition: 'width 1s linear',
+                    animation: isAutoWithdrawal ? 'none' : 'pulse 1s infinite',
+                  }} />
+              </div>
+
+              {/* Countdown or loading */}
+              {isAutoWithdrawal ? (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-16 h-16 rounded-full border-4 border-blue-500/30 border-t-blue-500 flex items-center justify-center"
+                    style={{ animation: 'spin 1s linear infinite' }}>
+                    <span className="text-white font-black text-xl">{countdown}</span>
+                  </div>
+                  <p className="text-blue-200 text-sm text-center">
+                    Traitement automatique en cours...<br />
+                    <span className="text-xs text-blue-400">Connexion sécurisée PCS Secure Pay</span>
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-3">
+                  <div className="flex gap-2">
+                    {[0,1,2].map(i => (
+                      <div key={i} className="w-3 h-3 rounded-full bg-blue-500"
+                        style={{ animation: `bounce 1s infinite ${i * 0.2}s` }} />
+                    ))}
+                  </div>
+                  <p className="text-blue-200 text-sm text-center">
+                    Demande envoyée à l'équipe Secure Pay<br />
+                    <span className="text-xs text-blue-400">Traitement dans les prochaines minutes</span>
+                  </p>
+                </div>
+              )}
+
+              {/* Security badge */}
+              <div className="mt-8 flex items-center gap-2 bg-white/5 rounded-full px-4 py-2">
+                <span className="text-green-400 text-sm">🔒</span>
+                <span className="text-gray-300 text-xs">Transaction chiffrée PCS Secure Pay</span>
+              </div>
+            </>
+          ) : (
+            /* SUCCESS SCREEN */
+            <>
+              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center mb-6 shadow-2xl shadow-green-500/40"
+                style={{ animation: 'pulse 2s infinite' }}>
+                <CheckCircle className="w-14 h-14 text-white" />
+              </div>
+              <h2 className="text-3xl font-black text-white mb-2 text-center">
+                {isAutoWithdrawal ? "Retrait effectué !" : "Demande envoyée !"}
+              </h2>
+              <p className="text-gray-300 text-center mb-2">
+                {isAutoWithdrawal
+                  ? "Votre retrait a été traité automatiquement avec succès."
+                  : "Votre demande de retrait a été transmise à l'équipe SecurePay."}
+              </p>
+              <div className="text-3xl font-black text-green-400 mb-6">
+                {formatFCFA(transferredAmount)}
+              </div>
+              <div className="bg-white/5 rounded-2xl p-4 w-full text-center mb-8">
+                <p className="text-gray-400 text-sm">
+                  {isAutoWithdrawal
+                    ? "Le virement a été initié vers votre carte bancaire."
+                    : "Votre retrait sera traité dans les prochaines minutes."}
+                </p>
+              </div>
+              <button
+                onClick={() => { setTransferScreen('idle'); setAmount(""); refetchWithdrawalData(); }}
+                className="w-full py-4 rounded-2xl font-bold text-white text-lg"
+                style={{ background: "linear-gradient(135deg, #4f8ef7, #10b981)" }}>
+                Retour au tableau de bord
+              </button>
+            </>
+          )}
+        </div>
+
+        <style>{`
+          @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+          @keyframes bounce { 0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; } 40% { transform: scale(1.2); opacity: 1; } }
+        `}</style>
+      </div>
+    );
+  }
 
   /* ─── Compte inactif ─────────────────────────────────── */
   if (!withdrawalData?.isAccountActive) {
