@@ -3,7 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import {
   CreditCard, AlertTriangle, Shield, Banknote,
   MessageCircle, Edit3, CheckCircle,
-  ArrowDownCircle, Send, ChevronRight, KeyRound, Eye, EyeOff, Lock
+  ArrowDownCircle, Send, ChevronRight, KeyRound, Eye, EyeOff, Lock,
+  Wallet, ShieldCheck, Smartphone, ChevronRight as ArrowRight
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -185,153 +186,240 @@ export default function Withdrawal() {
     const isSuccess = transferScreen === 'success';
     return (
       <div className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden"
-        style={{ background: "linear-gradient(135deg, #0a0a1a 0%, #0d1b3e 50%, #0a0a1a 100%)" }}>
-        {/* Animated background particles */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {[...Array(12)].map((_, i) => (
-            <div key={i} className="absolute rounded-full opacity-20"
-              style={{
-                width: `${Math.random() * 6 + 2}px`,
-                height: `${Math.random() * 6 + 2}px`,
-                background: "#4f8ef7",
-                top: `${Math.random() * 100}%`,
-                left: `${Math.random() * 100}%`,
-                animation: `pulse ${2 + Math.random() * 3}s infinite`,
-              }} />
-          ))}
-        </div>
+        style={{ background: "linear-gradient(160deg, #050d1f 0%, #0a1a3a 45%, #071224 100%)" }}>
 
-        <div className="relative z-10 flex flex-col items-center px-8 w-full max-w-sm">
+        {/* Subtle grid background */}
+        <div className="absolute inset-0 pointer-events-none"
+          style={{ backgroundImage: "radial-gradient(circle at 50% 50%, rgba(59,130,246,0.07) 0%, transparent 70%)" }} />
+
+        <div className="relative z-10 flex flex-col items-center px-6 w-full max-w-sm">
           {!isSuccess ? (
             <>
-              {/* Transfer logos row */}
-              <div className="flex items-center justify-center gap-4 mb-8 w-full">
-                {/* SIKA TEXTE logo */}
+              {/* ── Three logos row: SIKApay → PCS Spay → MobileMoney ── */}
+              <div className="flex items-center justify-center w-full mb-10 gap-2">
+
+                {/* SIKApay */}
                 <div className="flex flex-col items-center">
-                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-2xl shadow-blue-500/40"
-                    style={{ border: "2px solid rgba(79,142,247,0.5)" }}>
-                    <div className="text-white font-black text-xs text-center leading-tight">
-                      <div className="text-lg">💳</div>
-                      <div>SIKA</div>
-                    </div>
+                  <div className="w-[72px] h-[72px] rounded-[20px] flex flex-col items-center justify-center gap-1 shadow-2xl"
+                    style={{
+                      background: "linear-gradient(145deg, #1a56db, #1e40af)",
+                      border: "1.5px solid rgba(96,165,250,0.45)",
+                      boxShadow: "0 8px 32px rgba(30,64,175,0.55)",
+                    }}>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                      <rect x="2" y="5" width="20" height="14" rx="3" fill="white" fillOpacity="0.18"/>
+                      <rect x="2" y="5" width="20" height="14" rx="3" stroke="white" strokeWidth="1.8"/>
+                      <rect x="2" y="9" width="20" height="3" fill="white" fillOpacity="0.55"/>
+                      <rect x="5" y="14" width="5" height="2" rx="1" fill="white" fillOpacity="0.8"/>
+                      <rect x="12" y="14" width="3" height="2" rx="1" fill="white" fillOpacity="0.5"/>
+                    </svg>
+                    <span className="text-white font-black text-[9px] tracking-wider leading-none">SIKA</span>
                   </div>
-                  <span className="text-blue-300 text-xs mt-2 font-semibold">SIKA TEXTE</span>
+                  <span className="text-blue-300 text-[10px] font-bold mt-1.5 tracking-wide">SIKApay</span>
                 </div>
 
-                {/* Animated arrows */}
-                <div className="flex flex-col items-center gap-1 mx-2">
-                  {[0, 1, 2].map((i) => (
-                    <div key={i} className="text-blue-400"
-                      style={{
-                        opacity: animStep >= 1 ? 1 : 0,
-                        transform: animStep >= 1 ? 'translateX(0)' : 'translateX(-10px)',
-                        transition: `opacity 0.4s ease ${i * 0.15}s, transform 0.4s ease ${i * 0.15}s`,
-                        fontSize: "18px",
-                      }}>
-                      →
-                    </div>
+                {/* Arrow 1 */}
+                <div className="flex flex-col items-center gap-[3px] mx-1"
+                  style={{ opacity: animStep >= 1 ? 1 : 0, transition: 'opacity 0.5s ease' }}>
+                  {[0,1,2].map(i => (
+                    <svg key={i} width="12" height="8" viewBox="0 0 12 8" fill="none"
+                      style={{ opacity: 0.4 + i * 0.2 }}>
+                      <path d="M1 4h10M7 1l4 3-4 3" stroke="#60a5fa" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
                   ))}
                 </div>
 
-                {/* SecurePay logo */}
+                {/* PCS Spay — CENTER (slightly larger) */}
                 <div className="flex flex-col items-center"
                   style={{
-                    opacity: animStep >= 2 ? 1 : 0.3,
-                    transform: animStep >= 2 ? 'scale(1)' : 'scale(0.85)',
+                    opacity: animStep >= 1 ? 1 : 0.3,
+                    transform: animStep >= 1 ? 'scale(1.08)' : 'scale(0.9)',
                     transition: 'opacity 0.5s ease, transform 0.5s ease',
                   }}>
-                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center shadow-2xl shadow-emerald-500/40"
-                    style={{ border: "2px solid rgba(16,185,129,0.5)" }}>
-                    <div className="text-white font-black text-xs text-center leading-tight">
-                      <div className="text-lg">🔐</div>
-                      <div>Secure</div>
-                      <div>Pay</div>
-                    </div>
+                  <div className="w-[80px] h-[80px] rounded-[22px] flex flex-col items-center justify-center gap-1 shadow-2xl"
+                    style={{
+                      background: "linear-gradient(145deg, #6d28d9, #4c1d95)",
+                      border: "1.5px solid rgba(167,139,250,0.5)",
+                      boxShadow: "0 10px 40px rgba(109,40,217,0.6)",
+                    }}>
+                    <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+                      <path d="M12 2L4 6v6c0 5.25 3.5 10.15 8 11.35C16.5 22.15 20 17.25 20 12V6L12 2Z" fill="white" fillOpacity="0.12" stroke="white" strokeWidth="1.6"/>
+                      <path d="M9 12l2 2 4-4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    <span className="text-white font-black text-[8px] tracking-widest leading-none">PCS</span>
                   </div>
-                  <span className="text-emerald-300 text-xs mt-2 font-semibold">SecurePay</span>
+                  <span className="text-purple-300 text-[10px] font-bold mt-1.5 tracking-wide">PCS Spay</span>
+                </div>
+
+                {/* Arrow 2 */}
+                <div className="flex flex-col items-center gap-[3px] mx-1"
+                  style={{ opacity: animStep >= 2 ? 1 : 0, transition: 'opacity 0.5s ease 0.2s' }}>
+                  {[0,1,2].map(i => (
+                    <svg key={i} width="12" height="8" viewBox="0 0 12 8" fill="none"
+                      style={{ opacity: 0.4 + i * 0.2 }}>
+                      <path d="M1 4h10M7 1l4 3-4 3" stroke="#fb923c" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  ))}
+                </div>
+
+                {/* MobileMoney */}
+                <div className="flex flex-col items-center"
+                  style={{
+                    opacity: animStep >= 2 ? 1 : 0.25,
+                    transform: animStep >= 2 ? 'scale(1)' : 'scale(0.85)',
+                    transition: 'opacity 0.5s ease 0.2s, transform 0.5s ease 0.2s',
+                  }}>
+                  <div className="w-[72px] h-[72px] rounded-[20px] flex flex-col items-center justify-center gap-1 shadow-2xl"
+                    style={{
+                      background: "linear-gradient(145deg, #ea580c, #c2410c)",
+                      border: "1.5px solid rgba(251,146,60,0.45)",
+                      boxShadow: "0 8px 32px rgba(234,88,12,0.55)",
+                    }}>
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                      <rect x="7" y="2" width="10" height="20" rx="3" fill="white" fillOpacity="0.15" stroke="white" strokeWidth="1.7"/>
+                      <rect x="9.5" y="4" width="5" height="2" rx="1" fill="white" fillOpacity="0.6"/>
+                      <circle cx="12" cy="18" r="1.2" fill="white" fillOpacity="0.8"/>
+                      <rect x="9" y="8" width="6" height="7" rx="1" fill="white" fillOpacity="0.3"/>
+                    </svg>
+                    <span className="text-white font-black text-[8px] tracking-wider leading-none">MOBILE</span>
+                  </div>
+                  <span className="text-orange-300 text-[10px] font-bold mt-1.5 tracking-wide">MobileMoney</span>
                 </div>
               </div>
 
               {/* Amount */}
               <div className="text-center mb-6">
-                <div className="text-4xl font-black text-white mb-1">
+                <div className="text-4xl font-black text-white mb-1 tracking-tight">
                   {formatFCFA(transferredAmount)}
                 </div>
-                <div className="text-blue-300 text-sm">Transfert en cours...</div>
+                <div className="flex items-center justify-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400" style={{ animation: 'blink 1.2s infinite' }} />
+                  <span className="text-blue-300 text-sm">Transfert en cours</span>
+                </div>
               </div>
 
               {/* Progress bar */}
-              <div className="w-full bg-gray-700/50 rounded-full h-2 mb-4 overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-blue-500 to-emerald-400 rounded-full"
+              <div className="w-full bg-white/10 rounded-full h-1.5 mb-6 overflow-hidden">
+                <div className="h-full rounded-full"
                   style={{
-                    width: isAutoWithdrawal ? `${((13 - countdown) / 13) * 100}%` : '100%',
-                    transition: 'width 1s linear',
-                    animation: isAutoWithdrawal ? 'none' : 'pulse 1s infinite',
+                    background: "linear-gradient(90deg, #3b82f6, #8b5cf6, #f97316)",
+                    width: isAutoWithdrawal ? `${((13 - countdown) / 13) * 100}%` : '75%',
+                    transition: isAutoWithdrawal ? 'width 1s linear' : 'none',
+                    animation: isAutoWithdrawal ? 'none' : 'progressPulse 2s ease-in-out infinite',
                   }} />
               </div>
 
               {/* Countdown or loading */}
               {isAutoWithdrawal ? (
-                <div className="flex flex-col items-center gap-2">
-                  <div className="w-16 h-16 rounded-full border-4 border-blue-500/30 border-t-blue-500 flex items-center justify-center"
-                    style={{ animation: 'spin 1s linear infinite' }}>
-                    <span className="text-white font-black text-xl">{countdown}</span>
+                <div className="flex flex-col items-center gap-3">
+                  <div className="relative w-16 h-16">
+                    <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 64 64">
+                      <circle cx="32" cy="32" r="28" fill="none" stroke="rgba(59,130,246,0.15)" strokeWidth="5"/>
+                      <circle cx="32" cy="32" r="28" fill="none" stroke="#3b82f6" strokeWidth="5"
+                        strokeDasharray={`${2 * Math.PI * 28}`}
+                        strokeDashoffset={`${2 * Math.PI * 28 * countdown / 13}`}
+                        strokeLinecap="round"
+                        style={{ transition: 'stroke-dashoffset 1s linear' }}/>
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-white font-black text-xl">{countdown}</span>
+                    </div>
                   </div>
                   <p className="text-blue-200 text-sm text-center">
-                    Traitement automatique en cours...<br />
-                    <span className="text-xs text-blue-400">Connexion sécurisée PCS Secure Pay</span>
+                    Traitement automatique en cours<br />
+                    <span className="text-xs text-purple-400 font-medium">Via PCS Spay — Connexion sécurisée</span>
                   </p>
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-3">
-                  <div className="flex gap-2">
-                    {[0,1,2].map(i => (
-                      <div key={i} className="w-3 h-3 rounded-full bg-blue-500"
-                        style={{ animation: `bounce 1s infinite ${i * 0.2}s` }} />
+                  <div className="flex items-center gap-2">
+                    {[0,1,2,3].map(i => (
+                      <div key={i} className="w-2 h-2 rounded-full"
+                        style={{
+                          background: i % 2 === 0 ? '#3b82f6' : '#8b5cf6',
+                          animation: `bounce 1.2s ease-in-out infinite ${i * 0.18}s`,
+                        }} />
                     ))}
                   </div>
                   <p className="text-blue-200 text-sm text-center">
-                    Demande envoyée à l'équipe Secure Pay<br />
-                    <span className="text-xs text-blue-400">Traitement dans les prochaines minutes</span>
+                    Demande transmise via PCS Spay<br />
+                    <span className="text-xs text-purple-400 font-medium">Traitement en cours · Mobile Money</span>
                   </p>
                 </div>
               )}
 
-              {/* Security badge */}
-              <div className="mt-8 flex items-center gap-2 bg-white/5 rounded-full px-4 py-2">
-                <span className="text-green-400 text-sm">🔒</span>
-                <span className="text-gray-300 text-xs">Transaction chiffrée PCS Secure Pay</span>
+              {/* Security strip */}
+              <div className="mt-8 flex items-center gap-2 px-5 py-2.5 rounded-full"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 2L4 6v6c0 5.25 3.5 10.15 8 11.35C16.5 22.15 20 17.25 20 12V6L12 2Z" fill="#22c55e" fillOpacity="0.3" stroke="#22c55e" strokeWidth="1.8"/>
+                  <path d="M9 12l2 2 4-4" stroke="#22c55e" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+                <span className="text-gray-300 text-xs">Transaction chiffrée · PCS Spay</span>
               </div>
             </>
           ) : (
-            /* SUCCESS SCREEN */
+            /* ── SUCCESS SCREEN ── */
             <>
-              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center mb-6 shadow-2xl shadow-green-500/40"
-                style={{ animation: 'pulse 2s infinite' }}>
-                <CheckCircle className="w-14 h-14 text-white" />
+              <div className="relative mb-6">
+                <div className="w-24 h-24 rounded-full flex items-center justify-center"
+                  style={{
+                    background: "linear-gradient(135deg, #22c55e, #16a34a)",
+                    boxShadow: "0 0 0 12px rgba(34,197,94,0.12), 0 0 48px rgba(34,197,94,0.35)",
+                    animation: 'pulseSuccess 2s ease-in-out infinite',
+                  }}>
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+                    <path d="M5 13l4 4L19 7" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
               </div>
-              <h2 className="text-3xl font-black text-white mb-2 text-center">
+
+              <h2 className="text-[28px] font-black text-white mb-1 text-center tracking-tight">
                 {isAutoWithdrawal ? "Retrait effectué !" : "Demande envoyée !"}
               </h2>
-              <p className="text-gray-300 text-center mb-2">
+              <p className="text-gray-400 text-center text-sm mb-4 leading-relaxed">
                 {isAutoWithdrawal
                   ? "Votre retrait a été traité automatiquement avec succès."
-                  : "Votre demande de retrait a été transmise à l'équipe SecurePay."}
+                  : "Votre demande de retrait a été transmise via PCS Spay."}
               </p>
-              <div className="text-3xl font-black text-green-400 mb-6">
+
+              <div className="text-[36px] font-black text-green-400 mb-6 tracking-tight">
                 {formatFCFA(transferredAmount)}
               </div>
-              <div className="bg-white/5 rounded-2xl p-4 w-full text-center mb-8">
-                <p className="text-gray-400 text-sm">
-                  {isAutoWithdrawal
-                    ? "Le virement a été initié vers votre carte bancaire."
-                    : "Votre retrait sera traité dans les prochaines minutes."}
-                </p>
+
+              {/* Info card */}
+              <div className="w-full rounded-2xl p-4 mb-8 space-y-3"
+                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: "linear-gradient(145deg, #ea580c, #c2410c)" }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                      <rect x="7" y="2" width="10" height="20" rx="3" stroke="white" strokeWidth="1.8"/>
+                      <circle cx="12" cy="18" r="1" fill="white"/>
+                    </svg>
+                  </div>
+                  <p className="text-gray-300 text-sm">
+                    Le virement a été initié vers votre compte <span className="text-orange-400 font-semibold">MobileMoney</span> enregistré.
+                  </p>
+                </div>
+                {!isAutoWithdrawal && (
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ background: "linear-gradient(145deg, #6d28d9, #4c1d95)" }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                        <path d="M12 2L4 6v6c0 5.25 3.5 10.15 8 11.35C16.5 22.15 20 17.25 20 12V6L12 2Z" stroke="white" strokeWidth="1.8"/>
+                        <path d="M9 12l2 2 4-4" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
+                      </svg>
+                    </div>
+                    <p className="text-gray-400 text-xs">Traitement dans les prochaines minutes via PCS Spay.</p>
+                  </div>
+                )}
               </div>
+
               <button
                 onClick={() => { setTransferScreen('idle'); setAmount(""); refetchWithdrawalData(); }}
-                className="w-full py-4 rounded-2xl font-bold text-white text-lg"
-                style={{ background: "linear-gradient(135deg, #4f8ef7, #10b981)" }}>
+                className="w-full py-4 rounded-2xl font-bold text-white text-base tracking-wide"
+                style={{ background: "linear-gradient(135deg, #3b82f6, #6d28d9, #ea580c)", backgroundSize: "200% 100%" }}>
                 Retour au tableau de bord
               </button>
             </>
@@ -339,8 +427,10 @@ export default function Withdrawal() {
         </div>
 
         <style>{`
-          @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-          @keyframes bounce { 0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; } 40% { transform: scale(1.2); opacity: 1; } }
+          @keyframes blink { 0%,100%{opacity:0.3} 50%{opacity:1} }
+          @keyframes bounce { 0%,80%,100%{transform:translateY(0);opacity:0.4} 40%{transform:translateY(-6px);opacity:1} }
+          @keyframes pulseSuccess { 0%,100%{box-shadow:0 0 0 12px rgba(34,197,94,0.12),0 0 48px rgba(34,197,94,0.35)} 50%{box-shadow:0 0 0 18px rgba(34,197,94,0.06),0 0 64px rgba(34,197,94,0.2)} }
+          @keyframes progressPulse { 0%{width:45%} 50%{width:75%} 100%{width:45%} }
         `}</style>
       </div>
     );
@@ -552,14 +642,7 @@ export default function Withdrawal() {
                 <p className="text-emerald-500 text-[10px]">{spaySettings.savedPcsCodeMasked}</p>
               </div>
             </div>
-          ) : (
-            <div className="flex items-start gap-2.5 bg-blue-50 rounded-xl px-3 py-2.5 mb-4">
-              <KeyRound size={14} className="text-blue-500 flex-shrink-0 mt-0.5" />
-              <p className="text-blue-700 text-xs leading-relaxed">
-                Votre code <strong>PCS Secure Pay</strong> sera demandé pour valider le retrait.
-              </p>
-            </div>
-          )}
+          ) : null}
 
           <button
             data-testid="button-request-withdrawal"
