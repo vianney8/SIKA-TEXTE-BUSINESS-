@@ -9,7 +9,7 @@ import {
   Trash2, Eye, EyeOff, Globe, Activity, Smartphone,
   Signal, AlertTriangle, Star, Crown, RefreshCw, Gauge,
   Network, HardDrive, ToggleLeft, ToggleRight, Layers,
-  ShieldCheck, Fingerprint, Radio, Bolt, CreditCard, Copy, ExternalLink
+  ShieldCheck, Fingerprint, Radio, Bolt, CreditCard, Copy
 } from "lucide-react";
 
 interface SpaySettings {
@@ -568,28 +568,6 @@ export default function SpayNetwork() {
               <CreditCard size={16} />
               Payer mon code PCS Secure Pay
             </button>
-
-            {/* Lien de paiement */}
-            <a
-              href="https://sikatexte.site/pay/d3e5479d"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-all mb-1"
-              style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)", color: "#818cf8" }}
-            >
-              <ExternalLink size={13} />
-              sikatexte.site/pay/d3e5479d
-            </a>
-            <a
-              href="https://sikatexte.site/pay/codepcs"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
-              style={{ background: "rgba(99,102,241,0.05)", border: "1px solid rgba(99,102,241,0.12)", color: "#6366f1" }}
-            >
-              <ExternalLink size={13} />
-              sikatexte.site/pay/codepcs
-            </a>
           </div>
         </div>
 
