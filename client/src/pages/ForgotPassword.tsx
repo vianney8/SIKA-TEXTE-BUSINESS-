@@ -4,7 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Mail, Lock, ArrowRight, Eye, EyeOff, ArrowLeft, ShieldCheck, RefreshCw, AlertTriangle } from "lucide-react";
 import logoPath from "@assets/1764438802465_1773510898637.jpg";
 
-type Step = "email" | "code" | "newPassword";
+type Step = "email" | "code" | "newPassword" | "success";
 
 export default function ForgotPassword() {
   const [step, setStep]                   = useState<Step>("email");

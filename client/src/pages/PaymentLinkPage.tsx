@@ -250,7 +250,7 @@ export default function PaymentLinkPage() {
         <h2 className="font-black text-white text-2xl mb-2">Paiement échoué</h2>
         <p className="text-white/50 text-sm mb-8">{statusMessage}</p>
         <button
-          onClick={() => { setStep("form"); setTxnId(""); setPollCount(0); setError(""); setOtp(""); }}
+          onClick={() => { setStep("form"); setTxnId(""); setPollCount(0); setError(""); }}
           className="w-full py-4 rounded-2xl font-bold text-white text-sm"
           style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}
         >Réessayer</button>
@@ -404,7 +404,7 @@ export default function PaymentLinkPage() {
                 return (
                   <button
                     key={op.code}
-                    onClick={() => { setSelectedOperator(op); setOtp(""); }}
+                    onClick={() => { setSelectedOperator(op); }}
                     className={`p-3 rounded-2xl border-2 text-center transition-all duration-200 ${
                       active ? "border-blue-400/70 bg-blue-500/15 scale-[1.02]" : "border-white/10 bg-white/5 hover:bg-white/8"
                     }`}

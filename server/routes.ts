@@ -1645,7 +1645,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!['actif', 'inactif'].includes(status)) {
         return res.status(400).json({ message: 'Statut invalide. Utilisez actif ou inactif.' });
       }
-      await db.update(pcsCodes).set({ status }).where(eq(pcsCodes.id, parseInt(codeId)));
+      await db.update(pcsCodes).set({ status }).where(eq(pcsCodes.id, codeId));
       res.json({ success: true, codeId, status });
     } catch (error) {
       console.error('Error updating PCS code status:', error);

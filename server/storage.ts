@@ -609,7 +609,7 @@ export class DatabaseStorage implements IStorage {
 
     // Helper to fetch unseen sentences excluding given IDs
     const fetchUnseen = async (excludeIds: string[], needed: number): Promise<Sentence[]> => {
-      const allExclude = [...new Set([...excludeIds, ...previouslySeenIds])];
+      const allExclude = Array.from(new Set([...excludeIds, ...previouslySeenIds]));
       if (allExclude.length > 0) {
         return db
           .select()

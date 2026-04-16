@@ -251,7 +251,7 @@ export default function Activation() {
 
   const handleReset = () => {
     setTransactionId(null); setTxStatus(null); setCheckCount(0);
-    setStep(1); setPhone(""); setOtp("");
+    setStep(1); setPhone("");
     if (intervalRef.current) clearInterval(intervalRef.current);
   };
 
@@ -416,7 +416,6 @@ export default function Activation() {
                         onClick={() => {
                           if (inMaintenance) return;
                           setOperator(op);
-                          setOtp("");
                         }}
                         className={`w-full flex items-center gap-3 p-3.5 rounded-2xl border-2 text-left transition-all select-none ${
                           inMaintenance

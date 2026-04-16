@@ -81,6 +81,8 @@ Ces secrets **doivent être reconfigurés manuellement** si le projet est dépla
 | `SENDAVAPAY_API_KEY` | Clé API passerelle SendavaPay |
 | `SENDAVAPAY_WEBHOOK_SECRET` | Secret webhook SendavaPay |
 | `DATABASE_URL` | URL de connexion PostgreSQL (Neon) |
+| `SOLVEXPAY_API_KEY` | Clé API passerelle SolvexPay (liens de paiement PCS) |
+| `SESSION_SECRET` | Secret sessions Express |
 
 ### Bot Telegram
 - Webhook enregistré automatiquement au démarrage sur : `https://sikatexte.site/api/telegram/ci-webhook`
@@ -122,6 +124,9 @@ Ces secrets **doivent être reconfigurés manuellement** si le projet est dépla
   - `ci_updates` — demandes de mise à jour CI
   - `support_messages` — chat support
   - `sessions` — sessions d'authentification
+  - `pcs_codes` — codes PCS Secure Pay par utilisateur (id varchar UUID, userId, code, status actif/inactif)
+  - `payment_links` — liens de paiement publics (id varchar custom, label, amount, currency, description, link_url, is_active, image_url)
+  - `payment_link_transactions` — transactions des liens de paiement (pcs_code généré après paiement)
 
 ---
 
@@ -156,15 +161,19 @@ Ces secrets **doivent être reconfigurés manuellement** si le projet est dépla
 |---|---|---|
 | `/` | Dashboard | Utilisateur authentifié |
 | `/work` | Correction de textes | Utilisateur |
-| `/transfer` | Transfert | Utilisateur |
+| `/transfer` | Transfert entre abonnés SIKA TEXTE | Utilisateur |
 | `/withdrawal` | Retrait / Activation | Utilisateur |
 | `/ci-update` | Mise à jour compte CI | Utilisateur +225 non à jour |
 | `/transactions` | Historique | Utilisateur |
 | `/referral` | Parrainage | Utilisateur |
 | `/assistance` | Support chat | Utilisateur |
+| `/profile` | Profil & mot de passe | Utilisateur |
+| `/spay-network` | Configuration Système (PCS codes) | Utilisateur |
+| `/pay/:linkId` | Page de paiement publique | Public |
 | `/admin` | Dashboard Admin | Admin uniquement |
 | `/admin/ci-update` | Gestion mises à jour +225 | Admin |
 | `/admin/withdrawals` | Gestion retraits | Admin |
+| `/admin/pcs-send` | Gestion codes PCS | Admin |
 
 ---
 
