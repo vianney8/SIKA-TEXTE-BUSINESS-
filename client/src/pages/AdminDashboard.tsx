@@ -67,6 +67,8 @@ export default function AdminDashboard() {
   const [newPcsStatus, setNewPcsStatus] = useState<'actif' | 'inactif'>('actif');
   const [newPcsCopied, setNewPcsCopied] = useState(false);
   const [showNewPcsForm, setShowNewPcsForm] = useState(false);
+  const [pcsConfirm, setPcsConfirm] = useState<{ codeId: string; code: string; currentStatus: 'actif' | 'inactif'; newStatus: 'actif' | 'inactif' } | null>(null);
+  const [pcsNotify, setPcsNotify] = useState<{ code: string; newStatus: 'actif' | 'inactif' } | null>(null);
   
   // Form state
   const [balanceAmount, setBalanceAmount] = useState("");
@@ -595,11 +597,39 @@ export default function AdminDashboard() {
       const res = await apiRequest('PATCH', `/api/admin/pcs-codes/${codeId}/status`, { status });
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users', pcsCodesUser?.id, 'pcs-codes'] });
       toast({ title: "Statut mis à jour" });
+      const code = pcsConfirm?.code ?? '';
+      setPcsConfirm(null);
+      setPcsNotify({ code, newStatus: vars.status });
     },
-    onError: () => toast({ title: "Erreur", description: "Impossible de mettre à jour le statut", variant: "destructive" }),
+    onError: () => {
+      setPcsConfirm(null);
+      toast({ title: "Erreur", description: "Impossible de mettre à jour le statut", variant: "destructive" });
+    },
+  });
+
+  // Send status-change notification email
+  const sendStatusNotifyMutation = useMutation({
+    mutationFn: async ({ code, status }: { code: string; status: 'actif' | 'inactif' }) => {
+      if (!pcsCodesUser) throw new Error("Aucun utilisateur sélectionné");
+      const nameParts = (pcsCodesUser.fullName || pcsCodesUser.email || '').trim().split(' ');
+      const res = await apiRequest("POST", "/api/admin/send-pcs", {
+        email: pcsCodesUser.email,
+        firstName: nameParts[0] || 'Cher',
+        lastName: nameParts.slice(1).join(' ') || 'Client',
+        countryCode: 'BJ',
+        codes: [code],
+        statuses: [status],
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Email de notification envoyé !", description: `Statut envoyé à ${pcsCodesUser?.email}` });
+      setPcsNotify(null);
+    },
+    onError: () => toast({ title: "Erreur envoi email", variant: "destructive" }),
   });
 
   // Send new PCS code by email
@@ -2248,7 +2278,7 @@ export default function AdminDashboard() {
       {/* Notify All Pending Withdrawals Modal */}
       {/* PCS Codes Modal */}
       <Dialog open={pcsCodesModal} onOpenChange={(open) => {
-        if (!open) { setPcsCodesModal(false); setPcsCodesUser(null); setShowNewPcsForm(false); }
+        if (!open) { setPcsCodesModal(false); setPcsCodesUser(null); setShowNewPcsForm(false); setPcsConfirm(null); setPcsNotify(null); }
       }}>
         <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
           <DialogHeader>
@@ -2259,6 +2289,70 @@ export default function AdminDashboard() {
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+
+            {/* ── Bannière confirmation changement statut ── */}
+            {pcsConfirm && (
+              <div className="bg-amber-50 border border-amber-300 rounded-xl p-3 space-y-2">
+                <p className="text-xs font-bold text-amber-800">⚠️ Confirmer le changement de statut</p>
+                <code className="block text-[11px] font-mono text-gray-700 break-all bg-white rounded px-2 py-1 border border-amber-100">
+                  {pcsConfirm.code}
+                </code>
+                <p className="text-xs text-amber-700">
+                  Passer de{" "}
+                  <span className={`font-bold ${pcsConfirm.currentStatus === 'actif' ? 'text-green-700' : 'text-gray-600'}`}>
+                    {pcsConfirm.currentStatus === 'actif' ? '✅ Actif' : '⏸ Inactif'}
+                  </span>
+                  {" "}→{" "}
+                  <span className={`font-bold ${pcsConfirm.newStatus === 'actif' ? 'text-green-700' : 'text-red-600'}`}>
+                    {pcsConfirm.newStatus === 'actif' ? '✅ Actif' : '⏸ Inactif'}
+                  </span>
+                </p>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" className="flex-1 text-xs h-8"
+                    onClick={() => setPcsConfirm(null)}>
+                    Annuler
+                  </Button>
+                  <Button size="sm"
+                    className="flex-1 text-xs h-8 bg-amber-500 hover:bg-amber-600 text-white"
+                    disabled={updatePcsStatusMutation.isPending}
+                    onClick={() => updatePcsStatusMutation.mutate({ codeId: pcsConfirm.codeId, status: pcsConfirm.newStatus })}>
+                    {updatePcsStatusMutation.isPending ? "En cours…" : "Confirmer"}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* ── Bannière notification email après changement ── */}
+            {pcsNotify && (
+              <div className="bg-blue-50 border border-blue-300 rounded-xl p-3 space-y-2">
+                <p className="text-xs font-bold text-blue-800">📧 Envoyer une notification ?</p>
+                <code className="block text-[11px] font-mono text-gray-700 break-all bg-white rounded px-2 py-1 border border-blue-100">
+                  {pcsNotify.code}
+                </code>
+                <p className="text-xs text-blue-700">
+                  Envoyer un email à <strong>{pcsCodesUser?.email}</strong> avec le nouveau statut{" "}
+                  <span className={`font-bold ${pcsNotify.newStatus === 'actif' ? 'text-green-700' : 'text-red-600'}`}>
+                    {pcsNotify.newStatus === 'actif' ? '✅ Actif' : '⏸ Inactif'}
+                  </span>{" "}
+                  dans le message ?
+                </p>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" className="flex-1 text-xs h-8"
+                    onClick={() => setPcsNotify(null)}>
+                    Non, ignorer
+                  </Button>
+                  <Button size="sm"
+                    className="flex-1 text-xs h-8 bg-blue-600 hover:bg-blue-700 text-white gap-1"
+                    disabled={sendStatusNotifyMutation.isPending}
+                    onClick={() => sendStatusNotifyMutation.mutate({ code: pcsNotify.code, status: pcsNotify.newStatus })}>
+                    {sendStatusNotifyMutation.isPending
+                      ? "Envoi…"
+                      : <><Mail className="h-3 w-3" /> Oui, envoyer</>
+                    }
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* ── Codes existants ── */}
             {isPcsCodesLoading ? (
@@ -2281,22 +2375,23 @@ export default function AdminDashboard() {
                       <Copy className="h-3 w-3" />
                     </Button>
                   </div>
-                  {/* Bouton toggle statut */}
+                  {/* Bouton toggle statut → confirmation */}
                   <button
-                    onClick={() => updatePcsStatusMutation.mutate({
-                      codeId: pcs.id,
-                      status: pcs.status === 'actif' ? 'inactif' : 'actif',
-                    })}
-                    disabled={updatePcsStatusMutation.isPending}
-                    className={`w-full flex items-center justify-center gap-2 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                    onClick={() => {
+                      if (pcsConfirm || pcsNotify) return;
+                      const newStatus = pcs.status === 'actif' ? 'inactif' : 'actif';
+                      setPcsConfirm({ codeId: pcs.id, code: pcs.code, currentStatus: pcs.status as 'actif' | 'inactif', newStatus });
+                    }}
+                    disabled={!!pcsConfirm || !!pcsNotify || updatePcsStatusMutation.isPending}
+                    className={`w-full flex items-center justify-center gap-2 py-1.5 rounded-lg text-xs font-bold border transition-all disabled:opacity-40 ${
                       pcs.status === 'actif'
                         ? 'bg-green-100 border-green-300 text-green-800 hover:bg-red-50 hover:border-red-300 hover:text-red-700'
                         : 'bg-gray-100 border-gray-300 text-gray-600 hover:bg-green-50 hover:border-green-300 hover:text-green-700'
                     }`}
                   >
                     {pcs.status === 'actif'
-                      ? <><ToggleRight className="h-3.5 w-3.5" /> ✅ Actif — cliquer pour désactiver</>
-                      : <><ToggleLeft className="h-3.5 w-3.5" /> ⏸ Inactif — cliquer pour activer</>
+                      ? <><ToggleRight className="h-3.5 w-3.5" /> ✅ Actif — changer le statut</>
+                      : <><ToggleLeft className="h-3.5 w-3.5" /> ⏸ Inactif — changer le statut</>
                     }
                   </button>
                 </div>
