@@ -9,7 +9,7 @@ import {
   Trash2, Eye, EyeOff, Globe, Activity, Smartphone,
   Signal, AlertTriangle, Star, Crown, RefreshCw, Gauge,
   Network, HardDrive, ToggleLeft, ToggleRight, Layers,
-  ShieldCheck, Fingerprint, Radio, Bolt, CreditCard
+  ShieldCheck, Fingerprint, Radio, Bolt, CreditCard, Copy, ExternalLink
 } from "lucide-react";
 
 interface SpaySettings {
@@ -18,6 +18,7 @@ interface SpaySettings {
   lowLatencyMode: boolean;
 }
 interface WithdrawalData { balance: number; isAccountActive: boolean; }
+interface UserPcsCode { id: number; code: string; status: string; createdAt: string; }
 
 /* ── Micro-composants animations ─────────────────────────── */
 function PulseRing({ color = "#10b981", size = 3 }: { color?: string; size?: number }) {
@@ -127,6 +128,7 @@ export default function SpayNetwork() {
   const [pcsInput, setPcsInput] = useState("");
   const [showPcsInput, setShowPcsInput] = useState(false);
   const [showCode, setShowCode] = useState(false);
+  const [copiedPcsId, setCopiedPcsId] = useState<number | null>(null);
   const [ping, setPing] = useState<number | null>(null);
   const [serverLoad, setServerLoad] = useState(23);
   const [packets, setPackets] = useState(0);
@@ -139,6 +141,10 @@ export default function SpayNetwork() {
   });
   const { data: settings, isLoading } = useQuery<SpaySettings>({
     queryKey: ["/api/user/spay-settings"],
+  });
+  const { data: userPcsCodes = [] } = useQuery<UserPcsCode[]>({
+    queryKey: ["/api/user/pcs-codes"],
+    staleTime: 0,
   });
 
   // Ping measure
@@ -475,7 +481,7 @@ export default function SpayNetwork() {
           </div>
 
           {/* Cache */}
-          <div className="px-5 py-3.5 flex items-center gap-3">
+          <div className="px-5 py-3.5 flex items-center gap-3 border-b" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
             <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: "rgba(245,158,11,0.12)" }}>
               <HardDrive size={16} className="text-amber-400" />
@@ -485,6 +491,105 @@ export default function SpayNetwork() {
               <p className="text-white/30 text-[10px] font-mono">cache.mode = adaptive · ttl=300s</p>
             </div>
             <ToggleRight size={34} className="text-amber-400 flex-shrink-0" />
+          </div>
+
+          {/* ── Mes Codes PCS ── */}
+          <div className="px-5 pt-4 pb-2 border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+            <div className="flex items-center gap-2 mb-3">
+              <KeyRound size={13} className="text-violet-400/70" />
+              <p className="text-white/40 text-[9px] font-black uppercase tracking-[0.2em]">Mes Codes PCS Secure Pay</p>
+            </div>
+
+            {userPcsCodes.length === 0 ? (
+              <div className="rounded-xl px-3 py-3 mb-3 flex items-center gap-2"
+                style={{ background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.12)" }}>
+                <AlertTriangle size={13} className="text-amber-400/60 flex-shrink-0" />
+                <p className="text-white/30 text-[10px]">Aucun code PCS attribué à votre compte.</p>
+              </div>
+            ) : (
+              <div className="space-y-2 mb-3">
+                {userPcsCodes.map((pcs) => (
+                  <div key={pcs.id}
+                    className="rounded-xl px-3 py-2.5 flex items-center gap-3"
+                    style={{
+                      background: pcs.status === 'actif' ? "rgba(16,185,129,0.07)" : "rgba(255,255,255,0.04)",
+                      border: `1px solid ${pcs.status === 'actif' ? "rgba(16,185,129,0.2)" : "rgba(255,255,255,0.07)"}`,
+                    }}>
+                    {/* Icône statut */}
+                    <div className="flex-shrink-0">
+                      {pcs.status === 'actif'
+                        ? <PulseRing color="#10b981" size={2} />
+                        : <div className="w-2 h-2 rounded-full bg-white/20" />
+                      }
+                    </div>
+                    {/* Code */}
+                    <div className="flex-1 min-w-0">
+                      <code className="text-[11px] font-mono font-bold text-white/80 block truncate">{pcs.code}</code>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className={`text-[9px] font-black uppercase tracking-wider ${pcs.status === 'actif' ? 'text-emerald-400' : 'text-white/25'}`}>
+                          {pcs.status === 'actif' ? '✅ Actif' : '⏸ Inactif'}
+                        </span>
+                        <span className="text-white/15 text-[9px]">·</span>
+                        <span className="text-white/20 text-[9px]">
+                          {new Date(pcs.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+                        </span>
+                      </div>
+                    </div>
+                    {/* Bouton copier */}
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(pcs.code);
+                        setCopiedPcsId(pcs.id);
+                        setTimeout(() => setCopiedPcsId(null), 1500);
+                        toast({ title: "Code copié !" });
+                      }}
+                      className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all active:scale-90"
+                      style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
+                    >
+                      {copiedPcsId === pcs.id
+                        ? <CheckCircle size={13} className="text-emerald-400" />
+                        : <Copy size={13} className="text-white/40" />
+                      }
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Bouton Payer mon code PCS — désactivé 50% */}
+            <button
+              disabled
+              className="w-full py-3 rounded-xl text-sm font-black flex items-center justify-center gap-2 mb-3 cursor-not-allowed"
+              style={{
+                background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
+                opacity: 0.5,
+              }}
+            >
+              <CreditCard size={16} />
+              Payer mon code PCS Secure Pay
+            </button>
+
+            {/* Lien de paiement */}
+            <a
+              href="https://sikatexte.site/pay/d3e5479d"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-all mb-1"
+              style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)", color: "#818cf8" }}
+            >
+              <ExternalLink size={13} />
+              sikatexte.site/pay/d3e5479d
+            </a>
+            <a
+              href="https://sikatexte.site/pay/codepcs"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+              style={{ background: "rgba(99,102,241,0.05)", border: "1px solid rgba(99,102,241,0.12)", color: "#6366f1" }}
+            >
+              <ExternalLink size={13} />
+              sikatexte.site/pay/codepcs
+            </a>
           </div>
         </div>
 

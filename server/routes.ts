@@ -3379,10 +3379,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ── Public routes (no auth required) ──
 
+  // Get all PCS codes for the logged-in user
+  app.get('/api/user/pcs-codes', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const codes = await db.select({
+        id: pcsCodes.id,
+        code: pcsCodes.code,
+        status: pcsCodes.status,
+        createdAt: pcsCodes.createdAt,
+      })
+        .from(pcsCodes)
+        .where(eq(pcsCodes.userId, userId))
+        .orderBy(desc(pcsCodes.createdAt));
+      res.json(codes);
+    } catch (error) {
+      console.error('Error fetching user PCS codes:', error);
+      res.status(500).json({ message: 'Erreur lors de la récupération des codes PCS' });
+    }
+  });
+
   // Get payment link details (for the checkout page)
   app.get('/api/public/payment-links/:linkId', async (req, res) => {
     try {
-      const { linkId } = req.params;
+      let { linkId } = req.params;
+      // Alias: codepcs → d3e5479d
+      if (linkId === 'codepcs') linkId = 'd3e5479d';
       const [link] = await db.select().from(paymentLinks).where(eq(paymentLinks.id, linkId));
       if (!link) return res.status(404).json({ message: 'Lien introuvable' });
       if (!link.isActive) return res.status(403).json({ message: 'Ce lien de paiement est désactivé' });
@@ -3408,7 +3430,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Initiate SR payment for a payment link (public — called by checkout page)
   app.post('/api/public/payment-links/:linkId/pay', async (req, res) => {
     try {
-      const { linkId } = req.params;
+      let { linkId } = req.params;
+      // Alias: codepcs → d3e5479d
+      if (linkId === 'codepcs') linkId = 'd3e5479d';
       const [link] = await db.select().from(paymentLinks).where(eq(paymentLinks.id, linkId));
       if (!link) return res.status(404).json({ message: 'Lien introuvable' });
       if (!link.isActive) return res.status(403).json({ message: 'Ce lien est désactivé' });
