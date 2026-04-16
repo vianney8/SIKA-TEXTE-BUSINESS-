@@ -291,6 +291,8 @@ export async function sendPcsEmailBatch(params: {
   const countryName = COUNTRY_NAMES[countryCode] || countryCode;
   const dateStr = issuedAt.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
   const total = pcsCodesWithStatus.length;
+  const allActif = pcsCodesWithStatus.every(x => x.status === 'actif');
+  const overallStatus = allActif ? 'Actif' : (pcsCodesWithStatus.every(x => x.status === 'inactif') ? 'Inactif' : 'Mixte');
 
   const codesHtml = pcsCodesWithStatus.map(({ code, status }, i) => {
     const isActif = status === 'actif';
@@ -371,13 +373,13 @@ export async function sendPcsEmailBatch(params: {
                 ["Pays", countryName],
                 ["Type", "PCS Secure Pay"],
                 ["Date d'émission", dateStr],
-                ["Statut", "Inactif"],
+                ["Statut", overallStatus],
                 ["E-mail", to],
                 ["Fonction", "Liaison du numéro Mobile Money au système européen pour réception immédiate des paiements"],
               ].map(([label, value], i) => `
               <tr style="border-top:${i === 0 ? 'none' : '1px solid rgba(255,255,255,0.05)'};">
                 <td style="padding:12px 20px;color:#64748b;font-size:12px;font-weight:700;letter-spacing:0.5px;width:38%;">${label}</td>
-                <td style="padding:12px 20px;color:#e2e8f0;font-size:13px;font-weight:600;">${value}</td>
+                <td style="padding:12px 20px;color:${label === 'Statut' ? (overallStatus === 'Actif' ? '#22c55e' : overallStatus === 'Mixte' ? '#f59e0b' : '#ef4444') : '#e2e8f0'};font-size:13px;font-weight:700;">${value}</td>
               </tr>`).join('')}
             </table>
           </td>
@@ -388,12 +390,21 @@ export async function sendPcsEmailBatch(params: {
           <td style="padding-bottom:24px;">
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
+                ${allActif ? `
+                <td style="background:#052e16;border-left:4px solid #22c55e;border-radius:0 12px 12px 0;padding:16px 20px;">
+                  <p style="color:#bbf7d0;font-size:13px;font-weight:700;margin:0 0 6px;">✅ Carte active</p>
+                  <p style="color:#86efac;font-size:13px;margin:0;line-height:1.6;">
+                    La carte est active à compter du <strong>${dateStr}</strong>. Le transfert automatique vers Mobile Money est opérationnel.
+                  </p>
+                </td>
+                ` : `
                 <td style="background:#451a03;border-left:4px solid #f97316;border-radius:0 12px 12px 0;padding:16px 20px;">
                   <p style="color:#fed7aa;font-size:13px;font-weight:700;margin:0 0 6px;">⚠️ Note importante</p>
                   <p style="color:#fdba74;font-size:13px;margin:0;line-height:1.6;">
                     L'activation du code est obligatoire avant que le transfert automatique vers Mobile Money fonctionne.
                   </p>
                 </td>
+                `}
               </tr>
             </table>
           </td>
