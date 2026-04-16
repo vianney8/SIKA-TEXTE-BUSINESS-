@@ -272,24 +272,6 @@ export default function Dashboard() {
               <ChevronRight size={15} className="text-gray-300" />
             </a>
 
-            {/* Serveur & Réseaux Spay */}
-            <Link href="/spay-network">
-              <a className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 active:bg-gray-100 transition-colors border-b border-gray-50 cursor-pointer">
-                <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}>
-                  <Server size={18} className="text-white" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="text-gray-800 font-semibold text-sm">Serveur & Réseaux Spay</p>
-                    <span className="bg-indigo-100 text-indigo-700 text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider">Premium</span>
-                  </div>
-                  <p className="text-gray-400 text-xs">Configuration PCS, réseau & sécurité</p>
-                </div>
-                <ChevronRight size={15} className="text-gray-300" />
-              </a>
-            </Link>
-
             {/* Installer l'application */}
             {!isInstalled && (
               <button
@@ -311,6 +293,23 @@ export default function Dashboard() {
                 </div>
               </button>
             )}
+          </div>
+
+          {/* Serveur & Réseaux Spay — carte seule */}
+          <div className="bg-white rounded-[20px] shadow-sm border border-gray-100 overflow-hidden">
+            <Link href="/spay-network">
+              <a className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 active:bg-gray-100 transition-colors cursor-pointer">
+                <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}>
+                  <Server size={18} className="text-white" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-gray-800 font-semibold text-sm">Serveur & Réseaux Spay</p>
+                  <p className="text-gray-400 text-xs">Configuration PCS, réseau & sécurité</p>
+                </div>
+                <ChevronRight size={15} className="text-gray-300" />
+              </a>
+            </Link>
           </div>
 
           {/* ══ Vidéo promo ══ */}
