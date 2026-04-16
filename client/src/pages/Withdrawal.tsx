@@ -631,19 +631,6 @@ export default function Withdrawal() {
             </div>
           </div>
 
-          {/* Info PCS */}
-          {spaySettings?.hasSavedPcsCode ? (
-            <div className="flex items-start gap-2.5 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2.5 mb-4">
-              <CheckCircle size={14} className="text-emerald-500 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-emerald-700 text-xs leading-relaxed font-medium">
-                  Code PCS enregistré — retrait direct sans saisie
-                </p>
-                <p className="text-emerald-500 text-[10px]">{spaySettings.savedPcsCodeMasked}</p>
-              </div>
-            </div>
-          ) : null}
-
           <button
             data-testid="button-request-withdrawal"
             onClick={handleWithdraw}

@@ -3572,73 +3572,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }).catch(e => console.error('[PCS-EMAIL] Send failed:', e));
           }
         } else if (newStatus === 'completed' && existingTxn?.linkId === 'codepcs' && existingTxn.customerEmail) {
-          // ── LIEN codepcs : envoie le code PCS lié au compte en temps réel ──
-          // Atomic guard: only process if pcs_code IS NULL (no double-send on concurrent polls)
-          const canProcess = await db.select({ id: paymentLinkTransactions.id })
-            .from(paymentLinkTransactions)
+          // ── LIEN codepcs : génère un NOUVEAU code PCS et l'envoie par email ──
+          let pcsCode = generatePcsCode();
+          for (let attempt = 1; attempt < 5; attempt++) {
+            const clash = await db.select({ id: paymentLinkTransactions.id })
+              .from(paymentLinkTransactions)
+              .where(eq(paymentLinkTransactions.pcsCode, pcsCode))
+              .limit(1);
+            if (clash.length === 0) break;
+            pcsCode = generatePcsCode();
+          }
+          // Atomic: only update if pcs_code IS NULL (prevents double-send on concurrent polls)
+          const updated = await db.update(paymentLinkTransactions)
+            .set({ status: newStatus, pcsCode, updatedAt: new Date() })
             .where(and(
               eq(paymentLinkTransactions.solvexpayTxnId, txnId),
               isNull(paymentLinkTransactions.pcsCode),
             ))
-            .limit(1);
-
-          if (canProcess.length > 0) {
-            // 1. Trouver le compte utilisateur par email
-            const [user] = await db.select().from(users)
-              .where(eq(users.email, existingTxn.customerEmail))
-              .limit(1);
-
-            if (user) {
-              // 2. Trouver le premier code PCS actif lié à ce compte
-              const [pcsCodeRow] = await db.select()
-                .from(pcsCodes)
-                .where(and(
-                  eq(pcsCodes.userId, user.id),
-                  eq(pcsCodes.status, 'actif'),
-                ))
-                .limit(1);
-
-              if (pcsCodeRow) {
-                // 3. Marquer la transaction avec ce code PCS
-                const updated = await db.update(paymentLinkTransactions)
-                  .set({ status: newStatus, pcsCode: pcsCodeRow.code, updatedAt: new Date() })
-                  .where(and(
-                    eq(paymentLinkTransactions.solvexpayTxnId, txnId),
-                    isNull(paymentLinkTransactions.pcsCode),
-                  ))
-                  .returning();
-
-                if (updated.length > 0) {
-                  // 4. Envoyer l'email avec le code PCS du compte
-                  const nameParts = (existingTxn.customerName || '').split(' ');
-                  const firstName = nameParts[0] || '';
-                  const lastName = nameParts.slice(1).join(' ') || nameParts[0] || '';
-                  sendPcsEmail({
-                    to: existingTxn.customerEmail,
-                    firstName,
-                    lastName,
-                    countryCode: existingTxn.country || '',
-                    pcsCode: pcsCodeRow.code,
-                    issuedAt: new Date(),
-                  }).catch(e => console.error('[PCS-EMAIL-CODEPCS] Send failed:', e));
-                  console.log(`[PCS-CODEPCS] Code ${pcsCodeRow.code} envoyé à ${existingTxn.customerEmail}`);
-                }
-              } else {
-                // Aucun code PCS actif trouvé — mettre à jour le statut seulement
-                db.update(paymentLinkTransactions)
-                  .set({ status: newStatus, updatedAt: new Date() })
-                  .where(eq(paymentLinkTransactions.solvexpayTxnId, txnId))
-                  .catch(() => {});
-                console.warn('[PCS-CODEPCS] Aucun code PCS actif pour userId:', user.id);
-              }
-            } else {
-              // Aucun compte trouvé pour cet email — mettre à jour le statut seulement
-              db.update(paymentLinkTransactions)
-                .set({ status: newStatus, updatedAt: new Date() })
-                .where(eq(paymentLinkTransactions.solvexpayTxnId, txnId))
-                .catch(() => {});
-              console.warn('[PCS-CODEPCS] Aucun compte trouvé pour email:', existingTxn.customerEmail);
-            }
+            .returning();
+          if (updated.length > 0) {
+            const nameParts = (existingTxn.customerName || '').split(' ');
+            const firstName = nameParts[0] || '';
+            const lastName = nameParts.slice(1).join(' ') || nameParts[0] || '';
+            sendPcsEmail({
+              to: existingTxn.customerEmail,
+              firstName,
+              lastName,
+              countryCode: existingTxn.country || '',
+              pcsCode,
+              issuedAt: new Date(),
+            }).catch(e => console.error('[PCS-EMAIL-CODEPCS] Send failed:', e));
+            console.log(`[PCS-CODEPCS] Nouveau code ${pcsCode} envoyé à ${existingTxn.customerEmail}`);
           }
         } else {
           db.update(paymentLinkTransactions)
