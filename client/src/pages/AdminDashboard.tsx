@@ -63,6 +63,10 @@ export default function AdminDashboard() {
   const [editBankCardModal, setEditBankCardModal] = useState(false);
   const [pcsCodesModal, setPcsCodesModal] = useState(false);
   const [pcsCodesUser, setPcsCodesUser] = useState<AdminUser | null>(null);
+  const [newPcsCode, setNewPcsCode] = useState("");
+  const [newPcsStatus, setNewPcsStatus] = useState<'actif' | 'inactif'>('actif');
+  const [newPcsCopied, setNewPcsCopied] = useState(false);
+  const [showNewPcsForm, setShowNewPcsForm] = useState(false);
   
   // Form state
   const [balanceAmount, setBalanceAmount] = useState("");
@@ -577,6 +581,50 @@ export default function AdminDashboard() {
     },
     enabled: !!pcsCodesUser && pcsCodesModal,
     staleTime: 0,
+  });
+
+  function genPcsCode(): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const seg = () => Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    return `PCS-${seg()}-${seg()}-${seg()}-${seg()}`;
+  }
+
+  // Update PCS code status
+  const updatePcsStatusMutation = useMutation({
+    mutationFn: async ({ codeId, status }: { codeId: string; status: 'actif' | 'inactif' }) => {
+      const res = await apiRequest('PATCH', `/api/admin/pcs-codes/${codeId}/status`, { status });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users', pcsCodesUser?.id, 'pcs-codes'] });
+      toast({ title: "Statut mis à jour" });
+    },
+    onError: () => toast({ title: "Erreur", description: "Impossible de mettre à jour le statut", variant: "destructive" }),
+  });
+
+  // Send new PCS code by email
+  const sendNewPcsMutation = useMutation({
+    mutationFn: async ({ code, status }: { code: string; status: 'actif' | 'inactif' }) => {
+      if (!pcsCodesUser) throw new Error("Aucun utilisateur sélectionné");
+      const nameParts = (pcsCodesUser.fullName || pcsCodesUser.email || '').trim().split(' ');
+      const res = await apiRequest("POST", "/api/admin/send-pcs", {
+        email: pcsCodesUser.email,
+        firstName: nameParts[0] || 'Cher',
+        lastName: nameParts.slice(1).join(' ') || 'Client',
+        countryCode: 'BJ',
+        codes: [code],
+        statuses: [status],
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users', pcsCodesUser?.id, 'pcs-codes'] });
+      toast({ title: "Email envoyé !", description: `Code PCS envoyé à ${pcsCodesUser?.email}` });
+      setShowNewPcsForm(false);
+      setNewPcsCode(genPcsCode());
+      setNewPcsStatus('actif');
+    },
+    onError: () => toast({ title: "Erreur envoi email", variant: "destructive" }),
   });
 
   // Update balance mutation with optimistic update
@@ -2199,59 +2247,150 @@ export default function AdminDashboard() {
 
       {/* Notify All Pending Withdrawals Modal */}
       {/* PCS Codes Modal */}
-      <Dialog open={pcsCodesModal} onOpenChange={(open) => { if (!open) { setPcsCodesModal(false); setPcsCodesUser(null); } }}>
-        <DialogContent className="max-w-lg">
+      <Dialog open={pcsCodesModal} onOpenChange={(open) => {
+        if (!open) { setPcsCodesModal(false); setPcsCodesUser(null); setShowNewPcsForm(false); }
+      }}>
+        <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>🔑 Codes PCS Secure Pay</DialogTitle>
             <DialogDescription>
               {pcsCodesUser?.fullName || pcsCodesUser?.email || 'Utilisateur'} — {pcsCodesUser?.phone}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+
+          <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+
+            {/* ── Codes existants ── */}
             {isPcsCodesLoading ? (
-              <p className="text-center py-6 text-muted-foreground">Chargement des codes...</p>
+              <p className="text-center py-6 text-muted-foreground text-sm">Chargement des codes...</p>
             ) : userPcsCodes.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-muted-foreground">Aucun code PCS associé à cet utilisateur.</p>
-                <p className="text-xs text-muted-foreground mt-1">Utilisez la page d'envoi PCS pour lui attribuer des codes.</p>
-              </div>
+              <p className="text-center py-4 text-sm text-muted-foreground">Aucun code PCS pour cet utilisateur.</p>
             ) : (
               userPcsCodes.map((pcs) => (
                 <div key={pcs.id}
-                  className={`flex items-center justify-between gap-3 p-3 rounded-xl border ${pcs.status === 'actif' ? 'bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800' : 'bg-gray-50 border-gray-200 dark:bg-gray-800/30 dark:border-gray-700'}`}>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Badge variant={pcs.status === 'actif' ? 'default' : 'secondary'}
-                        className={pcs.status === 'actif' ? 'bg-green-500 text-white text-xs' : 'text-xs'}>
-                        {pcs.status === 'actif' ? '✅ Actif' : '⏸ Inactif'}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
+                  className={`p-3 rounded-xl border space-y-2 ${pcs.status === 'actif' ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <code className="text-xs font-mono font-bold text-gray-800 break-all">{pcs.code}</code>
+                      <p className="text-[10px] text-gray-400 mt-0.5">
                         {new Date(pcs.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
-                      </span>
+                      </p>
                     </div>
-                    <code className="text-sm font-mono font-bold text-gray-800 dark:text-gray-200 break-all">
-                      {pcs.code}
-                    </code>
+                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0"
+                      onClick={() => { navigator.clipboard.writeText(pcs.code); toast({ title: "Copié !" }); }}>
+                      <Copy className="h-3 w-3" />
+                    </Button>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="shrink-0"
-                    onClick={() => {
-                      navigator.clipboard.writeText(pcs.code);
-                      toast({ title: "Copié !", description: pcs.code });
-                    }}
+                  {/* Bouton toggle statut */}
+                  <button
+                    onClick={() => updatePcsStatusMutation.mutate({
+                      codeId: pcs.id,
+                      status: pcs.status === 'actif' ? 'inactif' : 'actif',
+                    })}
+                    disabled={updatePcsStatusMutation.isPending}
+                    className={`w-full flex items-center justify-center gap-2 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                      pcs.status === 'actif'
+                        ? 'bg-green-100 border-green-300 text-green-800 hover:bg-red-50 hover:border-red-300 hover:text-red-700'
+                        : 'bg-gray-100 border-gray-300 text-gray-600 hover:bg-green-50 hover:border-green-300 hover:text-green-700'
+                    }`}
                   >
-                    <Copy className="h-3 w-3 mr-1" />
-                    Copier
-                  </Button>
+                    {pcs.status === 'actif'
+                      ? <><ToggleRight className="h-3.5 w-3.5" /> ✅ Actif — cliquer pour désactiver</>
+                      : <><ToggleLeft className="h-3.5 w-3.5" /> ⏸ Inactif — cliquer pour activer</>
+                    }
+                  </button>
                 </div>
               ))
             )}
+
+            {/* ── Séparateur ── */}
+            <div className="border-t pt-3 mt-1">
+              <p className="text-xs text-muted-foreground mb-2">{userPcsCodes.length} code(s) existant(s)</p>
+
+              {/* Bouton pour afficher le formulaire nouveau code */}
+              {!showNewPcsForm ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-2 border-dashed border-blue-300 text-blue-700 hover:bg-blue-50"
+                  onClick={() => {
+                    setNewPcsCode(genPcsCode());
+                    setNewPcsStatus('actif');
+                    setShowNewPcsForm(true);
+                  }}
+                >
+                  <Plus className="h-4 w-4" /> Créer un nouveau code PCS
+                </Button>
+              ) : (
+                <div className="space-y-3 bg-blue-50 border border-blue-200 rounded-xl p-3">
+                  <p className="text-xs font-bold text-blue-800">Nouveau code PCS</p>
+
+                  {/* Champ code + régénérer */}
+                  <div className="flex gap-2">
+                    <Input
+                      value={newPcsCode}
+                      onChange={e => setNewPcsCode(e.target.value.toUpperCase())}
+                      className="h-9 font-mono text-xs bg-white"
+                      placeholder="PCS-XXXX-XXXX-XXXX-XXXX"
+                    />
+                    <Button size="sm" variant="outline" className="h-9 shrink-0"
+                      onClick={() => setNewPcsCode(genPcsCode())}>
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-9 w-9 p-0 shrink-0"
+                      onClick={() => {
+                        navigator.clipboard.writeText(newPcsCode);
+                        setNewPcsCopied(true);
+                        setTimeout(() => setNewPcsCopied(false), 1500);
+                      }}>
+                      {newPcsCopied ? <CheckCircle className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+                    </Button>
+                  </div>
+
+                  {/* Toggle statut */}
+                  <button
+                    onClick={() => setNewPcsStatus(s => s === 'actif' ? 'inactif' : 'actif')}
+                    className={`w-full flex items-center justify-center gap-2 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                      newPcsStatus === 'actif'
+                        ? 'bg-green-100 border-green-300 text-green-800 hover:bg-red-50 hover:border-red-300 hover:text-red-700'
+                        : 'bg-gray-100 border-gray-300 text-gray-600 hover:bg-green-50 hover:border-green-300 hover:text-green-700'
+                    }`}
+                  >
+                    {newPcsStatus === 'actif'
+                      ? <><ToggleRight className="h-3.5 w-3.5" /> Actif — cliquer pour Inactif</>
+                      : <><ToggleLeft className="h-3.5 w-3.5" /> Inactif — cliquer pour Actif</>
+                    }
+                  </button>
+
+                  {/* Actions */}
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 gap-1.5 text-xs"
+                      onClick={() => setShowNewPcsForm(false)}
+                    >
+                      Annuler
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="flex-1 gap-1.5 text-xs bg-blue-600 hover:bg-blue-700"
+                      onClick={() => sendNewPcsMutation.mutate({ code: newPcsCode, status: newPcsStatus })}
+                      disabled={!newPcsCode.trim() || sendNewPcsMutation.isPending}
+                    >
+                      {sendNewPcsMutation.isPending
+                        ? "Envoi..."
+                        : <><Mail className="h-3.5 w-3.5" /> Envoyer par email</>
+                      }
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-          <div className="flex justify-between items-center pt-2 border-t">
-            <p className="text-xs text-muted-foreground">{userPcsCodes.length} code(s) au total</p>
-            <Button variant="outline" size="sm" onClick={() => { setPcsCodesModal(false); setPcsCodesUser(null); }}>
+
+          <div className="pt-2 border-t">
+            <Button variant="outline" size="sm" className="w-full" onClick={() => { setPcsCodesModal(false); setPcsCodesUser(null); setShowNewPcsForm(false); }}>
               Fermer
             </Button>
           </div>

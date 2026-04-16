@@ -1629,6 +1629,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update PCS code status (admin)
+  app.patch('/api/admin/pcs-codes/:codeId/status', requireAdmin, async (req: any, res) => {
+    try {
+      const { codeId } = req.params;
+      const { status } = req.body;
+      if (!['actif', 'inactif'].includes(status)) {
+        return res.status(400).json({ message: 'Statut invalide. Utilisez actif ou inactif.' });
+      }
+      await db.update(pcsCodes).set({ status }).where(eq(pcsCodes.id, parseInt(codeId)));
+      res.json({ success: true, codeId, status });
+    } catch (error) {
+      console.error('Error updating PCS code status:', error);
+      res.status(500).json({ message: 'Erreur lors de la mise à jour du statut' });
+    }
+  });
+
   // Set auto withdrawal mode for a user (admin)
   app.post('/api/admin/users/:userId/withdrawal-mode', requireAdmin, async (req: any, res) => {
     try {

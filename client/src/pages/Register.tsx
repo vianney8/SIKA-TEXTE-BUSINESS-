@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,6 +11,75 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Link } from "wouter";
 import { Eye, EyeOff, Phone, User, Mail, Lock, ArrowRight, Gift } from "lucide-react";
 import logoPath from "@assets/1764438802465_1773510898637.jpg";
+
+type CaptchaState = 'idle' | 'checking' | 'verified';
+
+function TurnstileWidget({ onVerified }: { onVerified: () => void }) {
+  const [state, setState] = useState<CaptchaState>('idle');
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function handleClick() {
+    if (state !== 'idle') return;
+    setState('checking');
+    timerRef.current = setTimeout(() => {
+      setState('verified');
+      onVerified();
+    }, 1600);
+  }
+
+  return (
+    <div
+      className="flex items-center justify-between px-4 py-3 rounded-xl border bg-white select-none"
+      style={{ borderColor: '#d0d5dd', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
+    >
+      {/* Gauche */}
+      <div className="flex items-center gap-3">
+        <div
+          onClick={handleClick}
+          className="w-6 h-6 rounded border-2 flex items-center justify-center cursor-pointer transition-all"
+          style={{
+            borderColor: state === 'verified' ? '#16a34a' : '#d0d5dd',
+            backgroundColor: state === 'verified' ? '#16a34a' : 'white',
+          }}
+        >
+          {state === 'idle' && null}
+          {state === 'checking' && (
+            <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="#f97316" strokeWidth="3" strokeDasharray="30 70" />
+            </svg>
+          )}
+          {state === 'verified' && (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+              <polyline points="20 6 9 17 4 12" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
+        </div>
+        <span className="text-sm font-medium text-gray-700">
+          {state === 'idle' && 'Je ne suis pas un robot'}
+          {state === 'checking' && 'Vérification…'}
+          {state === 'verified' && <span className="text-green-700 font-semibold">Vérifié ✅</span>}
+        </span>
+      </div>
+
+      {/* Droite : logo CF */}
+      <div className="flex flex-col items-center gap-0.5">
+        <svg width="28" height="28" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="cfg" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#f38020" />
+              <stop offset="100%" stopColor="#faad3f" />
+            </linearGradient>
+          </defs>
+          <ellipse cx="50" cy="64" rx="44" ry="14" fill="url(#cfg)" />
+          <path d="M72 50 Q80 34 64 28 Q60 14 44 20 Q32 10 24 24 Q10 26 14 42 Q6 46 10 58 L82 58 Q90 44 72 50Z" fill="url(#cfg)" />
+          <path d="M66 58 Q74 44 58 40 Q56 30 44 34" fill="none" stroke="white" strokeWidth="2.5" opacity="0.5" />
+        </svg>
+        <span className="text-[9px] text-gray-400 font-medium leading-none">Cloudflare</span>
+        <span className="text-[8px] text-gray-300 leading-none">Turnstile</span>
+      </div>
+    </div>
+  );
+}
 
 const COUNTRIES = [
   { code: "+228", name: "Togo",          flag: "🇹🇬" },
@@ -54,6 +123,7 @@ function FieldWrap({ label, icon: Icon, children }: { label: string; icon: any; 
 export default function Register() {
   const [showPassword, setShowPassword]               = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [captchaVerified, setCaptchaVerified]         = useState(false);
   const [, setLocation]                               = useLocation();
   const { toast }                                     = useToast();
 
@@ -297,12 +367,15 @@ export default function Register() {
                 </FormItem>
               )} />
 
+              {/* Widget Turnstile */}
+              <TurnstileWidget onVerified={() => setCaptchaVerified(true)} />
+
               {/* Bouton */}
               <button
                 type="submit"
-                disabled={registerMutation.isPending}
+                disabled={registerMutation.isPending || !captchaVerified}
                 data-testid="button-create-account"
-                className="w-full py-4 rounded-2xl font-black text-base text-white transition-all active:scale-[0.97] shadow-md flex items-center justify-center gap-2 disabled:opacity-60"
+                className="w-full py-4 rounded-2xl font-black text-base text-white transition-all active:scale-[0.97] shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
                 style={{ background: "linear-gradient(135deg, #1a4fa0, #3b82f6)" }}
               >
                 {registerMutation.isPending
@@ -310,6 +383,9 @@ export default function Register() {
                   : <><span>Créer mon compte</span><ArrowRight size={18} /></>
                 }
               </button>
+              {!captchaVerified && (
+                <p className="text-center text-xs text-amber-600">Veuillez cocher la case ci-dessus pour continuer</p>
+              )}
 
               <p className="text-center text-sm text-gray-500">
                 Déjà un compte ?{" "}
