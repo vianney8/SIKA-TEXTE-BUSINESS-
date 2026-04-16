@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "wouter";
 
 const COUNTRIES: {
@@ -67,7 +67,7 @@ const COUNTRIES: {
   },
 ];
 
-type Step = "form" | "otp" | "pending" | "success" | "failed" | "redirected";
+type Step = "form" | "pending" | "success" | "failed" | "redirected";
 
 function AnimatedDots() {
   return (
@@ -94,7 +94,6 @@ export default function PaymentLinkPage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState("");
 
   const [step, setStep] = useState<Step>("form");
   const [submitting, setSubmitting] = useState(false);
@@ -102,12 +101,7 @@ export default function PaymentLinkPage() {
   const [txnId, setTxnId] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [pollCount, setPollCount] = useState(0);
-  const otpRef = useRef<HTMLInputElement>(null);
 
-  const requiresOtp = selectedOperator.code === "orange" &&
-    (selectedCountry.code === "CI" || selectedCountry.code === "SN") &&
-    !(selectedCountry.code === "CI" && link?.ciRedirect);
-  const otpUssdCode = selectedCountry.code === "CI" ? "#144#" : "#144*82#";
   const isCiRedirect = selectedCountry.code === "CI" && link?.ciRedirect === true;
 
   useEffect(() => {
@@ -145,15 +139,11 @@ export default function PaymentLinkPage() {
     }
   }, [pollCount, step]);
 
-  useEffect(() => {
-    if (step === "otp") setTimeout(() => otpRef.current?.focus(), 300);
-  }, [step]);
-
   const handleCountryChange = (code: string) => {
     const country = COUNTRIES.find(c => c.code === code) || COUNTRIES[0];
     setSelectedCountry(country);
     setSelectedOperator(country.operators[0]);
-    setPhone(""); setOtp("");
+    setPhone("");
   };
 
   const handleFormNext = () => {
@@ -169,17 +159,10 @@ export default function PaymentLinkPage() {
       setStep("redirected");
       return;
     }
-    if (requiresOtp) { setStep("otp"); return; }
-    doSubmit("");
+    doSubmit();
   };
 
-  const handleOtpConfirm = () => {
-    setError("");
-    if (!otp.trim()) { setError("Veuillez saisir l'OTP reçu"); return; }
-    doSubmit(otp.trim());
-  };
-
-  const doSubmit = async (otpValue: string) => {
+  const doSubmit = async () => {
     setSubmitting(true);
     try {
       const res = await fetch(`/api/public/payment-links/${linkId}/pay`, {
@@ -189,7 +172,6 @@ export default function PaymentLinkPage() {
           phone: phone.replace(/\s/g, ""),
           operator: selectedOperator.code,
           country: selectedCountry.code,
-          otp: otpValue || undefined,
           customerName: `${firstName.trim()} ${lastName.trim()}`,
           customerEmail: email.trim(),
         }),
@@ -306,86 +288,6 @@ export default function PaymentLinkPage() {
           onClick={() => { setStep("form"); setTxnId(""); setPollCount(0); }}
           className="mt-6 text-xs text-white/30 hover:text-white/60 transition-colors underline underline-offset-2"
         >Annuler</button>
-      </div>
-    </div>
-  );
-
-  // ── OTP Step ──
-  if (step === "otp") return (
-    <div className={`${BG} pb-12`} style={bgStyle}>
-      {/* Header */}
-      <div className="px-5 pt-6 pb-4 flex items-center justify-between">
-        <button onClick={() => { setStep("form"); setOtp(""); setError(""); }}
-          className="w-9 h-9 rounded-2xl bg-white/10 flex items-center justify-center text-white/60 hover:bg-white/15 transition-colors">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        <div className="flex items-center gap-2">
-          <img src="/logo.jpg" alt="SIKApay" className="w-7 h-7 rounded-xl object-cover" />
-          <span className="font-black text-white text-sm tracking-wide">SIKApay</span>
-        </div>
-        <div className="w-9" />
-      </div>
-
-      <div className="max-w-md mx-auto px-5 space-y-4 mt-2">
-        {/* Recap */}
-        <div className="bg-white/5 border border-white/10 rounded-3xl p-5 text-center">
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-black text-xs"
-              style={{ background: selectedOperator.bg }}>
-              {selectedOperator.short}
-            </div>
-            <span className="text-white/60 text-sm">{selectedOperator.name}</span>
-            <span className="text-white/30">·</span>
-            <span className="text-white/60 text-sm">{selectedCountry.prefix} {phone}</span>
-          </div>
-          <p className="font-black text-white text-4xl">
-            {parseFloat(link.amount).toLocaleString("fr-FR")}
-            <span className="text-lg text-white/40 ml-2">{link.currency}</span>
-          </p>
-        </div>
-
-        {/* OTP card */}
-        <div className="bg-white/5 border border-white/10 rounded-3xl p-5">
-          <div className="mb-5">
-            <div className="w-12 h-12 rounded-2xl bg-orange-500/20 flex items-center justify-center mb-3">
-              <span className="text-2xl">📱</span>
-            </div>
-            <p className="text-white font-bold text-base mb-1">Étape 1 — Obtenez votre OTP</p>
-            <p className="text-white/50 text-sm">Composez le{" "}
-              <span className="text-orange-400 font-bold text-base">{otpUssdCode}</span>
-              {" "}sur votre téléphone pour recevoir un code à 6 chiffres.
-            </p>
-          </div>
-          <div className="border-t border-white/10 pt-5">
-            <p className="text-white font-bold text-base mb-3">Étape 2 — Saisissez l'OTP</p>
-            <input
-              ref={otpRef}
-              type="number"
-              value={otp}
-              onChange={e => setOtp(e.target.value.slice(0, 6))}
-              placeholder="000000"
-              className="w-full bg-white/10 border border-white/20 rounded-2xl px-4 py-4 text-white text-3xl font-black text-center focus:outline-none focus:border-orange-400/60 tracking-[0.4em] placeholder:text-white/20 placeholder:tracking-[0.4em]"
-            />
-          </div>
-          {error && (
-            <div className="mt-3 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-2.5 text-red-400 text-sm">
-              {error}
-            </div>
-          )}
-        </div>
-
-        <button
-          onClick={handleOtpConfirm}
-          disabled={submitting || !otp.trim()}
-          className="w-full py-4 rounded-2xl font-black text-white text-base transition-all active:scale-[0.97] disabled:opacity-40"
-          style={{ background: "linear-gradient(135deg, #ea580c, #f97316)" }}
-        >
-          {submitting ? <span className="flex items-center justify-center gap-2">Validation<AnimatedDots /></span> : "Confirmer le paiement"}
-        </button>
-
-        <p className="text-center text-white/25 text-xs pb-4">Paiement sécurisé par <span className="text-white/40 font-bold">SIKApay</span></p>
       </div>
     </div>
   );
@@ -594,11 +496,7 @@ export default function PaymentLinkPage() {
               ? <span className="flex items-center justify-center gap-2">
                   Accéder au paiement <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                 </span>
-              : requiresOtp
-                ? <span className="flex items-center justify-center gap-2">
-                    Suivant <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-                  </span>
-                : `Payer ${parseFloat(link.amount).toLocaleString("fr-FR")} ${link.currency}`
+              : `Payer ${parseFloat(link.amount).toLocaleString("fr-FR")} ${link.currency}`
           }
         </button>
 
