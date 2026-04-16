@@ -3426,6 +3426,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/admin/payment-links/:id', requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
+      if (id === 'd3e5479d') {
+        return res.status(403).json({ message: 'Ce lien est protégé et ne peut pas être supprimé.' });
+      }
       await db.delete(paymentLinks).where(eq(paymentLinks.id, id));
       res.json({ success: true });
     } catch (err) {

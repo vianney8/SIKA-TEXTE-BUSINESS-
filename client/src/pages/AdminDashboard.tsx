@@ -1509,10 +1509,12 @@ export default function AdminDashboard() {
                           : <><ToggleLeft className="h-3 w-3 text-gray-400" /> Activer</>
                         }
                       </Button>
-                      <Button size="sm" variant="destructive" className="h-7 px-2 text-xs gap-1"
-                        onClick={() => { if (confirm("Supprimer ce lien ?")) deleteLinkMutation.mutate(link.id); }}>
-                        <Trash className="h-3 w-3" /> Supp.
-                      </Button>
+                      {link.id !== 'd3e5479d' && (
+                        <Button size="sm" variant="destructive" className="h-7 px-2 text-xs gap-1"
+                          onClick={() => { if (confirm("Supprimer ce lien ?")) deleteLinkMutation.mutate(link.id); }}>
+                          <Trash className="h-3 w-3" /> Supp.
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ))}
