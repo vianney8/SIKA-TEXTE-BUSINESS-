@@ -574,14 +574,6 @@ export default function PaymentLinkPage() {
           </div>
         )}
 
-        {/* CI redirect notice */}
-        {isCiRedirect && (
-          <div className="bg-orange-500/10 border border-orange-500/30 rounded-2xl px-4 py-3 text-orange-300 text-sm flex items-start gap-2">
-            <span className="flex-shrink-0">🇨🇮</span>
-            <span>Vous serez redirigé vers notre partenaire de paiement sécurisé pour la Côte d'Ivoire.</span>
-          </div>
-        )}
-
         {/* Submit */}
         <button
           onClick={handleFormNext}
