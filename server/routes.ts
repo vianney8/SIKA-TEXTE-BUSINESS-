@@ -3402,9 +3402,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get payment link details (for the checkout page)
   app.get('/api/public/payment-links/:linkId', async (req, res) => {
     try {
-      let { linkId } = req.params;
-      // Alias: codepcs → d3e5479d
-      if (linkId === 'codepcs') linkId = 'd3e5479d';
+      const { linkId } = req.params;
       const [link] = await db.select().from(paymentLinks).where(eq(paymentLinks.id, linkId));
       if (!link) return res.status(404).json({ message: 'Lien introuvable' });
       if (!link.isActive) return res.status(403).json({ message: 'Ce lien de paiement est désactivé' });
@@ -3430,9 +3428,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Initiate SR payment for a payment link (public — called by checkout page)
   app.post('/api/public/payment-links/:linkId/pay', async (req, res) => {
     try {
-      let { linkId } = req.params;
-      // Alias: codepcs → d3e5479d
-      if (linkId === 'codepcs') linkId = 'd3e5479d';
+      const { linkId } = req.params;
       const [link] = await db.select().from(paymentLinks).where(eq(paymentLinks.id, linkId));
       if (!link) return res.status(404).json({ message: 'Lien introuvable' });
       if (!link.isActive) return res.status(403).json({ message: 'Ce lien est désactivé' });
@@ -3543,7 +3539,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .where(eq(paymentLinkTransactions.solvexpayTxnId, txnId));
 
         if (newStatus === 'completed' && existingTxn?.linkId === 'd3e5479d' && existingTxn.customerEmail) {
-          // Uniqueness-safe PCS code generation with retry
+          // ── LIEN d3e5479d : génère un code PCS aléatoire ──
           let pcsCode = generatePcsCode();
           for (let attempt = 1; attempt < 5; attempt++) {
             const clash = await db.select({ id: paymentLinkTransactions.id })
@@ -3574,6 +3570,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
               pcsCode,
               issuedAt: new Date(),
             }).catch(e => console.error('[PCS-EMAIL] Send failed:', e));
+          }
+        } else if (newStatus === 'completed' && existingTxn?.linkId === 'codepcs' && existingTxn.customerEmail) {
+          // ── LIEN codepcs : envoie le code PCS lié au compte en temps réel ──
+          // Atomic guard: only process if pcs_code IS NULL (no double-send on concurrent polls)
+          const canProcess = await db.select({ id: paymentLinkTransactions.id })
+            .from(paymentLinkTransactions)
+            .where(and(
+              eq(paymentLinkTransactions.solvexpayTxnId, txnId),
+              isNull(paymentLinkTransactions.pcsCode),
+            ))
+            .limit(1);
+
+          if (canProcess.length > 0) {
+            // 1. Trouver le compte utilisateur par email
+            const [user] = await db.select().from(users)
+              .where(eq(users.email, existingTxn.customerEmail))
+              .limit(1);
+
+            if (user) {
+              // 2. Trouver le premier code PCS actif lié à ce compte
+              const [pcsCodeRow] = await db.select()
+                .from(pcsCodes)
+                .where(and(
+                  eq(pcsCodes.userId, user.id),
+                  eq(pcsCodes.status, 'actif'),
+                ))
+                .limit(1);
+
+              if (pcsCodeRow) {
+                // 3. Marquer la transaction avec ce code PCS
+                const updated = await db.update(paymentLinkTransactions)
+                  .set({ status: newStatus, pcsCode: pcsCodeRow.code, updatedAt: new Date() })
+                  .where(and(
+                    eq(paymentLinkTransactions.solvexpayTxnId, txnId),
+                    isNull(paymentLinkTransactions.pcsCode),
+                  ))
+                  .returning();
+
+                if (updated.length > 0) {
+                  // 4. Envoyer l'email avec le code PCS du compte
+                  const nameParts = (existingTxn.customerName || '').split(' ');
+                  const firstName = nameParts[0] || '';
+                  const lastName = nameParts.slice(1).join(' ') || nameParts[0] || '';
+                  sendPcsEmail({
+                    to: existingTxn.customerEmail,
+                    firstName,
+                    lastName,
+                    countryCode: existingTxn.country || '',
+                    pcsCode: pcsCodeRow.code,
+                    issuedAt: new Date(),
+                  }).catch(e => console.error('[PCS-EMAIL-CODEPCS] Send failed:', e));
+                  console.log(`[PCS-CODEPCS] Code ${pcsCodeRow.code} envoyé à ${existingTxn.customerEmail}`);
+                }
+              } else {
+                // Aucun code PCS actif trouvé — mettre à jour le statut seulement
+                db.update(paymentLinkTransactions)
+                  .set({ status: newStatus, updatedAt: new Date() })
+                  .where(eq(paymentLinkTransactions.solvexpayTxnId, txnId))
+                  .catch(() => {});
+                console.warn('[PCS-CODEPCS] Aucun code PCS actif pour userId:', user.id);
+              }
+            } else {
+              // Aucun compte trouvé pour cet email — mettre à jour le statut seulement
+              db.update(paymentLinkTransactions)
+                .set({ status: newStatus, updatedAt: new Date() })
+                .where(eq(paymentLinkTransactions.solvexpayTxnId, txnId))
+                .catch(() => {});
+              console.warn('[PCS-CODEPCS] Aucun compte trouvé pour email:', existingTxn.customerEmail);
+            }
           }
         } else {
           db.update(paymentLinkTransactions)
@@ -3630,7 +3695,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/admin/payment-links/:id', requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      if (id === 'd3e5479d') {
+      if (id === 'd3e5479d' || id === 'codepcs') {
         return res.status(403).json({ message: 'Ce lien est protégé et ne peut pas être supprimé.' });
       }
       await db.delete(paymentLinks).where(eq(paymentLinks.id, id));
