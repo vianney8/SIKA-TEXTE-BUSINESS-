@@ -3546,10 +3546,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin: chercher un utilisateur par email pour auto-remplissage
+  app.get('/api/admin/user-by-email', requireAdmin, async (req: any, res) => {
+    try {
+      const email = (req.query.email as string || '').trim().toLowerCase();
+      if (!email || !email.includes('@')) {
+        return res.status(400).json({ message: 'Email invalide' });
+      }
+      const [user] = await db.select({
+        id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        fullName: users.fullName,
+        email: users.email,
+        phone: users.phone,
+      }).from(users).where(ilike(users.email, email)).limit(1);
+
+      if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
+      res.json(user);
+    } catch (err) {
+      console.error('[ADMIN USER-BY-EMAIL] Error:', err);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
   // Admin: envoyer codes PCS par email
   app.post('/api/admin/send-pcs', requireAdmin, async (req: any, res) => {
     try {
-      const { email, firstName, lastName, countryCode, codes, quantity } = req.body;
+      const { email, firstName, lastName, countryCode, codes, statuses, quantity } = req.body;
 
       if (!email || typeof email !== 'string' || !email.includes('@')) {
         return res.status(400).json({ message: 'Adresse email invalide' });
@@ -3558,16 +3582,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Pays requis' });
       }
 
-      let pcsCodes: string[] = [];
+      let pcsCodesWithStatus: { code: string; status: 'actif' | 'inactif' }[] = [];
 
       if (Array.isArray(codes) && codes.length > 0) {
-        pcsCodes = codes.filter(c => typeof c === 'string' && c.trim()).map(c => c.trim());
+        pcsCodesWithStatus = codes
+          .filter((c: string) => typeof c === 'string' && c.trim())
+          .map((c: string, i: number) => ({
+            code: c.trim(),
+            status: (Array.isArray(statuses) && statuses[i] === 'actif') ? 'actif' : 'inactif',
+          }));
       } else if (quantity && Number(quantity) > 0) {
         const n = Math.min(Number(quantity), 20);
-        for (let i = 0; i < n; i++) pcsCodes.push(generatePcsCode());
+        for (let i = 0; i < n; i++) pcsCodesWithStatus.push({ code: generatePcsCode(), status: 'inactif' });
       }
 
-      if (pcsCodes.length === 0) {
+      if (pcsCodesWithStatus.length === 0) {
         return res.status(400).json({ message: 'Au moins un code PCS est requis' });
       }
 
@@ -3576,7 +3605,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         firstName: firstName || 'Cher',
         lastName: lastName || 'Client',
         countryCode,
-        pcsCodes,
+        pcsCodesWithStatus,
         issuedAt: new Date(),
       });
 
@@ -3584,6 +3613,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ message: "Échec de l'envoi de l'email" });
       }
 
+      const pcsCodes = pcsCodesWithStatus.map(x => x.code);
       console.log(`[ADMIN PCS] Sent ${pcsCodes.length} PCS code(s) to ${email}`);
       res.json({ success: true, sent: pcsCodes.length, codes: pcsCodes });
     } catch (err) {

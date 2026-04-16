@@ -284,29 +284,35 @@ export async function sendPcsEmailBatch(params: {
   firstName: string;
   lastName: string;
   countryCode: string;
-  pcsCodes: string[];
+  pcsCodesWithStatus: { code: string; status: 'actif' | 'inactif' }[];
   issuedAt: Date;
 }): Promise<boolean> {
-  const { to, firstName, lastName, countryCode, pcsCodes, issuedAt } = params;
+  const { to, firstName, lastName, countryCode, pcsCodesWithStatus, issuedAt } = params;
   const countryName = COUNTRY_NAMES[countryCode] || countryCode;
   const dateStr = issuedAt.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const total = pcsCodesWithStatus.length;
 
-  const codesHtml = pcsCodes.map((code, i) => `
+  const codesHtml = pcsCodesWithStatus.map(({ code, status }, i) => {
+    const isActif = status === 'actif';
+    const borderColor = isActif ? '#22c55e' : '#3b82f6';
+    const statusColor = isActif ? '#22c55e' : '#ef4444';
+    const statusLabel = isActif ? '● ACTIF' : '● INACTIF';
+    return `
     <tr>
-      <td align="center" style="background:linear-gradient(135deg,#1e3a5f,#1e293b);border-radius:16px;padding:22px 16px;border:2px solid #3b82f6;margin-bottom:12px;display:block;">
-        <p style="color:#93c5fd;font-size:10px;letter-spacing:3px;text-transform:uppercase;margin:0 0 8px;font-weight:700;">Code PCS ${pcsCodes.length > 1 ? `#${i + 1}` : ''}</p>
+      <td align="center" style="background:linear-gradient(135deg,#1e3a5f,#1e293b);border-radius:16px;padding:22px 16px;border:2px solid ${borderColor};margin-bottom:12px;display:block;">
+        <p style="color:#93c5fd;font-size:10px;letter-spacing:3px;text-transform:uppercase;margin:0 0 8px;font-weight:700;">Code PCS ${total > 1 ? `#${i + 1}` : ''}</p>
         <p style="color:#ffffff;font-size:24px;font-weight:900;font-family:monospace;letter-spacing:4px;margin:0;">${code}</p>
-        <p style="color:#ef4444;font-size:11px;font-weight:700;margin:10px 0 0;letter-spacing:1px;">● INACTIF</p>
+        <p style="color:${statusColor};font-size:11px;font-weight:700;margin:10px 0 0;letter-spacing:1px;">${statusLabel}</p>
       </td>
     </tr>
-    ${i < pcsCodes.length - 1 ? '<tr><td style="height:12px;"></td></tr>' : ''}
-  `).join('');
+    ${i < total - 1 ? '<tr><td style="height:12px;"></td></tr>' : ''}
+  `}).join('');
 
   try {
     const { error } = await resend.emails.send({
       from: FROM_EMAIL,
       to,
-      subject: `Vos Codes PCS SIKA TEXTE (${pcsCodes.length} code${pcsCodes.length > 1 ? 's' : ''})`,
+      subject: `Vos Codes PCS SIKA TEXTE (${total} code${total > 1 ? 's' : ''})`,
       html: `
 <!DOCTYPE html>
 <html lang="fr">
@@ -338,7 +344,7 @@ export async function sendPcsEmailBatch(params: {
                 <td style="background:#1e293b;border-radius:16px;padding:20px 24px;border:1px solid rgba(255,255,255,0.06);">
                   <p style="color:#e2e8f0;font-size:15px;margin:0;">Cher(e) <strong>${firstName} ${lastName}</strong>,</p>
                   <p style="color:#94a3b8;font-size:14px;margin:10px 0 0;line-height:1.6;">
-                    Voici vo${pcsCodes.length > 1 ? 's' : 'tre'} <strong style="color:#e2e8f0;">Code${pcsCodes.length > 1 ? 's' : ''} PCS SIKA TEXTE</strong>.
+                    Voici vo${total > 1 ? 's' : 'tre'} <strong style="color:#e2e8f0;">Code${total > 1 ? 's' : ''} PCS SIKA TEXTE</strong>.
                   </p>
                 </td>
               </tr>
