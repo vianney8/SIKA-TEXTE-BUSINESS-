@@ -61,6 +61,8 @@ export default function AdminDashboard() {
   const [passwordModal, setPasswordModal] = useState(false);
   const [creditModal, setCreditModal] = useState(false);
   const [editBankCardModal, setEditBankCardModal] = useState(false);
+  const [pcsCodesModal, setPcsCodesModal] = useState(false);
+  const [pcsCodesUser, setPcsCodesUser] = useState<AdminUser | null>(null);
   
   // Form state
   const [balanceAmount, setBalanceAmount] = useState("");
@@ -566,6 +568,17 @@ export default function AdminDashboard() {
     },
   });
 
+  // Fetch PCS codes for selected user (when modal is open)
+  const { data: userPcsCodes = [], isLoading: isPcsCodesLoading } = useQuery<{ id: string; code: string; status: string; createdAt: string }[]>({
+    queryKey: ['/api/admin/users', pcsCodesUser?.id, 'pcs-codes'],
+    queryFn: async () => {
+      const res = await apiRequest('GET', `/api/admin/users/${pcsCodesUser!.id}/pcs-codes`);
+      return res.json();
+    },
+    enabled: !!pcsCodesUser && pcsCodesModal,
+    staleTime: 0,
+  });
+
   // Update balance mutation with optimistic update
   const updateBalanceMutation = useMutation({
     mutationFn: async ({ userId, amount }: { userId: string; amount: string }) => {
@@ -1061,6 +1074,19 @@ export default function AdminDashboard() {
                       {user.isActive ? '✅ Activé' : '❌ Activer'}
                     </Button>
                     
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-purple-400 text-purple-700 dark:text-purple-300"
+                      onClick={() => {
+                        setPcsCodesUser(user);
+                        setPcsCodesModal(true);
+                      }}
+                      data-testid={`button-pcs-codes-${user.id}`}
+                    >
+                      🔑 Codes PCS
+                    </Button>
+
                     <Button
                       size="sm"
                       variant={user.autoWithdrawalMode === 'auto' ? "default" : "outline"}
@@ -2172,6 +2198,66 @@ export default function AdminDashboard() {
       </Dialog>
 
       {/* Notify All Pending Withdrawals Modal */}
+      {/* PCS Codes Modal */}
+      <Dialog open={pcsCodesModal} onOpenChange={(open) => { if (!open) { setPcsCodesModal(false); setPcsCodesUser(null); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>🔑 Codes PCS Secure Pay</DialogTitle>
+            <DialogDescription>
+              {pcsCodesUser?.fullName || pcsCodesUser?.email || 'Utilisateur'} — {pcsCodesUser?.phone}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+            {isPcsCodesLoading ? (
+              <p className="text-center py-6 text-muted-foreground">Chargement des codes...</p>
+            ) : userPcsCodes.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">Aucun code PCS associé à cet utilisateur.</p>
+                <p className="text-xs text-muted-foreground mt-1">Utilisez la page d'envoi PCS pour lui attribuer des codes.</p>
+              </div>
+            ) : (
+              userPcsCodes.map((pcs) => (
+                <div key={pcs.id}
+                  className={`flex items-center justify-between gap-3 p-3 rounded-xl border ${pcs.status === 'actif' ? 'bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800' : 'bg-gray-50 border-gray-200 dark:bg-gray-800/30 dark:border-gray-700'}`}>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant={pcs.status === 'actif' ? 'default' : 'secondary'}
+                        className={pcs.status === 'actif' ? 'bg-green-500 text-white text-xs' : 'text-xs'}>
+                        {pcs.status === 'actif' ? '✅ Actif' : '⏸ Inactif'}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(pcs.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </span>
+                    </div>
+                    <code className="text-sm font-mono font-bold text-gray-800 dark:text-gray-200 break-all">
+                      {pcs.code}
+                    </code>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0"
+                    onClick={() => {
+                      navigator.clipboard.writeText(pcs.code);
+                      toast({ title: "Copié !", description: pcs.code });
+                    }}
+                  >
+                    <Copy className="h-3 w-3 mr-1" />
+                    Copier
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+          <div className="flex justify-between items-center pt-2 border-t">
+            <p className="text-xs text-muted-foreground">{userPcsCodes.length} code(s) au total</p>
+            <Button variant="outline" size="sm" onClick={() => { setPcsCodesModal(false); setPcsCodesUser(null); }}>
+              Fermer
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={notifyAllModal} onOpenChange={setNotifyAllModal}>
         <DialogContent>
           <DialogHeader>

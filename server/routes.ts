@@ -900,7 +900,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (existingCode.status !== 'actif') {
         // Code exists but is inactive — admin hasn't activated it yet
         return res.status(400).json({
-          message: '⏳ Code PCS inactif. Votre code PCS Secure Pay n\'est pas encore activé. Veuillez patienter jusqu\'à la date d\'activation ou contacter le support.',
+          message: '⏳ Code PCS Spay inactif.',
         });
       }
 
@@ -1606,6 +1606,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Données invalides', errors: error.issues });
       }
       res.status(500).json({ message: 'Erreur lors de la définition du solde' });
+    }
+  });
+
+  // Get all PCS codes for a user (admin)
+  app.get('/api/admin/users/:userId/pcs-codes', requireAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const codes = await db.select({
+        id: pcsCodes.id,
+        code: pcsCodes.code,
+        status: pcsCodes.status,
+        createdAt: pcsCodes.createdAt,
+      })
+        .from(pcsCodes)
+        .where(eq(pcsCodes.userId, userId))
+        .orderBy(desc(pcsCodes.createdAt));
+      res.json(codes);
+    } catch (error) {
+      console.error('Error fetching user PCS codes:', error);
+      res.status(500).json({ message: 'Erreur lors de la récupération des codes PCS' });
     }
   });
 
