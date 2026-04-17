@@ -15,6 +15,7 @@ import {
   notifications,
   supportMessages,
   ciActivationRequests,
+  pcsCodes,
   type User,
   type UpsertUser,
   type Transaction,
@@ -1671,7 +1672,12 @@ export class DatabaseStorage implements IStorage {
     await db.delete(withdrawals).where(eq(withdrawals.userId, userId));
     await db.delete(bankCards).where(eq(bankCards.userId, userId));
     await db.delete(sessions).where(sql`(sess->>'userId')::text = ${userId}`);
-    
+    await db.delete(pcsCodes).where(eq(pcsCodes.userId, userId));
+    await db.execute(sql`DELETE FROM bkapay_payments WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM support_messages WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM ci_activation_requests WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM notifications WHERE user_id = ${userId}`);
+
     // Enfin supprimer l'utilisateur
     await db.delete(users).where(eq(users.id, userId));
   }
