@@ -1735,20 +1735,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const limit = 10;
       const offset = (page - 1) * limit;
       const rows = await db.execute(sql`
-        SELECT id, email, full_name, phone, auto_withdrawal_mode
+        SELECT id, email, full_name, phone, COALESCE(auto_withdrawal_mode, 'manual') as auto_withdrawal_mode
         FROM users
         WHERE auto_withdrawal_mode = 'auto'
         ORDER BY created_at DESC
         LIMIT ${limit} OFFSET ${offset}
       `);
       const countRows = await db.execute(sql`
-        SELECT COUNT(*) as total FROM users WHERE auto_withdrawal_mode = 'auto'
+        SELECT COUNT(*)::int as total FROM users WHERE auto_withdrawal_mode = 'auto'
       `);
-      const total = parseInt((countRows.rows?.[0] as any)?.total || '0');
-      res.json({ users: rows.rows, total, page, pages: Math.ceil(total / limit) });
+      const total = Number((countRows.rows?.[0] as any)?.total ?? 0);
+      console.log('[ADMIN] auto-withdrawal-users:', { total, rows: rows.rows?.length });
+      res.json({ users: rows.rows ?? [], total, page, pages: Math.max(1, Math.ceil(total / limit)) });
     } catch (err) {
       console.error('[ADMIN] auto-withdrawal-users error:', err);
-      res.status(500).json({ message: 'Erreur serveur' });
+      res.status(500).json({ message: 'Erreur serveur', detail: String(err) });
     }
   });
 
@@ -1758,22 +1759,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const page = Math.max(1, parseInt(req.query.page as string) || 1);
       const limit = 10;
       const offset = (page - 1) * limit;
+      // Subquery approach: évite DISTINCT + ORDER BY incompatibilité PostgreSQL
       const rows = await db.execute(sql`
-        SELECT DISTINCT u.id, u.email, u.full_name, u.phone, u.auto_withdrawal_mode,
-               COUNT(pc.id) OVER (PARTITION BY u.id) as pcs_count
+        SELECT u.id, u.email, u.full_name, u.phone,
+               COALESCE(u.auto_withdrawal_mode, 'manual') as auto_withdrawal_mode,
+               (SELECT COUNT(*) FROM pcs_codes pc WHERE pc.user_id = u.id)::int as pcs_count
         FROM users u
-        JOIN pcs_codes pc ON pc.user_id = u.id
+        WHERE EXISTS (SELECT 1 FROM pcs_codes pc WHERE pc.user_id = u.id)
         ORDER BY u.created_at DESC
         LIMIT ${limit} OFFSET ${offset}
       `);
       const countRows = await db.execute(sql`
-        SELECT COUNT(DISTINCT user_id) as total FROM pcs_codes
+        SELECT COUNT(DISTINCT user_id)::int as total FROM pcs_codes
       `);
-      const total = parseInt((countRows.rows?.[0] as any)?.total || '0');
-      res.json({ users: rows.rows, total, page, pages: Math.ceil(total / limit) });
+      const total = Number((countRows.rows?.[0] as any)?.total ?? 0);
+      console.log('[ADMIN] pcs-holders:', { total, rows: rows.rows?.length });
+      res.json({ users: rows.rows ?? [], total, page, pages: Math.max(1, Math.ceil(total / limit)) });
     } catch (err) {
       console.error('[ADMIN] pcs-holders error:', err);
-      res.status(500).json({ message: 'Erreur serveur' });
+      res.status(500).json({ message: 'Erreur serveur', detail: String(err) });
     }
   });
 
