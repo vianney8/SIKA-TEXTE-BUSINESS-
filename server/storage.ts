@@ -1506,9 +1506,29 @@ export class DatabaseStorage implements IStorage {
   }
 
   async searchUsersByPhoneOrEmail(query: string): Promise<(User & { isActive?: boolean; autoWithdrawalMode?: string })[]> {
-    // Normaliser le numéro de recherche (retirer les caractères non-numériques)
-    const normalizedQuery = query.replace(/[^0-9]/g, '');
-    
+    const trimmed = query.trim();
+    const isEmail = trimmed.includes('@');
+
+    let whereClause;
+    if (isEmail) {
+      // Recherche strictement par email (insensible à la casse)
+      whereClause = ilike(users.email, `%${trimmed}%`);
+    } else {
+      // Recherche par téléphone ou nom — normalisation numérique uniquement pour les numéros
+      const normalizedQuery = trimmed.replace(/[^0-9]/g, '');
+      const conditions: any[] = [
+        ilike(users.email, `%${trimmed}%`),
+        ilike(users.phone, `%${trimmed}%`),
+        ilike(users.fullName, `%${trimmed}%`),
+      ];
+      if (normalizedQuery.length >= 3) {
+        conditions.push(
+          sql`regexp_replace(${users.phone}, '[^0-9]', '', 'g') LIKE ${`%${normalizedQuery}%`}`
+        );
+      }
+      whereClause = or(...conditions);
+    }
+
     const result = await db
       .select({
         id: users.id,
@@ -1525,13 +1545,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(users)
       .leftJoin(accountStatus, eq(accountStatus.userId, users.id))
-      .where(
-        or(
-          ilike(users.email, `%${query}%`),
-          ilike(users.phone, `%${query}%`),
-          sql`regexp_replace(${users.phone}, '[^0-9]', '', 'g') LIKE ${`%${normalizedQuery}%`}`
-        )
-      )
+      .where(whereClause)
       .limit(50);
     return result as (User & { isActive?: boolean; autoWithdrawalMode?: string })[];
   }
