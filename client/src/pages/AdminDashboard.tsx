@@ -69,6 +69,7 @@ export default function AdminDashboard() {
   const [showNewPcsForm, setShowNewPcsForm] = useState(false);
   const [pcsConfirm, setPcsConfirm] = useState<{ codeId: string; code: string; currentStatus: 'actif' | 'inactif'; newStatus: 'actif' | 'inactif' } | null>(null);
   const [pcsNotify, setPcsNotify] = useState<{ code: string; newStatus: 'actif' | 'inactif' } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ userId: string; userName: string; userEmail: string } | null>(null);
   
   // Form state
   const [balanceAmount, setBalanceAmount] = useState("");
@@ -1185,11 +1186,11 @@ export default function AdminDashboard() {
                     <Button
                       size="sm"
                       variant="destructive"
-                      onClick={() => {
-                        if (confirm("Êtes-vous sûr de vouloir supprimer définitivement cet utilisateur ?")) {
-                          deleteUserMutation.mutate(user.id);
-                        }
-                      }}
+                      onClick={() => setDeleteConfirm({
+                        userId: user.id,
+                        userName: user.fullName || '',
+                        userEmail: user.email || '',
+                      })}
                       data-testid={`button-delete-${user.id}`}
                     >
                       <Trash className="h-3 w-3 mr-1" />
@@ -2534,6 +2535,65 @@ export default function AdminDashboard() {
                 Annuler
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Dialog de confirmation de suppression ── */}
+      <Dialog open={!!deleteConfirm} onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}>
+        <DialogContent className="max-w-sm rounded-2xl border-0 shadow-2xl p-0 overflow-hidden">
+          {/* Bande rouge en haut */}
+          <div className="bg-gradient-to-r from-red-500 to-rose-600 px-6 pt-6 pb-5 text-white">
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                <Trash className="h-5 w-5 text-white" />
+              </div>
+              <DialogTitle className="text-white text-base font-black m-0">Supprimer ce compte ?</DialogTitle>
+            </div>
+            <DialogDescription className="text-red-100 text-xs mt-2 leading-relaxed">
+              Cette action est <span className="font-black text-white">irréversible</span>. Toutes les données de l'utilisateur seront définitivement effacées.
+            </DialogDescription>
+          </div>
+
+          {/* Bloc infos utilisateur */}
+          <div className="px-6 py-4 bg-red-50 border-b border-red-100">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-slate-400 to-slate-600 flex items-center justify-center flex-shrink-0">
+                <span className="text-white text-sm font-black">
+                  {(deleteConfirm?.userName || deleteConfirm?.userEmail || '?')[0].toUpperCase()}
+                </span>
+              </div>
+              <div className="min-w-0">
+                {deleteConfirm?.userName && (
+                  <p className="text-slate-800 font-bold text-sm truncate">{deleteConfirm.userName}</p>
+                )}
+                <p className="text-slate-500 text-xs truncate font-mono">{deleteConfirm?.userEmail}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Boutons */}
+          <div className="flex gap-2 px-6 py-4">
+            <Button
+              variant="outline"
+              className="flex-1 h-10 rounded-xl font-bold text-sm border-2"
+              onClick={() => setDeleteConfirm(null)}
+            >
+              Annuler
+            </Button>
+            <Button
+              variant="destructive"
+              className="flex-1 h-10 rounded-xl font-black text-sm bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 border-0 shadow-lg shadow-red-200"
+              disabled={deleteUserMutation.isPending}
+              onClick={() => {
+                if (deleteConfirm) {
+                  deleteUserMutation.mutate(deleteConfirm.userId);
+                  setDeleteConfirm(null);
+                }
+              }}
+            >
+              {deleteUserMutation.isPending ? "Suppression…" : "Oui, supprimer"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
