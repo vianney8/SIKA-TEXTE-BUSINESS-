@@ -132,6 +132,27 @@ export default function AdminDashboard() {
     onError: () => toast({ title: "Erreur de mise à jour", variant: "destructive" }),
   });
 
+  const [manualTxnPending, setManualTxnPending] = useState<string | null>(null);
+  const manualUpdateTxnMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      setManualTxnPending(id);
+      const res = await apiRequest("PATCH", `/api/admin/payment-link-transactions/${id}`, { status });
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      setManualTxnPending(null);
+      refetchTxn();
+      if (vars.status === 'completed') {
+        toast({ title: "✅ Transaction validée", description: "Code PCS généré et envoyé par email si applicable" });
+      } else if (vars.status === 'failed') {
+        toast({ title: "Transaction rejetée" });
+      } else {
+        toast({ title: "Statut mis à jour" });
+      }
+    },
+    onError: () => { setManualTxnPending(null); toast({ title: "Erreur", variant: "destructive" }); },
+  });
+
   // Payment links — edit
   const [editLinkModal, setEditLinkModal] = useState(false);
   const [editLink, setEditLink] = useState<any>(null);
@@ -1915,14 +1936,40 @@ export default function AdminDashboard() {
                         {txn.solvexpayTxnId && (
                           <span className="text-[10px] text-gray-300 font-mono">ID: {txn.solvexpayTxnId}</span>
                         )}
+                        {txn.pcsCode && (
+                          <span className="text-[10px] font-mono bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded">
+                            🔑 {txn.pcsCode}
+                          </span>
+                        )}
                       </div>
-                      {/* Refresh button */}
+                      {/* Actions */}
                       {txn.status === "pending" && (
-                        <Button size="sm" variant="outline" className="h-7 px-2 text-xs flex-shrink-0"
-                          onClick={() => refreshTxnMutation.mutate(txn.id)}
-                          disabled={refreshTxnMutation.isPending}>
-                          <RefreshCw className={`h-3 w-3 ${refreshTxnMutation.isPending ? "animate-spin" : ""}`} />
-                        </Button>
+                        txn.solvexpayTxnId ? (
+                          // Transaction SolvexPay → rafraîchissement automatique
+                          <Button size="sm" variant="outline" className="h-7 px-2 text-xs flex-shrink-0"
+                            onClick={() => refreshTxnMutation.mutate(txn.id)}
+                            disabled={refreshTxnMutation.isPending}>
+                            <RefreshCw className={`h-3 w-3 ${refreshTxnMutation.isPending ? "animate-spin" : ""}`} />
+                          </Button>
+                        ) : (
+                          // Transaction CI (sans SolvexPay) → validation manuelle
+                          <div className="flex gap-1 flex-shrink-0">
+                            <Button size="sm" variant="outline"
+                              className="h-7 px-2 text-xs text-green-700 border-green-300 hover:bg-green-50"
+                              onClick={() => manualUpdateTxnMutation.mutate({ id: txn.id, status: 'completed' })}
+                              disabled={manualTxnPending === txn.id}
+                              title="Valider — génère et envoie le code PCS">
+                              <CheckCircle className="h-3 w-3" />
+                            </Button>
+                            <Button size="sm" variant="outline"
+                              className="h-7 px-2 text-xs text-red-700 border-red-300 hover:bg-red-50"
+                              onClick={() => manualUpdateTxnMutation.mutate({ id: txn.id, status: 'failed' })}
+                              disabled={manualTxnPending === txn.id}
+                              title="Rejeter">
+                              <XCircle className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )
                       )}
                     </div>
                   );

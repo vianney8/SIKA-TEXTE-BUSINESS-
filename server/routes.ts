@@ -3914,6 +3914,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin — mise à jour manuelle du statut (transactions CI sans solvexpayTxnId)
+  app.patch('/api/admin/payment-link-transactions/:id', requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+      if (!['completed', 'failed', 'pending'].includes(status)) {
+        return res.status(400).json({ message: 'Statut invalide' });
+      }
+      const [txn] = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.id, id));
+      if (!txn) return res.status(404).json({ message: 'Transaction introuvable' });
+
+      // Génère un code PCS pour le lien codepcs si marqué "completed" et email présent
+      if (status === 'completed' && txn.linkId === 'codepcs' && txn.customerEmail) {
+        // Éviter la double génération si déjà un code
+        if (txn.pcsCode) {
+          const [updated] = await db.update(paymentLinkTransactions)
+            .set({ status, updatedAt: new Date() })
+            .where(eq(paymentLinkTransactions.id, id))
+            .returning();
+          return res.json(updated);
+        }
+        let pcsCode = generatePcsCode();
+        for (let attempt = 1; attempt < 5; attempt++) {
+          const clash = await db.select({ id: paymentLinkTransactions.id })
+            .from(paymentLinkTransactions)
+            .where(eq(paymentLinkTransactions.pcsCode, pcsCode))
+            .limit(1);
+          if (clash.length === 0) break;
+          pcsCode = generatePcsCode();
+        }
+        // Mise à jour atomique — seulement si pcs_code est encore NULL
+        const atomicUpdated = await db.update(paymentLinkTransactions)
+          .set({ status, pcsCode, updatedAt: new Date() })
+          .where(and(
+            eq(paymentLinkTransactions.id, id),
+            isNull(paymentLinkTransactions.pcsCode),
+          ))
+          .returning();
+        if (atomicUpdated.length > 0) {
+          const nameParts = (txn.customerName || '').split(' ');
+          const firstName = nameParts[0] || '';
+          const lastName = nameParts.slice(1).join(' ') || nameParts[0] || '';
+          sendPcsEmail({
+            to: txn.customerEmail,
+            firstName,
+            lastName,
+            countryCode: txn.country || 'CI',
+            pcsCode,
+            issuedAt: new Date(),
+          }).catch(e => console.error('[PCS-EMAIL-MANUAL-CODEPCS] Send failed:', e));
+          console.log(`[PCS-CODEPCS-MANUAL] Code ${pcsCode} généré et envoyé à ${txn.customerEmail}`);
+          return res.json(atomicUpdated[0]);
+        }
+        const [current] = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.id, id));
+        return res.json(current);
+      }
+
+      const [updated] = await db.update(paymentLinkTransactions)
+        .set({ status, updatedAt: new Date() })
+        .where(eq(paymentLinkTransactions.id, id))
+        .returning();
+      res.json(updated);
+    } catch (err) {
+      console.error('[PAYMENT-LINK-TXN] Manual update error:', err);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
   // Admin — rafraîchir le statut d'une transaction via SolvexPay
   app.post('/api/admin/payment-link-transactions/:id/refresh', requireAdmin, async (req, res) => {
     try {
