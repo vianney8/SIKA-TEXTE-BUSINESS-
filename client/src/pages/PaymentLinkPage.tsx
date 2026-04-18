@@ -146,15 +146,33 @@ export default function PaymentLinkPage() {
     setPhone("");
   };
 
-  const handleFormNext = () => {
+  const handleFormNext = async () => {
     setError("");
     if (!phone.trim()) { setError("Veuillez saisir votre numéro Mobile Money"); return; }
     if (!firstName.trim() || !lastName.trim()) { setError("Veuillez saisir votre prénom et nom"); return; }
     if (!email.trim()) { setError("Veuillez saisir votre adresse e-mail"); return; }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim())) { setError("Veuillez saisir une adresse e-mail valide"); return; }
-    // CI redirect: open external payment URL and show confirmation screen
+    // CI redirect: enregistre la transaction en attente PUIS redirige
     if (isCiRedirect) {
+      setSubmitting(true);
+      try {
+        await fetch(`/api/public/payment-links/${linkId}/ci-record`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone: phone.replace(/\s/g, ""),
+            operator: selectedOperator.code,
+            country: selectedCountry.code,
+            customerName: `${firstName.trim()} ${lastName.trim()}`,
+            customerEmail: email.trim(),
+          }),
+        });
+      } catch {
+        // Non-bloquant : on redirige quand même si l'enregistrement échoue
+      } finally {
+        setSubmitting(false);
+      }
       window.open(link.ciRedirectUrl, "_blank");
       setStep("redirected");
       return;

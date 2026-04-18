@@ -3640,6 +3640,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Enregistre une transaction CI en attente (redirection externe, pas SolvexPay)
+  app.post('/api/public/payment-links/:linkId/ci-record', async (req, res) => {
+    try {
+      const { linkId } = req.params;
+      const { phone, operator, country, customerName, customerEmail } = req.body;
+
+      // Vérifier que le lien existe
+      const [link] = await db.select().from(paymentLinks).where(
+        and(eq(paymentLinks.id, linkId), eq(paymentLinks.isActive, true))
+      ).limit(1);
+      if (!link) return res.status(404).json({ message: 'Lien introuvable ou inactif' });
+
+      const [txn] = await db.insert(paymentLinkTransactions).values({
+        linkId,
+        linkLabel: link.label,
+        amount: link.amount,
+        currency: link.currency || 'XOF',
+        phone: phone || null,
+        operator: operator || 'ci-redirect',
+        country: country || 'CI',
+        customerName: customerName || null,
+        customerEmail: customerEmail || null,
+        solvexpayTxnId: null,
+        reference: null,
+        status: 'pending',
+      }).returning();
+
+      console.log('[CI-RECORD] Pending transaction created:', txn.id, customerEmail);
+      res.json({ success: true, id: txn.id });
+    } catch (err) {
+      console.error('[CI-RECORD] Error:', err);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
   // Check transaction status (public polling)
   app.get('/api/public/payment-links/check/:txnId', async (req, res) => {
     try {
