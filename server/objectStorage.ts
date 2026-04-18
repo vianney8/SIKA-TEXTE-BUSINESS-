@@ -173,7 +173,19 @@ export class ObjectStorageService {
     return objectFile;
   }
 
-  // Upload a demo video buffer to private object storage, returns unique object path
+  // Génère une URL signée pour upload direct navigateur → GCS (évite le transit par le serveur)
+  async getDemoVideoUploadURL(originalFileName: string): Promise<{ uploadUrl: string; videoId: string }> {
+    const ext = (originalFileName.split(".").pop() || "mp4").toLowerCase().replace("quicktime", "mov");
+    const videoId = `${randomUUID()}.${ext}`;
+    let entityDir = this.getPrivateObjectDir();
+    if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
+    const objectPath = `${entityDir}demo-videos/${videoId}`;
+    const { bucketName, objectName } = parseObjectPath(objectPath);
+    const uploadUrl = await signObjectURL({ bucketName, objectName, method: "PUT", ttlSec: 3600 });
+    return { uploadUrl, videoId };
+  }
+
+  // Upload a demo video buffer to private object storage (kept for fallback)
   async uploadDemoVideo(buffer: Buffer, mimeType: string): Promise<string> {
     const ext = mimeType.split("/")[1] || "mp4";
     const videoId = randomUUID();
@@ -198,6 +210,25 @@ export class ObjectStorageService {
     const [exists] = await file.exists();
     if (!exists) throw new ObjectNotFoundError();
     return file;
+  }
+
+  // Supprime une ancienne vidéo de démonstration (nettoyage après remplacement)
+  async deleteDemoVideo(videoId: string): Promise<void> {
+    try {
+      let entityDir = this.getPrivateObjectDir();
+      if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
+      const objectPath = `${entityDir}demo-videos/${videoId}`;
+      const { bucketName, objectName } = parseObjectPath(objectPath);
+      const bucket = objectStorageClient.bucket(bucketName);
+      const file = bucket.file(objectName);
+      const [exists] = await file.exists();
+      if (exists) {
+        await file.delete();
+        console.log("[DEMO-VIDEO] Ancienne vidéo supprimée:", objectPath);
+      }
+    } catch (err) {
+      console.error("[DEMO-VIDEO] Erreur suppression ancienne vidéo:", err);
+    }
   }
 
   // Upload an image for a payment link, returns a proxy URL path

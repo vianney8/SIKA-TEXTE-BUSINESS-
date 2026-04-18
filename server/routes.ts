@@ -2612,6 +2612,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Étape 1 : génère une URL signée pour upload direct navigateur → GCS
+  app.post("/api/admin/demo-video/upload-url", requireAdmin, async (req: any, res) => {
+    try {
+      const { fileName } = req.body;
+      if (!fileName) return res.status(400).json({ message: "fileName requis" });
+      const svc = new ObjectStorageService();
+      const { uploadUrl, videoId } = await svc.getDemoVideoUploadURL(fileName);
+      res.json({ uploadUrl, videoId });
+    } catch (err: any) {
+      console.error("[DEMO-VIDEO] upload-url error:", err);
+      res.status(500).json({ message: err.message || "Erreur serveur" });
+    }
+  });
+
+  // Étape 2 : confirme l'upload GCS, sauvegarde URL, supprime ancienne vidéo
+  app.post("/api/admin/demo-video/confirm", requireAdmin, async (req: any, res) => {
+    try {
+      const { videoId } = req.body;
+      if (!videoId) return res.status(400).json({ message: "videoId requis" });
+
+      // Récupérer l'ancienne URL avant de l'écraser
+      const settings = await storage.getAppSettings();
+      const oldUrl = settings.find((s: any) => s.key === "demo_video_url")?.value || "";
+
+      // Sauvegarder la nouvelle URL
+      const newUrl = `/api/media/demo-video/${videoId}`;
+      await storage.updateAppSetting("demo_video_url", newUrl);
+      console.log("[DEMO-VIDEO] Nouvelle URL sauvegardée:", newUrl);
+
+      // Supprimer l'ancienne vidéo de GCS (non bloquant)
+      if (oldUrl && oldUrl.startsWith("/api/media/demo-video/")) {
+        const oldVideoId = oldUrl.replace("/api/media/demo-video/", "");
+        const svc = new ObjectStorageService();
+        svc.deleteDemoVideo(oldVideoId).catch((e: any) =>
+          console.error("[DEMO-VIDEO] Suppression ancienne vidéo échouée:", e)
+        );
+      }
+
+      res.json({ message: "Vidéo mise à jour avec succès", url: newUrl });
+    } catch (err: any) {
+      console.error("[DEMO-VIDEO] confirm error:", err);
+      res.status(500).json({ message: err.message || "Erreur serveur" });
+    }
+  });
+
   // Proxy route pour servir les vidéos de démonstration depuis l'object storage
   app.get("/api/media/demo-video/:videoId", async (req: any, res) => {
     try {

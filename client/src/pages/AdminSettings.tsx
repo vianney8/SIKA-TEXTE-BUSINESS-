@@ -33,6 +33,7 @@ export default function AdminSettings() {
   const [videoFile, setVideoFile]     = useState<File | null>(null);
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
   const [isUploadingVideo, setIsUploadingVideo] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const videoInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch app settings
@@ -127,25 +128,62 @@ export default function AdminSettings() {
   const handleVideoUpload = async () => {
     if (!videoFile) return;
     setIsUploadingVideo(true);
+    setUploadProgress(0);
     try {
-      const formData = new FormData();
-      formData.append("video", videoFile);
-      const response = await fetch("/api/admin/upload-demo-video", {
+      // Étape 1 : obtenir l'URL signée pour upload direct vers GCS
+      const urlRes = await fetch("/api/admin/demo-video/upload-url", {
         method: "POST",
         credentials: "include",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: videoFile.name }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Erreur lors de l'upload");
-      toast({ title: "Vidéo mise à jour !", description: "La vidéo de démonstration a été remplacée avec succès" });
+      const urlData = await urlRes.json();
+      if (!urlRes.ok) throw new Error(urlData.message || "Impossible d'obtenir l'URL d'upload");
+      const { uploadUrl, videoId } = urlData;
+
+      // Étape 2 : upload direct navigateur → GCS avec suivi de progression
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", uploadUrl, true);
+        xhr.setRequestHeader("Content-Type", videoFile.type || "video/mp4");
+        xhr.upload.addEventListener("progress", (e) => {
+          if (e.lengthComputable) {
+            setUploadProgress(Math.round((e.loaded / e.total) * 90));
+          }
+        });
+        xhr.addEventListener("load", () => {
+          if (xhr.status >= 200 && xhr.status < 300) resolve();
+          else reject(new Error(`Erreur GCS: ${xhr.status} ${xhr.statusText}`));
+        });
+        xhr.addEventListener("error", () => reject(new Error("Erreur réseau lors de l'upload")));
+        xhr.addEventListener("abort", () => reject(new Error("Upload annulé")));
+        xhr.send(videoFile);
+      });
+
+      setUploadProgress(95);
+
+      // Étape 3 : confirmer l'upload et sauvegarder la nouvelle URL (+ supprime l'ancienne)
+      const confirmRes = await fetch("/api/admin/demo-video/confirm", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoId }),
+      });
+      const confirmData = await confirmRes.json();
+      if (!confirmRes.ok) throw new Error(confirmData.message || "Erreur de confirmation");
+
+      setUploadProgress(100);
+      toast({ title: "✅ Vidéo mise à jour !", description: "La vidéo de démonstration a été remplacée avec succès" });
       queryClient.invalidateQueries({ queryKey: ["/api/settings/demo_video_url"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
       setVideoFile(null);
       setVideoPreview(null);
       if (videoInputRef.current) videoInputRef.current.value = "";
     } catch (error: any) {
-      toast({ title: "Erreur", description: error.message || "Impossible d'uploader la vidéo", variant: "destructive" });
+      toast({ title: "Erreur upload", description: error.message || "Impossible d'uploader la vidéo", variant: "destructive" });
     } finally {
       setIsUploadingVideo(false);
+      setTimeout(() => setUploadProgress(0), 2000);
     }
   };
 
@@ -630,6 +668,25 @@ export default function AdminSettings() {
               />
             </div>
 
+            {/* Barre de progression */}
+            {isUploadingVideo && (
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>
+                    {uploadProgress < 90 ? "Upload vers le stockage cloud..." :
+                     uploadProgress < 100 ? "Finalisation..." : "✅ Terminé !"}
+                  </span>
+                  <span className="font-bold">{uploadProgress}%</span>
+                </div>
+                <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Bouton upload */}
             <Button
               onClick={handleVideoUpload}
@@ -637,7 +694,10 @@ export default function AdminSettings() {
               className="w-full bg-blue-600 hover:bg-blue-700"
             >
               {isUploadingVideo ? (
-                <span className="flex items-center gap-2"><span className="animate-spin">⏳</span> Upload en cours...</span>
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Upload en cours... {uploadProgress}%
+                </span>
               ) : (
                 <span className="flex items-center gap-2"><Upload size={16} /> Mettre à jour la vidéo</span>
               )}
