@@ -133,6 +133,7 @@ export default function AdminDashboard() {
   });
 
   const [manualTxnPending, setManualTxnPending] = useState<string | null>(null);
+  const [txnConfirm, setTxnConfirm] = useState<{ id: string; status: 'completed' | 'failed'; name: string; amount: string } | null>(null);
   const manualUpdateTxnMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       setManualTxnPending(id);
@@ -1953,20 +1954,18 @@ export default function AdminDashboard() {
                           </Button>
                         ) : (
                           // Transaction CI (sans SolvexPay) → validation manuelle
-                          <div className="flex gap-1 flex-shrink-0">
-                            <Button size="sm" variant="outline"
-                              className="h-7 px-2 text-xs text-green-700 border-green-300 hover:bg-green-50"
-                              onClick={() => manualUpdateTxnMutation.mutate({ id: txn.id, status: 'completed' })}
-                              disabled={manualTxnPending === txn.id}
-                              title="Valider — génère et envoie le code PCS">
-                              <CheckCircle className="h-3 w-3" />
+                          <div className="flex flex-col gap-1 flex-shrink-0">
+                            <Button size="sm"
+                              className="h-7 px-3 text-xs font-semibold bg-green-600 hover:bg-green-700 text-white gap-1.5"
+                              onClick={() => setTxnConfirm({ id: txn.id, status: 'completed', name: txn.customerName || txn.phone, amount: `${parseFloat(txn.amount).toLocaleString("fr-FR")} ${txn.currency}` })}
+                              disabled={manualTxnPending === txn.id}>
+                              <CheckCircle className="h-3 w-3" /> Approuver
                             </Button>
                             <Button size="sm" variant="outline"
-                              className="h-7 px-2 text-xs text-red-700 border-red-300 hover:bg-red-50"
-                              onClick={() => manualUpdateTxnMutation.mutate({ id: txn.id, status: 'failed' })}
-                              disabled={manualTxnPending === txn.id}
-                              title="Rejeter">
-                              <XCircle className="h-3 w-3" />
+                              className="h-7 px-3 text-xs font-semibold text-red-700 border-red-300 hover:bg-red-50 gap-1.5"
+                              onClick={() => setTxnConfirm({ id: txn.id, status: 'failed', name: txn.customerName || txn.phone, amount: `${parseFloat(txn.amount).toLocaleString("fr-FR")} ${txn.currency}` })}
+                              disabled={manualTxnPending === txn.id}>
+                              <XCircle className="h-3 w-3" /> Rejeter
                             </Button>
                           </div>
                         )
@@ -1995,6 +1994,49 @@ export default function AdminDashboard() {
             )}
           </CardContent>
         </Card>
+
+        {/* Dialog de confirmation — validation/rejet manuel d'une transaction CI */}
+        <Dialog open={!!txnConfirm} onOpenChange={(open) => { if (!open) setTxnConfirm(null); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className={txnConfirm?.status === 'completed' ? "text-green-700" : "text-red-700"}>
+                {txnConfirm?.status === 'completed' ? "✅ Approuver la transaction" : "❌ Rejeter la transaction"}
+              </DialogTitle>
+              <DialogDescription className="pt-2 space-y-1 text-sm">
+                <p>Client : <strong>{txnConfirm?.name}</strong></p>
+                <p>Montant : <strong>{txnConfirm?.amount}</strong></p>
+                {txnConfirm?.status === 'completed' && (
+                  <p className="mt-2 text-violet-700 font-medium text-xs bg-violet-50 p-2 rounded-lg">
+                    Un code PCS sera généré et envoyé automatiquement par email au client.
+                  </p>
+                )}
+                {txnConfirm?.status === 'failed' && (
+                  <p className="mt-2 text-red-600 text-xs bg-red-50 p-2 rounded-lg">
+                    La transaction sera marquée comme rejetée. Aucun code PCS ne sera envoyé.
+                  </p>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex gap-3 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setTxnConfirm(null)}>
+                Annuler
+              </Button>
+              <Button
+                className={`flex-1 gap-1.5 ${txnConfirm?.status === 'completed' ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"} text-white`}
+                disabled={manualTxnPending === txnConfirm?.id}
+                onClick={() => {
+                  if (txnConfirm) {
+                    manualUpdateTxnMutation.mutate({ id: txnConfirm.id, status: txnConfirm.status });
+                    setTxnConfirm(null);
+                  }
+                }}>
+                {txnConfirm?.status === 'completed'
+                  ? <><CheckCircle className="h-4 w-4" /> Confirmer l'approbation</>
+                  : <><XCircle className="h-4 w-4" /> Confirmer le rejet</>}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Users Section with Real-time Search */}
         <Card>
