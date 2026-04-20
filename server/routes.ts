@@ -2178,6 +2178,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
 
+        // PCS search: phone number + word containing "pcs" (case insensitive)
+        const pcsSearchMatch = /^([\+\d\s\-]{7,20})\s+\S*pcs\S*\s*$/i.exec(msgText);
+        if (pcsSearchMatch) {
+          const phoneQuery = pcsSearchMatch[1].trim();
+          const phoneDigits = phoneQuery.replace(/\D/g, '');
+          const OPERATORS_FR2: Record<string, string> = { mtn: 'MTN', moov: 'Moov', orange: 'Orange', wave: 'Wave', tmoney: 'T-Money', free: 'Free', 'ci-redirect': 'CI redirect' };
+          const STATUS_FR2: Record<string, string> = { pending: '⏳ En attente', completed: '✅ Complété', failed: '❌ Échoué' };
+
+          // Search payment_link_transactions by phone (partial digits match)
+          const allTxns = await db.execute(sql`
+            SELECT * FROM payment_link_transactions
+            WHERE (link_id = 'd3e5479d' OR link_id = 'codepcs')
+              AND regexp_replace(phone, '[^0-9]', '', 'g') LIKE ${'%' + phoneDigits + '%'}
+            ORDER BY created_at DESC
+            LIMIT 20
+          `);
+          const txns = (allTxns.rows || []) as any[];
+
+          if (!txns.length) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                text: `🔍 <b>Recherche PCS : <code>${phoneQuery}</code></b>\n\nAucune demande de code PCS trouvée pour ce numéro.`,
+                parse_mode: 'HTML'
+              })
+            });
+          } else {
+            const lines = txns.map((t: any, i: number) => {
+              const date = t.created_at ? new Date(t.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+              const op = OPERATORS_FR2[t.operator] || t.operator || '—';
+              const amt = t.amount ? Number(t.amount).toLocaleString('fr-FR') : '—';
+              const emailStr = t.customer_email ? `<code>${t.customer_email}</code>` : '<i>non renseigné</i>';
+              return `<b>${i + 1}.</b> ${STATUS_FR2[t.status] || t.status}\n` +
+                `   👤 ${t.customer_name || 'Inconnu'}\n` +
+                `   📧 Email : ${emailStr}\n` +
+                `   📱 <code>${t.phone || '—'}</code>\n` +
+                `   💳 ${op} — ${amt} FCFA\n` +
+                `   🔗 Lien : ${t.link_id === 'codepcs' ? 'Code PCS (codepcs)' : 'Code PCS (d3e5479d)'}\n` +
+                `   🕐 ${date}`;
+            }).join('\n\n');
+
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                text: `🔍 <b>Recherche PCS : <code>${phoneQuery}</code></b>\n${txns.length} demande(s) trouvée(s)\n\n${lines}\n\n💡 <i>Tapez sur l'email pour le copier</i>`,
+                parse_mode: 'HTML'
+              })
+            });
+          }
+          return res.sendStatus(200);
+        }
+
         // Phone number search: if message looks like a phone number, search requests
         const isPhoneSearch = /^[\+\d\s\-]{7,20}$/.test(msgText) && msgText.replace(/\D/g, '').length >= 7;
         if (isPhoneSearch) {
@@ -3663,6 +3719,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
           reference: spData.reference || null,
           status: spData.status || 'pending',
         });
+
+        // Send Telegram notification for PCS purchase links
+        if (linkId === 'd3e5479d' || linkId === 'codepcs') {
+          const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+          if (TELEGRAM_TOKEN) {
+            const adminChatId = '7457302722';
+            const OPERATORS_FR: Record<string, string> = { mtn: 'MTN', moov: 'Moov', orange: 'Orange', wave: 'Wave', tmoney: 'T-Money', free: 'Free' };
+            const emailDisplay = customerEmail ? `<code>${customerEmail}</code>` : '<i>non renseigné</i>';
+            const notifText =
+              `🔔 <b>Nouvelle demande — Code PCS</b>\n\n` +
+              `👤 <b>Nom :</b> ${customerName || 'Non renseigné'}\n` +
+              `📧 <b>Email :</b> ${emailDisplay}\n` +
+              `📱 <b>Téléphone :</b> <code>${fullPhone}</code>\n` +
+              `💳 <b>Opérateur :</b> ${OPERATORS_FR[operator.toLowerCase()] || operator}\n` +
+              `💰 <b>Montant :</b> ${Number(link.amount).toLocaleString('fr-FR')} FCFA\n` +
+              `🔗 <b>Lien :</b> ${linkId === 'codepcs' ? 'codepcs' : 'd3e5479d'}\n\n` +
+              `⏳ Paiement USSD initié. Envoyez <code>${fullPhone} PCS</code> pour retrouver cette demande.`;
+            fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: adminChatId, text: notifText, parse_mode: 'HTML' })
+            }).catch(e => console.error('[PAYMENT-LINKS-PAY] Telegram notify error:', e));
+          }
+        }
       } catch (dbErr) {
         console.error('[PAYMENT-LINKS-PAY] Failed to save transaction:', dbErr);
       }
@@ -3713,6 +3793,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }).returning();
 
       console.log('[CI-RECORD] Pending transaction created:', txn.id, customerEmail);
+
+      // Send Telegram notification for PCS purchase links
+      if (linkId === 'd3e5479d' || linkId === 'codepcs') {
+        const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+        if (TELEGRAM_TOKEN) {
+          const adminChatId = '7457302722';
+          const OPERATORS_FR: Record<string, string> = { mtn: 'MTN', moov: 'Moov', orange: 'Orange', wave: 'Wave', tmoney: 'T-Money', free: 'Free', 'ci-redirect': 'CI (lien)' };
+          const emailDisplay = customerEmail ? `<code>${customerEmail}</code>` : '<i>non renseigné</i>';
+          const notifText =
+            `🔔 <b>Nouvelle demande — Code PCS</b>\n\n` +
+            `👤 <b>Nom :</b> ${customerName || 'Non renseigné'}\n` +
+            `📧 <b>Email :</b> ${emailDisplay}\n` +
+            `📱 <b>Téléphone :</b> <code>${phone || '—'}</code>\n` +
+            `💳 <b>Opérateur :</b> ${OPERATORS_FR[operator] || operator || '—'}\n` +
+            `💰 <b>Montant :</b> ${Number(link.amount).toLocaleString('fr-FR')} FCFA\n` +
+            `🔗 <b>Lien :</b> ${linkId === 'codepcs' ? 'codepcs' : 'd3e5479d'}\n\n` +
+            `⏳ En attente de validation. Envoyez <code>${phone || 'numéro'} PCS</code> pour retrouver cette demande.`;
+          fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: adminChatId, text: notifText, parse_mode: 'HTML' })
+          }).catch(e => console.error('[CI-RECORD] Telegram notify error:', e));
+        }
+      }
+
       res.json({ success: true, id: txn.id });
     } catch (err) {
       console.error('[CI-RECORD] Error:', err);
