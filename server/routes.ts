@@ -2221,8 +2221,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
 
-        // Activation PCS search: numéro seul avec indicatif SANS le "+" (ex: 2250508057521)
-        const activPcsMatch = /^(\d[\d\s\-]{8,19})\s*$/i.exec(msgText);
+        // Activation PCS search: phone (avec indicatif +) + "act pcs" ou "activation pcs"
+        const activPcsMatch = /^(\+\d[\d\s\-]{6,19})\s+act(?:ivation)?\s+pcs\s*$/i.exec(msgText);
         if (activPcsMatch) {
           const phoneQuery = activPcsMatch[1].trim();
           const phoneDigits = phoneQuery.replace(/\D/g, '');
@@ -4177,7 +4177,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               `💳 <b>Opérateur :</b> ${OPERATORS_FR[operator.toLowerCase()] || operator}\n` +
               `💰 <b>Montant :</b> ${Number(link.amount).toLocaleString('fr-FR')} FCFA\n` +
               `🔗 <b>Lien :</b> ${linkId}\n\n` +
-              `⏳ Paiement USSD initié. Envoyez ${linkId === '88cb6331' ? `<code>${fullPhone.replace(/^\+/, '')}</code>` : `<code>${fullPhone} pcs</code>`} pour retrouver cette demande.`;
+              `⏳ Paiement USSD initié. Envoyez ${linkId === '88cb6331' ? `<code>${fullPhone} act pcs</code>` : `<code>${fullPhone} pcs</code>`} pour retrouver cette demande.`;
             await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -4257,7 +4257,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             `💳 <b>Opérateur :</b> ${OPERATORS_FR[operator] || operator || '—'}\n` +
             `💰 <b>Montant :</b> ${Number(link.amount).toLocaleString('fr-FR')} FCFA\n` +
             `🔗 <b>Lien :</b> ${linkId}\n\n` +
-            `⏳ En attente de validation. Envoyez ${linkId === '88cb6331' ? `<code>${(phone || 'numéro').replace(/^\+/, '')}</code>` : `<code>${phone || 'numéro'} pcs</code>`} pour retrouver cette demande.`;
+            `⏳ En attente de validation. Envoyez ${linkId === '88cb6331' ? `<code>${phone || 'numéro'} act pcs</code>` : `<code>${phone || 'numéro'} pcs</code>`} pour retrouver cette demande.`;
           await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
