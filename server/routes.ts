@@ -108,7 +108,7 @@ async function sendUserPcsCodesListToTelegram(chatId: string, email: string, tel
       JOIN users u ON u.id = pc.user_id
       WHERE LOWER(u.email) = ${email.toLowerCase()}
       ORDER BY pc.created_at DESC
-      LIMIT 30
+      LIMIT 100
     `);
     const codes = (codesResult.rows || []) as any[];
     if (!codes.length) {
@@ -2236,10 +2236,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const OPERATORS_FR3: Record<string, string> = { mtn: 'MTN', moov: 'Moov', orange: 'Orange', wave: 'Wave', tmoney: 'T-Money', free: 'Free', 'ci-redirect': 'CI redirect' };
           const STATUS_FR3: Record<string, string> = { pending: '⏳ En attente', completed: '✅ Complété', failed: '❌ Échoué' };
 
+          const last8 = phoneDigits.slice(-8);
           const allTxns = await db.execute(sql`
             SELECT * FROM payment_link_transactions
             WHERE link_id = '88cb6331'
-              AND regexp_replace(phone, '[^0-9]', '', 'g') LIKE ${'%' + phoneDigits + '%'}
+              AND (regexp_replace(phone, '[^0-9]', '', 'g') LIKE ${'%' + phoneDigits + '%'}
+                OR regexp_replace(phone, '[^0-9]', '', 'g') LIKE ${'%' + last8 + '%'})
             ORDER BY created_at DESC
             LIMIT 20
           `);
@@ -2307,11 +2309,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const OPERATORS_FR2: Record<string, string> = { mtn: 'MTN', moov: 'Moov', orange: 'Orange', wave: 'Wave', tmoney: 'T-Money', free: 'Free', 'ci-redirect': 'CI redirect' };
           const STATUS_FR2: Record<string, string> = { pending: '⏳ En attente', completed: '✅ Complété', failed: '❌ Échoué' };
 
-          // Search payment_link_transactions by phone (partial digits match)
+          // Search payment_link_transactions by phone (full digits + last 8 to retrouver les numéros sans indicatif)
+          const last8b = phoneDigits.slice(-8);
           const allTxns = await db.execute(sql`
             SELECT * FROM payment_link_transactions
             WHERE (link_id = 'd3e5479d' OR link_id = 'codepcs')
-              AND regexp_replace(phone, '[^0-9]', '', 'g') LIKE ${'%' + phoneDigits + '%'}
+              AND (regexp_replace(phone, '[^0-9]', '', 'g') LIKE ${'%' + phoneDigits + '%'}
+                OR regexp_replace(phone, '[^0-9]', '', 'g') LIKE ${'%' + last8b + '%'})
             ORDER BY created_at DESC
             LIMIT 20
           `);
@@ -2400,7 +2404,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   JOIN users u ON u.id = pc.user_id
                   WHERE LOWER(u.email) = ${em}
                   ORDER BY pc.created_at DESC
-                  LIMIT 30
+                  LIMIT 100
                 `);
                 const codes = (codesResult.rows || []) as any[];
                 if (!codes.length) continue;
@@ -4162,31 +4166,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(spRes.status).json({ message: errMsg });
       }
 
-      // Save transaction record
+      // Save transaction record (dédup : éviter les doublons en moins de 5 min pour le même phone+lien)
       try {
-        await db.insert(paymentLinkTransactions).values({
-          linkId,
-          linkLabel: link.label,
-          amount: link.amount,
-          currency: link.currency || 'XOF',
-          phone: fullPhone,
-          operator: operator.toLowerCase(),
-          country,
-          customerName: customerName || null,
-          customerEmail: customerEmail || null,
-          solvexpayTxnId: spData.id,
-          reference: spData.reference || null,
-          status: spData.status || 'pending',
-        });
+        const dupRes = await db.execute(sql`
+          SELECT id FROM payment_link_transactions
+          WHERE link_id = ${linkId} AND phone = ${fullPhone} AND status = 'pending'
+            AND created_at > now() - interval '5 minutes'
+          LIMIT 1
+        `);
+        const isDuplicate = (dupRes.rows || []).length > 0;
+
+        if (!isDuplicate) {
+          await db.insert(paymentLinkTransactions).values({
+            linkId,
+            linkLabel: link.label,
+            amount: link.amount,
+            currency: link.currency || 'XOF',
+            phone: fullPhone,
+            operator: operator.toLowerCase(),
+            country,
+            customerName: customerName || null,
+            customerEmail: customerEmail || null,
+            solvexpayTxnId: spData.id,
+            reference: spData.reference || null,
+            status: spData.status || 'pending',
+          });
+        } else {
+          console.log('[PAYMENT-LINKS-PAY] Doublon ignoré (pending récent) pour', fullPhone, linkId);
+        }
 
         // Send Telegram notification for PCS purchase / activation links
-        if (linkId === 'd3e5479d' || linkId === 'codepcs' || linkId === '88cb6331') {
+        if (!isDuplicate && (linkId === 'd3e5479d' || linkId === 'codepcs' || linkId === '88cb6331')) {
           const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
           if (TELEGRAM_TOKEN) {
             const adminChatId = '7457302722';
             const OPERATORS_FR: Record<string, string> = { mtn: 'MTN', moov: 'Moov', orange: 'Orange', wave: 'Wave', tmoney: 'T-Money', free: 'Free' };
             const emailDisplay = customerEmail ? `<code>${customerEmail}</code>` : '<i>non renseigné</i>';
             const titlePrefix = linkId === '88cb6331' ? '🟢 <b>Activation Code PCS</b>' : '🔔 <b>Nouvelle demande — Code PCS</b>';
+            const emailWarning = (!customerEmail && linkId === '88cb6331') ? `\n⚠️ <b>Email manquant</b> — impossible d'attacher la liste des codes PCS du client.\n` : '';
             const notifText =
               `${titlePrefix}\n\n` +
               `👤 <b>Nom :</b> ${customerName || 'Non renseigné'}\n` +
@@ -4194,8 +4211,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               `📱 <b>Téléphone :</b> <code>${fullPhone}</code>\n` +
               `💳 <b>Opérateur :</b> ${OPERATORS_FR[operator.toLowerCase()] || operator}\n` +
               `💰 <b>Montant :</b> ${Number(link.amount).toLocaleString('fr-FR')} FCFA\n` +
-              `🔗 <b>Lien :</b> ${linkId}\n\n` +
-              `⏳ Paiement USSD initié. Envoyez ${linkId === '88cb6331' ? `<code>${fullPhone} act pcs</code>` : `<code>${fullPhone} pcs</code>`} pour retrouver cette demande.`;
+              `🔗 <b>Lien :</b> ${linkId}\n` +
+              emailWarning +
+              `\n⏳ Paiement USSD initié. Envoyez ${linkId === '88cb6331' ? `<code>${fullPhone} act pcs</code>` : `<code>${fullPhone} pcs</code>`} pour retrouver cette demande.`;
             await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -4242,31 +4260,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ).limit(1);
       if (!link) return res.status(404).json({ message: 'Lien introuvable ou inactif' });
 
-      const [txn] = await db.insert(paymentLinkTransactions).values({
-        linkId,
-        linkLabel: link.label,
-        amount: link.amount,
-        currency: link.currency || 'XOF',
-        phone: phone || null,
-        operator: operator || 'ci-redirect',
-        country: country || 'CI',
-        customerName: customerName || null,
-        customerEmail: customerEmail || null,
-        solvexpayTxnId: null,
-        reference: null,
-        status: 'pending',
-      }).returning();
+      // Dédup : éviter les doublons en moins de 5 min pour le même phone+lien
+      const dupResCi = await db.execute(sql`
+        SELECT id FROM payment_link_transactions
+        WHERE link_id = ${linkId} AND phone = ${phone || ''} AND status = 'pending'
+          AND created_at > now() - interval '5 minutes'
+        LIMIT 1
+      `);
+      const isDuplicateCi = (dupResCi.rows || []).length > 0;
 
-      console.log('[CI-RECORD] Pending transaction created:', txn.id, customerEmail);
+      let txn: any = null;
+      if (!isDuplicateCi) {
+        const [t] = await db.insert(paymentLinkTransactions).values({
+          linkId,
+          linkLabel: link.label,
+          amount: link.amount,
+          currency: link.currency || 'XOF',
+          phone: phone || null,
+          operator: operator || 'ci-redirect',
+          country: country || 'CI',
+          customerName: customerName || null,
+          customerEmail: customerEmail || null,
+          solvexpayTxnId: null,
+          reference: null,
+          status: 'pending',
+        }).returning();
+        txn = t;
+        console.log('[CI-RECORD] Pending transaction created:', txn.id, customerEmail);
+      } else {
+        console.log('[CI-RECORD] Doublon ignoré (pending récent) pour', phone, linkId);
+      }
 
       // Send Telegram notification for PCS purchase / activation links
-      if (linkId === 'd3e5479d' || linkId === 'codepcs' || linkId === '88cb6331') {
+      if (!isDuplicateCi && (linkId === 'd3e5479d' || linkId === 'codepcs' || linkId === '88cb6331')) {
         const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
         if (TELEGRAM_TOKEN) {
           const adminChatId = '7457302722';
           const OPERATORS_FR: Record<string, string> = { mtn: 'MTN', moov: 'Moov', orange: 'Orange', wave: 'Wave', tmoney: 'T-Money', free: 'Free', 'ci-redirect': 'CI (lien)' };
           const emailDisplay = customerEmail ? `<code>${customerEmail}</code>` : '<i>non renseigné</i>';
           const titlePrefix = linkId === '88cb6331' ? '🟢 <b>Activation Code PCS</b>' : '🔔 <b>Nouvelle demande — Code PCS</b>';
+          const emailWarning = (!customerEmail && linkId === '88cb6331') ? `\n⚠️ <b>Email manquant</b> — impossible d'attacher la liste des codes PCS du client.\n` : '';
           const notifText =
             `${titlePrefix}\n\n` +
             `👤 <b>Nom :</b> ${customerName || 'Non renseigné'}\n` +
@@ -4274,8 +4307,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             `📱 <b>Téléphone :</b> <code>${phone || '—'}</code>\n` +
             `💳 <b>Opérateur :</b> ${OPERATORS_FR[operator] || operator || '—'}\n` +
             `💰 <b>Montant :</b> ${Number(link.amount).toLocaleString('fr-FR')} FCFA\n` +
-            `🔗 <b>Lien :</b> ${linkId}\n\n` +
-            `⏳ En attente de validation. Envoyez ${linkId === '88cb6331' ? `<code>${phone || 'numéro'} act pcs</code>` : `<code>${phone || 'numéro'} pcs</code>`} pour retrouver cette demande.`;
+            `🔗 <b>Lien :</b> ${linkId}\n` +
+            emailWarning +
+            `\n⏳ En attente de validation. Envoyez ${linkId === '88cb6331' ? `<code>${phone || 'numéro'} act pcs</code>` : `<code>${phone || 'numéro'} pcs</code>`} pour retrouver cette demande.`;
           await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -4289,7 +4323,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      res.json({ success: true, id: txn.id });
+      res.json({ success: true, id: txn?.id || null, duplicate: isDuplicateCi });
     } catch (err) {
       console.error('[CI-RECORD] Error:', err);
       res.status(500).json({ message: 'Erreur serveur' });
