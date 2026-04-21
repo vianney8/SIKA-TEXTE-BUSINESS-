@@ -139,21 +139,39 @@ async function sendUserPcsCodesListToTelegram(chatId: string, email: string, tel
       });
       return;
     }
-    const headerText = `📦 <b>Codes PCS de</b> <code>${email}</code>\n${codes.length} code(s) — touchez un code pour basculer son statut`;
-    const inline_keyboard = codes.map((c: any) => {
-      const badge = c.status === 'actif' ? '🟢 Actif' : '🔴 Inactif';
-      return [{ text: `${badge} — ${c.code}`, callback_data: `pcstog_pre_${c.id}` }];
-    });
+    // Entête
     await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: chatId,
-        text: headerText,
-        parse_mode: 'HTML',
-        reply_markup: { inline_keyboard }
+        text: `📦 <b>Codes PCS de</b> <code>${email}</code>\n${codes.length} code(s) — une carte par code ci-dessous`,
+        parse_mode: 'HTML'
       })
     });
+    // Une carte par code
+    for (const c of codes as any[]) {
+      const badge = c.status === 'actif' ? '🟢 <b>Actif</b>' : '🔴 <b>Inactif</b>';
+      const createdAt = c.created_at ? new Date(c.created_at).toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' }) : '—';
+      const cardText =
+        `💳 <b>Code PCS</b>\n` +
+        `🔑 <code>${c.code}</code>\n` +
+        `📊 Statut : ${badge}\n` +
+        `🕒 Ajouté : ${createdAt}`;
+      const toggleLabel = c.status === 'actif' ? '🔴 Rendre Inactif' : '🟢 Rendre Actif';
+      await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: cardText,
+          parse_mode: 'HTML',
+          reply_markup: { inline_keyboard: [[{ text: toggleLabel, callback_data: `pcstog_pre_${c.id}` }]] }
+        })
+      }).catch(e => console.error('[PCS-LIST-HELPER] card send error:', e));
+      // Petit délai pour respecter la limite Telegram (~30 msg/s)
+      await new Promise(r => setTimeout(r, 60));
+    }
   } catch (e) {
     console.error('[PCS-LIST-HELPER] Error:', e);
   }
