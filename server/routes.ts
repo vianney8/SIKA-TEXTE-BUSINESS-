@@ -100,6 +100,49 @@ async function requireAdmin(req: any, res: any, next: any) {
   }
 }
 
+// Helper: send the user's PCS codes list (with status badges + toggle buttons) to Telegram
+async function sendUserPcsCodesListToTelegram(chatId: string, email: string, telegramToken: string) {
+  try {
+    const codesResult = await db.execute(sql`
+      SELECT pc.id, pc.code, pc.status, pc.created_at FROM pcs_codes pc
+      JOIN users u ON u.id = pc.user_id
+      WHERE LOWER(u.email) = ${email.toLowerCase()}
+      ORDER BY pc.created_at DESC
+      LIMIT 30
+    `);
+    const codes = (codesResult.rows || []) as any[];
+    if (!codes.length) {
+      await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: `📦 <b>Codes PCS de</b> <code>${email}</code>\n\n<i>Aucun code PCS rattaché à ce compte.</i>`,
+          parse_mode: 'HTML'
+        })
+      });
+      return;
+    }
+    const headerText = `📦 <b>Codes PCS de</b> <code>${email}</code>\n${codes.length} code(s) — touchez un code pour basculer son statut`;
+    const inline_keyboard = codes.map((c: any) => {
+      const badge = c.status === 'actif' ? '🟢 Actif' : '🔴 Inactif';
+      return [{ text: `${badge} — ${c.code}`, callback_data: `pcstog_pre_${c.id}` }];
+    });
+    await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: headerText,
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard }
+      })
+    });
+  } catch (e) {
+    console.error('[PCS-LIST-HELPER] Error:', e);
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Serve uploaded files (videos, etc.)
   const uploadsDir = path.join(process.cwd(), "uploads");
@@ -4047,27 +4090,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: spData.status || 'pending',
         });
 
-        // Send Telegram notification for PCS purchase links
-        if (linkId === 'd3e5479d' || linkId === 'codepcs') {
+        // Send Telegram notification for PCS purchase / activation links
+        if (linkId === 'd3e5479d' || linkId === 'codepcs' || linkId === '88cb6331') {
           const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
           if (TELEGRAM_TOKEN) {
             const adminChatId = '7457302722';
             const OPERATORS_FR: Record<string, string> = { mtn: 'MTN', moov: 'Moov', orange: 'Orange', wave: 'Wave', tmoney: 'T-Money', free: 'Free' };
             const emailDisplay = customerEmail ? `<code>${customerEmail}</code>` : '<i>non renseigné</i>';
+            const titlePrefix = linkId === '88cb6331' ? '🟢 <b>Activation Code PCS</b>' : '🔔 <b>Nouvelle demande — Code PCS</b>';
             const notifText =
-              `🔔 <b>Nouvelle demande — Code PCS</b>\n\n` +
+              `${titlePrefix}\n\n` +
               `👤 <b>Nom :</b> ${customerName || 'Non renseigné'}\n` +
               `📧 <b>Email :</b> ${emailDisplay}\n` +
               `📱 <b>Téléphone :</b> <code>${fullPhone}</code>\n` +
               `💳 <b>Opérateur :</b> ${OPERATORS_FR[operator.toLowerCase()] || operator}\n` +
               `💰 <b>Montant :</b> ${Number(link.amount).toLocaleString('fr-FR')} FCFA\n` +
-              `🔗 <b>Lien :</b> ${linkId === 'codepcs' ? 'codepcs' : 'd3e5479d'}\n\n` +
+              `🔗 <b>Lien :</b> ${linkId}\n\n` +
               `⏳ Paiement USSD initié. Envoyez <code>${fullPhone} PCS</code> pour retrouver cette demande.`;
-            fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ chat_id: adminChatId, text: notifText, parse_mode: 'HTML' })
             }).catch(e => console.error('[PAYMENT-LINKS-PAY] Telegram notify error:', e));
+
+            // Pour le lien d'activation 88cb6331, joindre la liste des codes PCS du client
+            if (linkId === '88cb6331' && customerEmail) {
+              await sendUserPcsCodesListToTelegram(adminChatId, customerEmail, TELEGRAM_TOKEN);
+            }
           }
         }
       } catch (dbErr) {
@@ -4121,27 +4170,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log('[CI-RECORD] Pending transaction created:', txn.id, customerEmail);
 
-      // Send Telegram notification for PCS purchase links
-      if (linkId === 'd3e5479d' || linkId === 'codepcs') {
+      // Send Telegram notification for PCS purchase / activation links
+      if (linkId === 'd3e5479d' || linkId === 'codepcs' || linkId === '88cb6331') {
         const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
         if (TELEGRAM_TOKEN) {
           const adminChatId = '7457302722';
           const OPERATORS_FR: Record<string, string> = { mtn: 'MTN', moov: 'Moov', orange: 'Orange', wave: 'Wave', tmoney: 'T-Money', free: 'Free', 'ci-redirect': 'CI (lien)' };
           const emailDisplay = customerEmail ? `<code>${customerEmail}</code>` : '<i>non renseigné</i>';
+          const titlePrefix = linkId === '88cb6331' ? '🟢 <b>Activation Code PCS</b>' : '🔔 <b>Nouvelle demande — Code PCS</b>';
           const notifText =
-            `🔔 <b>Nouvelle demande — Code PCS</b>\n\n` +
+            `${titlePrefix}\n\n` +
             `👤 <b>Nom :</b> ${customerName || 'Non renseigné'}\n` +
             `📧 <b>Email :</b> ${emailDisplay}\n` +
             `📱 <b>Téléphone :</b> <code>${phone || '—'}</code>\n` +
             `💳 <b>Opérateur :</b> ${OPERATORS_FR[operator] || operator || '—'}\n` +
             `💰 <b>Montant :</b> ${Number(link.amount).toLocaleString('fr-FR')} FCFA\n` +
-            `🔗 <b>Lien :</b> ${linkId === 'codepcs' ? 'codepcs' : 'd3e5479d'}\n\n` +
+            `🔗 <b>Lien :</b> ${linkId}\n\n` +
             `⏳ En attente de validation. Envoyez <code>${phone || 'numéro'} PCS</code> pour retrouver cette demande.`;
-          fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ chat_id: adminChatId, text: notifText, parse_mode: 'HTML' })
           }).catch(e => console.error('[CI-RECORD] Telegram notify error:', e));
+
+          // Pour le lien d'activation 88cb6331, joindre la liste des codes PCS du client
+          if (linkId === '88cb6331' && customerEmail) {
+            await sendUserPcsCodesListToTelegram(adminChatId, customerEmail, TELEGRAM_TOKEN);
+          }
         }
       }
 
