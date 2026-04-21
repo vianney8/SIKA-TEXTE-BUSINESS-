@@ -2430,37 +2430,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               });
             }
 
-            // Pour chaque email unique, lister tous ses codes PCS avec bouton de bascule
+            // Pour chaque email unique, joindre la liste détaillée (une carte par code)
             for (const em of emails) {
-              try {
-                const codesResult = await db.execute(sql`
-                  SELECT pc.id, pc.code, pc.status, pc.created_at FROM pcs_codes pc
-                  JOIN users u ON u.id = pc.user_id
-                  WHERE LOWER(u.email) = ${em}
-                  ORDER BY pc.created_at DESC
-                  LIMIT 100
-                `);
-                const codes = (codesResult.rows || []) as any[];
-                if (!codes.length) continue;
-
-                const headerText = `📦 <b>Codes PCS de</b> <code>${em}</code>\n${codes.length} code(s) — touchez un code pour basculer son statut`;
-                const inline_keyboard = codes.map((c: any) => {
-                  const badge = c.status === 'actif' ? '🟢 Actif' : '🔴 Inactif';
-                  return [{ text: `${badge} — ${c.code}`, callback_data: `pcstog_pre_${c.id}` }];
-                });
-                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    chat_id: chatId,
-                    text: headerText,
-                    parse_mode: 'HTML',
-                    reply_markup: { inline_keyboard }
-                  })
-                });
-              } catch (e) {
-                console.error('[PCS-LIST] Error listing codes for', em, e);
-              }
+              await sendUserPcsCodesListToTelegram(chatId, em, TELEGRAM_TOKEN);
             }
           }
           return res.sendStatus(200);
