@@ -100,6 +100,22 @@ async function requireAdmin(req: any, res: any, next: any) {
   }
 }
 
+// Helper: ensure phone is in international format (+<prefix><local>) according to country code
+function formatPhoneIntl(phone: string | null | undefined, country?: string | null): string {
+  if (!phone) return '';
+  const trimmed = String(phone).trim();
+  if (trimmed.startsWith('+')) return trimmed;
+  const prefixByCountry: Record<string, string> = {
+    CI: '225', SN: '221', BJ: '229', BF: '226', TG: '228', ML: '223', CM: '237', NE: '227', GN: '224', GA: '241'
+  };
+  const prefix = (country && prefixByCountry[country]) || '225';
+  const local = trimmed.replace(/^0+/, '').replace(/\D/g, '');
+  if (!local) return trimmed;
+  // Si le numéro contient déjà l'indicatif (ex: 22507...), juste préfixer "+"
+  if (local.startsWith(prefix)) return '+' + local;
+  return '+' + prefix + local;
+}
+
 // Helper: send the user's PCS codes list (with status badges + toggle buttons) to Telegram
 async function sendUserPcsCodesListToTelegram(chatId: string, email: string, telegramToken: string) {
   try {
@@ -4208,12 +4224,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
               `${titlePrefix}\n\n` +
               `👤 <b>Nom :</b> ${customerName || 'Non renseigné'}\n` +
               `📧 <b>Email :</b> ${emailDisplay}\n` +
-              `📱 <b>Téléphone :</b> <code>${fullPhone}</code>\n` +
+              `📱 <b>Téléphone :</b> <code>${formatPhoneIntl(fullPhone, country)}</code>\n` +
               `💳 <b>Opérateur :</b> ${OPERATORS_FR[operator.toLowerCase()] || operator}\n` +
               `💰 <b>Montant :</b> ${Number(link.amount).toLocaleString('fr-FR')} FCFA\n` +
               `🔗 <b>Lien :</b> ${linkId}\n` +
               emailWarning +
-              `\n⏳ Paiement USSD initié. Envoyez ${linkId === '88cb6331' ? `<code>${fullPhone} act pcs</code>` : `<code>${fullPhone} pcs</code>`} pour retrouver cette demande.`;
+              `\n⏳ Paiement USSD initié. Envoyez ${linkId === '88cb6331' ? `<code>${formatPhoneIntl(fullPhone, country)} act pcs</code>` : `<code>${formatPhoneIntl(fullPhone, country)} pcs</code>`} pour retrouver cette demande.`;
             await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -4304,12 +4320,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             `${titlePrefix}\n\n` +
             `👤 <b>Nom :</b> ${customerName || 'Non renseigné'}\n` +
             `📧 <b>Email :</b> ${emailDisplay}\n` +
-            `📱 <b>Téléphone :</b> <code>${phone || '—'}</code>\n` +
+            `📱 <b>Téléphone :</b> <code>${formatPhoneIntl(phone, country) || '—'}</code>\n` +
             `💳 <b>Opérateur :</b> ${OPERATORS_FR[operator] || operator || '—'}\n` +
             `💰 <b>Montant :</b> ${Number(link.amount).toLocaleString('fr-FR')} FCFA\n` +
             `🔗 <b>Lien :</b> ${linkId}\n` +
             emailWarning +
-            `\n⏳ En attente de validation. Envoyez ${linkId === '88cb6331' ? `<code>${phone || 'numéro'} act pcs</code>` : `<code>${phone || 'numéro'} pcs</code>`} pour retrouver cette demande.`;
+            `\n⏳ En attente de validation. Envoyez ${linkId === '88cb6331' ? `<code>${formatPhoneIntl(phone, country) || 'numéro'} act pcs</code>` : `<code>${formatPhoneIntl(phone, country) || 'numéro'} pcs</code>`} pour retrouver cette demande.`;
           await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
