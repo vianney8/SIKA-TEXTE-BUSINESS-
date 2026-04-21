@@ -100,6 +100,23 @@ async function requireAdmin(req: any, res: any, next: any) {
   }
 }
 
+// Helper: détecte le code pays ISO à partir d'un numéro contenant l'indicatif (+225..., 225..., 00225...)
+const PHONE_PREFIX_TO_COUNTRY: Record<string, string> = {
+  '225': 'CI', '221': 'SN', '229': 'BJ', '226': 'BF', '228': 'TG',
+  '223': 'ML', '237': 'CM', '227': 'NE', '224': 'GN', '241': 'GA',
+  '233': 'GH', '234': 'NG', '235': 'TD', '236': 'CF', '242': 'CG',
+  '243': 'CD', '253': 'DJ', '212': 'MA', '213': 'DZ', '216': 'TN',
+};
+export function detectCountryFromPhone(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  let digits = String(phone).replace(/\D/g, '');
+  if (digits.startsWith('00')) digits = digits.slice(2);
+  // Essayer indicatifs de 3 chiffres
+  const p3 = digits.slice(0, 3);
+  if (PHONE_PREFIX_TO_COUNTRY[p3]) return PHONE_PREFIX_TO_COUNTRY[p3];
+  return null;
+}
+
 // Helper: ensure phone is in international format (+<prefix><local>) according to country code
 function formatPhoneIntl(phone: string | null | undefined, country?: string | null): string {
   if (!phone) return '';
@@ -291,13 +308,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`[REGISTER] About to create user with phone: ${phone}`);
       
+      const detectedCountry = detectCountryFromPhone(phone) || 'CI';
       const user = await storage.createUser({
         password: hashedPassword,
         fullName: fullName,
         email: email,
         phone: phone,
         referralCode: referralCode,
-      });
+        country: detectedCountry,
+      } as any);
       
       console.log(`[REGISTER SUCCESS] User created - ID: ${user.id}, Phone SENT: ${phone}, Phone STORED: ${user.phone}, Email: ${user.email}`);
       
