@@ -2867,9 +2867,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }
               }
             }
-          } catch (err) {
+          } catch (err: any) {
             answerText = '❌ Erreur';
             console.error('[PCS-MAIL-YES] Error:', err);
+            try {
+              if (chatId) {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    chat_id: chatId,
+                    text: `❌ <b>Erreur lors de l'envoi de l'email</b>\n\n<code>${(err?.message || String(err)).slice(0, 500)}</code>`,
+                    parse_mode: 'HTML'
+                  })
+                });
+              }
+            } catch {}
           }
 
         } else if (data.startsWith('pcsmail_no_')) {
