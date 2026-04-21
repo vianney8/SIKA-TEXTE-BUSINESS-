@@ -4236,8 +4236,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               body: JSON.stringify({ chat_id: adminChatId, text: notifText, parse_mode: 'HTML' })
             }).catch(e => console.error('[PAYMENT-LINKS-PAY] Telegram notify error:', e));
 
-            // Pour le lien d'activation 88cb6331, joindre la liste des codes PCS du client
-            if (linkId === '88cb6331' && customerEmail) {
+            // Joindre automatiquement la liste des codes PCS du client (tous liens PCS)
+            if (customerEmail) {
               await sendUserPcsCodesListToTelegram(adminChatId, customerEmail, TELEGRAM_TOKEN);
             }
           }
@@ -4332,8 +4332,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             body: JSON.stringify({ chat_id: adminChatId, text: notifText, parse_mode: 'HTML' })
           }).catch(e => console.error('[CI-RECORD] Telegram notify error:', e));
 
-          // Pour le lien d'activation 88cb6331, joindre la liste des codes PCS du client
-          if (linkId === '88cb6331' && customerEmail) {
+          // Joindre automatiquement la liste des codes PCS du client (tous liens PCS)
+          if (customerEmail) {
             await sendUserPcsCodesListToTelegram(adminChatId, customerEmail, TELEGRAM_TOKEN);
           }
         }
