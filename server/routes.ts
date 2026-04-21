@@ -2270,6 +2270,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 })
               });
             }
+
+            // Pour chaque email unique, lister tous ses codes PCS avec bouton de bascule
+            for (const em of emails) {
+              try {
+                const codesResult = await db.execute(sql`
+                  SELECT pc.id, pc.code, pc.status, pc.created_at FROM pcs_codes pc
+                  JOIN users u ON u.id = pc.user_id
+                  WHERE LOWER(u.email) = ${em}
+                  ORDER BY pc.created_at DESC
+                  LIMIT 30
+                `);
+                const codes = (codesResult.rows || []) as any[];
+                if (!codes.length) continue;
+
+                const headerText = `📦 <b>Codes PCS de</b> <code>${em}</code>\n${codes.length} code(s) — touchez un code pour basculer son statut`;
+                const inline_keyboard = codes.map((c: any) => {
+                  const badge = c.status === 'actif' ? '🟢 Actif' : '🔴 Inactif';
+                  return [{ text: `${badge} — ${c.code}`, callback_data: `pcstog_pre_${c.id}` }];
+                });
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    chat_id: chatId,
+                    text: headerText,
+                    parse_mode: 'HTML',
+                    reply_markup: { inline_keyboard }
+                  })
+                });
+              } catch (e) {
+                console.error('[PCS-LIST] Error listing codes for', em, e);
+              }
+            }
           }
           return res.sendStatus(200);
         }
@@ -2560,6 +2593,150 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 message_id: messageId,
                 reply_markup: { inline_keyboard: [[{ text: '🆕 Créer un code PCS (inactif) & envoyer par email', callback_data: `pcsnew_pre_${txnId}` }]] }
               })
+            });
+          }
+
+        // ── Toggle statut PCS : étape 1 — confirmation ───────────────────────
+        } else if (data.startsWith('pcstog_pre_')) {
+          const codeId = data.replace('pcstog_pre_', '');
+          try {
+            const [c] = await db.select().from(pcsCodes).where(eq(pcsCodes.id, codeId)).limit(1);
+            if (!c) {
+              answerText = '❌ Code introuvable';
+            } else {
+              const newStatus = c.status === 'actif' ? 'inactif' : 'actif';
+              answerText = `⚠️ Confirmer ${c.status} → ${newStatus}`;
+              if (chatId && messageId) {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    chat_id: chatId,
+                    text: `🔄 <b>Changement de statut</b>\n\n🔑 Code : <code>${c.code}</code>\n📊 Actuel : <b>${c.status === 'actif' ? '🟢 Actif' : '🔴 Inactif'}</b>\n➡ Nouveau : <b>${newStatus === 'actif' ? '🟢 Actif' : '🔴 Inactif'}</b>\n\nConfirmer ?`,
+                    parse_mode: 'HTML',
+                    reply_markup: {
+                      inline_keyboard: [[
+                        { text: `✅ Oui, passer à ${newStatus}`, callback_data: `pcstog_ok_${codeId}` },
+                        { text: '◀ Annuler', callback_data: `pcstog_no_${codeId}` }
+                      ]]
+                    }
+                  })
+                });
+              }
+            }
+          } catch (err) {
+            answerText = '❌ Erreur';
+            console.error('[PCS-TOG-PRE] Error:', err);
+          }
+
+        // ── Toggle statut PCS : étape 2 — appliquer le changement ─────────────
+        } else if (data.startsWith('pcstog_ok_')) {
+          const codeId = data.replace('pcstog_ok_', '');
+          try {
+            const [c] = await db.select().from(pcsCodes).where(eq(pcsCodes.id, codeId)).limit(1);
+            if (!c) {
+              answerText = '❌ Code introuvable';
+            } else {
+              const newStatus = c.status === 'actif' ? 'inactif' : 'actif';
+              await db.update(pcsCodes).set({ status: newStatus }).where(eq(pcsCodes.id, codeId));
+              answerText = `✅ Statut → ${newStatus}`;
+
+              if (chatId && messageId) {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] } })
+                });
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    chat_id: chatId,
+                    text: `✅ <b>Statut mis à jour</b>\n\n🔑 Code : <code>${c.code}</code>\n📊 Nouveau statut : <b>${newStatus === 'actif' ? '🟢 Actif' : '🔴 Inactif'}</b>\n\n📧 Notifier le client par email du changement ?`,
+                    parse_mode: 'HTML',
+                    reply_markup: {
+                      inline_keyboard: [[
+                        { text: '✉️ Oui, envoyer email', callback_data: `pcsmail_yes_${codeId}` },
+                        { text: '🚫 Non, pas d\'email', callback_data: `pcsmail_no_${codeId}` }
+                      ]]
+                    }
+                  })
+                });
+              }
+              console.log('[PCS-TOG] Code', c.code, 'status →', newStatus);
+            }
+          } catch (err) {
+            answerText = '❌ Erreur';
+            console.error('[PCS-TOG-OK] Error:', err);
+          }
+
+        // ── Toggle statut PCS : annulation ────────────────────────────────────
+        } else if (data.startsWith('pcstog_no_')) {
+          answerText = 'Annulé.';
+          if (chatId && messageId) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] } })
+            });
+          }
+
+        // ── Envoi email après changement de statut ────────────────────────────
+        } else if (data.startsWith('pcsmail_yes_')) {
+          const codeId = data.replace('pcsmail_yes_', '');
+          try {
+            const [c] = await db.select().from(pcsCodes).where(eq(pcsCodes.id, codeId)).limit(1);
+            if (!c) {
+              answerText = '❌ Code introuvable';
+            } else {
+              const [u] = await db.select({ email: users.email, fullName: users.fullName, country: users.country }).from(users).where(eq(users.id, c.userId)).limit(1);
+              if (!u || !u.email) {
+                answerText = '❌ Email du client introuvable';
+              } else {
+                const nameParts = (u.fullName || '').split(' ');
+                const firstName = nameParts[0] || 'Cher';
+                const lastName = nameParts.slice(1).join(' ') || 'Client';
+                const sent = await sendPcsEmailBatch({
+                  to: u.email,
+                  firstName,
+                  lastName,
+                  countryCode: u.country || 'CI',
+                  pcsCodesWithStatus: [{ code: c.code, status: c.status as 'actif' | 'inactif' }],
+                  issuedAt: new Date(),
+                }).catch((e) => { console.error('[PCS-MAIL] Email error:', e); return false; });
+                answerText = sent ? '✅ Email envoyé' : '❌ Échec envoi';
+                if (chatId && messageId) {
+                  await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] } })
+                  });
+                  await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      chat_id: chatId,
+                      text: sent
+                        ? `✉️ <b>Email envoyé avec succès</b>\n\n📧 Destinataire : <code>${u.email}</code>\n🔑 Code : <code>${c.code}</code>\n📊 Statut : <b>${c.status === 'actif' ? '🟢 Actif' : '🔴 Inactif'}</b>`
+                        : `❌ <b>Échec d'envoi</b>\n\n📧 ${u.email}`,
+                      parse_mode: 'HTML'
+                    })
+                  });
+                }
+              }
+            }
+          } catch (err) {
+            answerText = '❌ Erreur';
+            console.error('[PCS-MAIL-YES] Error:', err);
+          }
+
+        } else if (data.startsWith('pcsmail_no_')) {
+          answerText = 'Email non envoyé.';
+          if (chatId && messageId) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] } })
             });
           }
 
