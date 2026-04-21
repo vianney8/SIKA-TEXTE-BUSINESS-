@@ -2199,9 +2199,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
       if (!TELEGRAM_TOKEN) return res.sendStatus(200);
 
+      // Verrou admin : seul le chat_id administrateur peut interagir avec le bot
+      const ADMIN_CHAT_ID = '7457302722';
+
       // Handle regular messages from admin
       if (update.message && update.message.chat?.id) {
         const chatId = String(update.message.chat.id);
+        if (chatId !== ADMIN_CHAT_ID) {
+          console.log('[TELEGRAM] Ignored message from non-admin chat:', chatId);
+          return res.sendStatus(200);
+        }
         const msgText = (update.message.text || '').trim();
         const settings = await storage.getAppSettings();
 
@@ -2500,6 +2507,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const data = callbackQuery.data || '';
         const chatId = callbackQuery.message?.chat?.id;
         const messageId = callbackQuery.message?.message_id;
+
+        // Verrou admin : seul le chat_id administrateur peut utiliser les boutons
+        if (String(chatId) !== ADMIN_CHAT_ID) {
+          console.log('[TELEGRAM] Ignored callback from non-admin chat:', chatId);
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/answerCallbackQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ callback_query_id: callbackQuery.id, text: '⛔ Action réservée à l\'administrateur', show_alert: true })
+          }).catch(() => {});
+          return res.sendStatus(200);
+        }
 
         let answerText = '';
 
