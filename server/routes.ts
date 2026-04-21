@@ -2221,6 +2221,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
 
+        // Activation PCS search: phone number + "activation pcs" (case insensitive)
+        const activPcsMatch = /^([\+\d\s\-]{7,20})\s+activation\s+pcs\s*$/i.exec(msgText);
+        if (activPcsMatch) {
+          const phoneQuery = activPcsMatch[1].trim();
+          const phoneDigits = phoneQuery.replace(/\D/g, '');
+          const OPERATORS_FR3: Record<string, string> = { mtn: 'MTN', moov: 'Moov', orange: 'Orange', wave: 'Wave', tmoney: 'T-Money', free: 'Free', 'ci-redirect': 'CI redirect' };
+          const STATUS_FR3: Record<string, string> = { pending: '⏳ En attente', completed: '✅ Complété', failed: '❌ Échoué' };
+
+          const allTxns = await db.execute(sql`
+            SELECT * FROM payment_link_transactions
+            WHERE link_id = '88cb6331'
+              AND regexp_replace(phone, '[^0-9]', '', 'g') LIKE ${'%' + phoneDigits + '%'}
+            ORDER BY created_at DESC
+            LIMIT 20
+          `);
+          const txns = (allTxns.rows || []) as any[];
+
+          if (!txns.length) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                text: `🟢 <b>Recherche Activation PCS : <code>${phoneQuery}</code></b>\n\nAucune demande d'activation de code PCS trouvée pour ce numéro.`,
+                parse_mode: 'HTML'
+              })
+            });
+          } else {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                text: `🟢 <b>Recherche Activation PCS : <code>${phoneQuery}</code></b>\n${txns.length} demande(s) trouvée(s)\n\n💡 <i>Tapez sur l'email pour le copier</i>`,
+                parse_mode: 'HTML'
+              })
+            });
+
+            const seenEmails = new Set<string>();
+            for (let i = 0; i < txns.length; i++) {
+              const t = txns[i];
+              const date = t.created_at ? new Date(t.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+              const op = OPERATORS_FR3[t.operator] || t.operator || '—';
+              const amt = t.amount ? Number(t.amount).toLocaleString('fr-FR') : '—';
+              const emailStr = t.customer_email ? `<code>${t.customer_email}</code>` : '<i>non renseigné</i>';
+
+              const cardText = `<b>${i + 1}.</b> ${STATUS_FR3[t.status] || t.status}\n` +
+                `👤 ${t.customer_name || 'Inconnu'}\n` +
+                `📧 Email : ${emailStr}\n` +
+                `📱 <code>${t.phone || '—'}</code>\n` +
+                `💳 ${op} — ${amt} FCFA\n` +
+                `🔗 Lien : Activation PCS (88cb6331)\n` +
+                `🕐 ${date}`;
+
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode: 'HTML' })
+              });
+
+              // Joindre la liste des codes PCS du client (une seule fois par email)
+              const emailLow = (t.customer_email || '').toLowerCase();
+              if (emailLow && !seenEmails.has(emailLow)) {
+                seenEmails.add(emailLow);
+                await sendUserPcsCodesListToTelegram(chatId, t.customer_email, TELEGRAM_TOKEN);
+              }
+            }
+          }
+          return res.status(200).json({ ok: true });
+        }
+
         // PCS search: phone number + word containing "pcs" (case insensitive)
         const pcsSearchMatch = /^([\+\d\s\-]{7,20})\s+\S*pcs\S*\s*$/i.exec(msgText);
         if (pcsSearchMatch) {
