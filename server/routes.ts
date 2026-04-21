@@ -2207,29 +2207,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
               })
             });
           } else {
-            const lines = txns.map((t: any, i: number) => {
-              const date = t.created_at ? new Date(t.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
-              const op = OPERATORS_FR2[t.operator] || t.operator || '—';
-              const amt = t.amount ? Number(t.amount).toLocaleString('fr-FR') : '—';
-              const emailStr = t.customer_email ? `<code>${t.customer_email}</code>` : '<i>non renseigné</i>';
-              return `<b>${i + 1}.</b> ${STATUS_FR2[t.status] || t.status}\n` +
-                `   👤 ${t.customer_name || 'Inconnu'}\n` +
-                `   📧 Email : ${emailStr}\n` +
-                `   📱 <code>${t.phone || '—'}</code>\n` +
-                `   💳 ${op} — ${amt} FCFA\n` +
-                `   🔗 Lien : ${t.link_id === 'codepcs' ? 'Code PCS (codepcs)' : 'Code PCS (d3e5479d)'}\n` +
-                `   🕐 ${date}`;
-            }).join('\n\n');
+            // Précharger les comptes de codes PCS par email
+            const emails = Array.from(new Set(txns.map((t: any) => (t.customer_email || '').toLowerCase()).filter(Boolean)));
+            const pcsCounts = new Map<string, number>();
+            for (const em of emails) {
+              try {
+                const r = await db.execute(sql`
+                  SELECT COUNT(*)::int AS c FROM pcs_codes pc
+                  JOIN users u ON u.id = pc.user_id
+                  WHERE LOWER(u.email) = ${em}
+                `);
+                pcsCounts.set(em, Number((r.rows?.[0] as any)?.c || 0));
+              } catch (e) {
+                pcsCounts.set(em, 0);
+              }
+            }
 
+            // Envoie un récapitulatif global
             await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 chat_id: chatId,
-                text: `🔍 <b>Recherche PCS : <code>${phoneQuery}</code></b>\n${txns.length} demande(s) trouvée(s)\n\n${lines}\n\n💡 <i>Tapez sur l'email pour le copier</i>`,
+                text: `🔍 <b>Recherche PCS : <code>${phoneQuery}</code></b>\n${txns.length} demande(s) trouvée(s)\n\n💡 <i>Tapez sur l'email pour le copier</i>`,
                 parse_mode: 'HTML'
               })
             });
+
+            // Une carte par transaction avec bouton de création
+            for (let i = 0; i < txns.length; i++) {
+              const t = txns[i];
+              const date = t.created_at ? new Date(t.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+              const op = OPERATORS_FR2[t.operator] || t.operator || '—';
+              const amt = t.amount ? Number(t.amount).toLocaleString('fr-FR') : '—';
+              const emailStr = t.customer_email ? `<code>${t.customer_email}</code>` : '<i>non renseigné</i>';
+              const pcsCount = t.customer_email ? (pcsCounts.get(t.customer_email.toLowerCase()) || 0) : 0;
+              const accountTag = t.customer_email
+                ? (pcsCounts.has(t.customer_email.toLowerCase()) && (pcsCounts.get(t.customer_email.toLowerCase()) || 0) >= 0 ? '' : '')
+                : '';
+
+              const cardText = `<b>${i + 1}.</b> ${STATUS_FR2[t.status] || t.status}\n` +
+                `👤 ${t.customer_name || 'Inconnu'}\n` +
+                `📧 Email : ${emailStr}\n` +
+                `📱 <code>${t.phone || '—'}</code>\n` +
+                `💳 ${op} — ${amt} FCFA\n` +
+                `🔗 Lien : ${t.link_id === 'codepcs' ? 'Code PCS (codepcs)' : 'Code PCS (d3e5479d)'}\n` +
+                `📦 Codes PCS du client : <b>${pcsCount}</b>\n` +
+                `🕐 ${date}`;
+
+              const replyMarkup = t.customer_email
+                ? { inline_keyboard: [[{ text: '🆕 Créer un code PCS (inactif) & envoyer par email', callback_data: `pcsnew_pre_${t.id}` }]] }
+                : undefined;
+
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  text: cardText,
+                  parse_mode: 'HTML',
+                  ...(replyMarkup ? { reply_markup: replyMarkup } : {})
+                })
+              });
+            }
           }
           return res.sendStatus(200);
         }
@@ -2412,6 +2452,116 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           }
           console.log('[ACT-CI] Activation declined via Telegram for user:', userId);
+
+        // ── Création code PCS : étape 1 — confirmation ───────────────────────
+        } else if (data.startsWith('pcsnew_pre_')) {
+          const txnId = data.replace('pcsnew_pre_', '');
+          answerText = '⚠️ Confirmez la création';
+          if (chatId && messageId) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                message_id: messageId,
+                reply_markup: {
+                  inline_keyboard: [[
+                    { text: '✅ Oui, créer & envoyer', callback_data: `pcsnew_ok_${txnId}` },
+                    { text: '◀ Annuler', callback_data: `pcsnew_no_${txnId}` }
+                  ]]
+                }
+              })
+            });
+          }
+
+        // ── Création code PCS : étape 2 — créer le code inactif & envoyer ────
+        } else if (data.startsWith('pcsnew_ok_')) {
+          const txnId = data.replace('pcsnew_ok_', '');
+          try {
+            const [txn] = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.id, txnId)).limit(1);
+            if (!txn || !txn.customerEmail) {
+              answerText = '❌ Email du client introuvable';
+            } else {
+              // Génère un code PCS unique
+              let newCode = generatePcsCode();
+              for (let attempt = 0; attempt < 5; attempt++) {
+                const [clash] = await db.select({ id: pcsCodes.id }).from(pcsCodes).where(eq(pcsCodes.code, newCode)).limit(1);
+                if (!clash) break;
+                newCode = generatePcsCode();
+              }
+
+              // Cherche l'utilisateur par email pour lier le code
+              const [foundUser] = await db.select({ id: users.id }).from(users).where(ilike(users.email, txn.customerEmail)).limit(1);
+              let savedToAccount = false;
+              if (foundUser) {
+                try {
+                  await db.insert(pcsCodes).values({
+                    userId: foundUser.id,
+                    code: newCode,
+                    status: 'inactif',
+                  });
+                  savedToAccount = true;
+                } catch (e) {
+                  console.error('[PCS-NEW] DB insert error:', e);
+                }
+              }
+
+              // Envoi email
+              const nameParts = (txn.customerName || '').split(' ');
+              const firstName = nameParts[0] || 'Cher';
+              const lastName = nameParts.slice(1).join(' ') || 'Client';
+              const emailSent = await sendPcsEmailBatch({
+                to: txn.customerEmail,
+                firstName,
+                lastName,
+                countryCode: txn.country || 'CI',
+                pcsCodesWithStatus: [{ code: newCode, status: 'inactif' }],
+                issuedAt: new Date(),
+              }).catch((e) => { console.error('[PCS-NEW] Email error:', e); return false; });
+
+              answerText = emailSent ? '✅ Code créé & envoyé' : '⚠️ Code créé, échec email';
+
+              if (chatId && messageId) {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] } })
+                });
+                const summary =
+                  `🆕 <b>Code PCS créé (inactif)</b>\n\n` +
+                  `📧 Envoyé à : <code>${txn.customerEmail}</code>\n` +
+                  `🔑 Code : <code>${newCode}</code>\n` +
+                  `📊 Statut : <b>Inactif</b>\n` +
+                  `🔗 Compte lié : ${savedToAccount ? '✅ Oui' : '❌ Aucun compte trouvé'}\n` +
+                  `${emailSent ? '✉️ Email envoyé avec succès.' : '⚠️ Échec d\'envoi de l\'email.'}`;
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ chat_id: chatId, text: summary, parse_mode: 'HTML' })
+                });
+              }
+              console.log('[PCS-NEW] Created inactive code', newCode, 'for', txn.customerEmail);
+            }
+          } catch (err) {
+            answerText = '❌ Erreur lors de la création';
+            console.error('[PCS-NEW] Create error:', err);
+          }
+
+        // ── Création code PCS : annulation — restaure le bouton ──────────────
+        } else if (data.startsWith('pcsnew_no_')) {
+          const txnId = data.replace('pcsnew_no_', '');
+          answerText = 'Annulé.';
+          if (chatId && messageId) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                message_id: messageId,
+                reply_markup: { inline_keyboard: [[{ text: '🆕 Créer un code PCS (inactif) & envoyer par email', callback_data: `pcsnew_pre_${txnId}` }]] }
+              })
+            });
+          }
 
         // ── Activation CI: cancel - restore original buttons ─────────────────
         } else if (data.startsWith('act_cancel_')) {
