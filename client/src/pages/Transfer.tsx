@@ -62,6 +62,14 @@ export default function Transfer() {
   });
 
   const onSubmit = (data: TransferForm) => {
+    if (!isAccountActive) {
+      toast({
+        title: "Compte non activé",
+        description: "Le transfert d'argent est uniquement réservé aux comptes activés. Activez votre compte pour pouvoir effectuer un transfert.",
+        variant: "destructive",
+      });
+      return;
+    }
     transferMutation.mutate(data);
   };
 
@@ -78,24 +86,15 @@ export default function Transfer() {
       </div>
 
       <div className="p-4 pb-8">
-        {!isAccountActive ? (
-          <Card className="bg-white rounded-xl shadow-sm border border-border">
-            <CardContent className="p-6 flex flex-col items-center text-center gap-4">
-              <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center">
-                <Lock className="text-amber-500" size={26} />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-gray-800 mb-1">Compte non activé</h2>
-                <p className="text-sm text-gray-500 leading-relaxed">
-                  Les transferts d'argent sont réservés aux comptes activés. Activez votre compte pour accéder à cette fonctionnalité.
-                </p>
-              </div>
-              <Link href="/">
-                <Button variant="outline" className="mt-2">Retour au tableau de bord</Button>
-              </Link>
-            </CardContent>
-          </Card>
-        ) : (
+        {!isAccountActive && (
+          <div className="mb-4 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-2.5">
+            <Lock size={14} className="text-amber-600 flex-shrink-0 mt-0.5" />
+            <p className="text-amber-800 text-xs leading-relaxed">
+              Votre compte n'est pas encore activé. Le transfert ne pourra être validé qu'après l'activation de votre compte.
+            </p>
+          </div>
+        )}
+        {(
           <Card className="bg-white rounded-xl shadow-sm border border-border">
             <CardContent className="p-6">
               <div className="flex items-center mb-6">
