@@ -2234,9 +2234,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         amount: activationAmount,
       }).catch(err => console.error('[ACT-CI] DB save error:', err));
 
+      const ciActivationUrl = settings.find((s: any) => s.key === 'ci_manual_activation_url')?.value || 'https://clp.ci/ETPXwo';
       res.json({
         success: true,
-        paymentUrl: 'https://clp.ci/ETPXwo',
+        paymentUrl: ciActivationUrl,
         message: 'Récapitulatif envoyé. Vous allez être redirigé vers la page de paiement.'
       });
     } catch (error) {

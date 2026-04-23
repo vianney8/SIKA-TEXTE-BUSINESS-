@@ -72,6 +72,7 @@ export default function AdminSettings() {
       queryClient.invalidateQueries({ queryKey: ['/api/settings/telegram_supervisor'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/telegram_group'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/ci_manual_activation'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/ci_manual_activation_url'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/solvexpay_enabled'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/solvexpay_name'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/solvexpay_link'] });
@@ -466,6 +467,19 @@ export default function AdminSettings() {
                 >
                   {settings.ci_manual_activation !== 'false' ? 'Activé' : 'Désactivé'}
                 </button>
+              </div>
+              <div>
+                <Label htmlFor="ci_manual_activation_url" className="text-sm">Lien de paiement CI (activation)</Label>
+                <Input
+                  id="ci_manual_activation_url"
+                  value={settings.ci_manual_activation_url || 'https://clp.ci/ETPXwo'}
+                  onChange={(e) => handleInputChange('ci_manual_activation_url', e.target.value)}
+                  placeholder="https://clp.ci/ETPXwo"
+                  className="mt-1"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Les utilisateurs CI seront redirigés vers ce lien après envoi du récapitulatif au bot Telegram.
+                </p>
               </div>
               <p className="text-xs text-muted-foreground">
                 Quand activé : les utilisateurs CI sont redirigés vers le lien de paiement et le récapitulatif est envoyé au bot Telegram pour validation manuelle. Quand désactivé : SolvexPay traite automatiquement le paiement.
