@@ -2407,7 +2407,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               chat_id: chatId,
-              text: '✅ <b>Bot SIKA TEXTE configuré avec succès !</b>\n\nVous recevrez désormais les demandes d\'activation CI.\n\n💡 <b>Astuce :</b> Envoyez un numéro de téléphone pour rechercher toutes ses demandes.',
+              text: '✅ <b>Bot SIKA TEXTE configuré avec succès !</b>\n\nVous recevrez désormais les demandes d\'activation CI.\n\n💡 <b>Recherches disponibles :</b>\n• <code>+229XXXXXXXX</code> → demandes d\'activation CI\n• <code>+229XXXXXXXX pcs</code> → achats de code PCS\n• <code>+229XXXXXXXX act pcs</code> → activations PCS\n• <code>+229XXXXXXXX pay lien</code> → paiements lien manuels\n• <code>tx ABC123</code> → recherche par ID de transaction',
               parse_mode: 'HTML'
             })
           });
@@ -2644,6 +2644,138 @@ export async function registerRoutes(app: Express): Promise<Server> {
               await new Promise(r=>setTimeout(r,60));
             }
           }
+          return res.sendStatus(200);
+        }
+
+        // ── Recherche par ID de transaction : "tx <ID>" ou "id <ID>" ──────────
+        const txIdMatch = /^(?:tx|id)\s+([A-Za-z0-9._\-]{4,80})\s*$/i.exec(msgText);
+        if (txIdMatch) {
+          const txQuery = txIdMatch[1].trim();
+          const OPERATORS_FRT: Record<string,string> = { mtn:'MTN',moov:'Moov',orange:'Orange',wave:'Wave',tmoney:'T-Money',free:'Free','ci-redirect':'CI redirect' };
+          const STATUS_FRT: Record<string,string> = { pending:'⏳ En attente',approved:'✅ Approuvé',rejected:'❌ Rejeté',activated:'✅ Activé',declined:'❌ Décliné',completed:'✅ Complété',failed:'❌ Échoué' };
+          const txLike = `%${txQuery}%`;
+
+          // 1) Recherche dans link_manual_requests (paiements manuels par lien)
+          const linkManualResults = await db.execute(sql`
+            SELECT * FROM link_manual_requests
+            WHERE transaction_id ILIKE ${txLike} OR id::text ILIKE ${txLike}
+            ORDER BY created_at DESC LIMIT 10
+          `);
+          const linkManualRows = (linkManualResults.rows || []) as any[];
+
+          // 2) Recherche dans manual_activation_requests (activations manuelles)
+          const manualActivResults = await db.execute(sql`
+            SELECT * FROM manual_activation_requests
+            WHERE transaction_id ILIKE ${txLike} OR id::text ILIKE ${txLike}
+            ORDER BY created_at DESC LIMIT 10
+          `);
+          const manualActivRows = (manualActivResults.rows || []) as any[];
+
+          // 3) Recherche dans payment_link_transactions (SolvexPay / SR)
+          const srResults = await db.execute(sql`
+            SELECT * FROM payment_link_transactions
+            WHERE solvexpay_txn_id ILIKE ${txLike} OR reference ILIKE ${txLike} OR id::text ILIKE ${txLike}
+            ORDER BY created_at DESC LIMIT 10
+          `);
+          const srRows = (srResults.rows || []) as any[];
+
+          const totalFound = linkManualRows.length + manualActivRows.length + srRows.length;
+
+          if (totalFound === 0) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({
+                chat_id: chatId,
+                text: `🔍 <b>Recherche ID transaction : <code>${txQuery}</code></b>\n\nAucune transaction trouvée.\n\n💡 Vérifiez l'ID ou essayez un fragment.`,
+                parse_mode:'HTML'
+              })
+            });
+            return res.sendStatus(200);
+          }
+
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({
+              chat_id: chatId,
+              text: `🔍 <b>Recherche ID : <code>${txQuery}</code></b>\n${totalFound} résultat(s) trouvé(s)\n\n• 🏦 Paiements lien manuels : ${linkManualRows.length}\n• 🆔 Activations manuelles : ${manualActivRows.length}\n• ⚡ Paiements SolvexPay : ${srRows.length}`,
+              parse_mode:'HTML'
+            })
+          });
+
+          // 1) Paiements lien manuels
+          for (const r of linkManualRows) {
+            const date = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'}) : '—';
+            const cardText =
+              `🏦 <b>PAIEMENT LIEN MANUEL</b>\n` +
+              `💳 <b>${r.link_label||r.link_id}</b>\n` +
+              `📊 ${STATUS_FRT[r.status]||r.status}\n` +
+              `👤 ${r.customer_name||'N/A'}\n` +
+              `📧 ${r.customer_email||'N/A'}\n` +
+              `📱 <code>${r.phone||'—'}</code>\n` +
+              `💳 ${OPERATORS_FRT[r.operator]||r.operator||'—'}\n` +
+              `💰 ${Number(r.amount).toLocaleString('fr-FR')} ${r.currency||'FCFA'}\n` +
+              `🔖 ID tx : <code>${r.transaction_id||'—'}</code>\n` +
+              `🖼 Capture : ${r.screenshot_url ? `<a href="${process.env.APP_BASE_URL||''}${r.screenshot_url}">Voir</a>` : '❌'}\n` +
+              `🕒 ${date}`;
+            const buttons = r.status === 'pending'
+              ? { inline_keyboard: [[
+                  { text:'✅ Approuver', callback_data:`lnkma_pre_${r.id}` },
+                  { text:'❌ Rejeter',   callback_data:`lnkrej_pre_${r.id}` },
+                ]]}
+              : undefined;
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', ...(buttons?{reply_markup:buttons}:{}) })
+            });
+            await new Promise(r=>setTimeout(r,60));
+          }
+
+          // 2) Activations manuelles
+          for (const r of manualActivRows) {
+            const date = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'}) : '—';
+            const cardText =
+              `🆔 <b>ACTIVATION MANUELLE</b>\n` +
+              `🌍 ${r.country||'—'}\n` +
+              `📊 ${STATUS_FRT[r.status]||r.status}\n` +
+              `👤 ${r.full_name||'N/A'}\n` +
+              `📧 ${r.email||'N/A'}\n` +
+              `📋 Sika : <code>${r.referral_code||'N/A'}</code>\n` +
+              `📱 <code>${r.payment_phone||'—'}</code>\n` +
+              `💳 ${OPERATORS_FRT[r.operator]||r.operator||'—'}\n` +
+              `💰 ${Number(r.amount).toLocaleString('fr-FR')} FCFA\n` +
+              `🔖 ID tx : <code>${r.transaction_id||'—'}</code>\n` +
+              `🖼 Capture : ${r.screenshot_url ? `<a href="${process.env.APP_BASE_URL||''}${r.screenshot_url}">Voir</a>` : '❌'}\n` +
+              `🕒 ${date}`;
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML' })
+            });
+            await new Promise(r=>setTimeout(r,60));
+          }
+
+          // 3) Paiements SR (SolvexPay)
+          for (const r of srRows) {
+            const date = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'}) : '—';
+            const cardText =
+              `⚡ <b>PAIEMENT SOLVEXPAY</b>\n` +
+              `💳 <b>${r.link_label||r.link_id||'—'}</b>\n` +
+              `📊 ${STATUS_FRT[r.status]||r.status}\n` +
+              `👤 ${r.customer_name||'N/A'}\n` +
+              `📧 ${r.customer_email||'N/A'}\n` +
+              `📱 <code>${r.phone||'—'}</code>\n` +
+              `💳 ${OPERATORS_FRT[r.operator]||r.operator||'—'}\n` +
+              `💰 ${Number(r.amount).toLocaleString('fr-FR')} ${r.currency||'FCFA'}\n` +
+              `🔖 ID SolvexPay : <code>${r.solvexpay_txn_id||'—'}</code>\n` +
+              `🔖 Référence : <code>${r.reference||'—'}</code>\n` +
+              (r.pcs_code ? `🎟 Code PCS : <code>${r.pcs_code}</code>\n` : '') +
+              `🕒 ${date}`;
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML' })
+            });
+            await new Promise(r=>setTimeout(r,60));
+          }
+
           return res.sendStatus(200);
         }
 
