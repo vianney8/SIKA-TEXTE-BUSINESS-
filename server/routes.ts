@@ -2779,9 +2779,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
               `🔖 ID tx : <code>${r.transaction_id||'—'}</code>\n` +
               `🖼 Capture : ${r.screenshot_url ? '📎 envoyée ci-dessous' : '❌ aucune'}\n` +
               `🕒 ${date}`;
+            const buttons = r.status === 'pending'
+              ? { inline_keyboard: [[
+                  { text:'✅ Approuver le compte', callback_data:`manact_app_pre_${r.id}` },
+                  { text:'❌ Rejeter',             callback_data:`manact_rej_pre_${r.id}` },
+                ]]}
+              : undefined;
             await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
               method:'POST', headers:{'Content-Type':'application/json'},
-              body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML' })
+              body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', ...(buttons?{reply_markup:buttons}:{}) })
             });
             await sendShot(chatId, r.screenshot_url);
             await new Promise(r=>setTimeout(r,60));
