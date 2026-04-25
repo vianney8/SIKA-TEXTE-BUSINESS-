@@ -101,7 +101,7 @@ function AccessDenied() {
           <Link href="/activation">
             <button className="w-full py-4 rounded-2xl font-black text-sm text-white flex items-center justify-center gap-2 active:scale-[0.97] transition-all shadow-lg shadow-blue-200"
               style={{ background: "linear-gradient(135deg, #1a4fa0, #3b82f6)" }}>
-              <CreditCard size={17} /> Activer mon compte — 3 600 FCFA
+              <CreditCard size={17} /> Activer mon compte — {paymentInfo?.activationAmount ? parseInt(paymentInfo.activationAmount).toLocaleString("fr-FR") : "3 600"} FCFA
             </button>
           </Link>
           <Link href="/">
@@ -134,6 +134,7 @@ export default function SpayNetwork() {
   const animRef = useRef<number>(0);
   const packetsRef = useRef(0);
 
+  const { data: paymentInfo } = useQuery<{ activationAmount?: string }>({ queryKey: ["/api/activation/payment-info"] });
   const { data: withdrawalData } = useQuery<WithdrawalData>({
     queryKey: ["/api/withdrawal"],
   });

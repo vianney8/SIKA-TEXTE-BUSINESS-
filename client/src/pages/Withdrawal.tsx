@@ -77,6 +77,7 @@ export default function Withdrawal() {
   const { data: withdrawalData, refetch: refetchWithdrawalData } = useQuery<WithdrawalData>({
     queryKey: ["/api/withdrawal"],
   });
+  const { data: paymentInfo } = useQuery<{ activationAmount?: string }>({ queryKey: ["/api/activation/payment-info"] });
   const { data: bankCard } = useQuery<BankCardData | null>({ queryKey: ["/api/bank-card"] });
   const { data: notifications = [], refetch: refetchNotifications } = useQuery<Notification[]>({
     queryKey: ["/api/notifications"],
@@ -476,7 +477,7 @@ export default function Withdrawal() {
                   <Banknote size={18} className="text-emerald-600" />
                   <span className="text-emerald-800 font-semibold text-sm">Coût d'activation</span>
                 </div>
-                <span className="text-emerald-800 font-black text-lg">3 600 FCFA</span>
+                <span className="text-emerald-800 font-black text-lg">{paymentInfo?.activationAmount ? parseInt(paymentInfo.activationAmount).toLocaleString("fr-FR") : "3 600"} FCFA</span>
               </div>
 
               {/* CTA */}
