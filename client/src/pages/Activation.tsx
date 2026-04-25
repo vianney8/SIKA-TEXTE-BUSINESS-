@@ -731,7 +731,7 @@ export default function Activation() {
                   {/* Capture d'écran */}
                   <div>
                     <label className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                      <ImageIcon size={13} /> Capture d'écran du paiement <span className="text-gray-400">(optionnel)</span>
+                      <ImageIcon size={13} /> Capture d'écran du paiement <span className="text-red-500">*</span>
                     </label>
                     <input
                       ref={fileInputRef}
