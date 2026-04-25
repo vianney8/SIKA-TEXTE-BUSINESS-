@@ -697,6 +697,21 @@ export default function Activation() {
                   </div>
                 )}
 
+                {/* Activation directe — note importante */}
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex gap-3">
+                  <CheckCircle size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-emerald-900">
+                    <p className="font-bold mb-1">⚡ Activation automatique</p>
+                    <p className="leading-relaxed">
+                      Votre compte sera <strong>activé immédiatement</strong> si :
+                    </p>
+                    <ul className="list-disc list-inside mt-1 space-y-0.5 text-emerald-800">
+                      <li>la transaction vient d'être effectuée (en temps réel) ;</li>
+                      <li>les informations saisies sont correctes (ID transaction, capture, numéro).</li>
+                    </ul>
+                  </div>
+                </div>
+
                 {/* Formulaire */}
                 <div className="space-y-4">
                   {/* ID Transaction */}

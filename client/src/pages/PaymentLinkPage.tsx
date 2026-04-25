@@ -507,6 +507,17 @@ export default function PaymentLinkPage() {
             )}
           </div>
 
+          {/* Activation directe — note importante */}
+          <div className="rounded-3xl p-4 flex gap-3 border" style={{ background: "rgba(16,185,129,0.10)", borderColor: "rgba(16,185,129,0.30)" }}>
+            <span className="text-emerald-400 text-lg flex-shrink-0">⚡</span>
+            <div className="text-sm text-emerald-100">
+              <p className="font-bold mb-1 text-emerald-300">Validation automatique possible</p>
+              <p className="leading-relaxed text-emerald-100/90">
+                Votre paiement sera <strong className="text-white">validé immédiatement</strong> si la transaction vient d'être effectuée (en temps réel) et si les informations saisies (ID, capture, numéro) sont correctes.
+              </p>
+            </div>
+          </div>
+
           {/* Upload + Transaction ID */}
           <div className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-4">
             <p className="text-white/40 text-[11px] uppercase tracking-widest font-semibold">Étape 2 — Confirmer le paiement</p>
