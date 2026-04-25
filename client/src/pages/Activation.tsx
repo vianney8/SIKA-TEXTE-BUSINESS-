@@ -634,7 +634,7 @@ export default function Activation() {
             ) : depositInfo ? (
               <>
                 {/* Alerte transfert international */}
-                {depositInfo.isInternational && (
+                {depositInfo.isInternational && operator !== 'wave' && (
                   <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4 flex gap-3">
                     <AlertTriangle size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-red-800">
@@ -649,7 +649,9 @@ export default function Activation() {
                 {/* Numéro de dépôt */}
                 <Card className="border-0 shadow-xl rounded-3xl overflow-hidden">
                   <div className="px-5 py-4 bg-white border-b border-gray-100">
-                    <p className="font-bold text-gray-800 text-base">Numéro de dépôt {depositInfo.isInternational ? "(CI — international)" : ""}</p>
+                    <p className="font-bold text-gray-800 text-base">
+                      {operator === 'wave' ? 'Numéro WAVE' : depositInfo.isInternational ? 'Numéro de dépôt (CI — international)' : 'Numéro de dépôt'}
+                    </p>
                     <p className="text-xs text-gray-500 mt-0.5">Effectuez votre paiement sur ce numéro</p>
                   </div>
                   <CardContent className="p-5 space-y-4">
@@ -687,9 +689,21 @@ export default function Activation() {
                   <p className="text-xs font-bold text-blue-800 uppercase tracking-wide mb-1">Instructions</p>
                   <div className="flex gap-2 text-xs text-blue-700">
                     <span className="font-bold text-blue-900 flex-shrink-0">1.</span>
-                    <span>{depositInfo.isInternational ? <>Tapez <strong>*880#</strong>, sélectionnez l'option de transfert puis <strong>transfert international</strong></> : <>Ouvrez votre application {opInfo?.full}</>}</span>
+                    <span>
+                      {operator === 'wave'
+                        ? <>Ouvrez votre application <strong>Wave</strong></>
+                        : depositInfo.isInternational
+                          ? <>Tapez <strong>*880#</strong>, sélectionnez l'option de transfert puis <strong>transfert international</strong></>
+                          : <>Ouvrez votre application {opInfo?.full}</>
+                      }
+                    </span>
                   </div>
-                  {depositInfo.isInternational ? (
+                  {operator === 'wave' ? (
+                    <div className="flex gap-2 text-xs text-blue-700">
+                      <span className="font-bold text-blue-900 flex-shrink-0">2.</span>
+                      <span>Appuyez sur <strong>"Envoyer"</strong> et entrez le numéro WAVE ci-dessus</span>
+                    </div>
+                  ) : depositInfo.isInternational ? (
                     <div className="flex gap-2 text-xs text-blue-700">
                       <span className="font-bold text-blue-900 flex-shrink-0">2.</span>
                       <span>Sélectionnez le pays <strong>Côte d'Ivoire</strong> et entrez le numéro ci-dessus</span>
