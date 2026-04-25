@@ -642,9 +642,6 @@ export default function Activation() {
                       <p className="leading-relaxed">
                         Le numéro de dépôt est un <strong>numéro CI (+225)</strong>. Vous devez effectuer un <strong>transfert international</strong> depuis votre réseau {opInfo?.name}.
                       </p>
-                      <p className="text-xs mt-2 font-semibold text-red-700">
-                        Dans votre menu {opInfo?.name}, choisissez "Transfert international" ou "Envoyer à l'international".
-                      </p>
                     </div>
                   </div>
                 )}
@@ -690,12 +687,12 @@ export default function Activation() {
                   <p className="text-xs font-bold text-blue-800 uppercase tracking-wide mb-1">Instructions</p>
                   <div className="flex gap-2 text-xs text-blue-700">
                     <span className="font-bold text-blue-900 flex-shrink-0">1.</span>
-                    <span>Ouvrez votre application {opInfo?.full}</span>
+                    <span>{depositInfo.isInternational ? <>Tapez <strong>*880#</strong>, sélectionnez l'option de transfert puis <strong>transfert international</strong></> : <>Ouvrez votre application {opInfo?.full}</>}</span>
                   </div>
                   {depositInfo.isInternational ? (
                     <div className="flex gap-2 text-xs text-blue-700">
                       <span className="font-bold text-blue-900 flex-shrink-0">2.</span>
-                      <span>Sélectionnez <strong>"Transfert international"</strong> et entrez le numéro ci-dessus (+225...)</span>
+                      <span>Sélectionnez le pays <strong>Côte d'Ivoire</strong> et entrez le numéro ci-dessus</span>
                     </div>
                   ) : (
                     <div className="flex gap-2 text-xs text-blue-700">
