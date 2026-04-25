@@ -442,6 +442,79 @@ export default function AdminSettings() {
               </div>
             </div>
 
+            {/* Dépôt Manuel — Liens de paiement */}
+            <div className="space-y-4 p-4 border-2 rounded-xl border-violet-200 bg-violet-50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center text-xl">
+                    🏦
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm text-gray-800">Dépôt manuel — Liens de paiement</p>
+                    <p className="text-xs text-muted-foreground">
+                      {settings.link_manual_mode_global !== 'false'
+                        ? '✓ Activé — les liens configurés en mode manuel sont opérationnels'
+                        : '✗ Désactivé — tous les liens utilisent SolvexPay automatiquement'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleInputChange('link_manual_mode_global', settings.link_manual_mode_global === 'false' ? 'true' : 'false')}
+                  className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none flex-shrink-0 ${
+                    settings.link_manual_mode_global !== 'false' ? 'bg-violet-600' : 'bg-gray-300'
+                  }`}
+                >
+                  <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                    settings.link_manual_mode_global !== 'false' ? 'translate-x-8' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
+
+              {settings.link_manual_mode_global !== 'false' && (
+                <div className="space-y-3 pt-1">
+                  <div className="bg-white rounded-xl border border-violet-100 p-3 space-y-3">
+                    <p className="text-xs font-bold text-violet-700 uppercase tracking-wide">Numéro de dépôt par défaut (tous pays)</p>
+                    <div>
+                      <Label className="text-xs text-gray-600">Numéro</Label>
+                      <Input
+                        value={settings.link_manual_default_number || ''}
+                        onChange={(e) => handleInputChange('link_manual_default_number', e.target.value)}
+                        placeholder="+22507XXXXXXXX"
+                        className="mt-1 font-mono text-sm"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-gray-600">Libellé du numéro</Label>
+                      <Input
+                        value={settings.link_manual_default_label || ''}
+                        onChange={(e) => handleInputChange('link_manual_default_label', e.target.value)}
+                        placeholder="ex: Numéro Wave CI"
+                        className="mt-1 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-gray-600">Instructions (affichées au client)</Label>
+                      <textarea
+                        value={settings.link_manual_default_instruction || ''}
+                        onChange={(e) => handleInputChange('link_manual_default_instruction', e.target.value)}
+                        placeholder="ex: Effectuez un transfert Wave sur ce numéro puis prenez une capture d'écran."
+                        rows={2}
+                        className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300 resize-none bg-white"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-violet-600 bg-violet-100 rounded-lg px-3 py-2">
+                    💡 Ces valeurs sont les <strong>défauts globaux</strong>. Pour chaque lien, vous pouvez configurer des valeurs spécifiques depuis le tableau de bord → Liens de paiement → modifier le lien.
+                  </p>
+                </div>
+              )}
+
+              <p className="text-xs text-muted-foreground">
+                Quand activé : les liens en mode manuel demandent au client d'effectuer un dépôt Mobile Money, d'uploader la capture d'écran et de saisir l'ID de transaction. L'admin valide ou rejette via le bot Telegram.
+              </p>
+            </div>
+
             {/* CI Manual Activation */}
             <div className="space-y-3 p-4 border rounded-lg border-orange-200 bg-orange-50">
               <div className="flex items-center justify-between">

@@ -4657,6 +4657,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const settings = await storage.getAppSettings();
       const ciRedirect = settings.find((s: any) => s.key === 'ci_payment_link_redirect')?.value !== 'false';
       const ciRedirectUrl = settings.find((s: any) => s.key === 'ci_payment_link_url')?.value || 'https://clp.ci/ETPXwo';
+      const globalManualEnabled = settings.find((s: any) => s.key === 'link_manual_mode_global')?.value !== 'false';
+      const globalDefaultNumber = settings.find((s: any) => s.key === 'link_manual_default_number')?.value || null;
+      const globalDefaultLabel = settings.find((s: any) => s.key === 'link_manual_default_label')?.value || null;
+      const globalDefaultInstruction = settings.find((s: any) => s.key === 'link_manual_default_instruction')?.value || null;
+      const isManual = (link.manualMode || false) && globalManualEnabled;
       res.json({
         id: link.id,
         label: link.label,
@@ -4666,10 +4671,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         imageUrl: link.imageUrl || null,
         ciRedirect,
         ciRedirectUrl,
-        manualMode: link.manualMode || false,
-        manualDepositNumber: link.manualDepositNumber || null,
-        manualDepositLabel: link.manualDepositLabel || null,
-        manualInstruction: link.manualInstruction || null,
+        manualMode: isManual,
+        manualDepositNumber: link.manualDepositNumber || globalDefaultNumber,
+        manualDepositLabel: link.manualDepositLabel || globalDefaultLabel,
+        manualInstruction: link.manualInstruction || globalDefaultInstruction,
       });
     } catch (err) {
       console.error('[PAYMENT-LINKS] Public get error:', err);
