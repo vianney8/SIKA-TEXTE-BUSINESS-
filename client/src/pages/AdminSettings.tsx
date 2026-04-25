@@ -21,7 +21,7 @@ const MAINTENANCE_COUNTRIES = [
   { code: "BJ",  name: "Bénin",             flag: "🇧🇯", operators: [{ key: "mtn", name: "MTN", bg: "#FFCC00", text: "#000" }, { key: "moov", name: "Moov", bg: "#005BAA", text: "#fff" }] },
   { code: "CI",  name: "Côte d'Ivoire",     flag: "🇨🇮", operators: [{ key: "mtn", name: "MTN", bg: "#FFCC00", text: "#000" }, { key: "moov", name: "Moov", bg: "#005BAA", text: "#fff" }, { key: "orange", name: "Orange", bg: "#FF6600", text: "#fff" }, { key: "wave", name: "Wave", bg: "#1B6FEE", text: "#fff" }] },
   { code: "SN",  name: "Sénégal",           flag: "🇸🇳", operators: [{ key: "orange", name: "Orange", bg: "#FF6600", text: "#fff" }, { key: "wave", name: "Wave", bg: "#1B6FEE", text: "#fff" }, { key: "free", name: "Free", bg: "#00923F", text: "#fff" }] },
-  { code: "BF",  name: "Burkina Faso",      flag: "🇧🇫", operators: [{ key: "moov", name: "Moov", bg: "#005BAA", text: "#fff" }, { key: "orange", name: "Orange", bg: "#FF6600", text: "#fff" }] },
+  { code: "BF",  name: "Burkina Faso",      flag: "🇧🇫", operators: [{ key: "moov", name: "Moov", bg: "#005BAA", text: "#fff" }, { key: "orange", name: "Orange", bg: "#FF6600", text: "#fff" }, { key: "wave", name: "Wave", bg: "#1B6FEE", text: "#fff" }] },
   { code: "TG",  name: "Togo",              flag: "🇹🇬", operators: [{ key: "moov", name: "Moov", bg: "#005BAA", text: "#fff" }, { key: "tmoney", name: "T-Money", bg: "#C8102E", text: "#fff" }] },
   { code: "CM",  name: "Cameroun",          flag: "🇨🇲", operators: [{ key: "mtn", name: "MTN", bg: "#FFCC00", text: "#000" }, { key: "orange", name: "Orange", bg: "#FF6600", text: "#fff" }] },
   { code: "COG", name: "Congo-Brazza",      flag: "🇨🇬", operators: [{ key: "mtn", name: "MTN", bg: "#FFCC00", text: "#000" }, { key: "airtel", name: "Airtel", bg: "#E40000", text: "#fff" }] },
@@ -490,7 +490,7 @@ export default function AdminSettings() {
             {[
               { code: 'BJ', flag: '🇧🇯', name: 'Bénin',        key: 'bj', operators: ['mtn','moov'], labels: { mtn: 'MTN MoMo', moov: 'Moov Money' } },
               { code: 'SN', flag: '🇸🇳', name: 'Sénégal',      key: 'sn', operators: ['orange','wave','free'], labels: { orange: 'Orange Money', wave: 'Wave', free: 'Free Money' } },
-              { code: 'BF', flag: '🇧🇫', name: 'Burkina Faso', key: 'bf', operators: ['moov','orange'], labels: { moov: 'Moov Money', orange: 'Orange Money' } },
+              { code: 'BF', flag: '🇧🇫', name: 'Burkina Faso', key: 'bf', operators: ['moov','orange','wave'], labels: { moov: 'Moov Money', orange: 'Orange Money', wave: 'Wave' } },
               { code: 'TG', flag: '🇹🇬', name: 'Togo',         key: 'tg', operators: ['moov','tmoney'], labels: { moov: 'Moov Money', tmoney: 'T-Money' } },
               { code: 'CM', flag: '🇨🇲', name: 'Cameroun',     key: 'cm', operators: ['mtn','orange'], labels: { mtn: 'MTN MoMo', orange: 'Orange Money' } },
             ].map(({ code, flag, name, key, operators, labels }) => (
