@@ -2288,6 +2288,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!country || !operator || !phone || !transactionId) {
         return res.status(400).json({ message: 'Informations incomplètes' });
       }
+      if (!req.file) {
+        return res.status(400).json({ message: 'La capture d\'écran du paiement est obligatoire' });
+      }
       const user = await storage.getUser(userId);
       if (!user) return res.status(404).json({ message: 'Utilisateur introuvable' });
 
@@ -2298,15 +2301,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const activationAmount = parseInt(settings.find((s: any) => s.key === 'activation_amount')?.value || '3600');
       const adminChatId = '7457302722';
 
-      // Upload capture d'écran vers object storage
-      let screenshotUrl: string | null = null;
-      if (req.file) {
-        try {
-          const objectStorageService = new ObjectStorageService();
-          screenshotUrl = await objectStorageService.uploadActivationScreenshot(req.file.buffer, req.file.mimetype);
-        } catch (e) {
-          console.error('[MANUAL-SUBMIT] Screenshot upload error:', e);
-        }
+      // Upload capture d'écran vers object storage (obligatoire)
+      let screenshotUrl: string;
+      try {
+        const objectStorageService = new ObjectStorageService();
+        screenshotUrl = await objectStorageService.uploadActivationScreenshot(req.file.buffer, req.file.mimetype);
+      } catch (e) {
+        console.error('[MANUAL-SUBMIT] Screenshot upload error:', e);
+        return res.status(500).json({ message: 'Échec de l\'envoi de la capture, réessayez.' });
       }
 
       // Sauvegarde en base
@@ -2355,14 +2357,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ]]
       };
 
-      // Envoyer capture si disponible, puis le message texte
-      if (screenshotUrl) {
-        await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendPhoto`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: adminChatId, photo: screenshotUrl, caption: `📸 Capture — ${user.fullName} (${country}/${opLabel})` })
-        }).catch(e => console.error('[MANUAL-SUBMIT] Photo send error:', e));
-      }
+      // Construire l'URL absolue pour Telegram (ne peut pas accéder aux URLs relatives)
+      const xfwdMs = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim();
+      const reqHostMs = (req.get && req.get('host')) || '';
+      const reqProtoMs = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'https';
+      const hostBase = process.env.APP_BASE_URL
+        || (xfwdMs ? `https://${xfwdMs}` : '')
+        || (process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(',')[0].trim()}` : '')
+        || (reqHostMs ? `${reqProtoMs}://${reqHostMs}` : '');
+      const screenshotAbsUrl = screenshotUrl.startsWith('http') ? screenshotUrl : `${hostBase}${screenshotUrl}`;
+
+      // Envoyer la capture, puis le message texte
+      await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendPhoto`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: adminChatId, photo: screenshotAbsUrl, caption: `📸 Capture — ${user.fullName} (${country}/${opLabel})` })
+      }).catch(e => console.error('[MANUAL-SUBMIT] Photo send error:', e));
 
       await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
         method: 'POST',
@@ -2386,6 +2396,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Verrou admin : seul le chat_id administrateur peut interagir avec le bot
       const ADMIN_CHAT_ID = '7457302722';
+
+      // Base URL absolue pour permettre à Telegram de récupérer les captures
+      const xfwd = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim();
+      const reqHost = (req.get && req.get('host')) || '';
+      const reqProto = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'https';
+      const hostBase = process.env.APP_BASE_URL
+        || (xfwd ? `https://${xfwd}` : '')
+        || (process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(',')[0].trim()}` : '')
+        || (reqHost ? `${reqProto}://${reqHost}` : '');
+      const buildShotUrl = (rel: string | null | undefined): string | null =>
+        rel ? (rel.startsWith('http') ? rel : `${hostBase}${rel}`) : null;
+      const sendShot = async (chat: string, rel: string | null | undefined, caption?: string) => {
+        const url = buildShotUrl(rel);
+        if (!url || !hostBase) return;
+        try {
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendPhoto`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ chat_id: chat, photo: url, ...(caption?{caption,parse_mode:'HTML'}:{}) })
+          });
+        } catch(e) { console.error('[BOT] sendShot error:', e); }
+      };
 
       // Handle regular messages from admin
       if (update.message && update.message.chat?.id) {
@@ -2629,7 +2660,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 `📱 <code>${r.payment_phone}</code>\n` +
                 `💰 ${Number(r.amount).toLocaleString('fr-FR')} FCFA\n` +
                 `🔖 ID tx : <code>${r.transaction_id||'—'}</code>\n` +
-                `🖼 Capture : ${r.screenshot_url ? `<a href="${process.env.APP_BASE_URL||''}${r.screenshot_url}">Voir</a>` : '❌'}\n` +
+                `🖼 Capture : ${r.screenshot_url ? '📎 envoyée ci-dessous' : '❌ aucune'}\n` +
                 `🕒 ${date}`;
               const buttons = r.status === 'pending'
                 ? { inline_keyboard: [[
@@ -2641,6 +2672,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 method:'POST', headers:{'Content-Type':'application/json'},
                 body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', ...(buttons?{reply_markup:buttons}:{}) })
               });
+              await sendShot(chatId, r.screenshot_url);
               await new Promise(r=>setTimeout(r,60));
             }
           }
@@ -2715,7 +2747,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               `💳 ${OPERATORS_FRT[r.operator]||r.operator||'—'}\n` +
               `💰 ${Number(r.amount).toLocaleString('fr-FR')} ${r.currency||'FCFA'}\n` +
               `🔖 ID tx : <code>${r.transaction_id||'—'}</code>\n` +
-              `🖼 Capture : ${r.screenshot_url ? `<a href="${process.env.APP_BASE_URL||''}${r.screenshot_url}">Voir</a>` : '❌'}\n` +
+              `🖼 Capture : ${r.screenshot_url ? '📎 envoyée ci-dessous' : '❌ aucune'}\n` +
               `🕒 ${date}`;
             const buttons = r.status === 'pending'
               ? { inline_keyboard: [[
@@ -2727,6 +2759,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               method:'POST', headers:{'Content-Type':'application/json'},
               body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', ...(buttons?{reply_markup:buttons}:{}) })
             });
+            await sendShot(chatId, r.screenshot_url);
             await new Promise(r=>setTimeout(r,60));
           }
 
@@ -2744,12 +2777,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
               `💳 ${OPERATORS_FRT[r.operator]||r.operator||'—'}\n` +
               `💰 ${Number(r.amount).toLocaleString('fr-FR')} FCFA\n` +
               `🔖 ID tx : <code>${r.transaction_id||'—'}</code>\n` +
-              `🖼 Capture : ${r.screenshot_url ? `<a href="${process.env.APP_BASE_URL||''}${r.screenshot_url}">Voir</a>` : '❌'}\n` +
+              `🖼 Capture : ${r.screenshot_url ? '📎 envoyée ci-dessous' : '❌ aucune'}\n` +
               `🕒 ${date}`;
             await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
               method:'POST', headers:{'Content-Type':'application/json'},
               body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML' })
             });
+            await sendShot(chatId, r.screenshot_url);
             await new Promise(r=>setTimeout(r,60));
           }
 
@@ -2817,7 +2851,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 `💳 ${OPERATORS_FR4[r.operator]||r.operator||'—'}\n` +
                 `💰 ${Number(r.amount).toLocaleString('fr-FR')} ${r.currency||'FCFA'}\n` +
                 `🔖 ID tx : <code>${r.transaction_id||'—'}</code>\n` +
-                `🖼 Capture : ${r.screenshot_url ? `<a href="${process.env.APP_BASE_URL||''}${r.screenshot_url}">Voir</a>` : '❌'}\n` +
+                `🖼 Capture : ${r.screenshot_url ? '📎 envoyée ci-dessous' : '❌ aucune'}\n` +
                 `🕒 ${date}`;
               const buttons = r.status === 'pending'
                 ? { inline_keyboard: [[
@@ -2829,6 +2863,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 method:'POST', headers:{'Content-Type':'application/json'},
                 body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', ...(buttons?{reply_markup:buttons}:{}) })
               });
+              await sendShot(chatId, r.screenshot_url);
               await new Promise(r=>setTimeout(r,60));
             }
           }

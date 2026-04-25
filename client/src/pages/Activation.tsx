@@ -252,6 +252,10 @@ export default function Activation() {
       toast({ title: "Champ requis", description: "Veuillez saisir l'ID de transaction.", variant: "destructive" });
       return;
     }
+    if (!screenshotFile) {
+      toast({ title: "Capture requise", description: "Veuillez joindre la capture d'écran de votre paiement.", variant: "destructive" });
+      return;
+    }
     setManualSubmitting(true);
     try {
       const form = new FormData();
@@ -259,7 +263,7 @@ export default function Activation() {
       form.append("operator", operator);
       form.append("phone", `+${selectedCountry?.prefix}${phone.replace(/\s/g, "")}`);
       form.append("transactionId", transactionId2.trim());
-      if (screenshotFile) form.append("screenshot", screenshotFile);
+      form.append("screenshot", screenshotFile);
 
       const res = await fetch("/api/activation/manual-submit", {
         method: "POST",
