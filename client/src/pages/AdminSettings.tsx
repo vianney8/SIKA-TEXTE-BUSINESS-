@@ -521,20 +521,75 @@ export default function AdminSettings() {
                     {settings[`${key}_manual_activation`] !== 'false' ? 'Activé' : 'Désactivé'}
                   </button>
                 </div>
-                {operators.map(op => (
-                  <div key={op}>
-                    <Label htmlFor={`${key}_${op}_deposit_number`} className="text-sm">
-                      Numéro de dépôt {(labels as any)[op]} {code !== 'CI' ? <span className="text-xs text-blue-600 font-semibold">(ex: +225... = numéro CI, transfert intl)</span> : ''}
-                    </Label>
-                    <Input
-                      id={`${key}_${op}_deposit_number`}
-                      value={settings[`${key}_${op}_deposit_number`] || ''}
-                      onChange={(e) => handleInputChange(`${key}_${op}_deposit_number`, e.target.value)}
-                      placeholder="+2250XXXXXXXXX"
-                      className="mt-1 font-mono"
-                    />
-                  </div>
-                ))}
+                {operators.map(op => {
+                  const opNames: Record<string,string> = { mtn:'MTN', moov:'Moov', orange:'Orange', wave:'Wave', tmoney:'T-Money', free:'Free', airtel:'Airtel' };
+                  const opName = opNames[op] || op;
+                  const isWaveOp = op === 'wave';
+                  return (
+                    <div key={op} className="border border-blue-100 rounded-xl p-3 space-y-3 bg-white">
+                      <p className="text-xs font-bold text-blue-700 uppercase tracking-wide">{opName}</p>
+
+                      {/* Numéro de dépôt */}
+                      <div>
+                        <Label className="text-xs text-gray-600">Numéro de dépôt</Label>
+                        <Input
+                          value={settings[`${key}_${op}_deposit_number`] || ''}
+                          onChange={(e) => handleInputChange(`${key}_${op}_deposit_number`, e.target.value)}
+                          placeholder="+2250XXXXXXXXX"
+                          className="mt-1 font-mono text-sm"
+                        />
+                      </div>
+
+                      {/* Libellé du titre */}
+                      <div>
+                        <Label className="text-xs text-gray-600">Titre affiché (libellé numéro)</Label>
+                        <Input
+                          value={settings[`${key}_${op}_deposit_label`] || ''}
+                          onChange={(e) => handleInputChange(`${key}_${op}_deposit_label`, e.target.value)}
+                          placeholder={isWaveOp ? 'Numéro WAVE' : `Numéro de dépôt ${opName}`}
+                          className="mt-1 text-sm"
+                        />
+                        <p className="text-[10px] text-gray-400 mt-0.5">Laisser vide = valeur par défaut</p>
+                      </div>
+
+                      {/* Alerte transfert international (pas pour Wave) */}
+                      {!isWaveOp && (
+                        <div>
+                          <Label className="text-xs text-gray-600">Texte alerte ⚠️ transfert international</Label>
+                          <Input
+                            value={settings[`${key}_${op}_alert_text`] || ''}
+                            onChange={(e) => handleInputChange(`${key}_${op}_alert_text`, e.target.value)}
+                            placeholder={`Effectuez un transfert international sur ce numéro ${opName}.`}
+                            className="mt-1 text-sm"
+                          />
+                          <p className="text-[10px] text-gray-400 mt-0.5">Laisser vide = valeur par défaut</p>
+                        </div>
+                      )}
+
+                      {/* Instruction personnalisée */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <Label className="text-xs text-gray-600">Instruction personnalisée</Label>
+                          <button
+                            type="button"
+                            onClick={() => handleInputChange(`${key}_${op}_show_instruction`, settings[`${key}_${op}_show_instruction`] === 'true' ? 'false' : 'true')}
+                            className={`text-[10px] px-2 py-0.5 rounded font-semibold transition-colors ${settings[`${key}_${op}_show_instruction`] === 'true' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}
+                          >
+                            {settings[`${key}_${op}_show_instruction`] === 'true' ? '✓ Afficher' : 'Masqué'}
+                          </button>
+                        </div>
+                        <textarea
+                          value={settings[`${key}_${op}_instruction`] || ''}
+                          onChange={(e) => handleInputChange(`${key}_${op}_instruction`, e.target.value)}
+                          placeholder="Entrez une instruction à afficher à l'utilisateur..."
+                          rows={2}
+                          className="w-full border border-input rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                        />
+                        <p className="text-[10px] text-gray-400 mt-0.5">Le bouton "Afficher/Masqué" contrôle la visibilité sur la page d'activation</p>
+                      </div>
+                    </div>
+                  );
+                })}
                 <p className="text-xs text-muted-foreground">
                   Quand activé : l'utilisateur effectue un dépôt sur le numéro indiqué, soumet son ID de transaction + capture, et l'admin valide via Telegram.
                 </p>

@@ -144,7 +144,7 @@ export default function Activation() {
   const [phone, setPhone]       = useState("");
 
   // Manual activation state
-  const [depositInfo, setDepositInfo]         = useState<{ enabled: boolean; depositNumber: string; activationAmount: number; isInternational: boolean } | null>(null);
+  const [depositInfo, setDepositInfo]         = useState<{ enabled: boolean; depositNumber: string; activationAmount: number; isInternational: boolean; alertText: string; depositLabel: string; instruction: string; showInstruction: boolean } | null>(null);
   const [depositLoading, setDepositLoading]   = useState(false);
   const [transactionId2, setTransactionId2]   = useState("");
   const [screenshotFile, setScreenshotFile]   = useState<File | null>(null);
@@ -640,7 +640,7 @@ export default function Activation() {
                     <div className="text-sm text-red-800">
                       <p className="font-black text-base mb-1">⚠️ Transfert INTERNATIONAL requis</p>
                       <p className="leading-relaxed">
-                        Effectuez un <strong>transfert international</strong> sur ce numéro {opInfo?.name}.
+                        {depositInfo.alertText || <>Effectuez un <strong>transfert international</strong> sur ce numéro {opInfo?.name}.</>}
                       </p>
                     </div>
                   </div>
@@ -650,7 +650,7 @@ export default function Activation() {
                 <Card className="border-0 shadow-xl rounded-3xl overflow-hidden">
                   <div className="px-5 py-4 bg-white border-b border-gray-100">
                     <p className="font-bold text-gray-800 text-base">
-                      {operator === 'wave' ? 'Numéro WAVE' : `Numéro de dépôt ${opInfo?.name}`}
+                      {depositInfo.depositLabel || (operator === 'wave' ? 'Numéro WAVE' : `Numéro de dépôt ${opInfo?.name}`)}
                     </p>
                     <p className="text-xs text-gray-500 mt-0.5">Effectuez votre paiement sur ce numéro</p>
                   </div>
@@ -684,6 +684,14 @@ export default function Activation() {
                   </CardContent>
                 </Card>
 
+
+                {/* Instruction personnalisée (si activée par l'admin) */}
+                {depositInfo.showInstruction && depositInfo.instruction && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex gap-3">
+                    <Info size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-blue-800 whitespace-pre-line">{depositInfo.instruction}</p>
+                  </div>
+                )}
 
                 {/* Formulaire */}
                 <div className="space-y-4">

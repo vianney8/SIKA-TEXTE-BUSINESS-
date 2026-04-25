@@ -2255,11 +2255,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const settings = await storage.getAppSettings();
       const countryLower = country.toLowerCase();
       const enabled = settings.find((s: any) => s.key === `${countryLower}_manual_activation`)?.value !== 'false';
-      const depositNumber = settings.find((s: any) => s.key === `${countryLower}_${operator.toLowerCase()}_deposit_number`)?.value || '';
+      const opLower = operator.toLowerCase();
+      const depositNumber = settings.find((s: any) => s.key === `${countryLower}_${opLower}_deposit_number`)?.value || '';
       const activationAmount = parseInt(settings.find((s: any) => s.key === 'activation_amount')?.value || '3600');
-      // Type de transfert selon le pays
-      const isInternational = country !== 'CI'; // Tous sauf CI = transfert international
-      res.json({ enabled, depositNumber, activationAmount, isInternational });
+      const isInternational = country !== 'CI';
+      // Textes personnalisables par réseau
+      const alertText       = settings.find((s: any) => s.key === `${countryLower}_${opLower}_alert_text`)?.value || '';
+      const depositLabel    = settings.find((s: any) => s.key === `${countryLower}_${opLower}_deposit_label`)?.value || '';
+      const instruction     = settings.find((s: any) => s.key === `${countryLower}_${opLower}_instruction`)?.value || '';
+      const showInstruction = settings.find((s: any) => s.key === `${countryLower}_${opLower}_show_instruction`)?.value === 'true';
+      res.json({ enabled, depositNumber, activationAmount, isInternational, alertText, depositLabel, instruction, showInstruction });
     } catch (err) {
       console.error('[MANUAL-DEPOSIT-INFO]', err);
       res.status(500).json({ message: 'Erreur serveur' });
