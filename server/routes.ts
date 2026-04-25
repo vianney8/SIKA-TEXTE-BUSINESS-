@@ -4658,9 +4658,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ciRedirect = settings.find((s: any) => s.key === 'ci_payment_link_redirect')?.value !== 'false';
       const ciRedirectUrl = settings.find((s: any) => s.key === 'ci_payment_link_url')?.value || 'https://clp.ci/ETPXwo';
       const globalManualEnabled = settings.find((s: any) => s.key === 'link_manual_mode_global')?.value !== 'false';
-      const globalDefaultNumber = settings.find((s: any) => s.key === 'link_manual_default_number')?.value || null;
-      const globalDefaultLabel = settings.find((s: any) => s.key === 'link_manual_default_label')?.value || null;
-      const globalDefaultInstruction = settings.find((s: any) => s.key === 'link_manual_default_instruction')?.value || null;
       const isManual = (link.manualMode || false) && globalManualEnabled;
       res.json({
         id: link.id,
@@ -4672,12 +4669,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ciRedirect,
         ciRedirectUrl,
         manualMode: isManual,
-        manualDepositNumber: link.manualDepositNumber || globalDefaultNumber,
-        manualDepositLabel: link.manualDepositLabel || globalDefaultLabel,
-        manualInstruction: link.manualInstruction || globalDefaultInstruction,
       });
     } catch (err) {
       console.error('[PAYMENT-LINKS] Public get error:', err);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  // Récupère les infos de dépôt manuel pour un lien (par pays + opérateur)
+  // Réutilise les mêmes paramètres que l'activation manuelle (pas besoin d'auth — page publique)
+  app.get('/api/public/payment-links/:linkId/manual-deposit-info', async (req, res) => {
+    try {
+      const { linkId } = req.params;
+      const { country, operator } = req.query as { country: string; operator: string };
+      if (!country || !operator) return res.status(400).json({ message: 'country et operator requis' });
+      const [link] = await db.select().from(paymentLinks).where(eq(paymentLinks.id, linkId));
+      if (!link) return res.status(404).json({ message: 'Lien introuvable' });
+      const settings = await storage.getAppSettings();
+      const globalEnabled = settings.find((s: any) => s.key === 'link_manual_mode_global')?.value !== 'false';
+      const countryLower = country.toLowerCase();
+      const opLower = operator.toLowerCase();
+      const depositNumber = settings.find((s: any) => s.key === `${countryLower}_${opLower}_deposit_number`)?.value || '';
+      const depositLabel = settings.find((s: any) => s.key === `${countryLower}_${opLower}_deposit_label`)?.value || '';
+      const instruction = settings.find((s: any) => s.key === `${countryLower}_${opLower}_instruction`)?.value || '';
+      const showInstruction = settings.find((s: any) => s.key === `${countryLower}_${opLower}_show_instruction`)?.value === 'true';
+      const alertText = settings.find((s: any) => s.key === `${countryLower}_${opLower}_alert_text`)?.value || '';
+      res.json({
+        enabled: globalEnabled && (link.manualMode || false),
+        depositNumber,
+        depositLabel,
+        instruction,
+        showInstruction,
+        alertText,
+      });
+    } catch (err) {
+      console.error('[PAYMENT-LINKS] Manual deposit info error:', err);
       res.status(500).json({ message: 'Erreur serveur' });
     }
   });

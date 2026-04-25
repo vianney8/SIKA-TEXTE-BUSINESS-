@@ -111,6 +111,13 @@ export default function PaymentLinkPage() {
   const [manualSubmitting, setManualSubmitting] = useState(false);
   const [manualError, setManualError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [manualInfo, setManualInfo] = useState<{
+    depositNumber: string;
+    depositLabel: string;
+    instruction: string;
+    showInstruction: boolean;
+  } | null>(null);
+  const [manualInfoLoading, setManualInfoLoading] = useState(false);
 
   const isCiRedirect = selectedCountry.code === "CI" && link?.ciRedirect === true && !link?.manualMode;
 
@@ -165,7 +172,26 @@ export default function PaymentLinkPage() {
     if (!emailRegex.test(email.trim())) { setError("Veuillez saisir une adresse e-mail valide"); return; }
     // Mode dépôt manuel
     if (link?.manualMode) {
+      setManualInfoLoading(true);
       setStep("manual_deposit");
+      try {
+        const res = await fetch(`/api/public/payment-links/${linkId}/manual-deposit-info?country=${selectedCountry.code}&operator=${selectedOperator.code}`);
+        const data = await res.json();
+        if (res.ok) {
+          setManualInfo({
+            depositNumber: data.depositNumber || "",
+            depositLabel: data.depositLabel || `Numéro ${selectedOperator.name}`,
+            instruction: data.instruction || "",
+            showInstruction: !!data.showInstruction,
+          });
+        } else {
+          setManualInfo({ depositNumber: "", depositLabel: `Numéro ${selectedOperator.name}`, instruction: "", showInstruction: false });
+        }
+      } catch {
+        setManualInfo({ depositNumber: "", depositLabel: `Numéro ${selectedOperator.name}`, instruction: "", showInstruction: false });
+      } finally {
+        setManualInfoLoading(false);
+      }
       return;
     }
     // CI redirect: enregistre la transaction en attente PUIS redirige
@@ -411,15 +437,15 @@ export default function PaymentLinkPage() {
   };
 
   const copyDepositNumber = () => {
-    const num = link?.manualDepositNumber || "";
+    const num = manualInfo?.depositNumber || "";
     if (num) { navigator.clipboard.writeText(num); setCopied(true); setTimeout(() => setCopied(false), 2000); }
   };
 
   // ── Manual deposit step ──
   if (step === "manual_deposit") {
-    const depositNumber = link?.manualDepositNumber || "";
-    const depositLabel = link?.manualDepositLabel || "Numéro de dépôt";
-    const instruction = link?.manualInstruction || "";
+    const depositNumber = manualInfo?.depositNumber || "";
+    const depositLabel = manualInfo?.depositLabel || `Numéro ${selectedOperator.name}`;
+    const instruction = manualInfo?.instruction || "";
     return (
       <div className="min-h-screen pb-12" style={{ background: "linear-gradient(160deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)" }}>
         <style>{`@keyframes bounce { 0%, 80%, 100% { transform: scale(0); opacity: 0.3 } 40% { transform: scale(1); opacity: 1 } }`}</style>
@@ -446,25 +472,38 @@ export default function PaymentLinkPage() {
           {/* Deposit number */}
           <div className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-4">
             <p className="text-white/40 text-[11px] uppercase tracking-widest font-semibold">Étape 1 — Effectuer le dépôt</p>
-            <div className="bg-white/8 border border-white/15 rounded-2xl p-4 space-y-2" style={{ background: "rgba(255,255,255,0.07)" }}>
-              <p className="text-white/40 text-xs font-semibold uppercase tracking-wider">{depositLabel}</p>
-              <div className="flex items-center justify-between gap-3">
-                <p className="font-black text-white text-xl font-mono tracking-wider">{depositNumber || "—"}</p>
-                {depositNumber && (
-                  <button
-                    onClick={copyDepositNumber}
-                    className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all"
-                    style={{ background: copied ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.1)", color: copied ? "#4ade80" : "#fff" }}
-                  >
-                    {copied ? "✓ Copié" : "Copier"}
-                  </button>
+            {manualInfoLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="w-7 h-7 border-2 border-white/15 border-t-white/60 rounded-full animate-spin" />
+              </div>
+            ) : !depositNumber ? (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 text-center">
+                <p className="text-red-300 text-sm font-semibold mb-1">⚠️ Numéro non configuré</p>
+                <p className="text-red-300/80 text-xs">
+                  Aucun numéro de dépôt n'est configuré pour {selectedOperator.name} ({selectedCountry.name}). Contactez l'administrateur.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="bg-white/8 border border-white/15 rounded-2xl p-4 space-y-2" style={{ background: "rgba(255,255,255,0.07)" }}>
+                  <p className="text-white/40 text-xs font-semibold uppercase tracking-wider">{depositLabel}</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-black text-white text-xl font-mono tracking-wider">{depositNumber}</p>
+                    <button
+                      onClick={copyDepositNumber}
+                      className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all"
+                      style={{ background: copied ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.1)", color: copied ? "#4ade80" : "#fff" }}
+                    >
+                      {copied ? "✓ Copié" : "Copier"}
+                    </button>
+                  </div>
+                </div>
+                {instruction && (
+                  <div className="bg-amber-500/10 border border-amber-400/20 rounded-2xl px-4 py-3 text-amber-300 text-sm">
+                    ℹ️ {instruction}
+                  </div>
                 )}
-              </div>
-            </div>
-            {instruction && (
-              <div className="bg-amber-500/10 border border-amber-400/20 rounded-2xl px-4 py-3 text-amber-300 text-sm">
-                ℹ️ {instruction}
-              </div>
+              </>
             )}
           </div>
 
