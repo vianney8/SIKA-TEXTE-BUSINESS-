@@ -3353,7 +3353,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             else if (r.status !== 'pending') { answerText = `Déjà : ${r.status}`; }
             else {
               // Activer le compte
-              await storage.activateUser(r.userId);
+              await storage.activateAccount(r.userId);
               await db.update(manualActivationRequests).set({ status: 'approved' }).where(eq(manualActivationRequests.id, reqId));
               answerText = '✅ Compte activé !';
               if (chatId && messageId) {
