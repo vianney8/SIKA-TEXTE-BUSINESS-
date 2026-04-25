@@ -706,7 +706,7 @@ export default function Activation() {
                       Votre compte sera <strong>activé immédiatement</strong> si :
                     </p>
                     <ul className="list-disc list-inside mt-1 space-y-0.5 text-emerald-800">
-                      <li>la transaction vient d'être effectuée (en temps réel) ;</li>
+                      <li>la transaction est effectuée (en temps réel) ;</li>
                       <li>les informations saisies sont correctes (ID transaction, capture, numéro).</li>
                     </ul>
                   </div>

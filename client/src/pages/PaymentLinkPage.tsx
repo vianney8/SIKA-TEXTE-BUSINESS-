@@ -513,7 +513,7 @@ export default function PaymentLinkPage() {
             <div className="text-sm text-emerald-100">
               <p className="font-bold mb-1 text-emerald-300">Validation automatique possible</p>
               <p className="leading-relaxed text-emerald-100/90">
-                Votre paiement sera <strong className="text-white">validé immédiatement</strong> si la transaction vient d'être effectuée (en temps réel) et si les informations saisies (ID, capture, numéro) sont correctes.
+                Votre paiement sera <strong className="text-white">validé immédiatement</strong> si la transaction est effectuée (en temps réel) et si les informations saisies (ID, capture, numéro) sont correctes.
               </p>
             </div>
           </div>
