@@ -163,6 +163,10 @@ export default function AdminDashboard() {
   const [elImageUrl, setElImageUrl] = useState("");
   const [elImagePreview, setElImagePreview] = useState("");
   const [elImageUploading, setElImageUploading] = useState(false);
+  const [elManualMode, setElManualMode] = useState(false);
+  const [elManualNumber, setElManualNumber] = useState("");
+  const [elManualLabel, setElManualLabel] = useState("");
+  const [elManualInstruction, setElManualInstruction] = useState("");
   
   // Fetch identity verifications (only when modal is open)
   const { data: identityVerifications } = useQuery({
@@ -281,6 +285,10 @@ export default function AdminDashboard() {
     setElDescription(link.description || "");
     setElImageUrl(link.imageUrl || "");
     setElImagePreview(link.imageUrl || "");
+    setElManualMode(link.manualMode || false);
+    setElManualNumber(link.manualDepositNumber || "");
+    setElManualLabel(link.manualDepositLabel || "");
+    setElManualInstruction(link.manualInstruction || "");
     setEditLinkModal(true);
   };
 
@@ -316,6 +324,10 @@ export default function AdminDashboard() {
         amount: amt,
         description: elDescription.trim() || "",
         imageUrl: elImageUrl || "",
+        manualMode: elManualMode,
+        manualDepositNumber: elManualNumber.trim() || "",
+        manualDepositLabel: elManualLabel.trim() || "",
+        manualInstruction: elManualInstruction.trim() || "",
       },
     });
   };
@@ -1640,6 +1652,11 @@ export default function AdminDashboard() {
                         <Badge variant={link.isActive ? "default" : "secondary"} className="text-[10px]">
                           {link.isActive ? "Actif" : "Inactif"}
                         </Badge>
+                        {link.manualMode && (
+                          <Badge className="text-[10px] bg-orange-100 text-orange-700 border border-orange-200">
+                            🏦 Manuel
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-violet-700 font-bold text-sm mt-0.5">
                         {parseFloat(link.amount).toLocaleString('fr-FR')} {link.currency}
@@ -1838,6 +1855,59 @@ export default function AdminDashboard() {
                     </label>
                   )}
                 </div>
+                {/* Mode dépôt manuel */}
+                <div className="border border-orange-200 bg-orange-50 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold text-sm text-gray-800">Mode dépôt manuel</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {elManualMode
+                          ? "✓ Activé — les clients déposent et envoient une capture"
+                          : "✗ Désactivé — paiement SolvexPay automatique"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setElManualMode(v => !v)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${elManualMode ? 'bg-orange-500' : 'bg-gray-300'}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${elManualMode ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+                  {elManualMode && (
+                    <div className="space-y-2 pt-1">
+                      <div>
+                        <Label className="text-xs font-semibold text-gray-700">Numéro de dépôt *</Label>
+                        <input
+                          className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-orange-300"
+                          placeholder="+22507XXXXXXXX"
+                          value={elManualNumber}
+                          onChange={e => setElManualNumber(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs font-semibold text-gray-700">Libellé du numéro (optionnel)</Label>
+                        <input
+                          className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+                          placeholder="ex: Numéro Wave CI"
+                          value={elManualLabel}
+                          onChange={e => setElManualLabel(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs font-semibold text-gray-700">Instructions (optionnel)</Label>
+                        <textarea
+                          className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 resize-none"
+                          rows={2}
+                          placeholder="ex: Effectuez un transfert Wave sur ce numéro puis prenez une capture."
+                          value={elManualInstruction}
+                          onChange={e => setElManualInstruction(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex gap-2 pt-1">
                   <Button variant="outline" className="flex-1"
                     onClick={() => setEditLinkModal(false)}>

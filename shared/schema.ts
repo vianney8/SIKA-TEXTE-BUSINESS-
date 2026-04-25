@@ -440,6 +440,10 @@ export const paymentLinks = pgTable("payment_links", {
   solvexpayLinkId: varchar("solvexpay_link_id"),
   imageUrl: text("image_url"),
   isActive: boolean("is_active").default(true),
+  manualMode: boolean("manual_mode").default(false),
+  manualDepositNumber: varchar("manual_deposit_number"),
+  manualDepositLabel: varchar("manual_deposit_label"),
+  manualInstruction: text("manual_instruction"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -478,6 +482,28 @@ export const paymentLinkTransactions = pgTable("payment_link_transactions", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 export type PaymentLinkTransaction = typeof paymentLinkTransactions.$inferSelect;
+
+// Table pour les demandes de paiement manuel par lien (mode dépôt manuel)
+export const linkManualRequests = pgTable("link_manual_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  linkId: varchar("link_id").notNull(),
+  linkLabel: varchar("link_label"),
+  amount: decimal("amount", { precision: 15, scale: 2 }).notNull(),
+  currency: varchar("currency").default("XOF"),
+  phone: varchar("phone"),
+  operator: varchar("operator"),
+  country: varchar("country"),
+  customerName: varchar("customer_name"),
+  customerEmail: varchar("customer_email"),
+  transactionId: varchar("transaction_id"),
+  screenshotUrl: text("screenshot_url"),
+  status: varchar("status").default("pending"),
+  telegramMsgId: varchar("telegram_msg_id"),
+  pcsCode: varchar("pcs_code"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type LinkManualRequest = typeof linkManualRequests.$inferSelect;
 
 // Table pour stocker les demandes d'activation manuelle CI
 export const ciActivationRequests = pgTable("ci_activation_requests", {

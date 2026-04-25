@@ -67,7 +67,7 @@ const COUNTRIES: {
   },
 ];
 
-type Step = "form" | "pending" | "success" | "failed" | "redirected";
+type Step = "form" | "pending" | "success" | "failed" | "redirected" | "manual_deposit" | "manual_submitted";
 
 function AnimatedDots() {
   return (
@@ -102,7 +102,17 @@ export default function PaymentLinkPage() {
   const [statusMessage, setStatusMessage] = useState("");
   const [pollCount, setPollCount] = useState(0);
 
-  const isCiRedirect = selectedCountry.code === "CI" && link?.ciRedirect === true;
+  // Manual deposit state
+  const [manualTxnId, setManualTxnId] = useState("");
+  const [manualScreenshotFile, setManualScreenshotFile] = useState<File | null>(null);
+  const [manualScreenshotPreview, setManualScreenshotPreview] = useState("");
+  const [manualScreenshotUrl, setManualScreenshotUrl] = useState("");
+  const [manualUploading, setManualUploading] = useState(false);
+  const [manualSubmitting, setManualSubmitting] = useState(false);
+  const [manualError, setManualError] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const isCiRedirect = selectedCountry.code === "CI" && link?.ciRedirect === true && !link?.manualMode;
 
   useEffect(() => {
     if (!linkId) return;
@@ -153,6 +163,11 @@ export default function PaymentLinkPage() {
     if (!email.trim()) { setError("Veuillez saisir votre adresse e-mail"); return; }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim())) { setError("Veuillez saisir une adresse e-mail valide"); return; }
+    // Mode dépôt manuel
+    if (link?.manualMode) {
+      setStep("manual_deposit");
+      return;
+    }
     // CI redirect: enregistre la transaction en attente PUIS redirige
     if (isCiRedirect) {
       setSubmitting(true);
@@ -339,6 +354,213 @@ export default function PaymentLinkPage() {
           className="text-xs text-white/30 hover:text-white/60 transition-colors underline underline-offset-2"
         >Retour</button>
         <div className="mt-6 border-t border-white/10 pt-4">
+          <p className="text-white/25 text-xs">Paiement sécurisé par <span className="text-white/40 font-bold">SIKApay</span></p>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── Manual deposit upload ──
+  const handleManualScreenshot = async (file: File) => {
+    setManualScreenshotFile(file);
+    setManualScreenshotPreview(URL.createObjectURL(file));
+    setManualUploading(true);
+    try {
+      const form = new FormData();
+      form.append("screenshot", file);
+      const res = await fetch(`/api/public/payment-links/${linkId}/manual-upload`, { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Erreur upload");
+      setManualScreenshotUrl(data.screenshotUrl);
+    } catch (e: any) {
+      setManualError("Erreur lors du chargement de la capture. Réessayez.");
+      setManualScreenshotPreview("");
+      setManualScreenshotUrl("");
+    } finally {
+      setManualUploading(false);
+    }
+  };
+
+  const handleManualSubmit = async () => {
+    setManualError("");
+    if (!manualTxnId.trim()) { setManualError("Veuillez saisir l'ID de transaction."); return; }
+    if (!manualScreenshotUrl) { setManualError("Veuillez uploader la capture d'écran."); return; }
+    setManualSubmitting(true);
+    try {
+      const res = await fetch(`/api/public/payment-links/${linkId}/manual-submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: `${selectedCountry.prefix}${phone.replace(/\s/g, "")}`,
+          operator: selectedOperator.code,
+          country: selectedCountry.code,
+          customerName: `${firstName.trim()} ${lastName.trim()}`,
+          customerEmail: email.trim(),
+          transactionId: manualTxnId.trim(),
+          screenshotUrl: manualScreenshotUrl,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Erreur serveur");
+      setStep("manual_submitted");
+    } catch (e: any) {
+      setManualError(e.message || "Erreur lors de l'envoi. Réessayez.");
+    } finally {
+      setManualSubmitting(false);
+    }
+  };
+
+  const copyDepositNumber = () => {
+    const num = link?.manualDepositNumber || "";
+    if (num) { navigator.clipboard.writeText(num); setCopied(true); setTimeout(() => setCopied(false), 2000); }
+  };
+
+  // ── Manual deposit step ──
+  if (step === "manual_deposit") {
+    const depositNumber = link?.manualDepositNumber || "";
+    const depositLabel = link?.manualDepositLabel || "Numéro de dépôt";
+    const instruction = link?.manualInstruction || "";
+    return (
+      <div className="min-h-screen pb-12" style={{ background: "linear-gradient(160deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)" }}>
+        <style>{`@keyframes bounce { 0%, 80%, 100% { transform: scale(0); opacity: 0.3 } 40% { transform: scale(1); opacity: 1 } }`}</style>
+        <div className="px-5 pt-6 pb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <img src="/logo.jpg" alt="SIKApay" className="w-8 h-8 rounded-xl object-cover ring-1 ring-white/20" />
+            <span className="font-black text-white text-sm tracking-wide">SIKApay</span>
+          </div>
+          <button onClick={() => setStep("form")} className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 transition-colors rounded-xl px-3 py-1.5 text-xs font-semibold text-white/80">
+            ← Retour
+          </button>
+        </div>
+        <div className="max-w-md mx-auto px-4 space-y-3">
+          {/* Amount reminder */}
+          <div className="bg-gradient-to-br from-orange-600/30 to-amber-700/30 border border-orange-500/20 rounded-3xl p-5 text-center">
+            <p className="text-white/40 text-xs uppercase tracking-widest font-semibold mb-1">Montant à déposer</p>
+            <p className="font-black text-white leading-none" style={{ fontSize: "clamp(2rem,8vw,2.8rem)" }}>
+              {parseFloat(link.amount).toLocaleString("fr-FR")}
+              <span className="text-white/40 text-lg ml-2 font-bold">{link.currency}</span>
+            </p>
+            <p className="text-white/60 text-sm mt-1 font-semibold">{link.label}</p>
+          </div>
+
+          {/* Deposit number */}
+          <div className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-4">
+            <p className="text-white/40 text-[11px] uppercase tracking-widest font-semibold">Étape 1 — Effectuer le dépôt</p>
+            <div className="bg-white/8 border border-white/15 rounded-2xl p-4 space-y-2" style={{ background: "rgba(255,255,255,0.07)" }}>
+              <p className="text-white/40 text-xs font-semibold uppercase tracking-wider">{depositLabel}</p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-black text-white text-xl font-mono tracking-wider">{depositNumber || "—"}</p>
+                {depositNumber && (
+                  <button
+                    onClick={copyDepositNumber}
+                    className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all"
+                    style={{ background: copied ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.1)", color: copied ? "#4ade80" : "#fff" }}
+                  >
+                    {copied ? "✓ Copié" : "Copier"}
+                  </button>
+                )}
+              </div>
+            </div>
+            {instruction && (
+              <div className="bg-amber-500/10 border border-amber-400/20 rounded-2xl px-4 py-3 text-amber-300 text-sm">
+                ℹ️ {instruction}
+              </div>
+            )}
+          </div>
+
+          {/* Upload + Transaction ID */}
+          <div className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-4">
+            <p className="text-white/40 text-[11px] uppercase tracking-widest font-semibold">Étape 2 — Confirmer le paiement</p>
+
+            {/* Screenshot */}
+            <div>
+              <p className="text-white/60 text-xs font-semibold mb-2">Capture d'écran du reçu *</p>
+              {manualScreenshotPreview ? (
+                <div className="relative rounded-2xl overflow-hidden border border-white/10">
+                  <img src={manualScreenshotPreview} alt="Reçu" className="w-full max-h-48 object-cover" />
+                  {manualUploading && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                      <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                    </div>
+                  )}
+                  {manualScreenshotUrl && !manualUploading && (
+                    <div className="absolute top-2 right-2 bg-green-500 text-white text-[10px] font-bold px-2 py-1 rounded-full">✓ Chargée</div>
+                  )}
+                  <label className="absolute bottom-2 right-2 bg-white/20 backdrop-blur text-white text-[10px] font-bold px-2 py-1 rounded-full cursor-pointer hover:bg-white/30 transition">
+                    Changer
+                    <input type="file" accept="image/*" className="hidden"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) handleManualScreenshot(f); }} />
+                  </label>
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed rounded-2xl cursor-pointer transition-colors"
+                  style={{ borderColor: "rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.05)" }}>
+                  <span className="text-3xl mb-1">📷</span>
+                  <span className="text-white/50 text-xs font-semibold">Choisir une capture</span>
+                  <span className="text-white/25 text-[10px]">JPG, PNG — max 10 Mo</span>
+                  <input type="file" accept="image/*" className="hidden"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleManualScreenshot(f); }} />
+                </label>
+              )}
+            </div>
+
+            {/* Transaction ID */}
+            <div>
+              <p className="text-white/60 text-xs font-semibold mb-2">ID / Référence de transaction *</p>
+              <input
+                type="text"
+                value={manualTxnId}
+                onChange={e => setManualTxnId(e.target.value)}
+                placeholder="ex: TXN20240125ABCDE"
+                className="w-full border border-white/15 rounded-2xl px-4 py-3 text-sm font-semibold font-mono text-white placeholder:text-white/25 focus:outline-none focus:border-orange-400/60"
+                style={{ background: "rgba(255,255,255,0.07)" }}
+              />
+            </div>
+          </div>
+
+          {manualError && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-2xl px-4 py-3 text-red-400 text-sm">
+              ⚠️ {manualError}
+            </div>
+          )}
+
+          <button
+            onClick={handleManualSubmit}
+            disabled={manualSubmitting || manualUploading}
+            className="w-full py-4 rounded-2xl font-bold text-white text-sm transition-all"
+            style={{ background: (manualSubmitting || manualUploading) ? "rgba(255,255,255,0.1)" : "linear-gradient(135deg, #ea580c, #f97316)" }}
+          >
+            {manualSubmitting ? "Envoi en cours…" : manualUploading ? "Chargement…" : "Envoyer la demande"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Manual submitted ──
+  if (step === "manual_submitted") return (
+    <div className="min-h-screen flex items-center justify-center px-5" style={{ background: "linear-gradient(160deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)" }}>
+      <div className="text-center max-w-sm w-full animate-in fade-in zoom-in-95 duration-500">
+        <div className="relative w-28 h-28 mx-auto mb-6">
+          <div className="absolute inset-0 rounded-full bg-orange-500/20 animate-pulse" />
+          <div className="relative w-28 h-28 rounded-full bg-gradient-to-br from-orange-400 to-amber-500 flex items-center justify-center shadow-2xl shadow-orange-500/30">
+            <span className="text-5xl">⏳</span>
+          </div>
+        </div>
+        <h2 className="font-black text-white text-2xl mb-2">Demande envoyée !</h2>
+        <p className="text-white/60 text-sm mb-1">
+          Votre demande de paiement a été transmise.
+        </p>
+        <p className="text-white/40 text-xs mb-6">
+          Notre équipe va vérifier votre dépôt et valider la transaction sous peu.
+        </p>
+        <div className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-left space-y-1.5 mb-6">
+          <p className="text-white/40 text-xs font-semibold uppercase tracking-wider mb-2">Récapitulatif</p>
+          <p className="text-white text-sm"><span className="text-white/40">Montant :</span> <span className="font-bold">{parseFloat(link.amount).toLocaleString("fr-FR")} {link.currency}</span></p>
+          <p className="text-white text-sm"><span className="text-white/40">Lien :</span> {link.label}</p>
+          <p className="text-white text-sm"><span className="text-white/40">Référence :</span> <span className="font-mono text-xs">{manualTxnId}</span></p>
+        </div>
+        <div className="border-t border-white/10 pt-4">
           <p className="text-white/25 text-xs">Paiement sécurisé par <span className="text-white/40 font-bold">SIKApay</span></p>
         </div>
       </div>

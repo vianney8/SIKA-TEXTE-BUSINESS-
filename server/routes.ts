@@ -31,6 +31,7 @@ import {
   paymentLinkTransactions,
   ciActivationRequests,
   manualActivationRequests,
+  linkManualRequests,
   pcsCodes,
 } from "@shared/schema";
 import bcrypt from "bcrypt";
@@ -2646,6 +2647,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.sendStatus(200);
         }
 
+        // ── Recherche paiement lien manuel : +229... pay lien ─────────────────
+        const payLienMatch = /^(\+\d[\d\s\-]{6,19})\s+pay\s+lien\s*$/i.exec(msgText);
+        if (payLienMatch) {
+          const phoneQuery = payLienMatch[1].trim();
+          const phoneDigits = phoneQuery.replace(/\D/g, '');
+          const last8 = phoneDigits.slice(-8);
+          const OPERATORS_FR4: Record<string,string> = { mtn:'MTN',moov:'Moov',orange:'Orange',wave:'Wave',tmoney:'T-Money',free:'Free' };
+          const STATUS_FR4: Record<string,string> = { pending:'⏳ En attente',approved:'✅ Approuvé',rejected:'❌ Rejeté' };
+
+          const results = await db.execute(sql`
+            SELECT * FROM link_manual_requests
+            WHERE (regexp_replace(phone,'[^0-9]','','g') LIKE ${'%'+phoneDigits+'%'}
+               OR regexp_replace(phone,'[^0-9]','','g') LIKE ${'%'+last8+'%'})
+            ORDER BY created_at DESC LIMIT 10
+          `);
+          const rows = (results.rows || []) as any[];
+
+          if (!rows.length) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, text: `🔍 <b>Paiement lien : <code>${phoneQuery}</code></b>\n\nAucune demande de paiement manuel trouvée pour ce numéro.`, parse_mode:'HTML' })
+            });
+          } else {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, text: `🔍 <b>Paiements lien : <code>${phoneQuery}</code></b>\n${rows.length} demande(s) trouvée(s)`, parse_mode:'HTML' })
+            });
+            for (const r of rows) {
+              const date = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'}) : '—';
+              const cardText =
+                `💳 <b>${r.link_label||r.link_id}</b>\n` +
+                `📊 ${STATUS_FR4[r.status]||r.status}\n` +
+                `👤 ${r.customer_name||'N/A'}\n` +
+                `📧 ${r.customer_email||'N/A'}\n` +
+                `📱 <code>${r.phone||'—'}</code>\n` +
+                `💳 ${OPERATORS_FR4[r.operator]||r.operator||'—'}\n` +
+                `💰 ${Number(r.amount).toLocaleString('fr-FR')} ${r.currency||'FCFA'}\n` +
+                `🔖 ID tx : <code>${r.transaction_id||'—'}</code>\n` +
+                `🖼 Capture : ${r.screenshot_url ? `<a href="${process.env.APP_BASE_URL||''}${r.screenshot_url}">Voir</a>` : '❌'}\n` +
+                `🕒 ${date}`;
+              const buttons = r.status === 'pending'
+                ? { inline_keyboard: [[
+                    { text:'✅ Approuver', callback_data:`lnkma_pre_${r.id}` },
+                    { text:'❌ Rejeter',   callback_data:`lnkrej_pre_${r.id}` },
+                  ]]}
+                : undefined;
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', ...(buttons?{reply_markup:buttons}:{}) })
+              });
+              await new Promise(r=>setTimeout(r,60));
+            }
+          }
+          return res.sendStatus(200);
+        }
+
         const isPhoneSearch = /^[\+\d\s\-]{7,20}$/.test(msgText) && msgText.replace(/\D/g, '').length >= 7;
         if (isPhoneSearch) {
           const requests = await storage.getCiActivationRequestsByPhone(msgText);
@@ -3199,6 +3256,148 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } catch(e:any) { answerText='❌ Erreur'; console.error('[MANACT-REJ-OK]',e); }
 
         } else if (data.startsWith('manact_rej_no_')) {
+          answerText = 'Annulé.';
+          if (chatId && messageId) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup:{ inline_keyboard:[] } })
+            });
+          }
+
+        // ── Paiement lien manuel : Approuver (pré-confirmation) ──────────────
+        } else if (data.startsWith('lnkma_pre_')) {
+          const reqId = data.replace('lnkma_pre_', '');
+          try {
+            const [r] = await db.select().from(linkManualRequests).where(eq(linkManualRequests.id, reqId)).limit(1);
+            if (!r) { answerText = '❌ Demande introuvable'; }
+            else if (r.status !== 'pending') { answerText = `Déjà traitée : ${r.status}`; }
+            else {
+              answerText = '⚠️ Confirmer approbation ?';
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ chat_id: chatId,
+                  text: `✅ <b>Confirmer approbation ?</b>\n\n🔗 Lien : ${r.linkLabel||r.linkId}\n👤 ${r.customerName||'N/A'}\n📱 <code>${r.phone||'—'}</code>\n🔖 ID tx : <code>${r.transactionId||'—'}</code>\n💰 ${Number(r.amount).toLocaleString('fr-FR')} ${r.currency||'FCFA'}\n\nCela va <b>valider ce paiement</b>.`,
+                  parse_mode:'HTML',
+                  reply_markup:{ inline_keyboard:[[
+                    { text:'✅ Oui, valider', callback_data:`lnkma_ok_${reqId}` },
+                    { text:'◀ Annuler', callback_data:`lnkma_no_${reqId}` }
+                  ]]}
+                })
+              });
+            }
+          } catch(e) { answerText='❌ Erreur'; console.error('[LNKMA-PRE]',e); }
+
+        } else if (data.startsWith('lnkma_ok_')) {
+          const reqId = data.replace('lnkma_ok_', '');
+          try {
+            const [r] = await db.select().from(linkManualRequests).where(eq(linkManualRequests.id, reqId)).limit(1);
+            if (!r) { answerText = '❌ Introuvable'; }
+            else if (r.status !== 'pending') { answerText = `Déjà : ${r.status}`; }
+            else {
+              // Approuver + générer PCS si applicable
+              let pcsCode: string | null = null;
+              if ((r.linkId === 'd3e5479d' || r.linkId === 'codepcs') && r.customerEmail) {
+                pcsCode = generatePcsCode();
+                for (let attempt = 1; attempt < 5; attempt++) {
+                  const clash = await db.select({ id: linkManualRequests.id }).from(linkManualRequests).where(eq(linkManualRequests.pcsCode, pcsCode)).limit(1);
+                  if (clash.length === 0) break;
+                  pcsCode = generatePcsCode();
+                }
+                const nameParts = (r.customerName || '').split(' ');
+                sendPcsEmail({
+                  to: r.customerEmail,
+                  firstName: nameParts[0] || '',
+                  lastName: nameParts.slice(1).join(' ') || nameParts[0] || '',
+                  countryCode: r.country || '',
+                  pcsCode,
+                  issuedAt: new Date(),
+                }).catch(e => console.error('[LNKMA-PCS-EMAIL]', e));
+              }
+              await db.update(linkManualRequests).set({ status: 'approved', pcsCode: pcsCode || null, updatedAt: new Date() }).where(eq(linkManualRequests.id, reqId));
+              answerText = '✅ Paiement validé !';
+              if (chatId && messageId) {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageCaption`, {
+                  method:'POST', headers:{'Content-Type':'application/json'},
+                  body: JSON.stringify({ chat_id: chatId, message_id: messageId, caption: `✅ <b>VALIDÉ</b> — ${r.customerName||'N/A'} — ${r.linkLabel||r.linkId}`, parse_mode:'HTML', reply_markup:{ inline_keyboard:[] } })
+                }).catch(() => {
+                  fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup:{ inline_keyboard:[] } })
+                  });
+                });
+              }
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ chat_id: chatId,
+                  text: `✅ <b>Paiement validé</b>\n\n🔗 ${r.linkLabel||r.linkId}\n👤 ${r.customerName||'N/A'}\n📱 <code>${r.phone||'—'}</code>${pcsCode ? `\n🎫 Code PCS envoyé : <code>${pcsCode}</code>` : ''}`,
+                  parse_mode:'HTML'
+                })
+              });
+            }
+          } catch(e:any) { answerText='❌ Erreur'; console.error('[LNKMA-OK]',e); }
+
+        } else if (data.startsWith('lnkma_no_')) {
+          answerText = 'Annulé.';
+          if (chatId && messageId) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup:{ inline_keyboard:[] } })
+            });
+          }
+
+        // ── Paiement lien manuel : Rejeter ───────────────────────────────────
+        } else if (data.startsWith('lnkrej_pre_')) {
+          const reqId = data.replace('lnkrej_pre_', '');
+          try {
+            const [r] = await db.select().from(linkManualRequests).where(eq(linkManualRequests.id, reqId)).limit(1);
+            if (!r) { answerText = '❌ Introuvable'; }
+            else if (r.status !== 'pending') { answerText = `Déjà traitée : ${r.status}`; }
+            else {
+              answerText = '⚠️ Confirmer rejet ?';
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ chat_id: chatId,
+                  text: `❌ <b>Confirmer le rejet ?</b>\n\n🔗 ${r.linkLabel||r.linkId}\n👤 ${r.customerName||'N/A'}\n📱 <code>${r.phone||'—'}</code>\n\nLe paiement sera <b>rejeté</b>.`,
+                  parse_mode:'HTML',
+                  reply_markup:{ inline_keyboard:[[
+                    { text:'❌ Oui, rejeter', callback_data:`lnkrej_ok_${reqId}` },
+                    { text:'◀ Annuler', callback_data:`lnkrej_no_${reqId}` }
+                  ]]}
+                })
+              });
+            }
+          } catch(e) { answerText='❌ Erreur'; console.error('[LNKREJ-PRE]',e); }
+
+        } else if (data.startsWith('lnkrej_ok_')) {
+          const reqId = data.replace('lnkrej_ok_', '');
+          try {
+            const [r] = await db.select().from(linkManualRequests).where(eq(linkManualRequests.id, reqId)).limit(1);
+            if (!r) { answerText = '❌ Introuvable'; }
+            else {
+              await db.update(linkManualRequests).set({ status: 'rejected', updatedAt: new Date() }).where(eq(linkManualRequests.id, reqId));
+              answerText = '✅ Demande rejetée';
+              if (chatId && messageId) {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageCaption`, {
+                  method:'POST', headers:{'Content-Type':'application/json'},
+                  body: JSON.stringify({ chat_id: chatId, message_id: messageId, caption: `❌ <b>REJETÉ</b> — ${r.customerName||'N/A'} — ${r.linkLabel||r.linkId}`, parse_mode:'HTML', reply_markup:{ inline_keyboard:[] } })
+                }).catch(() => {
+                  fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup:{ inline_keyboard:[] } })
+                  });
+                });
+              }
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ chat_id: chatId,
+                  text: `❌ <b>Paiement rejeté</b>\n\n🔗 ${r.linkLabel||r.linkId}\n👤 ${r.customerName||'N/A'}\n📱 <code>${r.phone||'—'}</code>`,
+                  parse_mode:'HTML'
+                })
+              });
+            }
+          } catch(e:any) { answerText='❌ Erreur'; console.error('[LNKREJ-OK]',e); }
+
+        } else if (data.startsWith('lnkrej_no_')) {
           answerText = 'Annulé.';
           if (chatId && messageId) {
             await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
@@ -4367,6 +4566,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/media/link-manual-screenshot/:imageId", async (req: any, res) => {
+    try {
+      const { imageId } = req.params;
+      const objectStorageService = new ObjectStorageService();
+      const file = await objectStorageService.getLinkManualScreenshotFile(imageId);
+      await objectStorageService.downloadObject(file, res, 7 * 24 * 3600);
+    } catch (error: any) {
+      if (error.name === "ObjectNotFoundError") return res.status(404).json({ message: "Capture introuvable" });
+      res.status(500).json({ message: "Erreur" });
+    }
+  });
+
   // List all payment links
   app.get('/api/admin/payment-links', requireAdmin, async (_req, res) => {
     try {
@@ -4455,6 +4666,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         imageUrl: link.imageUrl || null,
         ciRedirect,
         ciRedirectUrl,
+        manualMode: link.manualMode || false,
+        manualDepositNumber: link.manualDepositNumber || null,
+        manualDepositLabel: link.manualDepositLabel || null,
+        manualInstruction: link.manualInstruction || null,
       });
     } catch (err) {
       console.error('[PAYMENT-LINKS] Public get error:', err);
@@ -4683,6 +4898,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Paiement manuel par lien : upload screenshot ─────────────────────────
+  app.post('/api/public/payment-links/:linkId/manual-upload', imageMemUpload.single('screenshot'), async (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: 'Aucun fichier reçu' });
+      const objectStorageService = new ObjectStorageService();
+      const screenshotUrl = await objectStorageService.uploadLinkManualScreenshot(req.file.buffer, req.file.mimetype);
+      res.json({ screenshotUrl });
+    } catch (err) {
+      console.error('[LINK-MANUAL-UPLOAD]', err);
+      res.status(500).json({ message: 'Erreur upload capture' });
+    }
+  });
+
+  // ── Paiement manuel par lien : soumission de la demande ──────────────────
+  app.post('/api/public/payment-links/:linkId/manual-submit', async (req: any, res) => {
+    try {
+      const { linkId } = req.params;
+      const { phone, operator, country, customerName, customerEmail, transactionId, screenshotUrl } = req.body;
+      if (!transactionId || !screenshotUrl) {
+        return res.status(400).json({ message: 'ID de transaction et capture requis' });
+      }
+
+      const [link] = await db.select().from(paymentLinks).where(
+        and(eq(paymentLinks.id, linkId), eq(paymentLinks.isActive, true))
+      ).limit(1);
+      if (!link) return res.status(404).json({ message: 'Lien introuvable ou inactif' });
+      if (!link.manualMode) return res.status(400).json({ message: 'Ce lien n\'est pas en mode manuel' });
+
+      const [savedReq] = await db.insert(linkManualRequests).values({
+        linkId,
+        linkLabel: link.label,
+        amount: link.amount,
+        currency: link.currency || 'XOF',
+        phone: phone || null,
+        operator: operator || null,
+        country: country || null,
+        customerName: customerName || null,
+        customerEmail: customerEmail || null,
+        transactionId: transactionId.trim(),
+        screenshotUrl,
+        status: 'pending',
+      }).returning();
+
+      // Telegram notification
+      const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+      if (TELEGRAM_TOKEN) {
+        const adminChatId = process.env.ADMIN_CHAT_ID || '7457302722';
+        const OPERATORS_FR: Record<string, string> = { mtn: 'MTN', moov: 'Moov', orange: 'Orange', wave: 'Wave', tmoney: 'T-Money', free: 'Free' };
+        const screenshotProxyUrl = screenshotUrl.startsWith('/api/media/') ? `https://${req.headers['x-forwarded-host'] || req.hostname}${screenshotUrl}` : screenshotUrl;
+        const notifText =
+          `💳 <b>Paiement lien — Dépôt manuel</b>\n\n` +
+          `🔗 <b>Lien :</b> ${link.label} (<code>${linkId}</code>)\n` +
+          `👤 <b>Nom :</b> ${customerName || 'N/A'}\n` +
+          `📧 <b>Email :</b> ${customerEmail ? `<code>${customerEmail}</code>` : '<i>non renseigné</i>'}\n` +
+          `📱 <b>Téléphone :</b> <code>${phone || '—'}</code>\n` +
+          `💳 <b>Opérateur :</b> ${OPERATORS_FR[operator] || operator || '—'}\n` +
+          `💰 <b>Montant :</b> ${Number(link.amount).toLocaleString('fr-FR')} ${link.currency || 'FCFA'}\n` +
+          `🔖 <b>ID transaction :</b> <code>${transactionId}</code>\n` +
+          `\n⏳ En attente de validation.`;
+
+        // Send with photo if possible
+        try {
+          const photoRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendPhoto`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: adminChatId,
+              photo: screenshotProxyUrl,
+              caption: notifText,
+              parse_mode: 'HTML',
+              reply_markup: { inline_keyboard: [[
+                { text: '✅ Approuver', callback_data: `lnkma_pre_${savedReq.id}` },
+                { text: '❌ Rejeter', callback_data: `lnkrej_pre_${savedReq.id}` },
+              ]]}
+            })
+          });
+          const photoData = await photoRes.json();
+          if (photoData.ok && photoData.result?.message_id) {
+            await db.update(linkManualRequests).set({ telegramMsgId: String(photoData.result.message_id) }).where(eq(linkManualRequests.id, savedReq.id));
+          } else {
+            // Fallback: text only
+            const msgRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: adminChatId,
+                text: notifText + `\n\n📷 <a href="${screenshotProxyUrl}">Voir la capture</a>`,
+                parse_mode: 'HTML',
+                reply_markup: { inline_keyboard: [[
+                  { text: '✅ Approuver', callback_data: `lnkma_pre_${savedReq.id}` },
+                  { text: '❌ Rejeter', callback_data: `lnkrej_pre_${savedReq.id}` },
+                ]]}
+              })
+            });
+            const msgData = await msgRes.json();
+            if (msgData.ok && msgData.result?.message_id) {
+              await db.update(linkManualRequests).set({ telegramMsgId: String(msgData.result.message_id) }).where(eq(linkManualRequests.id, savedReq.id));
+            }
+          }
+        } catch(e) { console.error('[LINK-MANUAL-SUBMIT] Telegram error:', e); }
+
+        // If PCS-related link, attach PCS list
+        if (customerEmail && (linkId === 'd3e5479d' || linkId === 'codepcs' || linkId === '88cb6331')) {
+          await sendUserPcsCodesListToTelegram(adminChatId, customerEmail, TELEGRAM_TOKEN);
+        }
+      }
+
+      res.json({ success: true, id: savedReq.id });
+    } catch (err) {
+      console.error('[LINK-MANUAL-SUBMIT] Error:', err);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
   // Check transaction status (public polling)
   app.get('/api/public/payment-links/check/:txnId', async (req, res) => {
     try {
@@ -4787,12 +5116,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const [current] = await db.select().from(paymentLinks).where(eq(paymentLinks.id, id));
       if (!current) return res.status(404).json({ message: 'Lien introuvable' });
-      const { label, amount, description, imageUrl } = req.body;
+      const { label, amount, description, imageUrl, manualMode, manualDepositNumber, manualDepositLabel, manualInstruction } = req.body;
       const updates: Record<string, any> = {};
       if (label !== undefined) updates.label = label;
       if (amount !== undefined) updates.amount = parseFloat(amount).toString();
       if (description !== undefined) updates.description = description || null;
       if (imageUrl !== undefined) updates.imageUrl = imageUrl || null;
+      if (manualMode !== undefined) updates.manualMode = Boolean(manualMode);
+      if (manualDepositNumber !== undefined) updates.manualDepositNumber = manualDepositNumber || null;
+      if (manualDepositLabel !== undefined) updates.manualDepositLabel = manualDepositLabel || null;
+      if (manualInstruction !== undefined) updates.manualInstruction = manualInstruction || null;
       const [updated] = await db.update(paymentLinks).set(updates).where(eq(paymentLinks.id, id)).returning();
       res.json(updated);
     } catch (err) {
