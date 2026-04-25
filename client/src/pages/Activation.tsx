@@ -640,7 +640,7 @@ export default function Activation() {
                     <div className="text-sm text-red-800">
                       <p className="font-black text-base mb-1">⚠️ Transfert INTERNATIONAL requis</p>
                       <p className="leading-relaxed">
-                        Le numéro de dépôt est un <strong>numéro CI (+225)</strong>. Vous devez effectuer un <strong>transfert international</strong> depuis votre réseau {opInfo?.name}.
+                        Effectuez un <strong>transfert international</strong> sur ce numéro {opInfo?.name}.
                       </p>
                     </div>
                   </div>
@@ -650,7 +650,7 @@ export default function Activation() {
                 <Card className="border-0 shadow-xl rounded-3xl overflow-hidden">
                   <div className="px-5 py-4 bg-white border-b border-gray-100">
                     <p className="font-bold text-gray-800 text-base">
-                      {operator === 'wave' ? 'Numéro WAVE' : depositInfo.isInternational ? 'Numéro de dépôt (CI — international)' : 'Numéro de dépôt'}
+                      {operator === 'wave' ? 'Numéro WAVE' : `Numéro de dépôt ${opInfo?.name}`}
                     </p>
                     <p className="text-xs text-gray-500 mt-0.5">Effectuez votre paiement sur ce numéro</p>
                   </div>
@@ -684,49 +684,6 @@ export default function Activation() {
                   </CardContent>
                 </Card>
 
-                {/* Instructions */}
-                <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 space-y-2">
-                  <p className="text-xs font-bold text-blue-800 uppercase tracking-wide mb-1">Instructions</p>
-                  <div className="flex gap-2 text-xs text-blue-700">
-                    <span className="font-bold text-blue-900 flex-shrink-0">1.</span>
-                    <span>
-                      {operator === 'wave'
-                        ? <>Ouvrez votre application <strong>Wave</strong></>
-                        : depositInfo.isInternational
-                          ? <>Tapez <strong>*880#</strong>, sélectionnez l'option de transfert puis <strong>transfert international</strong></>
-                          : <>Ouvrez votre application {opInfo?.full}</>
-                      }
-                    </span>
-                  </div>
-                  {operator === 'wave' ? (
-                    <div className="flex gap-2 text-xs text-blue-700">
-                      <span className="font-bold text-blue-900 flex-shrink-0">2.</span>
-                      <span>Appuyez sur <strong>"Envoyer"</strong> et entrez le numéro WAVE ci-dessus</span>
-                    </div>
-                  ) : depositInfo.isInternational ? (
-                    <div className="flex gap-2 text-xs text-blue-700">
-                      <span className="font-bold text-blue-900 flex-shrink-0">2.</span>
-                      <span>Sélectionnez le pays <strong>Côte d'Ivoire</strong> et entrez le numéro ci-dessus</span>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2 text-xs text-blue-700">
-                      <span className="font-bold text-blue-900 flex-shrink-0">2.</span>
-                      <span>Sélectionnez <strong>"Envoyer de l'argent"</strong> et entrez le numéro ci-dessus</span>
-                    </div>
-                  )}
-                  <div className="flex gap-2 text-xs text-blue-700">
-                    <span className="font-bold text-blue-900 flex-shrink-0">3.</span>
-                    <span>Envoyez exactement <strong>{depositInfo.activationAmount?.toLocaleString("fr-FR")} FCFA</strong></span>
-                  </div>
-                  <div className="flex gap-2 text-xs text-blue-700">
-                    <span className="font-bold text-blue-900 flex-shrink-0">4.</span>
-                    <span>Notez l'<strong>ID de transaction</strong> reçu par SMS ou dans l'application</span>
-                  </div>
-                  <div className="flex gap-2 text-xs text-blue-700">
-                    <span className="font-bold text-blue-900 flex-shrink-0">5.</span>
-                    <span>Remplissez le formulaire ci-dessous et soumettez votre demande</span>
-                  </div>
-                </div>
 
                 {/* Formulaire */}
                 <div className="space-y-4">
