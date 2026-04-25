@@ -518,6 +518,25 @@ export type ActivationRequest = z.infer<typeof activationSchema>;
 export type IdentityVerificationRequest = z.infer<typeof identityVerificationSchema>;
 export type BankCardRequest = z.infer<typeof bankCardSchema>;
 
+// Table pour les demandes d'activation manuelle (tous pays sauf CI qui a sa propre table)
+export const manualActivationRequests = pgTable("manual_activation_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  country: varchar("country").notNull(),
+  operator: varchar("operator").notNull(),
+  paymentPhone: varchar("payment_phone").notNull(),
+  fullName: varchar("full_name"),
+  email: varchar("email"),
+  referralCode: varchar("referral_code"),
+  amount: integer("amount").notNull(),
+  transactionId: varchar("transaction_id"),
+  screenshotUrl: varchar("screenshot_url"),
+  status: varchar("status").notNull().default('pending'), // pending | approved | rejected
+  adminNote: text("admin_note"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type ManualActivationRequest = typeof manualActivationRequests.$inferSelect;
+
 // Table PCS codes liés aux utilisateurs
 export const pcsCodes = pgTable("pcs_codes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

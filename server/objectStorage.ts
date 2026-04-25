@@ -246,6 +246,32 @@ export class ObjectStorageService {
     return `/api/media/payment-link-image/${fileName}`;
   }
 
+  async uploadActivationScreenshot(buffer: Buffer, mimeType: string): Promise<string> {
+    const ext = (mimeType.split("/")[1] || "jpg").replace("jpeg", "jpg");
+    const imageId = randomUUID();
+    const fileName = `${imageId}.${ext}`;
+    let entityDir = this.getPrivateObjectDir();
+    if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
+    const objectPath = `${entityDir}activation-screenshots/${fileName}`;
+    const { bucketName, objectName } = parseObjectPath(objectPath);
+    const bucket = objectStorageClient.bucket(bucketName);
+    const file = bucket.file(objectName);
+    await file.save(buffer, { contentType: mimeType, resumable: false });
+    return `/api/media/activation-screenshot/${fileName}`;
+  }
+
+  async getActivationScreenshotFile(imageId: string): Promise<File> {
+    let entityDir = this.getPrivateObjectDir();
+    if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
+    const objectPath = `${entityDir}activation-screenshots/${imageId}`;
+    const { bucketName, objectName } = parseObjectPath(objectPath);
+    const bucket = objectStorageClient.bucket(bucketName);
+    const file = bucket.file(objectName);
+    const [exists] = await file.exists();
+    if (!exists) throw new ObjectNotFoundError();
+    return file;
+  }
+
   async getPaymentLinkImageFile(imageId: string): Promise<File> {
     let entityDir = this.getPrivateObjectDir();
     if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;

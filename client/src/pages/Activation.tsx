@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import {
   CheckCircle, Loader2, Clock, XCircle, RefreshCw,
   ShieldCheck, ChevronRight, ChevronLeft, Phone, Globe,
-  AlertCircle, ArrowLeft, AlertTriangle, ExternalLink, Wrench
+  AlertCircle, ArrowLeft, AlertTriangle, ExternalLink, Wrench,
+  Copy, Upload, ImageIcon, Info
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -46,15 +47,9 @@ const METHOD_INFO: Record<MethodType, { icon: string; color: string; bg: string;
 function UpayHeader({ amount }: { amount: string }) {
   return (
     <div className="bg-gradient-to-br from-[#0f2460] to-[#1a3a8f] text-white px-5 pt-6 pb-10">
-      {/* Top bar */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
-          {/* SIKA TEXTE logo */}
-          <img
-            src={sikaLogo}
-            alt="Sika Services"
-            className="w-11 h-11 rounded-2xl object-cover shadow-lg border-2 border-white/20"
-          />
+          <img src={sikaLogo} alt="Sika Services" className="w-11 h-11 rounded-2xl object-cover shadow-lg border-2 border-white/20" />
           <div>
             <p className="text-[10px] text-blue-300 uppercase tracking-[0.2em] font-bold">Sika Services</p>
             <p className="font-black text-lg leading-tight">SIKA TEXTE</p>
@@ -71,7 +66,6 @@ function UpayHeader({ amount }: { amount: string }) {
           </Link>
         </div>
       </div>
-      {/* Upay branding */}
       <div className="flex items-center gap-2 mb-3">
         <div className="h-px flex-1 bg-white/10" />
         <span className="text-[10px] text-blue-300 uppercase tracking-widest font-bold">Upay · Paiement sécurisé</span>
@@ -86,8 +80,10 @@ function UpayHeader({ amount }: { amount: string }) {
   );
 }
 
-function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
-  const steps = [{ n: 1 as const, label: "Coordonnées" }, { n: 3 as const, label: "Confirmation" }];
+function StepIndicator({ step, manual }: { step: 1 | 2 | 3; manual?: boolean }) {
+  const steps = manual
+    ? [{ n: 1 as const, label: "Coordonnées" }, { n: 2 as const, label: "Dépôt" }, { n: 3 as const, label: "Confirmation" }]
+    : [{ n: 1 as const, label: "Coordonnées" }, { n: 3 as const, label: "Confirmation" }];
   return (
     <div className="flex items-center justify-center gap-2 py-4 bg-white border-b border-gray-100">
       {steps.map(({ n, label }, i) => (
@@ -119,10 +115,7 @@ function OperatorLogo({ code, size = "md" }: { code: string; size?: "sm" | "md" 
 
 function MethodBadge({ method }: { method: MethodType }) {
   const info = METHOD_INFO[method];
-  const labels: Record<MethodType, string> = {
-    ussd: "USSD Push",
-    redirect: "Redirection",
-  };
+  const labels: Record<MethodType, string> = { ussd: "USSD Push", redirect: "Redirection" };
   return (
     <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${info.color} ${info.bg} ${info.border}`}>
       {info.icon} {labels[method]}
@@ -150,6 +143,17 @@ export default function Activation() {
   const [operator, setOperator] = useState("");
   const [phone, setPhone]       = useState("");
 
+  // Manual activation state
+  const [depositInfo, setDepositInfo]         = useState<{ enabled: boolean; depositNumber: string; activationAmount: number; isInternational: boolean } | null>(null);
+  const [depositLoading, setDepositLoading]   = useState(false);
+  const [transactionId2, setTransactionId2]   = useState("");
+  const [screenshotFile, setScreenshotFile]   = useState<File | null>(null);
+  const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+  const [manualSubmitting, setManualSubmitting] = useState(false);
+  const [manualSubmitted, setManualSubmitted]   = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // SolvexPay state
   const [loading, setLoading]             = useState(false);
   const [transactionId, setTransactionId] = useState<string | null>(null);
   const [txStatus, setTxStatus]           = useState<"pending" | "completed" | "failed" | null>(null);
@@ -160,11 +164,8 @@ export default function Activation() {
   const selectedOp      = OPERATORS[operator];
   const isWave          = operator === "wave";
 
-  // Dynamic maintenance map from admin settings
   const maintenanceMap: Record<string, boolean> = paymentInfo?.maintenanceMap ?? {};
   const isOpMaintenance = (c: string, op: string) => maintenanceMap[`${c}_${op}`] === true;
-
-  const effectiveMethodLabel = selectedOp?.methodLabel;
 
   const activationAmount = paymentInfo?.activationAmount
     ? parseInt(paymentInfo.activationAmount).toLocaleString("fr-FR")
@@ -178,6 +179,33 @@ export default function Activation() {
         ? "05 12 34 56 78"
         : "01 23 45 67";
 
+  // CI manual activation flag
+  const isCiManual = country === "CI" && paymentInfo?.ciManualActivation !== false;
+
+  // Determine if current country/operator uses manual activation (non-CI)
+  const isManualCountry = (c: string) => c !== "CI";
+
+  // Fetch deposit info when entering step 2 manual
+  useEffect(() => {
+    if (step === 2 && country && operator && isManualCountry(country)) {
+      setDepositLoading(true);
+      fetch(`/api/activation/manual-deposit-info?country=${country}&operator=${operator}`, { credentials: "include" })
+        .then(r => r.json())
+        .then(d => setDepositInfo(d))
+        .catch(() => setDepositInfo(null))
+        .finally(() => setDepositLoading(false));
+    }
+  }, [step, country, operator]);
+
+  // Screenshot preview
+  useEffect(() => {
+    if (!screenshotFile) { setScreenshotPreview(null); return; }
+    const url = URL.createObjectURL(screenshotFile);
+    setScreenshotPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [screenshotFile]);
+
+  // SolvexPay polling
   useEffect(() => {
     if (!transactionId || txStatus === "completed" || txStatus === "failed") return;
     const check = async () => {
@@ -187,12 +215,9 @@ export default function Activation() {
         const data = await res.json();
         setCheckCount(c => c + 1);
         if (data.status === "completed" || data.activated) {
-          setTxStatus("completed");
-          clearInterval(intervalRef.current!);
-          refetchStatus();
+          setTxStatus("completed"); clearInterval(intervalRef.current!); refetchStatus();
         } else if (data.status === "failed") {
-          setTxStatus("failed");
-          clearInterval(intervalRef.current!);
+          setTxStatus("failed"); clearInterval(intervalRef.current!);
         }
       } catch {}
     };
@@ -201,44 +226,81 @@ export default function Activation() {
     return () => clearInterval(intervalRef.current!);
   }, [transactionId]);
 
+  // Copy deposit number
+  const copyDepositNumber = async () => {
+    if (!depositInfo?.depositNumber) return;
+    try {
+      await navigator.clipboard.writeText(depositInfo.depositNumber);
+      toast({ title: "Numéro copié !" });
+    } catch {
+      toast({ title: "Copié", description: depositInfo.depositNumber });
+    }
+  };
+
+  // Step 1 → step 2 or step 3
+  const handleStep1Continue = () => {
+    if (country !== "CI" && !isCiManual) {
+      setStep(2);
+    } else {
+      setStep(3);
+    }
+  };
+
+  // Submit manual activation
+  const handleManualSubmit = async () => {
+    if (!transactionId2.trim()) {
+      toast({ title: "Champ requis", description: "Veuillez saisir l'ID de transaction.", variant: "destructive" });
+      return;
+    }
+    setManualSubmitting(true);
+    try {
+      const form = new FormData();
+      form.append("country", country);
+      form.append("operator", operator);
+      form.append("phone", `+${selectedCountry?.prefix}${phone.replace(/\s/g, "")}`);
+      form.append("transactionId", transactionId2.trim());
+      if (screenshotFile) form.append("screenshot", screenshotFile);
+
+      const res = await fetch("/api/activation/manual-submit", {
+        method: "POST",
+        credentials: "include",
+        body: form,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Erreur de soumission");
+      setManualSubmitted(true);
+    } catch (err: any) {
+      toast({ title: "Erreur", description: err.message, variant: "destructive" });
+    } finally {
+      setManualSubmitting(false);
+    }
+  };
+
+  // SolvexPay confirm
   const handleConfirm = async () => {
     setLoading(true);
     try {
-      // CI: submit info to Telegram then redirect to payment link (if manual mode enabled)
-      if (country === "CI" && paymentInfo?.ciManualActivation !== false) {
+      if (isCiManual) {
         const res = await fetch("/api/activation/ci-manual-submit", {
-          method: "POST",
-          credentials: "include",
+          method: "POST", credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ phone, operator, country }),
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.message || "Erreur de paiement");
-
+        if (!res.ok) throw new Error(data.message || "Erreur");
         toast({ title: "Récapitulatif envoyé !", description: "Vous allez être redirigé vers la page de paiement." });
-        setTimeout(() => {
-          window.location.href = data.paymentUrl || "https://clp.ci/ETPXwo";
-        }, 1200);
+        setTimeout(() => { window.location.href = data.paymentUrl || "https://clp.ci/ETPXwo"; }, 1200);
         return;
       }
 
-      const body: Record<string, any> = { phone, operator, country };
-
       const res = await fetch("/api/activation/init-solvexpay", {
-        method: "POST",
-        credentials: "include",
+        method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ phone, operator, country }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || "Erreur de paiement");
-
-      // Wave → redirect to external URL
-      if (data.paymentUrl) {
-        window.location.href = data.paymentUrl;
-        return;
-      }
-
+      if (data.paymentUrl) { window.location.href = data.paymentUrl; return; }
       setTransactionId(data.transactionId);
       setTxStatus("pending");
       toast({ title: "Paiement envoyé !", description: data.message || "Validez sur votre téléphone." });
@@ -251,7 +313,8 @@ export default function Activation() {
 
   const handleReset = () => {
     setTransactionId(null); setTxStatus(null); setCheckCount(0);
-    setStep(1); setPhone("");
+    setStep(1); setPhone(""); setTransactionId2(""); setScreenshotFile(null);
+    setManualSubmitted(false); setDepositInfo(null);
     if (intervalRef.current) clearInterval(intervalRef.current);
   };
 
@@ -282,7 +345,7 @@ export default function Activation() {
     );
   }
 
-  // ── USSD / Wave en cours ──────────────────────────────────────────────────
+  // ── SolvexPay en cours ────────────────────────────────────────────────────
   if (transactionId && txStatus) {
     const op = selectedOp;
     return (
@@ -358,6 +421,50 @@ export default function Activation() {
     );
   }
 
+  // ── DEMANDE MANUELLE SOUMISE (attente admin) ──────────────────────────────
+  if (manualSubmitted) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <Card className="border-0 shadow-2xl w-full max-w-sm rounded-3xl overflow-hidden">
+          <div className="bg-gradient-to-br from-[#0f2460] to-[#1a3a8f] p-6 flex items-center gap-3">
+            <img src={sikaLogo} alt="Sika Services" className="w-12 h-12 rounded-2xl object-cover border-2 border-white/20" />
+            <div className="text-white">
+              <p className="text-xs text-blue-300 font-bold uppercase tracking-wider">Sika Services</p>
+              <p className="font-black text-lg">SIKA TEXTE</p>
+            </div>
+          </div>
+          <CardContent className="p-8 text-center space-y-5">
+            <div className="bg-amber-100 w-20 h-20 rounded-full mx-auto flex items-center justify-center">
+              <Clock className="text-amber-600" size={40} />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Demande envoyée !</h2>
+              <p className="text-gray-500 text-sm leading-relaxed">
+                Votre demande d'activation a été transmise à l'administrateur. Votre compte sera activé après vérification du paiement, généralement sous <strong>quelques minutes à quelques heures</strong>.
+              </p>
+            </div>
+            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-left space-y-2">
+              <p className="text-xs font-bold text-blue-800 uppercase tracking-wide">Que faire maintenant ?</p>
+              <div className="flex gap-2 text-xs text-blue-700"><span>📱</span><span>Gardez votre téléphone accessible</span></div>
+              <div className="flex gap-2 text-xs text-blue-700"><span>✉️</span><span>Vous serez notifié dès l'activation</span></div>
+              <div className="flex gap-2 text-xs text-blue-700"><span>🔄</span><span>Revenez sur cette page pour vérifier</span></div>
+            </div>
+            <Button
+              onClick={() => refetchStatus()}
+              variant="outline"
+              className="w-full rounded-xl py-3 font-semibold border-2 border-blue-200 text-blue-700"
+            >
+              <RefreshCw size={14} className="mr-2" /> Vérifier l'activation
+            </Button>
+            <Button asChild variant="ghost" className="w-full text-sm text-gray-500">
+              <Link href="/">Retour à l'accueil</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   // ── ÉTAPE 1 : Coordonnées ─────────────────────────────────────────────────
   if (step === 1) {
     const canContinue = country && operator && phone.replace(/\D/g, "").length >= 6
@@ -365,10 +472,8 @@ export default function Activation() {
     return (
       <div className="min-h-screen bg-gray-50">
         <UpayHeader amount={activationAmount} />
-
-
         <div className="-mt-0 bg-gray-50 overflow-hidden">
-          <StepIndicator step={1} />
+          <StepIndicator step={1} manual={isManualCountry(country)} />
           <div className="px-5 pt-4 pb-28 space-y-5 max-w-md mx-auto">
 
             {/* Sélection pays */}
@@ -382,9 +487,7 @@ export default function Activation() {
                     key={c.code}
                     onClick={() => { setCountry(c.code); setOperator(""); }}
                     className={`flex items-center gap-2.5 p-3 rounded-2xl border-2 text-left transition-all ${
-                      country === c.code
-                        ? "border-blue-700 bg-blue-50 shadow-sm"
-                        : "border-gray-200 bg-white hover:border-gray-300"
+                      country === c.code ? "border-blue-700 bg-blue-50 shadow-sm" : "border-gray-200 bg-white hover:border-gray-300"
                     }`}
                   >
                     <span className="text-2xl">{c.flag}</span>
@@ -409,41 +512,25 @@ export default function Activation() {
                     const info = OPERATORS[op];
                     const selected = operator === op;
                     const inMaintenance = isOpMaintenance(country, op);
-                    const displayMethod: MethodType = info.method;
                     return (
                       <div
                         key={op}
-                        onClick={() => {
-                          if (inMaintenance) return;
-                          setOperator(op);
-                        }}
+                        onClick={() => { if (!inMaintenance) setOperator(op); }}
                         className={`w-full flex items-center gap-3 p-3.5 rounded-2xl border-2 text-left transition-all select-none ${
-                          inMaintenance
-                            ? "border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed"
-                            : selected
-                              ? "border-blue-700 bg-blue-50 shadow-sm cursor-pointer"
-                              : "border-gray-200 bg-white hover:border-gray-300 cursor-pointer"
+                          inMaintenance ? "border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed"
+                            : selected ? "border-blue-700 bg-blue-50 shadow-sm cursor-pointer"
+                            : "border-gray-200 bg-white hover:border-gray-300 cursor-pointer"
                         }`}
                       >
-                        <div className={inMaintenance ? "grayscale" : ""}>
-                          <OperatorLogo code={op} size="sm" />
-                        </div>
+                        <div className={inMaintenance ? "grayscale" : ""}><OperatorLogo code={op} size="sm" /></div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <p className={`text-sm font-bold ${inMaintenance ? "text-gray-400" : selected ? "text-blue-900" : "text-gray-800"}`}>
-                              {info.name}
-                            </p>
+                            <p className={`text-sm font-bold ${inMaintenance ? "text-gray-400" : selected ? "text-blue-900" : "text-gray-800"}`}>{info.name}</p>
                             {inMaintenance && <MaintenanceBadge />}
                           </div>
                           <p className="text-[11px] text-gray-400 mb-1">{info.full}</p>
-                          {!inMaintenance && (
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <MethodBadge method={displayMethod} />
-                            </div>
-                          )}
-                          {inMaintenance && (
-                            <p className="text-[10px] text-red-400 font-semibold mt-0.5">Indisponible — en maintenance</p>
-                          )}
+                          {!inMaintenance && <div className="flex items-center gap-1.5 flex-wrap"><MethodBadge method={info.method} /></div>}
+                          {inMaintenance && <p className="text-[10px] text-red-400 font-semibold mt-0.5">Indisponible — en maintenance</p>}
                         </div>
                         {selected && !inMaintenance && <CheckCircle size={16} className="text-blue-600 flex-shrink-0" />}
                       </div>
@@ -475,8 +562,7 @@ export default function Activation() {
                     +{selectedCountry?.prefix}
                   </div>
                   <Input
-                    type="tel"
-                    inputMode="numeric"
+                    type="tel" inputMode="numeric"
                     placeholder={`Ex : ${phonePlaceholder}`}
                     value={phone}
                     onChange={e => setPhone(e.target.value.replace(/[^\d\s]/g, ""))}
@@ -487,21 +573,30 @@ export default function Activation() {
               </div>
             )}
 
-            {/* Maintenance warning sur l'opérateur sélectionné */}
+            {/* Maintenance warning */}
             {operator && isOpMaintenance(country, operator) && (
               <div className="bg-red-50 border border-red-200 rounded-2xl p-3.5 flex gap-3">
                 <AlertTriangle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
                 <div className="text-xs text-red-800">
                   <p className="font-bold mb-0.5">⚠ {selectedOp?.name} — En maintenance</p>
-                  <p>SolvexPay signale une maintenance sur cet opérateur. Le paiement peut échouer ou être retardé. Réessayez ultérieurement si nécessaire.</p>
+                  <p>SolvexPay signale une maintenance sur cet opérateur. Le paiement peut échouer ou être retardé.</p>
                 </div>
               </div>
             )}
 
-            {/* Bouton Continuer */}
+            {/* Note activation manuelle */}
+            {country && isManualCountry(country) && operator && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex gap-3">
+                <Info size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-800">
+                  L'activation pour <strong>{selectedCountry?.name}</strong> se fait par <strong>dépôt manuel</strong>. À l'étape suivante, vous recevrez un numéro de dépôt et devrez soumettre votre preuve de paiement.
+                </p>
+              </div>
+            )}
+
             <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 shadow-lg max-w-md mx-auto">
               <Button
-                onClick={() => setStep(3)}
+                onClick={handleStep1Continue}
                 disabled={!canContinue}
                 className="w-full bg-blue-800 hover:bg-blue-900 disabled:opacity-40 text-white font-bold py-4 rounded-2xl text-base shadow-xl flex items-center justify-center gap-2"
               >
@@ -514,7 +609,196 @@ export default function Activation() {
     );
   }
 
-  // ── ÉTAPE 3 : Récapitulatif & confirmation ────────────────────────────────
+  // ── ÉTAPE 2 : Dépôt manuel ────────────────────────────────────────────────
+  if (step === 2) {
+    const canSubmit = transactionId2.trim().length >= 3;
+    const opInfo = selectedOp;
+    const fullPhone = `+${selectedCountry?.prefix}${phone.replace(/\s/g, "")}`;
+
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <UpayHeader amount={activationAmount} />
+        <div className="bg-gray-50 overflow-hidden">
+          <StepIndicator step={2} manual={true} />
+          <div className="px-5 pt-4 pb-28 space-y-4 max-w-md mx-auto">
+
+            {/* Back button */}
+            <button onClick={() => setStep(1)} className="flex items-center gap-1.5 text-blue-700 text-sm font-semibold">
+              <ChevronLeft size={16} /> Modifier les coordonnées
+            </button>
+
+            {depositLoading ? (
+              <div className="flex items-center justify-center py-12 text-gray-400">
+                <Loader2 size={28} className="animate-spin" />
+              </div>
+            ) : depositInfo ? (
+              <>
+                {/* Alerte transfert international */}
+                {depositInfo.isInternational && (
+                  <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4 flex gap-3">
+                    <AlertTriangle size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-red-800">
+                      <p className="font-black text-base mb-1">⚠️ Transfert INTERNATIONAL requis</p>
+                      <p className="leading-relaxed">
+                        Le numéro de dépôt est un <strong>numéro CI (+225)</strong>. Vous devez effectuer un <strong>transfert international</strong> depuis votre réseau {opInfo?.name}.
+                      </p>
+                      <p className="text-xs mt-2 font-semibold text-red-700">
+                        Dans votre menu {opInfo?.name}, choisissez "Transfert international" ou "Envoyer à l'international".
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Numéro de dépôt */}
+                <Card className="border-0 shadow-xl rounded-3xl overflow-hidden">
+                  <div className="px-5 py-4 bg-white border-b border-gray-100">
+                    <p className="font-bold text-gray-800 text-base">Numéro de dépôt {depositInfo.isInternational ? "(CI — international)" : ""}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Effectuez votre paiement sur ce numéro</p>
+                  </div>
+                  <CardContent className="p-5 space-y-4">
+                    <div className="flex items-center gap-3 bg-gray-50 rounded-2xl p-4">
+                      <div className="flex-1">
+                        <p className="text-xs text-gray-500 font-semibold mb-0.5">Numéro {opInfo?.name}</p>
+                        <p className="text-2xl font-black text-gray-900 tracking-wider font-mono">
+                          {depositInfo.depositNumber || "Non configuré"}
+                        </p>
+                      </div>
+                      {depositInfo.depositNumber && (
+                        <button
+                          onClick={copyDepositNumber}
+                          className="flex items-center gap-1.5 bg-blue-700 text-white rounded-xl px-4 py-2.5 text-sm font-bold hover:bg-blue-800 transition-colors flex-shrink-0"
+                        >
+                          <Copy size={14} /> Copier
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-sm text-gray-500">Montant exact à envoyer</span>
+                      <span className="text-xl font-black text-blue-800">
+                        {depositInfo.activationAmount?.toLocaleString("fr-FR")} <span className="text-sm font-bold text-blue-400">FCFA</span>
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-sm text-gray-500">Votre numéro</span>
+                      <span className="font-bold text-gray-700 font-mono text-sm">{fullPhone}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Instructions */}
+                <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 space-y-2">
+                  <p className="text-xs font-bold text-blue-800 uppercase tracking-wide mb-1">Instructions</p>
+                  <div className="flex gap-2 text-xs text-blue-700">
+                    <span className="font-bold text-blue-900 flex-shrink-0">1.</span>
+                    <span>Ouvrez votre application {opInfo?.full}</span>
+                  </div>
+                  {depositInfo.isInternational ? (
+                    <div className="flex gap-2 text-xs text-blue-700">
+                      <span className="font-bold text-blue-900 flex-shrink-0">2.</span>
+                      <span>Sélectionnez <strong>"Transfert international"</strong> et entrez le numéro ci-dessus (+225...)</span>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2 text-xs text-blue-700">
+                      <span className="font-bold text-blue-900 flex-shrink-0">2.</span>
+                      <span>Sélectionnez <strong>"Envoyer de l'argent"</strong> et entrez le numéro ci-dessus</span>
+                    </div>
+                  )}
+                  <div className="flex gap-2 text-xs text-blue-700">
+                    <span className="font-bold text-blue-900 flex-shrink-0">3.</span>
+                    <span>Envoyez exactement <strong>{depositInfo.activationAmount?.toLocaleString("fr-FR")} FCFA</strong></span>
+                  </div>
+                  <div className="flex gap-2 text-xs text-blue-700">
+                    <span className="font-bold text-blue-900 flex-shrink-0">4.</span>
+                    <span>Notez l'<strong>ID de transaction</strong> reçu par SMS ou dans l'application</span>
+                  </div>
+                  <div className="flex gap-2 text-xs text-blue-700">
+                    <span className="font-bold text-blue-900 flex-shrink-0">5.</span>
+                    <span>Remplissez le formulaire ci-dessous et soumettez votre demande</span>
+                  </div>
+                </div>
+
+                {/* Formulaire */}
+                <div className="space-y-4">
+                  {/* ID Transaction */}
+                  <div>
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                      ID de transaction <span className="text-red-500">*</span>
+                    </label>
+                    <Input
+                      placeholder="Ex : TXN1234567890"
+                      value={transactionId2}
+                      onChange={e => setTransactionId2(e.target.value)}
+                      className="rounded-xl border-2 border-gray-200 focus:border-blue-600 py-3 font-mono text-sm"
+                    />
+                    <p className="text-xs text-gray-400 mt-1 pl-1">Copiez l'ID reçu par SMS après votre paiement</p>
+                  </div>
+
+                  {/* Capture d'écran */}
+                  <div>
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                      <ImageIcon size={13} /> Capture d'écran du paiement <span className="text-gray-400">(optionnel)</span>
+                    </label>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={e => {
+                        const f = e.target.files?.[0];
+                        if (f) setScreenshotFile(f);
+                      }}
+                    />
+                    {screenshotPreview ? (
+                      <div className="relative rounded-2xl overflow-hidden border-2 border-blue-200">
+                        <img src={screenshotPreview} alt="Capture" className="w-full max-h-48 object-contain bg-gray-50" />
+                        <button
+                          onClick={() => { setScreenshotFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                          className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                        >
+                          <XCircle size={16} />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full border-2 border-dashed border-gray-300 rounded-2xl p-6 flex flex-col items-center gap-2 text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors"
+                      >
+                        <Upload size={24} />
+                        <p className="text-sm font-semibold">Appuyez pour ajouter une capture</p>
+                        <p className="text-xs">JPG, PNG — Max 10 Mo</p>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-center text-red-700 text-sm">
+                Impossible de charger les informations de dépôt. Veuillez réessayer.
+              </div>
+            )}
+
+            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 shadow-lg max-w-md mx-auto">
+              <Button
+                onClick={handleManualSubmit}
+                disabled={!canSubmit || manualSubmitting || depositLoading || !depositInfo}
+                className="w-full bg-blue-800 hover:bg-blue-900 disabled:opacity-40 text-white font-bold py-4 rounded-2xl text-base shadow-xl flex items-center justify-center gap-2"
+              >
+                {manualSubmitting
+                  ? <><Loader2 size={18} className="animate-spin mr-1" />Envoi…</>
+                  : <><CheckCircle size={18} className="mr-1" />Soumettre ma demande</>
+                }
+              </Button>
+              <p className="text-center text-[10px] text-gray-400 mt-2 flex items-center justify-center gap-1">
+                <ShieldCheck size={11} /> Votre demande sera vérifiée sous peu
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── ÉTAPE 3 : Récapitulatif & confirmation (CI USSD / SolvexPay) ──────────
   const op = selectedOp;
   const displayMethod: MethodType = op?.method ?? "ussd";
   const phoneDisplay = `+${selectedCountry?.prefix} ${phone}`;
@@ -522,8 +806,6 @@ export default function Activation() {
   return (
     <div className="min-h-screen bg-gray-50">
       <UpayHeader amount={activationAmount} />
-
-      {/* Bannière maintenance */}
       {isOpMaintenance(country, operator) && (
         <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-center gap-2">
           <Wrench size={13} className="text-amber-600 flex-shrink-0" />
@@ -532,12 +814,9 @@ export default function Activation() {
           </p>
         </div>
       )}
-
       <div className="bg-gray-50 overflow-hidden">
-        <StepIndicator step={3} />
+        <StepIndicator step={3} manual={false} />
         <div className="px-5 pt-4 pb-28 space-y-4 max-w-md mx-auto">
-
-          {/* Carte récapitulatif */}
           <Card className="border-0 shadow-xl rounded-3xl overflow-hidden">
             <div className="px-5 py-4 bg-white border-b border-gray-100 flex items-center justify-between">
               <p className="font-bold text-gray-800">Récapitulatif du paiement</p>
@@ -581,7 +860,6 @@ export default function Activation() {
             </CardContent>
           </Card>
 
-          {/* Note Wave */}
           {isWave && (
             <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-3.5 flex gap-3">
               <ExternalLink size={16} className="text-indigo-500 flex-shrink-0 mt-0.5" />
@@ -591,12 +869,11 @@ export default function Activation() {
             </div>
           )}
 
-          {/* Note info générale */}
           <div className="bg-white rounded-2xl border border-gray-200 px-4 py-3 flex gap-3">
             <AlertCircle size={16} className="text-blue-500 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-gray-600">
-              {country === "CI" && paymentInfo?.ciManualActivation !== false
-                ? `En confirmant, vous serez redirigé vers la page de paiement. Votre compte sera activé par l'administrateur après vérification du paiement.`
+              {isCiManual
+                ? `En confirmant, vous serez redirigé vers la page de paiement. Votre compte sera activé par l'administrateur après vérification.`
                 : isWave
                   ? `En confirmant, vous serez redirigé vers Wave pour payer ${activationAmount} FCFA. Votre compte sera activé automatiquement après validation.`
                   : `En confirmant, une notification USSD sera envoyée au ${phoneDisplay} sur ${op?.full}. Validez-la depuis votre téléphone.`
@@ -604,7 +881,6 @@ export default function Activation() {
             </p>
           </div>
 
-          {/* Bouton confirmer */}
           <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 shadow-lg max-w-md mx-auto">
             <Button
               onClick={handleConfirm}
@@ -614,7 +890,7 @@ export default function Activation() {
             >
               {loading
                 ? <><Loader2 size={18} className="animate-spin mr-1" />Traitement…</>
-                : country === "CI" && paymentInfo?.ciManualActivation !== false
+                : isCiManual
                   ? <><ExternalLink size={18} className="mr-1" />Confirmer et payer — {activationAmount} FCFA</>
                   : isWave
                     ? <><ExternalLink size={18} className="mr-1" />Payer via Wave — {activationAmount} FCFA</>

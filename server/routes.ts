@@ -30,6 +30,7 @@ import {
   createPaymentLinkSchema,
   paymentLinkTransactions,
   ciActivationRequests,
+  manualActivationRequests,
   pcsCodes,
 } from "@shared/schema";
 import bcrypt from "bcrypt";
@@ -2246,6 +2247,130 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Activation manuelle : infos dépôt (numéro + type transfert) ─────────────
+  app.get('/api/activation/manual-deposit-info', requireAuth, async (req: any, res) => {
+    try {
+      const { country, operator } = req.query as { country: string; operator: string };
+      if (!country || !operator) return res.status(400).json({ message: 'country et operator requis' });
+      const settings = await storage.getAppSettings();
+      const countryLower = country.toLowerCase();
+      const enabled = settings.find((s: any) => s.key === `${countryLower}_manual_activation`)?.value !== 'false';
+      const depositNumber = settings.find((s: any) => s.key === `${countryLower}_${operator.toLowerCase()}_deposit_number`)?.value || '';
+      const activationAmount = parseInt(settings.find((s: any) => s.key === 'activation_amount')?.value || '3600');
+      // Type de transfert selon le pays
+      const isInternational = country !== 'CI'; // Tous sauf CI = transfert international
+      res.json({ enabled, depositNumber, activationAmount, isInternational });
+    } catch (err) {
+      console.error('[MANUAL-DEPOSIT-INFO]', err);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  // ── Activation manuelle : soumission avec capture d'écran ────────────────
+  const multerManual = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      if (file.mimetype.startsWith('image/')) cb(null, true);
+      else cb(new Error('Seules les images sont acceptées'));
+    },
+  });
+  app.post('/api/activation/manual-submit', requireAuth, multerManual.single('screenshot'), async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { country, operator, phone, transactionId } = req.body;
+      if (!country || !operator || !phone || !transactionId) {
+        return res.status(400).json({ message: 'Informations incomplètes' });
+      }
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: 'Utilisateur introuvable' });
+
+      const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+      if (!TELEGRAM_TOKEN) return res.status(500).json({ message: 'Service Telegram non configuré' });
+
+      const settings = await storage.getAppSettings();
+      const activationAmount = parseInt(settings.find((s: any) => s.key === 'activation_amount')?.value || '3600');
+      const adminChatId = '7457302722';
+
+      // Upload capture d'écran vers object storage
+      let screenshotUrl: string | null = null;
+      if (req.file) {
+        try {
+          const objectStorageService = new ObjectStorageService();
+          screenshotUrl = await objectStorageService.uploadActivationScreenshot(req.file.buffer, req.file.mimetype);
+        } catch (e) {
+          console.error('[MANUAL-SUBMIT] Screenshot upload error:', e);
+        }
+      }
+
+      // Sauvegarde en base
+      const [savedReq] = await db.insert(manualActivationRequests).values({
+        userId,
+        country,
+        operator,
+        paymentPhone: phone.trim(),
+        fullName: user.fullName || undefined,
+        email: user.email || undefined,
+        referralCode: user.referralCode || undefined,
+        amount: activationAmount,
+        transactionId: transactionId.trim(),
+        screenshotUrl: screenshotUrl || undefined,
+        status: 'pending',
+      }).returning();
+
+      // Emojis opérateurs
+      const OPERATORS_LABELS: Record<string, string> = {
+        mtn: 'MTN Mobile Money', moov: 'Moov Money', orange: 'Orange Money',
+        wave: 'Wave', tmoney: 'T-Money', free: 'Free Money', airtel: 'Airtel Money',
+      };
+      const COUNTRY_FLAGS: Record<string, string> = {
+        BJ: '🇧🇯', CI: '🇨🇮', SN: '🇸🇳', BF: '🇧🇫', TG: '🇹🇬', CM: '🇨🇲',
+      };
+      const flag = COUNTRY_FLAGS[country] || '🌍';
+      const opLabel = OPERATORS_LABELS[operator] || operator;
+
+      const msgText =
+        `${flag} <b>Demande d'activation — ${country} (Manuel)</b>\n\n` +
+        `👤 <b>Nom :</b> ${user.fullName || 'Non renseigné'}\n` +
+        `🆔 <b>ID Compte :</b> <code>${user.id}</code>\n` +
+        `📋 <b>N° Compte Sika :</b> <code>${user.referralCode || 'N/A'}</code>\n` +
+        `📧 <b>Email :</b> ${user.email || 'N/A'}\n` +
+        `📱 <b>Numéro paiement :</b> <code>${phone.trim()}</code>\n` +
+        `💳 <b>Opérateur :</b> ${opLabel}\n` +
+        `💰 <b>Montant :</b> ${activationAmount.toLocaleString('fr-FR')} FCFA\n` +
+        `🔖 <b>ID Transaction :</b> <code>${transactionId.trim()}</code>\n` +
+        `🖼 <b>Capture :</b> ${screenshotUrl ? '✅ Jointe' : '❌ Non fournie'}\n\n` +
+        `⏳ En attente de validation.`;
+
+      const keyboard = {
+        inline_keyboard: [[
+          { text: '✅ Approuver le compte', callback_data: `manact_app_pre_${savedReq.id}` },
+          { text: '❌ Rejeter', callback_data: `manact_rej_pre_${savedReq.id}` },
+        ]]
+      };
+
+      // Envoyer capture si disponible, puis le message texte
+      if (screenshotUrl) {
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendPhoto`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: adminChatId, photo: screenshotUrl, caption: `📸 Capture — ${user.fullName} (${country}/${opLabel})` })
+        }).catch(e => console.error('[MANUAL-SUBMIT] Photo send error:', e));
+      }
+
+      await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: adminChatId, text: msgText, parse_mode: 'HTML', reply_markup: keyboard })
+      });
+
+      res.json({ success: true, requestId: savedReq.id });
+    } catch (err: any) {
+      console.error('[MANUAL-SUBMIT] Error:', err);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
   // TELEGRAM WEBHOOK - Receives callback queries from inline keyboard buttons
   app.post('/api/telegram/ci-webhook', async (req: any, res) => {
     try {
@@ -2458,7 +2583,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.sendStatus(200);
         }
 
-        // Phone number search: if message looks like a phone number, search requests
+        // ── Recherche activation manuelle : +229... paie act ──────────────────
+        const paieActMatch = /^(\+\d[\d\s\-]{6,19})\s+paie\s+act\s*$/i.exec(msgText);
+        if (paieActMatch) {
+          const phoneQuery = paieActMatch[1].trim();
+          const phoneDigits = phoneQuery.replace(/\D/g, '');
+          const last8 = phoneDigits.slice(-8);
+          const COUNTRY_FLAGS2: Record<string,string> = { BJ:'🇧🇯',CI:'🇨🇮',SN:'🇸🇳',BF:'🇧🇫',TG:'🇹🇬',CM:'🇨🇲' };
+          const OPERATORS_FR3: Record<string,string> = { mtn:'MTN',moov:'Moov',orange:'Orange',wave:'Wave',tmoney:'T-Money',free:'Free',airtel:'Airtel' };
+          const STATUS_FR3: Record<string,string> = { pending:'⏳ En attente',approved:'✅ Approuvé',rejected:'❌ Rejeté' };
+
+          const results = await db.execute(sql`
+            SELECT * FROM manual_activation_requests
+            WHERE (regexp_replace(payment_phone,'[^0-9]','','g') LIKE ${'%'+phoneDigits+'%'}
+               OR regexp_replace(payment_phone,'[^0-9]','','g') LIKE ${'%'+last8+'%'})
+            ORDER BY created_at DESC LIMIT 10
+          `);
+          const rows = (results.rows || []) as any[];
+
+          if (!rows.length) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, text: `🔍 <b>Recherche activation : <code>${phoneQuery}</code></b>\n\nAucune demande d'activation trouvée pour ce numéro.`, parse_mode:'HTML' })
+            });
+          } else {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, text: `🔍 <b>Activation manuelle : <code>${phoneQuery}</code></b>\n${rows.length} demande(s) trouvée(s)`, parse_mode:'HTML' })
+            });
+            for (const r of rows) {
+              const flag = COUNTRY_FLAGS2[r.country] || '🌍';
+              const date = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'}) : '—';
+              const cardText =
+                `${flag} <b>${r.country} — ${OPERATORS_FR3[r.operator]||r.operator}</b>\n` +
+                `📊 ${STATUS_FR3[r.status]||r.status}\n` +
+                `👤 ${r.full_name||'N/A'}\n` +
+                `📋 Compte Sika : <code>${r.referral_code||'N/A'}</code>\n` +
+                `📧 ${r.email||'N/A'}\n` +
+                `📱 <code>${r.payment_phone}</code>\n` +
+                `💰 ${Number(r.amount).toLocaleString('fr-FR')} FCFA\n` +
+                `🔖 ID tx : <code>${r.transaction_id||'—'}</code>\n` +
+                `🖼 Capture : ${r.screenshot_url ? `<a href="${process.env.APP_BASE_URL||''}${r.screenshot_url}">Voir</a>` : '❌'}\n` +
+                `🕒 ${date}`;
+              const buttons = r.status === 'pending'
+                ? { inline_keyboard: [[
+                    { text:'✅ Approuver', callback_data:`manact_app_pre_${r.id}` },
+                    { text:'❌ Rejeter',   callback_data:`manact_rej_pre_${r.id}` },
+                  ]]}
+                : undefined;
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', ...(buttons?{reply_markup:buttons}:{}) })
+              });
+              await new Promise(r=>setTimeout(r,60));
+            }
+          }
+          return res.sendStatus(200);
+        }
+
         const isPhoneSearch = /^[\+\d\s\-]{7,20}$/.test(msgText) && msgText.replace(/\D/g, '').length >= 7;
         if (isPhoneSearch) {
           const requests = await storage.getCiActivationRequestsByPhone(msgText);
@@ -2903,6 +3085,121 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 });
               }
             } catch {}
+          }
+
+        // ── Activation manuelle : Approuver (pré-confirmation) ───────────────
+        } else if (data.startsWith('manact_app_pre_')) {
+          const reqId = data.replace('manact_app_pre_', '');
+          try {
+            const [r] = await db.select().from(manualActivationRequests).where(eq(manualActivationRequests.id, reqId)).limit(1);
+            if (!r) { answerText = '❌ Demande introuvable'; }
+            else if (r.status !== 'pending') { answerText = `Déjà traitée : ${r.status}`; }
+            else {
+              answerText = '⚠️ Confirmer approbation ?';
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ chat_id: chatId,
+                  text: `✅ <b>Confirmer approbation ?</b>\n\n👤 ${r.fullName||'N/A'}\n📱 <code>${r.paymentPhone}</code>\n🔖 ID tx : <code>${r.transactionId||'—'}</code>\n\nCela va <b>activer le compte</b> de cet utilisateur.`,
+                  parse_mode:'HTML',
+                  reply_markup:{ inline_keyboard:[[
+                    { text:'✅ Oui, activer', callback_data:`manact_app_ok_${reqId}` },
+                    { text:'◀ Annuler', callback_data:`manact_app_no_${reqId}` }
+                  ]]}
+                })
+              });
+            }
+          } catch(e) { answerText='❌ Erreur'; console.error('[MANACT-APP-PRE]',e); }
+
+        } else if (data.startsWith('manact_app_ok_')) {
+          const reqId = data.replace('manact_app_ok_', '');
+          try {
+            const [r] = await db.select().from(manualActivationRequests).where(eq(manualActivationRequests.id, reqId)).limit(1);
+            if (!r) { answerText = '❌ Introuvable'; }
+            else if (r.status !== 'pending') { answerText = `Déjà : ${r.status}`; }
+            else {
+              // Activer le compte
+              await storage.activateUser(r.userId);
+              await db.update(manualActivationRequests).set({ status: 'approved' }).where(eq(manualActivationRequests.id, reqId));
+              answerText = '✅ Compte activé !';
+              if (chatId && messageId) {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+                  method:'POST', headers:{'Content-Type':'application/json'},
+                  body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup:{ inline_keyboard:[] } })
+                });
+              }
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ chat_id: chatId,
+                  text: `✅ <b>Compte activé</b>\n\n👤 ${r.fullName||'N/A'}\n📱 <code>${r.paymentPhone}</code>\n📋 Compte Sika : <code>${r.referralCode||'N/A'}</code>`,
+                  parse_mode:'HTML'
+                })
+              });
+            }
+          } catch(e:any) { answerText='❌ Erreur'; console.error('[MANACT-APP-OK]',e); }
+
+        } else if (data.startsWith('manact_app_no_')) {
+          answerText = 'Annulé.';
+          if (chatId && messageId) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup:{ inline_keyboard:[] } })
+            });
+          }
+
+        // ── Activation manuelle : Rejeter ─────────────────────────────────────
+        } else if (data.startsWith('manact_rej_pre_')) {
+          const reqId = data.replace('manact_rej_pre_', '');
+          try {
+            const [r] = await db.select().from(manualActivationRequests).where(eq(manualActivationRequests.id, reqId)).limit(1);
+            if (!r) { answerText = '❌ Introuvable'; }
+            else if (r.status !== 'pending') { answerText = `Déjà traitée : ${r.status}`; }
+            else {
+              answerText = '⚠️ Confirmer rejet ?';
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ chat_id: chatId,
+                  text: `❌ <b>Confirmer le rejet ?</b>\n\n👤 ${r.fullName||'N/A'}\n📱 <code>${r.paymentPhone}</code>\n\nLe compte ne sera PAS activé.`,
+                  parse_mode:'HTML',
+                  reply_markup:{ inline_keyboard:[[
+                    { text:'❌ Oui, rejeter', callback_data:`manact_rej_ok_${reqId}` },
+                    { text:'◀ Annuler', callback_data:`manact_rej_no_${reqId}` }
+                  ]]}
+                })
+              });
+            }
+          } catch(e) { answerText='❌ Erreur'; console.error('[MANACT-REJ-PRE]',e); }
+
+        } else if (data.startsWith('manact_rej_ok_')) {
+          const reqId = data.replace('manact_rej_ok_', '');
+          try {
+            const [r] = await db.select().from(manualActivationRequests).where(eq(manualActivationRequests.id, reqId)).limit(1);
+            if (!r) { answerText = '❌ Introuvable'; }
+            else {
+              await db.update(manualActivationRequests).set({ status: 'rejected' }).where(eq(manualActivationRequests.id, reqId));
+              answerText = '✅ Demande rejetée';
+              if (chatId && messageId) {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+                  method:'POST', headers:{'Content-Type':'application/json'},
+                  body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup:{ inline_keyboard:[] } })
+                });
+              }
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ chat_id: chatId,
+                  text: `❌ <b>Demande rejetée</b>\n\n👤 ${r.fullName||'N/A'}\n📱 <code>${r.paymentPhone}</code>`,
+                  parse_mode:'HTML'
+                })
+              });
+            }
+          } catch(e:any) { answerText='❌ Erreur'; console.error('[MANACT-REJ-OK]',e); }
+
+        } else if (data.startsWith('manact_rej_no_')) {
+          answerText = 'Annulé.';
+          if (chatId && messageId) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup:{ inline_keyboard:[] } })
+            });
           }
 
         } else if (data.startsWith('pcsmail_no_')) {
@@ -4049,6 +4346,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       if (error.name === "ObjectNotFoundError") return res.status(404).json({ message: "Image introuvable" });
       console.error("Erreur lecture image lien:", error);
+      res.status(500).json({ message: "Erreur" });
+    }
+  });
+
+  app.get("/api/media/activation-screenshot/:imageId", async (req: any, res) => {
+    try {
+      const { imageId } = req.params;
+      const objectStorageService = new ObjectStorageService();
+      const file = await objectStorageService.getActivationScreenshotFile(imageId);
+      await objectStorageService.downloadObject(file, res, 7 * 24 * 3600);
+    } catch (error: any) {
+      if (error.name === "ObjectNotFoundError") return res.status(404).json({ message: "Capture introuvable" });
       res.status(500).json({ message: "Erreur" });
     }
   });

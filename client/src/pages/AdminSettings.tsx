@@ -486,6 +486,61 @@ export default function AdminSettings() {
               </p>
             </div>
 
+            {/* Activation manuelle — autres pays */}
+            {[
+              { code: 'BJ', flag: '🇧🇯', name: 'Bénin',        key: 'bj', operators: ['mtn','moov'], labels: { mtn: 'MTN MoMo', moov: 'Moov Money' } },
+              { code: 'SN', flag: '🇸🇳', name: 'Sénégal',      key: 'sn', operators: ['orange','wave','free'], labels: { orange: 'Orange Money', wave: 'Wave', free: 'Free Money' } },
+              { code: 'BF', flag: '🇧🇫', name: 'Burkina Faso', key: 'bf', operators: ['moov','orange'], labels: { moov: 'Moov Money', orange: 'Orange Money' } },
+              { code: 'TG', flag: '🇹🇬', name: 'Togo',         key: 'tg', operators: ['moov','tmoney'], labels: { moov: 'Moov Money', tmoney: 'T-Money' } },
+              { code: 'CM', flag: '🇨🇲', name: 'Cameroun',     key: 'cm', operators: ['mtn','orange'], labels: { mtn: 'MTN MoMo', orange: 'Orange Money' } },
+            ].map(({ code, flag, name, key, operators, labels }) => (
+              <div key={code} className="space-y-3 p-4 border rounded-lg border-blue-200 bg-blue-50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-lg">
+                      {flag}
+                    </div>
+                    <div>
+                      <p className="font-medium">Activation manuelle — {name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {settings[`${key}_manual_activation`] !== 'false'
+                          ? `✓ Activé — dépôt ${name} + validation admin Telegram`
+                          : `✗ Désactivé — SolvexPay utilisé`}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleInputChange(`${key}_manual_activation`, settings[`${key}_manual_activation`] === 'false' ? 'true' : 'false')}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      settings[`${key}_manual_activation`] !== 'false'
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                        : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
+                    }`}
+                  >
+                    {settings[`${key}_manual_activation`] !== 'false' ? 'Activé' : 'Désactivé'}
+                  </button>
+                </div>
+                {operators.map(op => (
+                  <div key={op}>
+                    <Label htmlFor={`${key}_${op}_deposit_number`} className="text-sm">
+                      Numéro de dépôt {(labels as any)[op]} {code !== 'CI' ? <span className="text-xs text-blue-600 font-semibold">(ex: +225... = numéro CI, transfert intl)</span> : ''}
+                    </Label>
+                    <Input
+                      id={`${key}_${op}_deposit_number`}
+                      value={settings[`${key}_${op}_deposit_number`] || ''}
+                      onChange={(e) => handleInputChange(`${key}_${op}_deposit_number`, e.target.value)}
+                      placeholder="+2250XXXXXXXXX"
+                      className="mt-1 font-mono"
+                    />
+                  </div>
+                ))}
+                <p className="text-xs text-muted-foreground">
+                  Quand activé : l'utilisateur effectue un dépôt sur le numéro indiqué, soumet son ID de transaction + capture, et l'admin valide via Telegram.
+                </p>
+              </div>
+            ))}
+
             {/* SolvexPay */}
             <div className="space-y-3 p-4 border rounded-lg border-primary/30 bg-primary/5">
               <div className="flex items-center justify-between">
