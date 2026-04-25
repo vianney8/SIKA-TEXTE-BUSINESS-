@@ -544,12 +544,10 @@ export default function AdminSettings() {
                       <div>
                         <Label className="text-xs text-gray-600">Titre affiché (libellé numéro)</Label>
                         <Input
-                          value={settings[`${key}_${op}_deposit_label`] || ''}
+                          value={settings[`${key}_${op}_deposit_label`] ?? (isWaveOp ? 'Numéro WAVE' : `Numéro de dépôt ${opName}`)}
                           onChange={(e) => handleInputChange(`${key}_${op}_deposit_label`, e.target.value)}
-                          placeholder={isWaveOp ? 'Numéro WAVE' : `Numéro de dépôt ${opName}`}
                           className="mt-1 text-sm"
                         />
-                        <p className="text-[10px] text-gray-400 mt-0.5">Laisser vide = valeur par défaut</p>
                       </div>
 
                       {/* Alerte transfert international (pas pour Wave) */}
@@ -557,12 +555,10 @@ export default function AdminSettings() {
                         <div>
                           <Label className="text-xs text-gray-600">Texte alerte ⚠️ transfert international</Label>
                           <Input
-                            value={settings[`${key}_${op}_alert_text`] || ''}
+                            value={settings[`${key}_${op}_alert_text`] ?? `Effectuez un transfert international sur ce numéro ${opName}.`}
                             onChange={(e) => handleInputChange(`${key}_${op}_alert_text`, e.target.value)}
-                            placeholder={`Effectuez un transfert international sur ce numéro ${opName}.`}
                             className="mt-1 text-sm"
                           />
-                          <p className="text-[10px] text-gray-400 mt-0.5">Laisser vide = valeur par défaut</p>
                         </div>
                       )}
 
