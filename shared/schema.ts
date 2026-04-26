@@ -552,6 +552,7 @@ export const manualActivationRequests = pgTable("manual_activation_requests", {
   operator: varchar("operator").notNull(),
   paymentPhone: varchar("payment_phone").notNull(),
   fullName: varchar("full_name"),
+  payerName: varchar("payer_name"),
   email: varchar("email"),
   referralCode: varchar("referral_code"),
   amount: integer("amount").notNull(),

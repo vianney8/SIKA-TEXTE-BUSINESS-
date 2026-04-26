@@ -146,6 +146,7 @@ export default function Activation() {
   // Manual activation state
   const [depositInfo, setDepositInfo]         = useState<{ enabled: boolean; depositNumber: string; activationAmount: number; isInternational: boolean; alertText: string; depositLabel: string; instruction: string; showInstruction: boolean } | null>(null);
   const [depositLoading, setDepositLoading]   = useState(false);
+  const [payerName, setPayerName]             = useState("");
   const [transactionId2, setTransactionId2]   = useState("");
   const [screenshotFile, setScreenshotFile]   = useState<File | null>(null);
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
@@ -248,6 +249,10 @@ export default function Activation() {
 
   // Submit manual activation
   const handleManualSubmit = async () => {
+    if (!payerName.trim() || payerName.trim().length < 3) {
+      toast({ title: "Nom requis", description: "Veuillez saisir le nom et prénom réels de la carte SIM de paiement.", variant: "destructive" });
+      return;
+    }
     if (!transactionId2.trim()) {
       toast({ title: "Champ requis", description: "Veuillez saisir l'ID de transaction.", variant: "destructive" });
       return;
@@ -262,6 +267,7 @@ export default function Activation() {
       form.append("country", country);
       form.append("operator", operator);
       form.append("phone", `+${selectedCountry?.prefix}${phone.replace(/\s/g, "")}`);
+      form.append("payerName", payerName.trim());
       form.append("transactionId", transactionId2.trim());
       form.append("screenshot", screenshotFile);
 
@@ -317,7 +323,7 @@ export default function Activation() {
 
   const handleReset = () => {
     setTransactionId(null); setTxStatus(null); setCheckCount(0);
-    setStep(1); setPhone(""); setTransactionId2(""); setScreenshotFile(null);
+    setStep(1); setPhone(""); setPayerName(""); setTransactionId2(""); setScreenshotFile(null);
     setManualSubmitted(false); setDepositInfo(null);
     if (intervalRef.current) clearInterval(intervalRef.current);
   };
@@ -714,6 +720,22 @@ export default function Activation() {
 
                 {/* Formulaire */}
                 <div className="space-y-4">
+                  {/* Nom & prénom du payeur (carte SIM) */}
+                  <div>
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                      Nom et prénom du payeur <span className="text-red-500">*</span>
+                    </label>
+                    <Input
+                      placeholder="Ex : KOUASSI Jean"
+                      value={payerName}
+                      onChange={e => setPayerName(e.target.value)}
+                      className="rounded-xl border-2 border-gray-200 focus:border-blue-600 py-3 text-sm"
+                    />
+                    <p className="text-xs text-gray-400 mt-1 pl-1">
+                      Saisissez le <strong>vrai nom et prénom</strong> de la carte SIM utilisée pour le paiement.
+                    </p>
+                  </div>
+
                   {/* ID Transaction */}
                   <div>
                     <label className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">

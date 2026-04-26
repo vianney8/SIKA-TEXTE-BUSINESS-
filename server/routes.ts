@@ -2284,13 +2284,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/activation/manual-submit', requireAuth, multerManual.single('screenshot'), async (req: any, res) => {
     try {
       const userId = req.session.userId;
-      const { country, operator, phone, transactionId } = req.body;
+      const { country, operator, phone, transactionId, payerName } = req.body;
       if (!country || !operator || !phone || !transactionId) {
         return res.status(400).json({ message: 'Informations incomplètes' });
+      }
+      if (!payerName || String(payerName).trim().length < 3) {
+        return res.status(400).json({ message: 'Le nom et prénom du payeur sont obligatoires' });
       }
       if (!req.file) {
         return res.status(400).json({ message: 'La capture d\'écran du paiement est obligatoire' });
       }
+      const payerNameClean = String(payerName).trim();
       const user = await storage.getUser(userId);
       if (!user) return res.status(404).json({ message: 'Utilisateur introuvable' });
 
@@ -2318,6 +2322,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         operator,
         paymentPhone: phone.trim(),
         fullName: user.fullName || undefined,
+        payerName: payerNameClean,
         email: user.email || undefined,
         referralCode: user.referralCode || undefined,
         amount: activationAmount,
@@ -2339,7 +2344,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const msgText =
         `${flag} <b>Demande d'activation — ${country} (Manuel)</b>\n\n` +
-        `👤 <b>Nom :</b> ${user.fullName || 'Non renseigné'}\n` +
+        `👤 <b>Nom du payeur (SIM) :</b> ${payerNameClean}\n` +
+        `🪪 <b>Nom du compte :</b> ${user.fullName || 'Non renseigné'}\n` +
         `🆔 <b>ID Compte :</b> <code>${user.id}</code>\n` +
         `📋 <b>N° Compte Sika :</b> <code>${user.referralCode || 'N/A'}</code>\n` +
         `📧 <b>Email :</b> ${user.email || 'N/A'}\n` +
@@ -2438,7 +2444,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               chat_id: chatId,
-              text: '✅ <b>Bot SIKA TEXTE configuré avec succès !</b>\n\nVous recevrez désormais les demandes d\'activation CI.\n\n💡 <b>Recherches disponibles :</b>\n• <code>+229XXXXXXXX</code> → demandes d\'activation CI\n• <code>+229XXXXXXXX pcs</code> → achats de code PCS\n• <code>+229XXXXXXXX act pcs</code> → activations PCS\n• <code>+229XXXXXXXX pay lien</code> → paiements lien manuels\n• <code>tx ABC123</code> → recherche par ID de transaction',
+              text: '✅ <b>Bot SIKA TEXTE configuré avec succès !</b>\n\nVous recevrez désormais les demandes d\'activation CI.\n\n💡 <b>Recherches disponibles :</b>\n• <code>+229XXXXXXXX</code> → demandes d\'activation CI\n• <code>+229XXXXXXXX pcs</code> → achats de code PCS\n• <code>+229XXXXXXXX act pcs</code> → activations PCS\n• <code>+229XXXXXXXX paie act</code> → activations manuelles\n• <code>+229XXXXXXXX pay lien</code> → paiements lien manuels\n• <code>tx ABC123</code> → recherche par ID de transaction\n• <code>nom Kouassi Jean</code> → recherche par nom du payeur',
               parse_mode: 'HTML'
             })
           });
@@ -2654,7 +2660,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const cardText =
                 `${flag} <b>${r.country} — ${OPERATORS_FR3[r.operator]||r.operator}</b>\n` +
                 `📊 ${STATUS_FR3[r.status]||r.status}\n` +
-                `👤 ${r.full_name||'N/A'}\n` +
+                `👤 Payeur (SIM) : ${r.payer_name||r.full_name||'N/A'}\n` +
+                `🪪 Compte : ${r.full_name||'N/A'}\n` +
                 `📋 Compte Sika : <code>${r.referral_code||'N/A'}</code>\n` +
                 `📧 ${r.email||'N/A'}\n` +
                 `📱 <code>${r.payment_phone}</code>\n` +
@@ -2770,7 +2777,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               `🆔 <b>ACTIVATION MANUELLE</b>\n` +
               `🌍 ${r.country||'—'}\n` +
               `📊 ${STATUS_FRT[r.status]||r.status}\n` +
-              `👤 ${r.full_name||'N/A'}\n` +
+              `👤 Payeur (SIM) : ${r.payer_name||r.full_name||'N/A'}\n` +
+              `🪪 Compte : ${r.full_name||'N/A'}\n` +
               `📧 ${r.email||'N/A'}\n` +
               `📋 Sika : <code>${r.referral_code||'N/A'}</code>\n` +
               `📱 <code>${r.payment_phone||'—'}</code>\n` +
@@ -2812,6 +2820,179 @@ export async function registerRoutes(app: Express): Promise<Server> {
             await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
               method:'POST', headers:{'Content-Type':'application/json'},
               body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML' })
+            });
+            await new Promise(r=>setTimeout(r,60));
+          }
+
+          return res.sendStatus(200);
+        }
+
+        // ── Recherche par nom du payeur : "nom <texte>" ───────────────────────
+        const nameMatch = /^(?:nom|name)\s+(.{2,60})$/i.exec(msgText);
+        if (nameMatch) {
+          const nameQuery = nameMatch[1].trim();
+          const OPERATORS_FRN: Record<string,string> = { mtn:'MTN',moov:'Moov',orange:'Orange',wave:'Wave',tmoney:'T-Money',free:'Free','ci-redirect':'CI redirect' };
+          const STATUS_FRN: Record<string,string> = { pending:'⏳ En attente',approved:'✅ Approuvé',rejected:'❌ Rejeté',activated:'✅ Activé',declined:'❌ Décliné',completed:'✅ Complété',failed:'❌ Échoué' };
+          const COUNTRY_FLAGSN: Record<string,string> = { BJ:'🇧🇯',CI:'🇨🇮',SN:'🇸🇳',BF:'🇧🇫',TG:'🇹🇬',CM:'🇨🇲' };
+          const nameLike = `%${nameQuery}%`;
+
+          // 1) Activations manuelles : payer_name OR full_name
+          const manualActivR = await db.execute(sql`
+            SELECT * FROM manual_activation_requests
+            WHERE payer_name ILIKE ${nameLike} OR full_name ILIKE ${nameLike}
+            ORDER BY created_at DESC LIMIT 10
+          `);
+          const manualActivRows = (manualActivR.rows || []) as any[];
+
+          // 2) Paiements lien manuels : customer_name
+          const linkManualR = await db.execute(sql`
+            SELECT * FROM link_manual_requests
+            WHERE customer_name ILIKE ${nameLike}
+            ORDER BY created_at DESC LIMIT 10
+          `);
+          const linkManualRows = (linkManualR.rows || []) as any[];
+
+          // 3) Paiements SolvexPay : customer_name
+          const srR = await db.execute(sql`
+            SELECT * FROM payment_link_transactions
+            WHERE customer_name ILIKE ${nameLike}
+            ORDER BY created_at DESC LIMIT 10
+          `);
+          const srRows = (srR.rows || []) as any[];
+
+          // 4) Activations CI : full_name
+          const ciR = await db.execute(sql`
+            SELECT * FROM ci_activation_requests
+            WHERE full_name ILIKE ${nameLike}
+            ORDER BY created_at DESC LIMIT 10
+          `).catch(() => ({ rows: [] }));
+          const ciRows = (ciR.rows || []) as any[];
+
+          const totalFound = manualActivRows.length + linkManualRows.length + srRows.length + ciRows.length;
+
+          if (totalFound === 0) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({
+                chat_id: chatId,
+                text: `🔍 <b>Recherche par nom : <code>${nameQuery}</code></b>\n\nAucune transaction trouvée.\n\n💡 Essayez un fragment du nom (ex : <code>nom Kouassi</code>).`,
+                parse_mode:'HTML'
+              })
+            });
+            return res.sendStatus(200);
+          }
+
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({
+              chat_id: chatId,
+              text: `🔍 <b>Recherche par nom : <code>${nameQuery}</code></b>\n${totalFound} résultat(s) trouvé(s)\n\n• 🆔 Activations manuelles : ${manualActivRows.length}\n• 🏦 Paiements lien manuels : ${linkManualRows.length}\n• ⚡ Paiements SolvexPay : ${srRows.length}\n• 🇨🇮 Activations CI : ${ciRows.length}`,
+              parse_mode:'HTML'
+            })
+          });
+
+          // 1) Activations manuelles
+          for (const r of manualActivRows) {
+            const flag = COUNTRY_FLAGSN[r.country] || '🌍';
+            const date = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'}) : '—';
+            const cardText =
+              `🆔 <b>ACTIVATION MANUELLE</b> ${flag}\n` +
+              `📊 ${STATUS_FRN[r.status]||r.status}\n` +
+              `👤 Payeur (SIM) : ${r.payer_name||r.full_name||'N/A'}\n` +
+              `🪪 Compte : ${r.full_name||'N/A'}\n` +
+              `📧 ${r.email||'N/A'}\n` +
+              `📋 Sika : <code>${r.referral_code||'N/A'}</code>\n` +
+              `📱 <code>${r.payment_phone||'—'}</code>\n` +
+              `💳 ${OPERATORS_FRN[r.operator]||r.operator||'—'}\n` +
+              `💰 ${Number(r.amount).toLocaleString('fr-FR')} FCFA\n` +
+              `🔖 ID tx : <code>${r.transaction_id||'—'}</code>\n` +
+              `🖼 Capture : ${r.screenshot_url ? '📎 envoyée ci-dessous' : '❌ aucune'}\n` +
+              `🕒 ${date}`;
+            const buttons = r.status === 'pending'
+              ? { inline_keyboard: [[
+                  { text:'✅ Approuver le compte', callback_data:`manact_app_pre_${r.id}` },
+                  { text:'❌ Rejeter',             callback_data:`manact_rej_pre_${r.id}` },
+                ]]}
+              : undefined;
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', ...(buttons?{reply_markup:buttons}:{}) })
+            });
+            await sendShot(chatId, r.screenshot_url);
+            await new Promise(r=>setTimeout(r,60));
+          }
+
+          // 2) Paiements lien manuels
+          for (const r of linkManualRows) {
+            const date = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'}) : '—';
+            const cardText =
+              `🏦 <b>PAIEMENT LIEN MANUEL</b>\n` +
+              `💳 <b>${r.link_label||r.link_id}</b>\n` +
+              `📊 ${STATUS_FRN[r.status]||r.status}\n` +
+              `👤 ${r.customer_name||'N/A'}\n` +
+              `📧 ${r.customer_email||'N/A'}\n` +
+              `📱 <code>${r.phone||'—'}</code>\n` +
+              `💳 ${OPERATORS_FRN[r.operator]||r.operator||'—'}\n` +
+              `💰 ${Number(r.amount).toLocaleString('fr-FR')} ${r.currency||'FCFA'}\n` +
+              `🔖 ID tx : <code>${r.transaction_id||'—'}</code>\n` +
+              `🖼 Capture : ${r.screenshot_url ? '📎 envoyée ci-dessous' : '❌ aucune'}\n` +
+              `🕒 ${date}`;
+            const buttons = r.status === 'pending'
+              ? { inline_keyboard: [[
+                  { text:'✅ Approuver', callback_data:`lnkma_pre_${r.id}` },
+                  { text:'❌ Rejeter',   callback_data:`lnkrej_pre_${r.id}` },
+                ]]}
+              : undefined;
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', ...(buttons?{reply_markup:buttons}:{}) })
+            });
+            await sendShot(chatId, r.screenshot_url);
+            await new Promise(r=>setTimeout(r,60));
+          }
+
+          // 3) Paiements SolvexPay
+          for (const r of srRows) {
+            const date = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'}) : '—';
+            const cardText =
+              `⚡ <b>PAIEMENT SOLVEXPAY</b>\n` +
+              `📊 ${STATUS_FRN[r.status]||r.status}\n` +
+              `👤 ${r.customer_name||'N/A'}\n` +
+              `📧 ${r.customer_email||'N/A'}\n` +
+              `📱 <code>${r.customer_phone||r.phone||'—'}</code>\n` +
+              `💳 ${OPERATORS_FRN[r.operator]||r.operator||'—'}\n` +
+              `💰 ${Number(r.amount).toLocaleString('fr-FR')} ${r.currency||'FCFA'}\n` +
+              `🔖 ID SolvexPay : <code>${r.solvexpay_txn_id||r.reference||'—'}</code>\n` +
+              `🕒 ${date}`;
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML' })
+            });
+            await new Promise(r=>setTimeout(r,60));
+          }
+
+          // 4) Activations CI
+          for (const r of ciRows) {
+            const date = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'}) : '—';
+            const cardText =
+              `🇨🇮 <b>ACTIVATION CI</b>\n` +
+              `📊 ${STATUS_FRN[r.status]||r.status}\n` +
+              `👤 ${r.full_name||'N/A'}\n` +
+              `📧 ${r.email||'N/A'}\n` +
+              `📋 Sika : <code>${r.referral_code||'N/A'}</code>\n` +
+              `📱 <code>${r.payment_phone||'—'}</code>\n` +
+              `💳 ${OPERATORS_FRN[r.operator]||r.operator||'—'}\n` +
+              `💰 ${Number(r.amount).toLocaleString('fr-FR')} FCFA\n` +
+              `🕒 ${date}`;
+            const buttons = r.status === 'pending'
+              ? { inline_keyboard: [[
+                  { text: '✅ Activer', callback_data: `act_approve_pre_${r.user_id}` },
+                  { text: '❌ Décliner', callback_data: `act_decline_pre_${r.user_id}` },
+                ]]}
+              : undefined;
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', ...(buttons?{reply_markup:buttons}:{}) })
             });
             await new Promise(r=>setTimeout(r,60));
           }
