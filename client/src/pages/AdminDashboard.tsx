@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle, XCircle, Settings, MessageCircle, MessageSquareOff, RefreshCw, Link2, Plus, Copy, ToggleLeft, ToggleRight, ExternalLink, History, ChevronLeft, ChevronRight, Mail } from "lucide-react";
+import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle, XCircle, Settings, MessageCircle, MessageSquareOff, RefreshCw, Link2, Plus, Copy, ToggleLeft, ToggleRight, ExternalLink, History, ChevronLeft, ChevronRight, Mail, Bot } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 
@@ -1553,6 +1553,80 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Bot Telegram — aide-mémoire des commandes de recherche */}
+        <Card className="border-blue-200 bg-blue-50/50 mb-8">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-bold flex items-center gap-2 text-blue-900">
+              <Bot className="h-5 w-5" />
+              Bot Telegram — commandes de recherche
+            </CardTitle>
+            <p className="text-xs text-blue-700 mt-1">
+              Tapez ces commandes au bot pour retrouver une transaction. Les résultats reviennent avec capture d'écran et boutons d'approbation/rejet.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Par téléphone */}
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-blue-800 mb-2">📱 Par numéro de téléphone</p>
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <code className="bg-white border border-blue-200 px-2 py-0.5 rounded font-mono text-xs">+229XXXXXXXX</code>
+                  <span className="text-gray-500">→</span>
+                  <span className="text-gray-700">activations CI</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <code className="bg-white border border-blue-200 px-2 py-0.5 rounded font-mono text-xs">+229XXXXXXXX paie act</code>
+                  <span className="text-gray-500">→</span>
+                  <span className="text-gray-700">activations manuelles (autres pays)</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <code className="bg-white border border-blue-200 px-2 py-0.5 rounded font-mono text-xs">+229XXXXXXXX pay lien</code>
+                  <span className="text-gray-500">→</span>
+                  <span className="text-gray-700">paiements lien manuels</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <code className="bg-white border border-blue-200 px-2 py-0.5 rounded font-mono text-xs">+229XXXXXXXX pcs</code>
+                  <span className="text-gray-500">→</span>
+                  <span className="text-gray-700">achats de code PCS</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <code className="bg-white border border-blue-200 px-2 py-0.5 rounded font-mono text-xs">+229XXXXXXXX act pcs</code>
+                  <span className="text-gray-500">→</span>
+                  <span className="text-gray-700">activations par code PCS</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Par ID transaction */}
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-blue-800 mb-2">🔖 Par ID de transaction</p>
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <code className="bg-white border border-blue-200 px-2 py-0.5 rounded font-mono text-xs">tx ABC123</code>
+                <span className="text-gray-400 text-xs">ou</span>
+                <code className="bg-white border border-blue-200 px-2 py-0.5 rounded font-mono text-xs">id ABC123</code>
+                <span className="text-gray-500">→</span>
+                <span className="text-gray-700">lien manuel + activation + SolvexPay</span>
+              </div>
+            </div>
+
+            {/* Par nom du payeur */}
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-blue-800 mb-2">👤 Par nom du payeur</p>
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <code className="bg-white border border-blue-200 px-2 py-0.5 rounded font-mono text-xs">nom Kouassi Jean</code>
+                <span className="text-gray-400 text-xs">ou</span>
+                <code className="bg-white border border-blue-200 px-2 py-0.5 rounded font-mono text-xs">name Kouassi</code>
+                <span className="text-gray-500">→</span>
+                <span className="text-gray-700">toutes les transactions de ce nom</span>
+              </div>
+            </div>
+
+            <div className="text-xs text-blue-700 bg-blue-100 rounded-lg p-2.5 border border-blue-200">
+              💡 <strong>Astuce :</strong> les recherches par téléphone comparent aussi les 8 derniers chiffres ; les recherches par nom et ID acceptent un fragment (ex : <code className="bg-white px-1 rounded">tx 5511</code> ou <code className="bg-white px-1 rounded">nom Kouassi</code>). Si vous tapez un message non reconnu, le bot vous renvoie automatiquement cette liste.
+            </div>
+          </CardContent>
+        </Card>
 
 
         {/* Summary cards linking to dedicated pages */}

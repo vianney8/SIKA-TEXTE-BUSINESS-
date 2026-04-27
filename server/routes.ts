@@ -3127,6 +3127,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           return res.sendStatus(200);
         }
+
+        // ── Fallback : message non reconnu → aide complète ────────────────────
+        const helpText =
+          `🤖 <b>Bot SIKA TEXTE — commandes disponibles</b>\n\n` +
+          `📱 <b>Par numéro de téléphone :</b>\n` +
+          `• <code>+229XXXXXXXX</code> → activations CI\n` +
+          `• <code>+229XXXXXXXX paie act</code> → activations manuelles\n` +
+          `• <code>+229XXXXXXXX pay lien</code> → paiements lien manuels\n` +
+          `• <code>+229XXXXXXXX pcs</code> → achats de code PCS\n` +
+          `• <code>+229XXXXXXXX act pcs</code> → activations par code PCS\n\n` +
+          `🔖 <b>Par ID de transaction :</b>\n` +
+          `• <code>tx ABC123</code> ou <code>id ABC123</code> → toutes les transactions (lien manuel, activation, SolvexPay)\n\n` +
+          `👤 <b>Par nom du payeur :</b>\n` +
+          `• <code>nom Kouassi Jean</code> ou <code>name Kouassi</code> → activations manuelles, paiements lien, SolvexPay, activations CI\n\n` +
+          `💡 <i>Astuce :</i> les recherches par téléphone comparent aussi les 8 derniers chiffres, et les recherches par nom/ID acceptent un fragment.`;
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ chat_id: chatId, text: helpText, parse_mode:'HTML' })
+        }).catch(()=>{});
+        return res.sendStatus(200);
       }
 
       // Handle inline button clicks (callback queries)
