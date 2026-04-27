@@ -52,7 +52,7 @@ function HexGrid({ dark = false }: { dark?: boolean }) {
 }
 
 /* ── Écran Accès Refusé (thème clair) ──────────────────────── */
-function AccessDenied() {
+function AccessDenied({ paymentInfo }: { paymentInfo?: { activationAmount?: string } }) {
   const [frame, setFrame] = useState(0);
   useEffect(() => {
     const t = setInterval(() => setFrame(f => (f + 1) % 3), 500);
@@ -226,7 +226,7 @@ export default function SpayNetwork() {
   const loadColor = serverLoad < 30 ? "#10b981" : serverLoad < 60 ? "#f59e0b" : "#ef4444";
 
   if (withdrawalData && !withdrawalData.isAccountActive) {
-    return <AccessDenied />;
+    return <AccessDenied paymentInfo={paymentInfo} />;
   }
 
   return (
@@ -276,7 +276,7 @@ export default function SpayNetwork() {
           <div className="grid grid-cols-3 gap-2">
             {[
               { label: "STATUT", value: "EN LIGNE", color: "#6ee7b7", icon: <Radio size={10} /> },
-              { label: "LATENCE", value: ping ? `${ping}ms` : "...", color: ping < 80 ? "#6ee7b7" : ping < 250 ? "#fcd34d" : "#fca5a5", icon: <Activity size={10} /> },
+              { label: "LATENCE", value: ping ? `${ping}ms` : "...", color: !ping ? "#94a3b8" : ping < 80 ? "#6ee7b7" : ping < 250 ? "#fcd34d" : "#fca5a5", icon: <Activity size={10} /> },
               { label: "CHARGE", value: `${serverLoad}%`, color: serverLoad < 30 ? "#6ee7b7" : serverLoad < 60 ? "#fcd34d" : "#fca5a5", icon: <Cpu size={10} /> },
             ].map((m, i) => (
               <div key={i} className="rounded-xl px-3 py-2.5"
