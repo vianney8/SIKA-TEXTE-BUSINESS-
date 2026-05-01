@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
-import { CheckCircle, ChevronLeft, ChevronRight, Copy, ExternalLink, ImageIcon, Loader2, Upload, XCircle, ShieldCheck, AlertTriangle, Info } from "lucide-react";
+import { CheckCircle, ChevronLeft, ChevronRight, Copy, ExternalLink, ImageIcon, Loader2, Upload, XCircle, ShieldCheck, AlertTriangle, Info, Wrench } from "lucide-react";
 
 // ─── Config pays & opérateurs ────────────────────────────────────────────────
 const COUNTRIES = [
@@ -90,6 +90,8 @@ export default function PaymentLinkPage() {
   type PayMode = "manual" | "redirect" | "solvexpay";
   const countryModes: Record<string, { mode: PayMode; redirectUrl: string }> = link?.countryModes ?? {};
   const ciMode: PayMode = link?.ciMode ?? "redirect";
+  const maintenanceMap: Record<string, boolean> = link?.maintenanceMap ?? {};
+  const isOpMaintenance = (c: string, op: string) => maintenanceMap[`${c}_${op}`] === true;
 
   const getMode = (c: string): PayMode => {
     if (!c) return "manual";
@@ -709,21 +711,39 @@ export default function PaymentLinkPage() {
               {selectedCountry.operators.map(op => {
                 const info = OPERATORS[op];
                 const selected = operator === op;
+                const inMaintenance = isOpMaintenance(country, op);
                 return (
-                  <button key={op} onClick={() => setOperator(op)}
+                  <button key={op}
+                    onClick={() => !inMaintenance && setOperator(op)}
+                    disabled={inMaintenance}
                     className={`w-full flex items-center gap-3 p-3.5 rounded-2xl border-2 text-left transition-all ${
-                      selected ? "border-blue-400 bg-blue-500/15" : "border-white/10 bg-white/5"
+                      inMaintenance
+                        ? "border-white/5 bg-white/3 opacity-50 cursor-not-allowed"
+                        : selected ? "border-blue-400 bg-blue-500/15" : "border-white/10 bg-white/5"
                     }`}>
                     <OperatorBadge code={op} size="sm" />
                     <div className="flex-1">
-                      <p className={`text-sm font-bold ${selected ? "text-white" : "text-white/70"}`}>{info.name}</p>
-                      <p className="text-[11px] text-white/30">{info.full}</p>
+                      <p className={`text-sm font-bold ${inMaintenance ? "text-white/30" : selected ? "text-white" : "text-white/70"}`}>{info.name}</p>
+                      {inMaintenance
+                        ? <p className="text-[10px] text-red-400 font-semibold">Indisponible — en maintenance</p>
+                        : <p className="text-[11px] text-white/30">{info.full}</p>
+                      }
                     </div>
-                    {selected && <CheckCircle size={16} className="text-blue-400 flex-shrink-0" />}
+                    {selected && !inMaintenance && <CheckCircle size={16} className="text-blue-400 flex-shrink-0" />}
                   </button>
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {/* Maintenance warning */}
+        {operator && isOpMaintenance(country, operator) && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-3.5 flex gap-3">
+            <Wrench size={15} className="text-red-400 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-red-300 leading-snug">
+              <strong>{selectedOp?.name}</strong> est actuellement en maintenance. Veuillez choisir un autre opérateur ou réessayer plus tard.
+            </p>
           </div>
         )}
 
@@ -830,7 +850,7 @@ export default function PaymentLinkPage() {
           </div>
         </div>
         <div className="bg-[#0f172a] px-4 pt-2 pb-4">
-          <button onClick={handleContinue} disabled={submitting || !country || !operator}
+          <button onClick={handleContinue} disabled={submitting || !country || !operator || isOpMaintenance(country, operator)}
             className="w-full py-4 rounded-2xl font-bold text-white text-base transition-all disabled:opacity-40 flex items-center justify-center gap-2"
             style={{ background: useRedirect && operator
               ? "linear-gradient(135deg, #ea580c, #f97316)"

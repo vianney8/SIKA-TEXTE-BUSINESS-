@@ -5084,9 +5084,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isManual = (link.manualMode || false) && globalManualEnabled;
       const isPcs = (linkId === 'd3e5479d' || linkId === 'codepcs' || linkId === '88cb6331');
 
+      // maintenanceMap partagé avec l'activation
+      const maintenanceSetting2 = settings.find((s: any) => s.key === 'operator_maintenance');
+      const maintenanceMap2: Record<string, boolean> = maintenanceSetting2?.value
+        ? JSON.parse(maintenanceSetting2.value) : {};
+
       // Modes pour tous les pays
       type PayMode2 = 'manual' | 'redirect' | 'solvexpay';
-      const otherCountries2 = ['bj','sn','bf','tg','cm','cog'];
+      const otherCountries2 = ['bj','sn','bf','tg','cm'];
       const countryModes: Record<string, { mode: PayMode2; redirectUrl: string }> = {
         CI: { mode: ciMode, redirectUrl: ciRedirectUrl },
       };
@@ -5111,6 +5116,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         manualMode: isManual,
         isPcs,
         countryModes,
+        maintenanceMap: maintenanceMap2,
       });
     } catch (err) {
       console.error('[PAYMENT-LINKS] Public get error:', err);
