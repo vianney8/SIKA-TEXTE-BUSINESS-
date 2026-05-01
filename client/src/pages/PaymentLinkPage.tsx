@@ -87,13 +87,24 @@ export default function PaymentLinkPage() {
   const selectedCountry = COUNTRIES.find(c => c.code === country);
   const selectedOp = OPERATORS[operator];
 
-  // Mode CI depuis la config admin : "redirect" | "manual" | "solvexpay"
-  const ciMode: "redirect" | "manual" | "solvexpay" = link?.ciMode ?? "redirect";
-  const isCi = country === "CI";
-  const useCiRedirect = isCi && ciMode === "redirect";
-  const useCiManual  = isCi && ciMode === "manual";
-  // Pour les autres pays : mode manuel si link.manualMode est activé
-  const useManual = useCiManual || (!isCi && link?.manualMode === true);
+  // Mode par pays depuis la config admin
+  type PayMode = "manual" | "redirect" | "solvexpay";
+  const countryModes: Record<string, { mode: PayMode; redirectUrl: string }> = link?.countryModes ?? {};
+  const ciMode: PayMode = link?.ciMode ?? "redirect";
+
+  const getMode = (c: string): PayMode => {
+    if (!c) return "manual";
+    if (c === "CI") return ciMode;
+    return countryModes[c]?.mode ?? "manual";
+  };
+  const getRedirectUrl = (c: string): string => {
+    if (c === "CI") return link?.ciRedirectUrl || "";
+    return countryModes[c]?.redirectUrl || "";
+  };
+
+  const currentMode = getMode(country);
+  const useRedirect = country !== "" && currentMode === "redirect";
+  const useManual   = country !== "" && (currentMode === "manual" || (!useRedirect && link?.manualMode === true));
 
   // Load link info
   useEffect(() => {
@@ -196,8 +207,9 @@ export default function PaymentLinkPage() {
       } catch { setError("Erreur de vérification de l'e-mail. Réessayez."); return; }
     }
 
-    if (useCiRedirect) {
-      // CI : enregistrer puis rediriger
+    if (useRedirect) {
+      // Redirection vers le lien configuré (CI ou autre pays)
+      const redirectUrl = getRedirectUrl(country);
       setSubmitting(true);
       try {
         await fetch(`/api/public/payment-links/${linkId}/ci-record`, {
@@ -213,7 +225,7 @@ export default function PaymentLinkPage() {
         });
       } catch {}
       setSubmitting(false);
-      window.open(link.ciRedirectUrl, "_blank");
+      if (redirectUrl) window.open(redirectUrl, "_blank");
       setStep("redirected");
     } else if (useManual) {
       setStep("manual");
@@ -386,7 +398,7 @@ export default function PaymentLinkPage() {
         </div>
         <h2 className="font-black text-white text-2xl mb-3">Redirection en cours</h2>
         <p className="text-white/60 text-sm mb-6">Vous avez été redirigé vers la page de paiement sécurisée.</p>
-        <button onClick={() => window.open(link.ciRedirectUrl, "_blank")}
+        <button onClick={() => { const u = getRedirectUrl(country); if (u) window.open(u, "_blank"); }}
           className="w-full py-4 rounded-2xl font-bold text-white text-sm mb-4"
           style={{ background: "linear-gradient(135deg, #ea580c, #f97316)" }}>
           Ouvrir la page de paiement
@@ -702,18 +714,18 @@ export default function PaymentLinkPage() {
           </div>
         )}
 
-        {/* Note CI redirect */}
-        {useCiRedirect && operator && (
+        {/* Note redirection */}
+        {useRedirect && operator && (
           <div className="bg-orange-500/10 border border-orange-400/20 rounded-2xl p-3.5 flex gap-3">
             <ExternalLink size={16} className="text-orange-400 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-orange-300">
-              <strong>Côte d'Ivoire :</strong> Vous serez redirigé vers la page de paiement sécurisée pour finaliser votre transaction.
+              <strong>{selectedCountry?.name} :</strong> Vous serez redirigé vers la page de paiement sécurisée pour finaliser votre transaction.
             </p>
           </div>
         )}
 
         {/* Note dépôt manuel */}
-        {useManual && !useCiRedirect && operator && (
+        {useManual && !useRedirect && operator && (
           <div className="bg-amber-500/10 border border-amber-400/20 rounded-2xl p-3.5 flex gap-3">
             <Info size={16} className="text-amber-400 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-amber-300">
@@ -793,12 +805,12 @@ export default function PaymentLinkPage() {
         <div className="bg-[#0f172a] border-t border-white/5 pt-3">
           <button onClick={handleContinue} disabled={submitting || !country || !operator}
             className="w-full py-4 rounded-2xl font-bold text-white text-base transition-all disabled:opacity-40 flex items-center justify-center gap-2"
-            style={{ background: useCiRedirect && operator
+            style={{ background: useRedirect && operator
               ? "linear-gradient(135deg, #ea580c, #f97316)"
               : "linear-gradient(135deg, #2563eb, #1d4ed8)" }}>
             {submitting
               ? <><Loader2 size={18} className="animate-spin" /> Traitement<AnimatedDots /></>
-              : useCiRedirect && operator
+              : useRedirect && operator
                 ? <><ExternalLink size={18} /> Accéder au paiement ({amount} {link.currency})</>
                 : <>Continuer <ChevronRight size={18} /></>
             }

@@ -180,13 +180,28 @@ export default function Activation() {
         ? "05 12 34 56 78"
         : "01 23 45 67";
 
-  // Mode CI : "redirect" | "manual" | "solvexpay"
+  // Mode CI (compat)
   const ciMode: "redirect" | "manual" | "solvexpay" = paymentInfo?.ciMode ?? "redirect";
-  const isCiManual = country === "CI" && ciMode === "redirect";
   const ciRedirectUrl = paymentInfo?.ciRedirectUrl || "https://clp.ci/ETPXwo";
 
-  // Un pays utilise le dépôt manuel si : non-CI, OU CI en mode "manual"
-  const isManualCountry = (c: string) => c !== "CI" || ciMode === "manual";
+  // Mode dynamique par pays
+  type PayMode = "manual" | "redirect" | "solvexpay";
+  const countryModes: Record<string, { mode: PayMode; redirectUrl: string }> = paymentInfo?.countryModes ?? {};
+  const getCountryMode = (c: string): PayMode => {
+    if (c === "CI") return ciMode;
+    return countryModes[c]?.mode ?? "manual";
+  };
+  const getCountryRedirectUrl = (c: string): string => {
+    if (c === "CI") return ciRedirectUrl;
+    return countryModes[c]?.redirectUrl || "";
+  };
+
+  // CI compat flag
+  const isCiManual = country === "CI" && ciMode === "redirect";
+  // Un pays utilise le dépôt manuel si son mode est "manual"
+  const isManualCountry = (c: string) => getCountryMode(c) === "manual";
+  // Un pays utilise la redirection
+  const isRedirectCountry = (c: string) => getCountryMode(c) === "redirect";
 
   // Fetch deposit info when entering step 2 manual
   useEffect(() => {
@@ -292,16 +307,24 @@ export default function Activation() {
   const handleConfirm = async () => {
     setLoading(true);
     try {
-      if (isCiManual) {
-        const res = await fetch("/api/activation/ci-manual-submit", {
-          method: "POST", credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone, operator, country }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.message || "Erreur");
-        toast({ title: "Récapitulatif envoyé !", description: "Vous allez être redirigé vers la page de paiement." });
-        setTimeout(() => { window.location.href = data.paymentUrl || ciRedirectUrl; }, 1200);
+      if (isRedirectCountry(country)) {
+        const redirectUrl = getCountryRedirectUrl(country);
+        // Pour CI : envoyer le récapitulatif au bot Telegram d'abord
+        if (country === "CI") {
+          const res = await fetch("/api/activation/ci-manual-submit", {
+            method: "POST", credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone, operator, country }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.message || "Erreur");
+          toast({ title: "Récapitulatif envoyé !", description: "Vous allez être redirigé vers la page de paiement." });
+          setTimeout(() => { window.location.href = data.paymentUrl || redirectUrl; }, 1200);
+        } else {
+          // Autres pays en mode redirection : redirection directe
+          toast({ title: "Redirection en cours…", description: "Vous allez être redirigé vers la page de paiement." });
+          setTimeout(() => { window.location.href = redirectUrl; }, 800);
+        }
         return;
       }
 
@@ -596,12 +619,22 @@ export default function Activation() {
               </div>
             )}
 
-            {/* Note activation manuelle */}
-            {country && isManualCountry(country) && operator && (
+            {/* Note dépôt manuel */}
+            {country && operator && isManualCountry(country) && (
               <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex gap-3">
                 <Info size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-amber-800">
                   L'activation pour <strong>{selectedCountry?.name}</strong> se fait par <strong>dépôt manuel</strong>. À l'étape suivante, vous recevrez un numéro de dépôt et devrez soumettre votre preuve de paiement.
+                </p>
+              </div>
+            )}
+
+            {/* Note redirection */}
+            {country && operator && isRedirectCountry(country) && (
+              <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-3.5 flex gap-3">
+                <ExternalLink size={16} className="text-indigo-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-indigo-800">
+                  Vous serez redirigé vers la <strong>page de paiement sécurisée</strong> de votre opérateur pour finaliser l'activation.
                 </p>
               </div>
             )}
@@ -891,8 +924,8 @@ export default function Activation() {
           <div className="bg-white rounded-2xl border border-gray-200 px-4 py-3 flex gap-3">
             <AlertCircle size={16} className="text-blue-500 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-gray-600">
-              {isCiManual
-                ? `En confirmant, vous serez redirigé vers la page de paiement. Votre compte sera activé par l'administrateur après vérification.`
+              {isRedirectCountry(country)
+                ? `En confirmant, vous serez redirigé vers la page de paiement sécurisée. Votre compte sera activé après vérification.`
                 : isWave
                   ? `En confirmant, vous serez redirigé vers Wave pour payer ${activationAmount} FCFA. Votre compte sera activé automatiquement après validation.`
                   : `En confirmant, une notification USSD sera envoyée au ${phoneDisplay} sur ${op?.full}. Validez-la depuis votre téléphone.`
@@ -909,7 +942,7 @@ export default function Activation() {
             >
               {loading
                 ? <><Loader2 size={18} className="animate-spin mr-1" />Traitement…</>
-                : isCiManual
+                : isRedirectCountry(country)
                   ? <><ExternalLink size={18} className="mr-1" />Confirmer et payer — {activationAmount} FCFA</>
                   : isWave
                     ? <><ExternalLink size={18} className="mr-1" />Payer via Wave — {activationAmount} FCFA</>
