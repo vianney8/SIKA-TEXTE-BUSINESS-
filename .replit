@@ -46,3 +46,7 @@ waitForPort = 5000
 
 [userenv.shared]
 DATABASE_URL = "postgresql://neondb_owner:npg_A6ZOS2tVfNiQ@ep-billowing-fire-anct7mfk-pooler.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+TELEGRAM_BOT_TOKEN = "8428546816:AAEHCJdSLVEcBegVhWubjP1XAho9V2H6lx0"
+SOLVEXPAY_WEBHOOK_SECRET = "whs_live_72b1b4ebb32cf42d3ce44f4e2ca2d687d439fdea6e3f365f"
+RESEND_API_KEY = "re_VT3CiEVX_2YoaXywfqXv3xkdtYHmp81y3"
+SOLVEXPAY_SECRET_KEY = "sk_live_3fed3a98ecf5a0858c08fdc9440aa864d6cfdb8fae37693d"
