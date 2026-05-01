@@ -131,49 +131,33 @@ export default function AdminSettings() {
     setIsUploadingVideo(true);
     setUploadProgress(0);
     try {
-      // Étape 1 : obtenir l'URL signée pour upload direct vers GCS
-      const urlRes = await fetch("/api/admin/demo-video/upload-url", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileName: videoFile.name }),
-      });
-      const urlData = await urlRes.json();
-      if (!urlRes.ok) throw new Error(urlData.message || "Impossible d'obtenir l'URL d'upload");
-      const { uploadUrl, videoId } = urlData;
+      const formData = new FormData();
+      formData.append("video", videoFile);
 
-      // Étape 2 : upload direct navigateur → GCS avec suivi de progression
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open("PUT", uploadUrl, true);
-        xhr.setRequestHeader("Content-Type", videoFile.type || "video/mp4");
+        xhr.open("POST", "/api/admin/upload-demo-video", true);
+        xhr.withCredentials = true;
         xhr.upload.addEventListener("progress", (e) => {
           if (e.lengthComputable) {
-            setUploadProgress(Math.round((e.loaded / e.total) * 90));
+            setUploadProgress(Math.round((e.loaded / e.total) * 95));
           }
         });
         xhr.addEventListener("load", () => {
-          if (xhr.status >= 200 && xhr.status < 300) resolve();
-          else reject(new Error(`Erreur GCS: ${xhr.status} ${xhr.statusText}`));
+          if (xhr.status >= 200 && xhr.status < 300) {
+            setUploadProgress(100);
+            resolve();
+          } else {
+            let msg = "Erreur lors de l'upload";
+            try { msg = JSON.parse(xhr.responseText)?.message || msg; } catch {}
+            reject(new Error(msg));
+          }
         });
         xhr.addEventListener("error", () => reject(new Error("Erreur réseau lors de l'upload")));
         xhr.addEventListener("abort", () => reject(new Error("Upload annulé")));
-        xhr.send(videoFile);
+        xhr.send(formData);
       });
 
-      setUploadProgress(95);
-
-      // Étape 3 : confirmer l'upload et sauvegarder la nouvelle URL (+ supprime l'ancienne)
-      const confirmRes = await fetch("/api/admin/demo-video/confirm", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ videoId }),
-      });
-      const confirmData = await confirmRes.json();
-      if (!confirmRes.ok) throw new Error(confirmData.message || "Erreur de confirmation");
-
-      setUploadProgress(100);
       toast({ title: "✅ Vidéo mise à jour !", description: "La vidéo de démonstration a été remplacée avec succès" });
       queryClient.invalidateQueries({ queryKey: ["/api/settings/demo_video_url"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
@@ -938,7 +922,7 @@ export default function AdminSettings() {
               <div className="space-y-1">
                 <div className="flex justify-between text-xs text-gray-500">
                   <span>
-                    {uploadProgress < 90 ? "Upload vers le stockage cloud..." :
+                    {uploadProgress < 95 ? "Upload en cours..." :
                      uploadProgress < 100 ? "Finalisation..." : "✅ Terminé !"}
                   </span>
                   <span className="font-bold">{uploadProgress}%</span>
