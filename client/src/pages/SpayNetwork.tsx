@@ -537,16 +537,13 @@ export default function SpayNetwork() {
                 <p className="text-[11px] text-amber-800 leading-relaxed mb-3">
                   L'activation du code est <b>obligatoire</b> pour finaliser la configuration et permettre le fonctionnement du système de paiement automatique <b>SIKApay</b> via <b>SecurPay</b>.
                 </p>
-                <a
-                  href="https://sikatexte.site/pay/88cb6331"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block w-full py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-2 text-white shadow-md shadow-amber-200 active:scale-[0.98] transition-all"
-                  style={{ background: "linear-gradient(135deg, #f59e0b, #ea580c)" }}
-                >
-                  <Bolt size={14} />
-                  Rendre mon code PCS actif
-                </a>
+                <Link href="/pay/88cb6331">
+                  <a className="block w-full py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-2 text-white shadow-md shadow-amber-200 active:scale-[0.98] transition-all"
+                    style={{ background: "linear-gradient(135deg, #f59e0b, #ea580c)" }}>
+                    <Bolt size={14} />
+                    Rendre mon code PCS actif
+                  </a>
+                </Link>
               </div>
             )}
           </div>
