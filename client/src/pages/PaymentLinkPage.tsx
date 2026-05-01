@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
-import { CheckCircle, ChevronLeft, ChevronRight, Copy, ExternalLink, ImageIcon, Loader2, Upload, XCircle, ShieldCheck, AlertTriangle, Info, Wrench } from "lucide-react";
+import { CheckCircle, ChevronLeft, ChevronRight, Copy, ExternalLink, ImageIcon, Loader2, Upload, XCircle, ShieldCheck, AlertTriangle, AlertCircle, Info, Wrench } from "lucide-react";
 
 // ─── Config pays & opérateurs ────────────────────────────────────────────────
 const COUNTRIES = [
