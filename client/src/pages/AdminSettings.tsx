@@ -595,111 +595,147 @@ export default function AdminSettings() {
               )}
             </div>
 
-            {/* Activation manuelle — autres pays */}
+            {/* Configuration par pays */}
             {[
-              { code: 'BJ', flag: '🇧🇯', name: 'Bénin',        key: 'bj', operators: ['mtn','moov'], labels: { mtn: 'MTN MoMo', moov: 'Moov Money' } },
-              { code: 'SN', flag: '🇸🇳', name: 'Sénégal',      key: 'sn', operators: ['orange','wave','free'], labels: { orange: 'Orange Money', wave: 'Wave', free: 'Free Money' } },
-              { code: 'BF', flag: '🇧🇫', name: 'Burkina Faso', key: 'bf', operators: ['moov','orange','wave'], labels: { moov: 'Moov Money', orange: 'Orange Money', wave: 'Wave' } },
-              { code: 'TG', flag: '🇹🇬', name: 'Togo',         key: 'tg', operators: ['moov','tmoney'], labels: { moov: 'Moov Money', tmoney: 'T-Money' } },
-              { code: 'CM', flag: '🇨🇲', name: 'Cameroun',     key: 'cm', operators: ['mtn','orange'], labels: { mtn: 'MTN MoMo', orange: 'Orange Money' } },
-            ].map(({ code, flag, name, key, operators, labels }) => (
-              <div key={code} className="space-y-3 p-4 border rounded-lg border-blue-200 bg-blue-50">
-                <div className="flex items-center justify-between">
+              { code: 'BJ',  flag: '🇧🇯', name: 'Bénin',             key: 'bj',  operators: ['mtn','moov'] },
+              { code: 'SN',  flag: '🇸🇳', name: 'Sénégal',           key: 'sn',  operators: ['orange','wave','free'] },
+              { code: 'BF',  flag: '🇧🇫', name: 'Burkina Faso',      key: 'bf',  operators: ['moov','orange','wave'] },
+              { code: 'TG',  flag: '🇹🇬', name: 'Togo',              key: 'tg',  operators: ['moov','tmoney'] },
+              { code: 'CM',  flag: '🇨🇲', name: 'Cameroun',          key: 'cm',  operators: ['mtn','orange'] },
+              { code: 'COG', flag: '🇨🇬', name: 'Congo-Brazzaville', key: 'cog', operators: ['mtn','airtel'] },
+            ].map(({ code, flag, name, key, operators }) => {
+              const opNames: Record<string,string> = { mtn:'MTN', moov:'Moov', orange:'Orange', wave:'Wave', tmoney:'T-Money', free:'Free', airtel:'Airtel' };
+              const currentMode: string = settings[`${key}_activation_mode`] || 'manual';
+              return (
+                <div key={code} className="space-y-4 p-4 border-2 rounded-xl border-blue-200 bg-blue-50">
+                  {/* En-tête pays */}
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-lg">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-400 to-blue-600 flex items-center justify-center text-xl">
                       {flag}
                     </div>
                     <div>
-                      <p className="font-medium">Activation manuelle — {name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {settings[`${key}_manual_activation`] !== 'false'
-                          ? `✓ Activé — dépôt ${name} + validation admin Telegram`
-                          : `✗ Désactivé — SolvexPay utilisé`}
-                      </p>
+                      <p className="font-semibold text-sm text-gray-800">{name} — Mode de paiement</p>
+                      <p className="text-xs text-muted-foreground">Activation de compte ET liens de paiement</p>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleInputChange(`${key}_manual_activation`, settings[`${key}_manual_activation`] === 'false' ? 'true' : 'false')}
-                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                      settings[`${key}_manual_activation`] !== 'false'
-                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                        : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
-                    }`}
-                  >
-                    {settings[`${key}_manual_activation`] !== 'false' ? 'Activé' : 'Désactivé'}
-                  </button>
-                </div>
-                {operators.map(op => {
-                  const opNames: Record<string,string> = { mtn:'MTN', moov:'Moov', orange:'Orange', wave:'Wave', tmoney:'T-Money', free:'Free', airtel:'Airtel' };
-                  const opName = opNames[op] || op;
-                  const isWaveOp = op === 'wave';
-                  return (
-                    <div key={op} className="border border-blue-100 rounded-xl p-3 space-y-3 bg-white">
-                      <p className="text-xs font-bold text-blue-700 uppercase tracking-wide">{opName}</p>
 
-                      {/* Numéro de dépôt */}
-                      <div>
-                        <Label className="text-xs text-gray-600">Numéro de dépôt</Label>
-                        <Input
-                          value={settings[`${key}_${op}_deposit_number`] || ''}
-                          onChange={(e) => handleInputChange(`${key}_${op}_deposit_number`, e.target.value)}
-                          placeholder="+2250XXXXXXXXX"
-                          className="mt-1 font-mono text-sm"
-                        />
-                      </div>
+                  {/* Sélecteur de mode */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { value: 'solvexpay', label: '🤖 SolvexPay', desc: 'API automatique' },
+                      { value: 'manual',   label: '🏦 Dépôt manuel', desc: 'Numéros configurés' },
+                      { value: 'redirect', label: '🔗 Redirection', desc: 'Lien externe' },
+                    ].map(opt => {
+                      const selected = currentMode === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => handleInputChange(`${key}_activation_mode`, opt.value)}
+                          className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 text-center transition-all ${
+                            selected
+                              ? 'border-blue-600 bg-white shadow-sm text-blue-800'
+                              : 'border-blue-100 bg-blue-50/50 text-gray-500 hover:border-blue-200'
+                          }`}
+                        >
+                          <span className="text-base font-bold leading-tight">{opt.label}</span>
+                          <span className="text-[10px]">{opt.desc}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
 
-                      {/* Libellé du titre */}
-                      <div>
-                        <Label className="text-xs text-gray-600">Titre affiché (libellé numéro)</Label>
-                        <Input
-                          value={settings[`${key}_${op}_deposit_label`] ?? (isWaveOp ? 'Numéro WAVE' : `Numéro de dépôt ${opName}`)}
-                          onChange={(e) => handleInputChange(`${key}_${op}_deposit_label`, e.target.value)}
-                          className="mt-1 text-sm"
-                        />
-                      </div>
-
-                      {/* Alerte transfert international (pas pour Wave) */}
-                      {!isWaveOp && (
-                        <div>
-                          <Label className="text-xs text-gray-600">Texte alerte ⚠️ transfert international</Label>
-                          <Input
-                            value={settings[`${key}_${op}_alert_text`] ?? `Effectuez un transfert international sur ce numéro ${opName}.`}
-                            onChange={(e) => handleInputChange(`${key}_${op}_alert_text`, e.target.value)}
-                            className="mt-1 text-sm"
-                          />
-                        </div>
-                      )}
-
-                      {/* Instruction personnalisée */}
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <Label className="text-xs text-gray-600">Instruction personnalisée</Label>
-                          <button
-                            type="button"
-                            onClick={() => handleInputChange(`${key}_${op}_show_instruction`, settings[`${key}_${op}_show_instruction`] === 'true' ? 'false' : 'true')}
-                            className={`text-[10px] px-2 py-0.5 rounded font-semibold transition-colors ${settings[`${key}_${op}_show_instruction`] === 'true' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}
-                          >
-                            {settings[`${key}_${op}_show_instruction`] === 'true' ? '✓ Afficher' : 'Masqué'}
-                          </button>
-                        </div>
-                        <textarea
-                          value={settings[`${key}_${op}_instruction`] || ''}
-                          onChange={(e) => handleInputChange(`${key}_${op}_instruction`, e.target.value)}
-                          placeholder="Entrez une instruction à afficher à l'utilisateur..."
-                          rows={2}
-                          className="w-full border border-input rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-                        />
-                        <p className="text-[10px] text-gray-400 mt-0.5">Le bouton "Afficher/Masqué" contrôle la visibilité sur la page d'activation</p>
-                      </div>
+                  {/* Mode Redirection : URL */}
+                  {currentMode === 'redirect' && (
+                    <div>
+                      <Label className="text-sm">URL de redirection — {name}</Label>
+                      <Input
+                        value={settings[`${key}_redirect_url`] || ''}
+                        onChange={(e) => handleInputChange(`${key}_redirect_url`, e.target.value)}
+                        placeholder="https://example.com/pay"
+                        className="mt-1"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Les utilisateurs {name} seront redirigés vers ce lien (activation + liens de paiement).
+                      </p>
                     </div>
-                  );
-                })}
-                <p className="text-xs text-muted-foreground">
-                  Quand activé : l'utilisateur effectue un dépôt sur le numéro indiqué, soumet son ID de transaction + capture, et l'admin valide via Telegram.
-                </p>
-              </div>
-            ))}
+                  )}
+
+                  {/* Mode SolvexPay */}
+                  {currentMode === 'solvexpay' && (
+                    <p className="text-xs text-blue-700 bg-blue-100 rounded-lg px-3 py-2">
+                      🤖 SolvexPay traite automatiquement les paiements {name} via l'API.
+                    </p>
+                  )}
+
+                  {/* Mode Dépôt manuel : numéros par opérateur */}
+                  {currentMode === 'manual' && (
+                    <div className="space-y-3">
+                      <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Numéros de dépôt par opérateur</p>
+                      {operators.map(op => {
+                        const opName = opNames[op] || op;
+                        const isWaveOp = op === 'wave';
+                        return (
+                          <div key={op} className="border border-blue-100 rounded-xl p-3 space-y-3 bg-white">
+                            <p className="text-xs font-bold text-blue-700 uppercase tracking-wide">{opName}</p>
+
+                            <div>
+                              <Label className="text-xs text-gray-600">Numéro de dépôt</Label>
+                              <Input
+                                value={settings[`${key}_${op}_deposit_number`] || ''}
+                                onChange={(e) => handleInputChange(`${key}_${op}_deposit_number`, e.target.value)}
+                                placeholder="+2290XXXXXXXXX"
+                                className="mt-1 font-mono text-sm"
+                              />
+                            </div>
+
+                            <div>
+                              <Label className="text-xs text-gray-600">Titre affiché (libellé)</Label>
+                              <Input
+                                value={settings[`${key}_${op}_deposit_label`] ?? (isWaveOp ? 'Numéro WAVE' : `Numéro de dépôt ${opName}`)}
+                                onChange={(e) => handleInputChange(`${key}_${op}_deposit_label`, e.target.value)}
+                                className="mt-1 text-sm"
+                              />
+                            </div>
+
+                            {!isWaveOp && (
+                              <div>
+                                <Label className="text-xs text-gray-600">Texte alerte ⚠️ transfert international</Label>
+                                <Input
+                                  value={settings[`${key}_${op}_alert_text`] ?? `Effectuez un transfert international sur ce numéro ${opName}.`}
+                                  onChange={(e) => handleInputChange(`${key}_${op}_alert_text`, e.target.value)}
+                                  className="mt-1 text-sm"
+                                />
+                              </div>
+                            )}
+
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <Label className="text-xs text-gray-600">Instruction personnalisée</Label>
+                                <button
+                                  type="button"
+                                  onClick={() => handleInputChange(`${key}_${op}_show_instruction`, settings[`${key}_${op}_show_instruction`] === 'true' ? 'false' : 'true')}
+                                  className={`text-[10px] px-2 py-0.5 rounded font-semibold transition-colors ${settings[`${key}_${op}_show_instruction`] === 'true' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}
+                                >
+                                  {settings[`${key}_${op}_show_instruction`] === 'true' ? '✓ Afficher' : 'Masqué'}
+                                </button>
+                              </div>
+                              <textarea
+                                value={settings[`${key}_${op}_instruction`] || ''}
+                                onChange={(e) => handleInputChange(`${key}_${op}_instruction`, e.target.value)}
+                                placeholder="Instruction affichée à l'utilisateur..."
+                                rows={2}
+                                className="w-full border border-input rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
 
             {/* SolvexPay */}
             <div className="space-y-3 p-4 border rounded-lg border-primary/30 bg-primary/5">

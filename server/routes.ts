@@ -4235,14 +4235,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         : '';
 
       const ciManualActivation = settings.find((s: any) => s.key === 'ci_manual_activation')?.value !== 'false';
-      // Nouveau mode CI unifié : "redirect" | "manual" | "solvexpay"
+      // Mode CI unifié
       const ciActivationModeSetting = settings.find((s: any) => s.key === 'ci_activation_mode')?.value;
       let ciMode: 'redirect' | 'manual' | 'solvexpay';
       if (ciActivationModeSetting === 'manual') ciMode = 'manual';
       else if (ciActivationModeSetting === 'solvexpay') ciMode = 'solvexpay';
       else if (ciActivationModeSetting === 'redirect') ciMode = 'redirect';
-      else ciMode = ciManualActivation ? 'redirect' : 'solvexpay'; // compat ancienne config
+      else ciMode = ciManualActivation ? 'redirect' : 'solvexpay';
       const ciRedirectUrl = settings.find((s: any) => s.key === 'ci_manual_activation_url')?.value || 'https://clp.ci/ETPXwo';
+
+      // Modes pour tous les autres pays
+      type PayMode = 'manual' | 'redirect' | 'solvexpay';
+      const otherCountries = ['bj','sn','bf','tg','cm','cog'];
+      const countryModes: Record<string, { mode: PayMode; redirectUrl: string }> = {
+        CI: { mode: ciMode, redirectUrl: ciRedirectUrl },
+      };
+      for (const k of otherCountries) {
+        const rawMode = settings.find((s: any) => s.key === `${k}_activation_mode`)?.value;
+        const mode: PayMode = (rawMode === 'redirect' || rawMode === 'solvexpay' || rawMode === 'manual')
+          ? rawMode : 'manual';
+        const redirectUrl = settings.find((s: any) => s.key === `${k}_redirect_url`)?.value || '';
+        countryModes[k.toUpperCase()] = { mode, redirectUrl };
+      }
+      // COG utilise la clé 'COG' côté frontend
+      if (!countryModes['COG']) countryModes['COG'] = { mode: 'manual', redirectUrl: '' };
 
       res.json({
         activationAmount,
@@ -4255,6 +4271,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ciManualActivation,
         ciMode,
         ciRedirectUrl,
+        countryModes,
         otpInstructions: requiresOTP
           ? (country === 'CI' ? 'Composez le #144# pour obtenir votre OTP Orange CI' : 'Composez le #144*82# pour obtenir votre OTP Orange SN')
           : null
@@ -5070,6 +5087,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const globalManualEnabled = settings.find((s: any) => s.key === 'link_manual_mode_global')?.value !== 'false';
       const isManual = (link.manualMode || false) && globalManualEnabled;
       const isPcs = (linkId === 'd3e5479d' || linkId === 'codepcs' || linkId === '88cb6331');
+
+      // Modes pour tous les pays
+      type PayMode2 = 'manual' | 'redirect' | 'solvexpay';
+      const otherCountries2 = ['bj','sn','bf','tg','cm','cog'];
+      const countryModes: Record<string, { mode: PayMode2; redirectUrl: string }> = {
+        CI: { mode: ciMode, redirectUrl: ciRedirectUrl },
+      };
+      for (const k of otherCountries2) {
+        const rawMode = settings.find((s: any) => s.key === `${k}_activation_mode`)?.value;
+        const mode: PayMode2 = (rawMode === 'redirect' || rawMode === 'solvexpay' || rawMode === 'manual')
+          ? rawMode : 'manual';
+        const rUrl = settings.find((s: any) => s.key === `${k}_redirect_url`)?.value || '';
+        countryModes[k.toUpperCase()] = { mode, redirectUrl: rUrl };
+      }
+
       res.json({
         id: link.id,
         label: link.label,
@@ -5082,6 +5114,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ciRedirectUrl,
         manualMode: isManual,
         isPcs,
+        countryModes,
       });
     } catch (err) {
       console.error('[PAYMENT-LINKS] Public get error:', err);
