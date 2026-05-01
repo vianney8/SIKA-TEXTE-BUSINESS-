@@ -442,7 +442,7 @@ export default function PaymentLinkPage() {
     const depositNumber = depositInfo?.depositNumber || "";
     const depositLabel = depositInfo?.depositLabel || `Numéro ${selectedOp?.name || ""}`;
     return (
-      <div className="min-h-screen pb-28" style={BG}>
+      <div className="min-h-screen pb-60" style={BG}>
         <style>{`@keyframes bounce { 0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1} }`}</style>
 
         {/* Header */}
@@ -633,7 +633,7 @@ export default function PaymentLinkPage() {
 
   // ── Main form (Step 1) ───────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen pb-28" style={BG}>
+    <div className="min-h-screen pb-60" style={BG}>
       <style>{`@keyframes bounce { 0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1} }`}</style>
 
       {/* Header */}

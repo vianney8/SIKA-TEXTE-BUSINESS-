@@ -509,7 +509,7 @@ export default function Activation() {
         <UpayHeader amount={activationAmount} />
         <div className="-mt-0 bg-gray-50 overflow-hidden">
           <StepIndicator step={1} manual={isManualCountry(country)} />
-          <div className="px-5 pt-4 pb-28 space-y-5 max-w-md mx-auto">
+          <div className="px-5 pt-4 pb-60 space-y-5 max-w-md mx-auto">
 
             {/* Sélection pays */}
             <div>
@@ -665,7 +665,7 @@ export default function Activation() {
         <UpayHeader amount={activationAmount} />
         <div className="bg-gray-50 overflow-hidden">
           <StepIndicator step={2} manual={true} />
-          <div className="px-5 pt-4 pb-28 space-y-4 max-w-md mx-auto">
+          <div className="px-5 pt-4 pb-60 space-y-4 max-w-md mx-auto">
 
             {/* Back button */}
             <button onClick={() => setStep(1)} className="flex items-center gap-1.5 text-blue-700 text-sm font-semibold">
@@ -884,7 +884,7 @@ export default function Activation() {
       )}
       <div className="bg-gray-50 overflow-hidden">
         <StepIndicator step={3} manual={false} />
-        <div className="px-5 pt-4 pb-28 space-y-4 max-w-md mx-auto">
+        <div className="px-5 pt-4 pb-60 space-y-4 max-w-md mx-auto">
           <Card className="border-0 shadow-xl rounded-3xl overflow-hidden">
             <div className="px-5 py-4 bg-white border-b border-gray-100 flex items-center justify-between">
               <p className="font-bold text-gray-800">Récapitulatif du paiement</p>
