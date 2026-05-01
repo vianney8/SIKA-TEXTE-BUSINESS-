@@ -1,6 +1,6 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 const FROM_EMAIL = "support <support@sikatexte.site>";
 
@@ -15,6 +15,7 @@ export function generateCode(): string {
 }
 
 export async function sendVerificationEmail(to: string, fullName: string, code: string): Promise<boolean> {
+  if (!resend) { console.warn("[EMAIL] RESEND_API_KEY not set, skipping email"); return false; }
   try {
     const { error } = await resend.emails.send({
       from: FROM_EMAIL,
@@ -123,6 +124,7 @@ export async function sendPcsEmail(params: {
   pcsCode: string;
   issuedAt: Date;
 }): Promise<boolean> {
+  if (!resend) { console.warn("[EMAIL] RESEND_API_KEY not set, skipping email"); return false; }
   const { to, firstName, lastName, countryCode, pcsCode, issuedAt } = params;
   const countryName = COUNTRY_NAMES[countryCode] || countryCode;
   const dateStr = issuedAt.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -287,6 +289,7 @@ export async function sendPcsEmailBatch(params: {
   pcsCodesWithStatus: { code: string; status: 'actif' | 'inactif' }[];
   issuedAt: Date;
 }): Promise<boolean> {
+  if (!resend) { console.warn("[EMAIL] RESEND_API_KEY not set, skipping email"); return false; }
   const { to, firstName, lastName, countryCode, pcsCodesWithStatus, issuedAt } = params;
   const countryName = COUNTRY_NAMES[countryCode] || countryCode;
   const dateStr = issuedAt.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -466,6 +469,7 @@ export async function sendPcsEmailBatch(params: {
 }
 
 export async function sendPasswordResetEmail(to: string, fullName: string, code: string): Promise<boolean> {
+  if (!resend) { console.warn("[EMAIL] RESEND_API_KEY not set, skipping email"); return false; }
   try {
     const { error } = await resend.emails.send({
       from: FROM_EMAIL,
