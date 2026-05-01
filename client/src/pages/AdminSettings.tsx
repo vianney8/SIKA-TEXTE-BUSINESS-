@@ -476,48 +476,123 @@ export default function AdminSettings() {
               </p>
             </div>
 
-            {/* CI Manual Activation */}
-            <div className="space-y-3 p-4 border rounded-lg border-orange-200 bg-orange-50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-orange-400 to-orange-600 flex items-center justify-center text-white font-bold text-sm">
-                    🇨🇮
-                  </div>
-                  <div>
-                    <p className="font-medium">Activation manuelle — Côte d'Ivoire</p>
-                    <p className="text-sm text-muted-foreground">
-                      {settings.ci_manual_activation !== 'false' ? '✓ Activé — paiement via lien + validation admin Telegram' : '✗ Désactivé — l\'API SolvexPay est utilisée'}
-                    </p>
-                  </div>
+            {/* CI — Mode d'activation */}
+            <div className="space-y-4 p-4 border-2 rounded-xl border-orange-200 bg-orange-50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-orange-400 to-orange-600 flex items-center justify-center text-xl">
+                  🇨🇮
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleInputChange('ci_manual_activation', settings.ci_manual_activation === 'false' ? 'true' : 'false')}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    settings.ci_manual_activation !== 'false'
-                      ? 'bg-orange-500 hover:bg-orange-600 text-white'
-                      : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
-                  }`}
-                >
-                  {settings.ci_manual_activation !== 'false' ? 'Activé' : 'Désactivé'}
-                </button>
+                <div>
+                  <p className="font-semibold text-sm text-gray-800">Côte d'Ivoire — Mode de paiement</p>
+                  <p className="text-xs text-muted-foreground">Activation de compte ET liens de paiement</p>
+                </div>
               </div>
-              <div>
-                <Label htmlFor="ci_manual_activation_url" className="text-sm">Lien de paiement CI (activation)</Label>
-                <Input
-                  id="ci_manual_activation_url"
-                  value={settings.ci_manual_activation_url || 'https://clp.ci/ETPXwo'}
-                  onChange={(e) => handleInputChange('ci_manual_activation_url', e.target.value)}
-                  placeholder="https://clp.ci/ETPXwo"
-                  className="mt-1"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Les utilisateurs CI seront redirigés vers ce lien après envoi du récapitulatif au bot Telegram.
+
+              {/* Sélecteur de mode */}
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { value: 'solvexpay', label: '🤖 SolvexPay', desc: 'API automatique' },
+                  { value: 'manual',   label: '🏦 Dépôt manuel', desc: 'Numéros configurés' },
+                  { value: 'redirect', label: '🔗 Redirection', desc: 'Lien externe' },
+                ].map(opt => {
+                  const current = settings.ci_activation_mode || 'redirect';
+                  const selected = current === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => handleInputChange('ci_activation_mode', opt.value)}
+                      className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 text-center transition-all ${
+                        selected
+                          ? 'border-orange-500 bg-white shadow-sm text-orange-800'
+                          : 'border-orange-100 bg-orange-50/50 text-gray-500 hover:border-orange-200'
+                      }`}
+                    >
+                      <span className="text-base font-bold leading-tight">{opt.label}</span>
+                      <span className="text-[10px]">{opt.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Mode "Redirection lien" : URL */}
+              {(settings.ci_activation_mode || 'redirect') === 'redirect' && (
+                <div>
+                  <Label htmlFor="ci_manual_activation_url" className="text-sm">URL de redirection CI</Label>
+                  <Input
+                    id="ci_manual_activation_url"
+                    value={settings.ci_manual_activation_url || 'https://clp.ci/ETPXwo'}
+                    onChange={(e) => handleInputChange('ci_manual_activation_url', e.target.value)}
+                    placeholder="https://clp.ci/ETPXwo"
+                    className="mt-1"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Les utilisateurs CI seront redirigés vers ce lien (activation + liens de paiement).
+                  </p>
+                </div>
+              )}
+
+              {/* Mode "Dépôt manuel" : numéros par opérateur */}
+              {settings.ci_activation_mode === 'manual' && (
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-orange-700 uppercase tracking-wide">Numéros de dépôt — Opérateurs CI</p>
+                  {[
+                    { op: 'mtn',    label: 'MTN',          fullName: 'MTN Mobile Money' },
+                    { op: 'moov',   label: 'Moov',         fullName: 'Moov Money' },
+                    { op: 'orange', label: 'Orange Money', fullName: 'Orange Money CI' },
+                    { op: 'wave',   label: 'Wave',         fullName: 'Wave CI' },
+                  ].map(({ op, label, fullName }) => (
+                    <div key={op} className="border border-orange-100 rounded-xl p-3 space-y-3 bg-white">
+                      <p className="text-xs font-bold text-orange-700 uppercase tracking-wide">{label}</p>
+
+                      <div>
+                        <Label className="text-xs text-gray-600">Numéro de dépôt</Label>
+                        <Input
+                          value={settings[`ci_${op}_deposit_number`] || ''}
+                          onChange={(e) => handleInputChange(`ci_${op}_deposit_number`, e.target.value)}
+                          placeholder="+2250XXXXXXXXX"
+                          className="mt-1 font-mono text-sm"
+                        />
+                      </div>
+
+                      <div>
+                        <Label className="text-xs text-gray-600">Titre affiché (libellé)</Label>
+                        <Input
+                          value={settings[`ci_${op}_deposit_label`] ?? (op === 'wave' ? 'Numéro WAVE CI' : `Numéro de dépôt ${label}`)}
+                          onChange={(e) => handleInputChange(`ci_${op}_deposit_label`, e.target.value)}
+                          className="mt-1 text-sm"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <Label className="text-xs text-gray-600">Instruction personnalisée</Label>
+                          <button
+                            type="button"
+                            onClick={() => handleInputChange(`ci_${op}_show_instruction`, settings[`ci_${op}_show_instruction`] === 'true' ? 'false' : 'true')}
+                            className={`text-[10px] px-2 py-0.5 rounded font-semibold transition-colors ${settings[`ci_${op}_show_instruction`] === 'true' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}
+                          >
+                            {settings[`ci_${op}_show_instruction`] === 'true' ? '✓ Afficher' : 'Masqué'}
+                          </button>
+                        </div>
+                        <textarea
+                          value={settings[`ci_${op}_instruction`] || ''}
+                          onChange={(e) => handleInputChange(`ci_${op}_instruction`, e.target.value)}
+                          placeholder="Instruction affichée à l'utilisateur..."
+                          rows={2}
+                          className="w-full border border-input rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {(settings.ci_activation_mode || 'redirect') === 'solvexpay' && (
+                <p className="text-xs text-orange-700 bg-orange-100 rounded-lg px-3 py-2">
+                  🤖 SolvexPay traite automatiquement les paiements CI via l'API. Aucune configuration manuelle requise.
                 </p>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Quand activé : les utilisateurs CI sont redirigés vers le lien de paiement et le récapitulatif est envoyé au bot Telegram pour validation manuelle. Quand désactivé : SolvexPay traite automatiquement le paiement.
-              </p>
+              )}
             </div>
 
             {/* Activation manuelle — autres pays */}

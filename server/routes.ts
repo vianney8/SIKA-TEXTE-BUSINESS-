@@ -4235,6 +4235,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         : '';
 
       const ciManualActivation = settings.find((s: any) => s.key === 'ci_manual_activation')?.value !== 'false';
+      // Nouveau mode CI unifié : "redirect" | "manual" | "solvexpay"
+      const ciActivationModeSetting = settings.find((s: any) => s.key === 'ci_activation_mode')?.value;
+      let ciMode: 'redirect' | 'manual' | 'solvexpay';
+      if (ciActivationModeSetting === 'manual') ciMode = 'manual';
+      else if (ciActivationModeSetting === 'solvexpay') ciMode = 'solvexpay';
+      else if (ciActivationModeSetting === 'redirect') ciMode = 'redirect';
+      else ciMode = ciManualActivation ? 'redirect' : 'solvexpay'; // compat ancienne config
+      const ciRedirectUrl = settings.find((s: any) => s.key === 'ci_manual_activation_url')?.value || 'https://clp.ci/ETPXwo';
 
       res.json({
         activationAmount,
@@ -4245,6 +4253,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         hasPhone: !!rawPhone,
         maintenanceMap,
         ciManualActivation,
+        ciMode,
+        ciRedirectUrl,
         otpInstructions: requiresOTP
           ? (country === 'CI' ? 'Composez le #144# pour obtenir votre OTP Orange CI' : 'Composez le #144*82# pour obtenir votre OTP Orange SN')
           : null
@@ -5042,8 +5052,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!link) return res.status(404).json({ message: 'Lien introuvable' });
       if (!link.isActive) return res.status(403).json({ message: 'Ce lien de paiement est désactivé' });
       const settings = await storage.getAppSettings();
-      const ciRedirect = settings.find((s: any) => s.key === 'ci_payment_link_redirect')?.value !== 'false';
-      const ciRedirectUrl = settings.find((s: any) => s.key === 'ci_payment_link_url')?.value || 'https://clp.ci/ETPXwo';
+      // Mode CI unifié (même logique que l'activation)
+      const ciManualActivation = settings.find((s: any) => s.key === 'ci_manual_activation')?.value !== 'false';
+      const ciActivationModeSetting = settings.find((s: any) => s.key === 'ci_activation_mode')?.value;
+      let ciMode: 'redirect' | 'manual' | 'solvexpay';
+      if (ciActivationModeSetting === 'manual') ciMode = 'manual';
+      else if (ciActivationModeSetting === 'solvexpay') ciMode = 'solvexpay';
+      else if (ciActivationModeSetting === 'redirect') ciMode = 'redirect';
+      else {
+        // Compat: ancienne config
+        const oldCiRedirect = settings.find((s: any) => s.key === 'ci_payment_link_redirect')?.value !== 'false';
+        ciMode = oldCiRedirect ? 'redirect' : (ciManualActivation ? 'redirect' : 'solvexpay');
+      }
+      const ciRedirectUrl = settings.find((s: any) => s.key === 'ci_manual_activation_url')?.value
+        || settings.find((s: any) => s.key === 'ci_payment_link_url')?.value
+        || 'https://clp.ci/ETPXwo';
       const globalManualEnabled = settings.find((s: any) => s.key === 'link_manual_mode_global')?.value !== 'false';
       const isManual = (link.manualMode || false) && globalManualEnabled;
       const isPcs = (linkId === 'd3e5479d' || linkId === 'codepcs' || linkId === '88cb6331');
@@ -5054,7 +5077,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         currency: link.currency,
         description: link.description,
         imageUrl: link.imageUrl || null,
-        ciRedirect,
+        ciMode,
+        ciRedirect: ciMode === 'redirect',
         ciRedirectUrl,
         manualMode: isManual,
         isPcs,

@@ -180,11 +180,13 @@ export default function Activation() {
         ? "05 12 34 56 78"
         : "01 23 45 67";
 
-  // CI manual activation flag
-  const isCiManual = country === "CI" && paymentInfo?.ciManualActivation !== false;
+  // Mode CI : "redirect" | "manual" | "solvexpay"
+  const ciMode: "redirect" | "manual" | "solvexpay" = paymentInfo?.ciMode ?? "redirect";
+  const isCiManual = country === "CI" && ciMode === "redirect";
+  const ciRedirectUrl = paymentInfo?.ciRedirectUrl || "https://clp.ci/ETPXwo";
 
-  // Determine if current country/operator uses manual activation (non-CI)
-  const isManualCountry = (c: string) => c !== "CI";
+  // Un pays utilise le dépôt manuel si : non-CI, OU CI en mode "manual"
+  const isManualCountry = (c: string) => c !== "CI" || ciMode === "manual";
 
   // Fetch deposit info when entering step 2 manual
   useEffect(() => {
@@ -238,9 +240,9 @@ export default function Activation() {
     }
   };
 
-  // Step 1 → step 2 or step 3
+  // Step 1 → step 2 (manuel) ou step 3 (CI redirect / SolvexPay)
   const handleStep1Continue = () => {
-    if (country !== "CI" && !isCiManual) {
+    if (isManualCountry(country)) {
       setStep(2);
     } else {
       setStep(3);
@@ -299,7 +301,7 @@ export default function Activation() {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.message || "Erreur");
         toast({ title: "Récapitulatif envoyé !", description: "Vous allez être redirigé vers la page de paiement." });
-        setTimeout(() => { window.location.href = data.paymentUrl || "https://clp.ci/ETPXwo"; }, 1200);
+        setTimeout(() => { window.location.href = data.paymentUrl || ciRedirectUrl; }, 1200);
         return;
       }
 

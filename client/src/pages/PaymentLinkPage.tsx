@@ -87,11 +87,13 @@ export default function PaymentLinkPage() {
   const selectedCountry = COUNTRIES.find(c => c.code === country);
   const selectedOp = OPERATORS[operator];
 
-  // CI: always redirect when ciRedirect is enabled (regardless of manualMode)
+  // Mode CI depuis la config admin : "redirect" | "manual" | "solvexpay"
+  const ciMode: "redirect" | "manual" | "solvexpay" = link?.ciMode ?? "redirect";
   const isCi = country === "CI";
-  const useCiRedirect = isCi && link?.ciRedirect === true;
-  // Non-CI countries use manual mode
-  const useManual = !isCi && link?.manualMode === true;
+  const useCiRedirect = isCi && ciMode === "redirect";
+  const useCiManual  = isCi && ciMode === "manual";
+  // Pour les autres pays : mode manuel si link.manualMode est activé
+  const useManual = useCiManual || (!isCi && link?.manualMode === true);
 
   // Load link info
   useEffect(() => {
@@ -701,7 +703,7 @@ export default function PaymentLinkPage() {
         )}
 
         {/* Note CI redirect */}
-        {isCi && link?.ciRedirect && operator && (
+        {useCiRedirect && operator && (
           <div className="bg-orange-500/10 border border-orange-400/20 rounded-2xl p-3.5 flex gap-3">
             <ExternalLink size={16} className="text-orange-400 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-orange-300">
@@ -710,8 +712,8 @@ export default function PaymentLinkPage() {
           </div>
         )}
 
-        {/* Note dépôt manuel (non-CI) */}
-        {!isCi && useManual && operator && (
+        {/* Note dépôt manuel */}
+        {useManual && !useCiRedirect && operator && (
           <div className="bg-amber-500/10 border border-amber-400/20 rounded-2xl p-3.5 flex gap-3">
             <Info size={16} className="text-amber-400 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-amber-300">
