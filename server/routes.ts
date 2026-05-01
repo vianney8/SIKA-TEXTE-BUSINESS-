@@ -5137,18 +5137,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const globalEnabled = settings.find((s: any) => s.key === 'link_manual_mode_global')?.value !== 'false';
       const countryLower = country.toLowerCase();
       const opLower = operator.toLowerCase();
+      // Mode du pays — si "manual" configuré par l'admin, le lien est aussi en mode manuel
+      const countryMode = settings.find((s: any) => s.key === `${countryLower}_activation_mode`)?.value || 'manual';
+      const ciMode = settings.find((s: any) => s.key === 'ci_activation_mode')?.value || 'manual';
+      const effectiveMode = countryLower === 'ci' ? ciMode : countryMode;
+      const isManualMode = effectiveMode === 'manual';
       const depositNumber = settings.find((s: any) => s.key === `${countryLower}_${opLower}_deposit_number`)?.value || '';
       const depositLabel = settings.find((s: any) => s.key === `${countryLower}_${opLower}_deposit_label`)?.value || '';
       const instruction = settings.find((s: any) => s.key === `${countryLower}_${opLower}_instruction`)?.value || '';
       const showInstruction = settings.find((s: any) => s.key === `${countryLower}_${opLower}_show_instruction`)?.value === 'true';
       const alertText = settings.find((s: any) => s.key === `${countryLower}_${opLower}_alert_text`)?.value || '';
+      // isInternational : transfert international requis si pays différent de CI
+      const isInternational = country.toUpperCase() !== 'CI';
       res.json({
-        enabled: globalEnabled && (link.manualMode || false),
+        enabled: globalEnabled && (isManualMode || (link.manualMode || false)),
         depositNumber,
         depositLabel,
         instruction,
         showInstruction,
         alertText,
+        isInternational,
       });
     } catch (err) {
       console.error('[PAYMENT-LINKS] Manual deposit info error:', err);

@@ -524,6 +524,19 @@ export default function PaymentLinkPage() {
                     </>
                   )}
 
+                  {/* Alerte transfert international */}
+                  {depositInfo?.isInternational && depositNumber && (
+                    <div className="bg-green-500/10 border-2 border-green-500/40 rounded-2xl p-4 flex gap-3">
+                      <AlertTriangle size={16} className="text-green-400 flex-shrink-0 mt-0.5" />
+                      <div className="text-sm text-green-300">
+                        <p className="font-black text-base mb-1 text-green-400">⚠️ Transfert INTERNATIONAL requis</p>
+                        <p className="leading-relaxed text-xs">
+                          {depositInfo.alertText || <>Effectuez un <strong>transfert international</strong> sur ce numéro {selectedOp?.name}.</>}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   {depositInfo?.showInstruction && depositInfo?.instruction && (
                     <div className="bg-blue-500/10 border border-blue-400/20 rounded-2xl p-4 flex gap-3">
                       <Info size={16} className="text-blue-400 flex-shrink-0 mt-0.5" />
