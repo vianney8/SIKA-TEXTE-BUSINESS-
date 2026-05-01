@@ -1,82 +1,50 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
+import { CheckCircle, ChevronLeft, ChevronRight, Copy, ExternalLink, ImageIcon, Loader2, Upload, XCircle, ShieldCheck, AlertTriangle, Info } from "lucide-react";
 
-const COUNTRIES: {
-  code: string; name: string; flag: string; prefix: string; currency: string;
-  phonePlaceholder: string; phoneDigits: number;
-  operators: { code: string; name: string; short: string; color: string; bg: string }[];
-}[] = [
-  {
-    code: "BJ", name: "Bénin", flag: "🇧🇯", prefix: "+229", currency: "XOF",
-    phonePlaceholder: "01 23 45 67 89", phoneDigits: 10,
-    operators: [
-      { code: "mtn", name: "MTN Money", short: "MTN", color: "#fff", bg: "#FFCC00" },
-      { code: "moov", name: "Moov Money", short: "MOOV", color: "#fff", bg: "#0057A8" },
-    ],
-  },
-  {
-    code: "CI", name: "Côte d'Ivoire", flag: "🇨🇮", prefix: "+225", currency: "XOF",
-    phonePlaceholder: "05 12 34 56 78", phoneDigits: 10,
-    operators: [
-      { code: "mtn", name: "MTN Money", short: "MTN", color: "#fff", bg: "#FFCC00" },
-      { code: "moov", name: "Moov Money", short: "MOOV", color: "#fff", bg: "#0057A8" },
-      { code: "orange", name: "Orange Money", short: "ORAN", color: "#fff", bg: "#FF6900" },
-      { code: "wave", name: "Wave", short: "WAVE", color: "#fff", bg: "#1AC8DB" },
-    ],
-  },
-  {
-    code: "SN", name: "Sénégal", flag: "🇸🇳", prefix: "+221", currency: "XOF",
-    phonePlaceholder: "01 23 45 67", phoneDigits: 8,
-    operators: [
-      { code: "orange", name: "Orange Money", short: "ORAN", color: "#fff", bg: "#FF6900" },
-      { code: "wave", name: "Wave", short: "WAVE", color: "#fff", bg: "#1AC8DB" },
-      { code: "free", name: "Free Money", short: "FREE", color: "#fff", bg: "#CC0000" },
-    ],
-  },
-  {
-    code: "BF", name: "Burkina Faso", flag: "🇧🇫", prefix: "+226", currency: "XOF",
-    phonePlaceholder: "01 23 45 67", phoneDigits: 8,
-    operators: [
-      { code: "moov", name: "Moov Money", short: "MOOV", color: "#fff", bg: "#0057A8" },
-      { code: "orange", name: "Orange Money", short: "ORAN", color: "#fff", bg: "#FF6900" },
-    ],
-  },
-  {
-    code: "TG", name: "Togo", flag: "🇹🇬", prefix: "+228", currency: "XOF",
-    phonePlaceholder: "01 23 45 67", phoneDigits: 8,
-    operators: [
-      { code: "moov", name: "Moov Money", short: "MOOV", color: "#fff", bg: "#0057A8" },
-      { code: "tmoney", name: "T-Money", short: "T-MNY", color: "#fff", bg: "#E30613" },
-    ],
-  },
-  {
-    code: "CM", name: "Cameroun", flag: "🇨🇲", prefix: "+237", currency: "XAF",
-    phonePlaceholder: "6 90 12 34 56", phoneDigits: 9,
-    operators: [
-      { code: "mtn", name: "MTN Money", short: "MTN", color: "#fff", bg: "#FFCC00" },
-      { code: "orange", name: "Orange Money", short: "ORAN", color: "#fff", bg: "#FF6900" },
-    ],
-  },
-  {
-    code: "COG", name: "Congo-Brazzaville", flag: "🇨🇬", prefix: "+242", currency: "XAF",
-    phonePlaceholder: "01 23 45 67", phoneDigits: 8,
-    operators: [
-      { code: "mtn", name: "MTN Money", short: "MTN", color: "#fff", bg: "#FFCC00" },
-      { code: "airtel", name: "Airtel Money", short: "AIRT", color: "#fff", bg: "#E40000" },
-    ],
-  },
+// ─── Config pays & opérateurs ────────────────────────────────────────────────
+const COUNTRIES = [
+  { code: "BJ",  name: "Bénin",             flag: "🇧🇯", prefix: "229", phonePlaceholder: "01 23 45 67 89", operators: ["mtn","moov"] },
+  { code: "CI",  name: "Côte d'Ivoire",     flag: "🇨🇮", prefix: "225", phonePlaceholder: "05 12 34 56 78", operators: ["mtn","moov","orange","wave"] },
+  { code: "SN",  name: "Sénégal",           flag: "🇸🇳", prefix: "221", phonePlaceholder: "01 23 45 67",    operators: ["orange","wave","free"] },
+  { code: "BF",  name: "Burkina Faso",      flag: "🇧🇫", prefix: "226", phonePlaceholder: "01 23 45 67",    operators: ["moov","orange","wave"] },
+  { code: "TG",  name: "Togo",              flag: "🇹🇬", prefix: "228", phonePlaceholder: "01 23 45 67",    operators: ["moov","tmoney"] },
+  { code: "CM",  name: "Cameroun",          flag: "🇨🇲", prefix: "237", phonePlaceholder: "6 12 34 56 78",  operators: ["mtn","orange"] },
+  { code: "COG", name: "Congo-Brazzaville", flag: "🇨🇬", prefix: "242", phonePlaceholder: "01 23 45 67",    operators: ["mtn","airtel"] },
 ];
 
-type Step = "form" | "pending" | "success" | "failed" | "redirected" | "manual_deposit" | "manual_submitted";
+const OPERATORS: Record<string, { name: string; full: string; bg: string; text: string; border: string; initials: string }> = {
+  mtn:    { name: "MTN",     full: "MTN Mobile Money",  bg: "#FFCC00", text: "#1a1a1a", border: "#e6b800", initials: "MTN" },
+  moov:   { name: "Moov",    full: "Moov Money",        bg: "#005BAA", text: "#fff",    border: "#004d99", initials: "MV"  },
+  orange: { name: "Orange",  full: "Orange Money",      bg: "#FF6600", text: "#fff",    border: "#e55c00", initials: "OM"  },
+  wave:   { name: "Wave",    full: "Wave",              bg: "#1B6FEE", text: "#fff",    border: "#1560d4", initials: "W"   },
+  tmoney: { name: "T-Money", full: "T-Money",           bg: "#C8102E", text: "#fff",    border: "#a50d25", initials: "TM"  },
+  free:   { name: "Free",    full: "Free Money",        bg: "#00923F", text: "#fff",    border: "#007a34", initials: "FM"  },
+  airtel: { name: "Airtel",  full: "Airtel Money",      bg: "#E40000", text: "#fff",    border: "#c20000", initials: "AM"  },
+};
+
+type Step = "form" | "manual" | "pending" | "success" | "failed" | "redirected" | "submitted";
 
 function AnimatedDots() {
   return (
     <span className="inline-flex gap-1 ml-1">
-      {[0, 1, 2].map(i => (
+      {[0,1,2].map(i => (
         <span key={i} className="w-1.5 h-1.5 rounded-full bg-current inline-block"
-          style={{ animation: `bounce 1.2s ${i * 0.2}s infinite ease-in-out` }} />
+          style={{ animation: `bounce 1.2s ${i*0.2}s infinite ease-in-out` }} />
       ))}
     </span>
+  );
+}
+
+function OperatorBadge({ code, size = "md" }: { code: string; size?: "sm" | "md" }) {
+  const op = OPERATORS[code];
+  if (!op) return null;
+  const cls = size === "sm" ? "w-10 h-10 text-xs" : "w-12 h-12 text-sm";
+  return (
+    <div className={`${cls} rounded-2xl flex items-center justify-center font-black shadow-sm border-2 flex-shrink-0`}
+      style={{ backgroundColor: op.bg, color: op.text, borderColor: op.border }}>
+      {op.initials}
+    </div>
   );
 }
 
@@ -86,75 +54,88 @@ export default function PaymentLinkPage() {
 
   const [link, setLink] = useState<any>(null);
   const [loadError, setLoadError] = useState("");
-  const [visible, setVisible] = useState(false);
 
-  const [selectedCountry, setSelectedCountry] = useState(COUNTRIES[0]);
-  const [selectedOperator, setSelectedOperator] = useState(COUNTRIES[0].operators[0]);
+  // Form state
+  const [country, setCountry] = useState("");
+  const [operator, setOperator] = useState("");
   const [phone, setPhone] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
-
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
-  const [emailSikaError, setEmailSikaError] = useState("");
-  const emailCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Manual deposit state
+  const [depositInfo, setDepositInfo] = useState<any>(null);
+  const [depositLoading, setDepositLoading] = useState(false);
+  const [manualTxnId, setManualTxnId] = useState("");
+  const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
+  const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+  const [manualUploading, setManualUploading] = useState(false);
+  const [manualScreenshotUrl, setManualScreenshotUrl] = useState("");
+  const [manualSubmitting, setManualSubmitting] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // USSD state
+  const [txnId, setTxnId] = useState("");
+  const [pollCount, setPollCount] = useState(0);
 
   const [step, setStep] = useState<Step>("form");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [txnId, setTxnId] = useState("");
-  const [statusMessage, setStatusMessage] = useState("");
-  const [pollCount, setPollCount] = useState(0);
 
-  // Manual deposit state
-  const [manualTxnId, setManualTxnId] = useState("");
-  const [manualScreenshotFile, setManualScreenshotFile] = useState<File | null>(null);
-  const [manualScreenshotPreview, setManualScreenshotPreview] = useState("");
-  const [manualScreenshotUrl, setManualScreenshotUrl] = useState("");
-  const [manualUploading, setManualUploading] = useState(false);
-  const [manualSubmitting, setManualSubmitting] = useState(false);
-  const [manualError, setManualError] = useState("");
-  const [copied, setCopied] = useState(false);
-  const [manualInfo, setManualInfo] = useState<{
-    depositNumber: string;
-    depositLabel: string;
-    instruction: string;
-    showInstruction: boolean;
-  } | null>(null);
-  const [manualInfoLoading, setManualInfoLoading] = useState(false);
+  const selectedCountry = COUNTRIES.find(c => c.code === country);
+  const selectedOp = OPERATORS[operator];
 
-  const isCiRedirect = selectedCountry.code === "CI" && link?.ciRedirect === true && !link?.manualMode;
+  // CI: always redirect when ciRedirect is enabled (regardless of manualMode)
+  const isCi = country === "CI";
+  const useCiRedirect = isCi && link?.ciRedirect === true;
+  // Non-CI countries use manual mode
+  const useManual = !isCi && link?.manualMode === true;
 
+  // Load link info
   useEffect(() => {
     if (!linkId) return;
     fetch(`/api/public/payment-links/${linkId}`)
-      .then(r => {
-        if (!r.ok) return r.json().then(d => { throw new Error(d.message || "Lien invalide"); });
-        return r.json();
-      })
-      .then(data => { setLink(data); setTimeout(() => setVisible(true), 80); })
+      .then(r => { if (!r.ok) return r.json().then(d => { throw new Error(d.message || "Lien invalide"); }); return r.json(); })
+      .then(data => setLink(data))
       .catch(err => setLoadError(err.message));
   }, [linkId]);
 
-  // Récupère l'email de l'utilisateur connecté pour pré-remplir l'email PCS
+  // Load current user email for PCS pre-fill
   useEffect(() => {
     fetch('/api/auth/user', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data?.email) {
-          setCurrentUserEmail(data.email);
-        }
-      })
+      .then(data => { if (data?.email) setCurrentUserEmail(data.email); })
       .catch(() => {});
   }, []);
 
-  // Pré-remplir l'email avec le compte Sika si c'est un lien PCS
+  // Pre-fill email for PCS links
   useEffect(() => {
-    if (link?.isPcs && currentUserEmail) {
-      setEmail(currentUserEmail);
-    }
+    if (link?.isPcs && currentUserEmail) setEmail(currentUserEmail);
   }, [link?.isPcs, currentUserEmail]);
 
+  // Screenshot preview
+  useEffect(() => {
+    if (!screenshotFile) { setScreenshotPreview(null); return; }
+    const url = URL.createObjectURL(screenshotFile);
+    setScreenshotPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [screenshotFile]);
+
+  // Fetch deposit info when entering manual step
+  useEffect(() => {
+    if (step === "manual" && country && operator && useManual) {
+      setDepositLoading(true);
+      fetch(`/api/public/payment-links/${linkId}/manual-deposit-info?country=${country}&operator=${operator}`)
+        .then(r => r.json())
+        .then(d => setDepositInfo(d))
+        .catch(() => setDepositInfo(null))
+        .finally(() => setDepositLoading(false));
+    }
+  }, [step, country, operator, useManual, linkId]);
+
+  // USSD polling
   useEffect(() => {
     if (step !== "pending" || !txnId) return;
     let cancelled = false;
@@ -164,76 +145,57 @@ export default function PaymentLinkPage() {
         const data = await res.json();
         if (cancelled) return;
         if (data.status === "completed") { setStep("success"); return; }
-        if (data.status === "failed") { setStep("failed"); setStatusMessage("Paiement échoué ou expiré."); return; }
+        if (data.status === "failed") { setStep("failed"); return; }
         setPollCount(c => c + 1);
-      } catch { /* ignore */ }
+      } catch {}
     };
     const interval = setInterval(poll, 5000);
     return () => { cancelled = true; clearInterval(interval); };
   }, [step, txnId]);
 
-  useEffect(() => {
-    if (step === "pending" && pollCount >= 36) {
-      setStep("failed");
-      setStatusMessage("Délai dépassé. Vérifiez votre téléphone ou réessayez.");
-    }
-  }, [pollCount, step]);
-
-  const handleCountryChange = (code: string) => {
-    const country = COUNTRIES.find(c => c.code === code) || COUNTRIES[0];
-    setSelectedCountry(country);
-    setSelectedOperator(country.operators[0]);
-    setPhone("");
+  const copyDepositNumber = () => {
+    const num = depositInfo?.depositNumber || "";
+    if (num) { navigator.clipboard.writeText(num); setCopied(true); setTimeout(() => setCopied(false), 2000); }
   };
 
-  const handleFormNext = async () => {
-    setError("");
-    if (!phone.trim()) { setError("Veuillez saisir votre numéro Mobile Money"); return; }
-    if (!firstName.trim() || !lastName.trim()) { setError("Veuillez saisir votre prénom et nom"); return; }
-    if (!email.trim()) { setError("Veuillez saisir votre adresse e-mail"); return; }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) { setError("Veuillez saisir une adresse e-mail valide"); return; }
+  // Upload screenshot
+  const handleScreenshotSelect = async (file: File) => {
+    setScreenshotFile(file);
+    setManualUploading(true);
+    setManualScreenshotUrl("");
+    try {
+      const form = new FormData();
+      form.append("screenshot", file);
+      const res = await fetch(`/api/public/payment-links/${linkId}/manual-upload`, { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Erreur upload");
+      setManualScreenshotUrl(data.screenshotUrl);
+    } catch {
+      setScreenshotFile(null);
+    } finally {
+      setManualUploading(false);
+    }
+  };
 
-    // Pour les liens PCS, vérifier que l'email appartient à un compte Sika
+  // Step 1 → next
+  const handleContinue = async () => {
+    setError("");
+    if (!country) { setError("Veuillez sélectionner un pays"); return; }
+    if (!operator) { setError("Veuillez sélectionner un opérateur"); return; }
+    if (!phone.replace(/\D/g, "").match(/^\d{6,}$/)) { setError("Veuillez saisir votre numéro Mobile Money"); return; }
     if (link?.isPcs) {
+      if (!firstName.trim() || !lastName.trim()) { setError("Veuillez saisir votre prénom et nom"); return; }
+      if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError("Veuillez saisir une adresse e-mail valide"); return; }
+      // Vérifier que l'email appartient à un compte Sika
       try {
-        const res = await fetch(`/api/public/check-sika-email?email=${encodeURIComponent(email.trim())}`);
-        const data = await res.json();
-        if (!data.exists) {
-          setError("Cet e-mail ne correspond à aucun compte Sika Texte. Veuillez utiliser l'adresse e-mail de votre compte.");
-          return;
-        }
-      } catch {
-        setError("Erreur de vérification de l'e-mail. Réessayez.");
-        return;
-      }
+        const r = await fetch(`/api/public/check-sika-email?email=${encodeURIComponent(email.trim())}`);
+        const d = await r.json();
+        if (!d.exists) { setError("Cet e-mail ne correspond à aucun compte Sika Texte. Veuillez utiliser l'adresse e-mail de votre compte."); return; }
+      } catch { setError("Erreur de vérification de l'e-mail. Réessayez."); return; }
     }
-    // Mode dépôt manuel
-    if (link?.manualMode) {
-      setManualInfoLoading(true);
-      setStep("manual_deposit");
-      try {
-        const res = await fetch(`/api/public/payment-links/${linkId}/manual-deposit-info?country=${selectedCountry.code}&operator=${selectedOperator.code}`);
-        const data = await res.json();
-        if (res.ok) {
-          setManualInfo({
-            depositNumber: data.depositNumber || "",
-            depositLabel: data.depositLabel || `Numéro ${selectedOperator.name}`,
-            instruction: data.instruction || "",
-            showInstruction: !!data.showInstruction,
-          });
-        } else {
-          setManualInfo({ depositNumber: "", depositLabel: `Numéro ${selectedOperator.name}`, instruction: "", showInstruction: false });
-        }
-      } catch {
-        setManualInfo({ depositNumber: "", depositLabel: `Numéro ${selectedOperator.name}`, instruction: "", showInstruction: false });
-      } finally {
-        setManualInfoLoading(false);
-      }
-      return;
-    }
-    // CI redirect: enregistre la transaction en attente PUIS redirige
-    if (isCiRedirect) {
+
+    if (useCiRedirect) {
+      // CI : enregistrer puis rediriger
       setSubmitting(true);
       try {
         await fetch(`/api/public/payment-links/${linkId}/ci-record`, {
@@ -241,68 +203,95 @@ export default function PaymentLinkPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             phone: phone.replace(/\s/g, ""),
-            operator: selectedOperator.code,
-            country: selectedCountry.code,
+            operator,
+            country,
             customerName: `${firstName.trim()} ${lastName.trim()}`,
             customerEmail: email.trim(),
           }),
         });
-      } catch {
-        // Non-bloquant : on redirige quand même si l'enregistrement échoue
-      } finally {
-        setSubmitting(false);
-      }
+      } catch {}
+      setSubmitting(false);
       window.open(link.ciRedirectUrl, "_blank");
       setStep("redirected");
-      return;
+    } else if (useManual) {
+      setStep("manual");
+    } else {
+      // USSD direct
+      setSubmitting(true);
+      try {
+        const res = await fetch(`/api/public/payment-links/${linkId}/pay`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone: phone.replace(/\s/g, ""),
+            operator,
+            country,
+            customerName: `${firstName.trim()} ${lastName.trim()}`,
+            customerEmail: email.trim(),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) { setError(data.message || "Erreur lors du paiement"); return; }
+        setTxnId(data.transactionId);
+        setStep("pending");
+      } catch { setError("Erreur réseau. Vérifiez votre connexion."); }
+      finally { setSubmitting(false); }
     }
-    doSubmit();
   };
 
-  const doSubmit = async () => {
-    setSubmitting(true);
+  // Manual submit
+  const handleManualSubmit = async () => {
+    if (!manualTxnId.trim()) { setError("Veuillez saisir l'ID de transaction"); return; }
+    if (!manualScreenshotUrl) { setError("Veuillez charger la capture d'écran"); return; }
+    setManualSubmitting(true);
+    setError("");
     try {
-      const res = await fetch(`/api/public/payment-links/${linkId}/pay`, {
+      const res = await fetch(`/api/public/payment-links/${linkId}/manual-submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          phone: phone.replace(/\s/g, ""),
-          operator: selectedOperator.code,
-          country: selectedCountry.code,
+          phone: `${selectedCountry?.prefix}${phone.replace(/\s/g, "")}`,
+          operator,
+          country,
           customerName: `${firstName.trim()} ${lastName.trim()}`,
           customerEmail: email.trim(),
+          transactionId: manualTxnId.trim(),
+          screenshotUrl: manualScreenshotUrl,
         }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.message || "Erreur lors du paiement"); return; }
-      setTxnId(data.transactionId);
-      setStep("pending");
-    } catch {
-      setError("Erreur réseau. Vérifiez votre connexion.");
-    } finally {
-      setSubmitting(false);
-    }
+      if (!res.ok) throw new Error(data.message || "Erreur serveur");
+      setStep("submitted");
+    } catch (e: any) { setError(e.message || "Erreur lors de l'envoi. Réessayez."); }
+    finally { setManualSubmitting(false); }
   };
 
-  const BG = "min-h-screen" ;
-  const bgStyle = { background: "linear-gradient(160deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)" };
+  const reset = () => {
+    setStep("form"); setCountry(""); setOperator(""); setPhone(""); setFirstName(""); setLastName("");
+    if (!link?.isPcs || !currentUserEmail) setEmail("");
+    setDepositInfo(null); setManualTxnId(""); setScreenshotFile(null); setManualScreenshotUrl("");
+    setTxnId(""); setPollCount(0); setError("");
+  };
 
-  // ── Loading ──
+  const BG = { background: "linear-gradient(160deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)" };
+  const amount = link ? parseFloat(link.amount).toLocaleString("fr-FR") : "—";
+
+  // ── Loading ──────────────────────────────────────────────────────────────────
   if (!link && !loadError) return (
-    <div className={`${BG} flex items-center justify-center`} style={bgStyle}>
+    <div className="min-h-screen flex items-center justify-center" style={BG}>
       <div className="flex flex-col items-center gap-4">
         <div className="relative w-16 h-16">
           <div className="absolute inset-0 rounded-full border-4 border-white/10" />
           <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-blue-400 animate-spin" />
         </div>
-        <p className="text-white/40 text-sm font-medium tracking-wide">Chargement</p>
+        <p className="text-white/40 text-sm font-medium">Chargement</p>
       </div>
     </div>
   );
 
-  // ── Error ──
+  // ── Error ────────────────────────────────────────────────────────────────────
   if (loadError) return (
-    <div className={`${BG} flex items-center justify-center px-5`} style={bgStyle}>
+    <div className="min-h-screen flex items-center justify-center px-5" style={BG}>
       <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 text-center max-w-sm w-full">
         <div className="text-5xl mb-4">🔗</div>
         <h2 className="font-bold text-white text-lg mb-2">Lien introuvable</h2>
@@ -311,21 +300,19 @@ export default function PaymentLinkPage() {
     </div>
   );
 
-  // ── Success ──
+  // ── Success (USSD) ───────────────────────────────────────────────────────────
   if (step === "success") return (
-    <div className={`${BG} flex items-center justify-center px-5`} style={bgStyle}>
-      <div className="text-center max-w-sm w-full animate-in fade-in zoom-in-95 duration-500">
+    <div className="min-h-screen flex items-center justify-center px-5" style={BG}>
+      <div className="text-center max-w-sm w-full">
         <div className="relative w-28 h-28 mx-auto mb-6">
           <div className="absolute inset-0 rounded-full bg-green-500/20 animate-ping" />
-          <div className="relative w-28 h-28 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center shadow-2xl shadow-green-500/30">
-            <svg className="w-14 h-14 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
+          <div className="w-28 h-28 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center shadow-2xl shadow-green-500/30 mx-auto">
+            <CheckCircle size={56} className="text-white" />
           </div>
         </div>
         <h2 className="font-black text-white text-3xl mb-2">Payé !</h2>
         <p className="text-white/60 text-base mb-1">
-          <span className="text-white font-bold text-xl">{parseFloat(link.amount).toLocaleString("fr-FR")} {link.currency}</span>
+          <span className="text-white font-bold text-xl">{amount} {link.currency}</span>
         </p>
         <p className="text-white/40 text-sm">{link.label}</p>
         <div className="mt-8 border-t border-white/10 pt-5">
@@ -335,29 +322,27 @@ export default function PaymentLinkPage() {
     </div>
   );
 
-  // ── Failed ──
+  // ── Failed ───────────────────────────────────────────────────────────────────
   if (step === "failed") return (
-    <div className={`${BG} flex items-center justify-center px-5`} style={bgStyle}>
+    <div className="min-h-screen flex items-center justify-center px-5" style={BG}>
       <div className="text-center max-w-sm w-full">
         <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-red-500/20 flex items-center justify-center">
-          <svg className="w-12 h-12 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          <XCircle size={48} className="text-red-400" />
         </div>
         <h2 className="font-black text-white text-2xl mb-2">Paiement échoué</h2>
-        <p className="text-white/50 text-sm mb-8">{statusMessage}</p>
-        <button
-          onClick={() => { setStep("form"); setTxnId(""); setPollCount(0); setError(""); }}
+        <p className="text-white/50 text-sm mb-8">Vérifiez votre solde et réessayez.</p>
+        <button onClick={reset}
           className="w-full py-4 rounded-2xl font-bold text-white text-sm"
-          style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}
-        >Réessayer</button>
+          style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}>
+          Réessayer
+        </button>
       </div>
     </div>
   );
 
-  // ── Pending ──
+  // ── Pending (USSD polling) ───────────────────────────────────────────────────
   if (step === "pending") return (
-    <div className={`${BG} flex items-center justify-center px-5`} style={bgStyle}>
+    <div className="min-h-screen flex items-center justify-center px-5" style={BG}>
       <div className="text-center max-w-sm w-full">
         <div className="relative w-24 h-24 mx-auto mb-6">
           <div className="absolute inset-0 rounded-full border-4 border-white/5" />
@@ -367,56 +352,44 @@ export default function PaymentLinkPage() {
         <h2 className="font-black text-white text-2xl mb-3">Validation en cours</h2>
         <p className="text-white/60 text-sm mb-1">
           Confirmez le paiement de{" "}
-          <span className="text-white font-bold">{parseFloat(link.amount).toLocaleString("fr-FR")} {link.currency}</span>{" "}
+          <span className="text-white font-bold">{amount} {link.currency}</span>{" "}
           sur votre téléphone.
         </p>
-        <p className="text-white/30 text-xs mt-3">
-          Message USSD sur <span className="text-white/50">{selectedCountry.prefix} {phone}</span>
+        <p className="text-white/30 text-xs mt-2">
+          Notification USSD sur <span className="text-white/50">+{selectedCountry?.prefix} {phone}</span>
         </p>
         <div className="mt-6 mx-auto max-w-xs bg-white/5 border border-white/10 rounded-2xl px-5 py-3">
           <p className="text-blue-300 text-sm font-medium flex items-center justify-center gap-2">
-            <span>⏳</span>
+            <Loader2 size={14} className="animate-spin" />
             <span>En attente</span>
             <AnimatedDots />
-            <span className="text-white/30 text-xs ml-1">({Math.floor(pollCount * 5 / 60)}m{String((pollCount * 5) % 60).padStart(2, "0")}s)</span>
           </p>
         </div>
-        <button
-          onClick={() => { setStep("form"); setTxnId(""); setPollCount(0); }}
-          className="mt-6 text-xs text-white/30 hover:text-white/60 transition-colors underline underline-offset-2"
-        >Annuler</button>
+        <button onClick={reset} className="mt-6 text-xs text-white/30 hover:text-white/60 transition-colors underline underline-offset-2">
+          Annuler
+        </button>
       </div>
     </div>
   );
 
-  // ── CI Redirected ──
+  // ── Redirected (CI) ──────────────────────────────────────────────────────────
   if (step === "redirected") return (
-    <div className={`${BG} flex items-center justify-center px-5`} style={bgStyle}>
-      <div className="text-center max-w-sm w-full animate-in fade-in zoom-in-95 duration-500">
+    <div className="min-h-screen flex items-center justify-center px-5" style={BG}>
+      <div className="text-center max-w-sm w-full">
         <div className="relative w-28 h-28 mx-auto mb-6">
           <div className="absolute inset-0 rounded-full bg-orange-500/20 animate-pulse" />
-          <div className="relative w-28 h-28 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shadow-2xl shadow-orange-500/30">
+          <div className="w-28 h-28 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shadow-2xl shadow-orange-500/30 mx-auto">
             <span className="text-5xl">🇨🇮</span>
           </div>
         </div>
         <h2 className="font-black text-white text-2xl mb-3">Redirection en cours</h2>
-        <p className="text-white/60 text-sm mb-1">
-          Vous avez été redirigé vers la page de paiement sécurisée.
-        </p>
-        <p className="text-white/40 text-xs mb-6">
-          Si la page ne s'est pas ouverte, cliquez sur le bouton ci-dessous.
-        </p>
-        <button
-          onClick={() => window.open(link.ciRedirectUrl, "_blank")}
+        <p className="text-white/60 text-sm mb-6">Vous avez été redirigé vers la page de paiement sécurisée.</p>
+        <button onClick={() => window.open(link.ciRedirectUrl, "_blank")}
           className="w-full py-4 rounded-2xl font-bold text-white text-sm mb-4"
-          style={{ background: "linear-gradient(135deg, #ea580c, #f97316)" }}
-        >
+          style={{ background: "linear-gradient(135deg, #ea580c, #f97316)" }}>
           Ouvrir la page de paiement
         </button>
-        <button
-          onClick={() => setStep("form")}
-          className="text-xs text-white/30 hover:text-white/60 transition-colors underline underline-offset-2"
-        >Retour</button>
+        <button onClick={reset} className="text-xs text-white/30 hover:text-white/60 transition-colors underline underline-offset-2">Retour</button>
         <div className="mt-6 border-t border-white/10 pt-4">
           <p className="text-white/25 text-xs">Paiement sécurisé par <span className="text-white/40 font-bold">SIKApay</span></p>
         </div>
@@ -424,227 +397,22 @@ export default function PaymentLinkPage() {
     </div>
   );
 
-  // ── Manual deposit upload ──
-  const handleManualScreenshot = async (file: File) => {
-    setManualScreenshotFile(file);
-    setManualScreenshotPreview(URL.createObjectURL(file));
-    setManualUploading(true);
-    try {
-      const form = new FormData();
-      form.append("screenshot", file);
-      const res = await fetch(`/api/public/payment-links/${linkId}/manual-upload`, { method: "POST", body: form });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Erreur upload");
-      setManualScreenshotUrl(data.screenshotUrl);
-    } catch (e: any) {
-      setManualError("Erreur lors du chargement de la capture. Réessayez.");
-      setManualScreenshotPreview("");
-      setManualScreenshotUrl("");
-    } finally {
-      setManualUploading(false);
-    }
-  };
-
-  const handleManualSubmit = async () => {
-    setManualError("");
-    if (!manualTxnId.trim()) { setManualError("Veuillez saisir l'ID de transaction."); return; }
-    if (!manualScreenshotUrl) { setManualError("Veuillez uploader la capture d'écran."); return; }
-    setManualSubmitting(true);
-    try {
-      const res = await fetch(`/api/public/payment-links/${linkId}/manual-submit`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phone: `${selectedCountry.prefix}${phone.replace(/\s/g, "")}`,
-          operator: selectedOperator.code,
-          country: selectedCountry.code,
-          customerName: `${firstName.trim()} ${lastName.trim()}`,
-          customerEmail: email.trim(),
-          transactionId: manualTxnId.trim(),
-          screenshotUrl: manualScreenshotUrl,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Erreur serveur");
-      setStep("manual_submitted");
-    } catch (e: any) {
-      setManualError(e.message || "Erreur lors de l'envoi. Réessayez.");
-    } finally {
-      setManualSubmitting(false);
-    }
-  };
-
-  const copyDepositNumber = () => {
-    const num = manualInfo?.depositNumber || "";
-    if (num) { navigator.clipboard.writeText(num); setCopied(true); setTimeout(() => setCopied(false), 2000); }
-  };
-
-  // ── Manual deposit step ──
-  if (step === "manual_deposit") {
-    const depositNumber = manualInfo?.depositNumber || "";
-    const depositLabel = manualInfo?.depositLabel || `Numéro ${selectedOperator.name}`;
-    const instruction = manualInfo?.instruction || "";
-    return (
-      <div className="min-h-screen pb-12" style={{ background: "linear-gradient(160deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)" }}>
-        <style>{`@keyframes bounce { 0%, 80%, 100% { transform: scale(0); opacity: 0.3 } 40% { transform: scale(1); opacity: 1 } }`}</style>
-        <div className="px-5 pt-6 pb-4 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <img src="/logo.jpg" alt="SIKApay" className="w-8 h-8 rounded-xl object-cover ring-1 ring-white/20" />
-            <span className="font-black text-white text-sm tracking-wide">SIKApay</span>
-          </div>
-          <button onClick={() => setStep("form")} className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 transition-colors rounded-xl px-3 py-1.5 text-xs font-semibold text-white/80">
-            ← Retour
-          </button>
-        </div>
-        <div className="max-w-md mx-auto px-4 space-y-3">
-          {/* Amount reminder */}
-          <div className="bg-gradient-to-br from-orange-600/30 to-amber-700/30 border border-orange-500/20 rounded-3xl p-5 text-center">
-            <p className="text-white/40 text-xs uppercase tracking-widest font-semibold mb-1">Montant à déposer</p>
-            <p className="font-black text-white leading-none" style={{ fontSize: "clamp(2rem,8vw,2.8rem)" }}>
-              {parseFloat(link.amount).toLocaleString("fr-FR")}
-              <span className="text-white/40 text-lg ml-2 font-bold">{link.currency}</span>
-            </p>
-            <p className="text-white/60 text-sm mt-1 font-semibold">{link.label}</p>
-          </div>
-
-          {/* Deposit number */}
-          <div className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-4">
-            <p className="text-white/40 text-[11px] uppercase tracking-widest font-semibold">Étape 1 — Effectuer le dépôt</p>
-            {manualInfoLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="w-7 h-7 border-2 border-white/15 border-t-white/60 rounded-full animate-spin" />
-              </div>
-            ) : !depositNumber ? (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 text-center">
-                <p className="text-red-300 text-sm font-semibold mb-1">⚠️ Numéro non configuré</p>
-                <p className="text-red-300/80 text-xs">
-                  Aucun numéro de dépôt n'est configuré pour {selectedOperator.name} ({selectedCountry.name}). Contactez l'administrateur.
-                </p>
-              </div>
-            ) : (
-              <>
-                <div className="bg-white/8 border border-white/15 rounded-2xl p-4 space-y-2" style={{ background: "rgba(255,255,255,0.07)" }}>
-                  <p className="text-white/40 text-xs font-semibold uppercase tracking-wider">{depositLabel}</p>
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="font-black text-white text-xl font-mono tracking-wider">{depositNumber}</p>
-                    <button
-                      onClick={copyDepositNumber}
-                      className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all"
-                      style={{ background: copied ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.1)", color: copied ? "#4ade80" : "#fff" }}
-                    >
-                      {copied ? "✓ Copié" : "Copier"}
-                    </button>
-                  </div>
-                </div>
-                {instruction && (
-                  <div className="bg-amber-500/10 border border-amber-400/20 rounded-2xl px-4 py-3 text-amber-300 text-sm">
-                    ℹ️ {instruction}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Activation directe — note importante */}
-          <div className="rounded-3xl p-4 flex gap-3 border" style={{ background: "rgba(16,185,129,0.10)", borderColor: "rgba(16,185,129,0.30)" }}>
-            <span className="text-emerald-400 text-lg flex-shrink-0">⚡</span>
-            <div className="text-sm text-emerald-100">
-              <p className="font-bold mb-1 text-emerald-300">Validation automatique possible</p>
-              <p className="leading-relaxed text-emerald-100/90">
-                Votre paiement sera <strong className="text-white">validé immédiatement</strong> si la transaction est effectuée (en temps réel) et si les informations saisies (ID, capture, numéro) sont correctes.
-              </p>
-            </div>
-          </div>
-
-          {/* Upload + Transaction ID */}
-          <div className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-4">
-            <p className="text-white/40 text-[11px] uppercase tracking-widest font-semibold">Étape 2 — Confirmer le paiement</p>
-
-            {/* Screenshot */}
-            <div>
-              <p className="text-white/60 text-xs font-semibold mb-2">Capture d'écran du reçu *</p>
-              {manualScreenshotPreview ? (
-                <div className="relative rounded-2xl overflow-hidden border border-white/10">
-                  <img src={manualScreenshotPreview} alt="Reçu" className="w-full max-h-48 object-cover" />
-                  {manualUploading && (
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                      <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                    </div>
-                  )}
-                  {manualScreenshotUrl && !manualUploading && (
-                    <div className="absolute top-2 right-2 bg-green-500 text-white text-[10px] font-bold px-2 py-1 rounded-full">✓ Chargée</div>
-                  )}
-                  <label className="absolute bottom-2 right-2 bg-white/20 backdrop-blur text-white text-[10px] font-bold px-2 py-1 rounded-full cursor-pointer hover:bg-white/30 transition">
-                    Changer
-                    <input type="file" accept="image/*" className="hidden"
-                      onChange={e => { const f = e.target.files?.[0]; if (f) handleManualScreenshot(f); }} />
-                  </label>
-                </div>
-              ) : (
-                <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed rounded-2xl cursor-pointer transition-colors"
-                  style={{ borderColor: "rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.05)" }}>
-                  <span className="text-3xl mb-1">📷</span>
-                  <span className="text-white/50 text-xs font-semibold">Choisir une capture</span>
-                  <span className="text-white/25 text-[10px]">JPG, PNG — max 10 Mo</span>
-                  <input type="file" accept="image/*" className="hidden"
-                    onChange={e => { const f = e.target.files?.[0]; if (f) handleManualScreenshot(f); }} />
-                </label>
-              )}
-            </div>
-
-            {/* Transaction ID */}
-            <div>
-              <p className="text-white/60 text-xs font-semibold mb-2">ID / Référence de transaction *</p>
-              <input
-                type="text"
-                value={manualTxnId}
-                onChange={e => setManualTxnId(e.target.value)}
-                placeholder="ex: TXN20240125ABCDE"
-                className="w-full border border-white/15 rounded-2xl px-4 py-3 text-sm font-semibold font-mono text-white placeholder:text-white/25 focus:outline-none focus:border-orange-400/60"
-                style={{ background: "rgba(255,255,255,0.07)" }}
-              />
-            </div>
-          </div>
-
-          {manualError && (
-            <div className="bg-red-500/10 border border-red-500/30 rounded-2xl px-4 py-3 text-red-400 text-sm">
-              ⚠️ {manualError}
-            </div>
-          )}
-
-          <button
-            onClick={handleManualSubmit}
-            disabled={manualSubmitting || manualUploading}
-            className="w-full py-4 rounded-2xl font-bold text-white text-sm transition-all"
-            style={{ background: (manualSubmitting || manualUploading) ? "rgba(255,255,255,0.1)" : "linear-gradient(135deg, #ea580c, #f97316)" }}
-          >
-            {manualSubmitting ? "Envoi en cours…" : manualUploading ? "Chargement…" : "Envoyer la demande"}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Manual submitted ──
-  if (step === "manual_submitted") return (
-    <div className="min-h-screen flex items-center justify-center px-5" style={{ background: "linear-gradient(160deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)" }}>
-      <div className="text-center max-w-sm w-full animate-in fade-in zoom-in-95 duration-500">
+  // ── Manual submitted ─────────────────────────────────────────────────────────
+  if (step === "submitted") return (
+    <div className="min-h-screen flex items-center justify-center px-5" style={BG}>
+      <div className="text-center max-w-sm w-full">
         <div className="relative w-28 h-28 mx-auto mb-6">
-          <div className="absolute inset-0 rounded-full bg-orange-500/20 animate-pulse" />
-          <div className="relative w-28 h-28 rounded-full bg-gradient-to-br from-orange-400 to-amber-500 flex items-center justify-center shadow-2xl shadow-orange-500/30">
+          <div className="absolute inset-0 rounded-full bg-amber-500/20 animate-pulse" />
+          <div className="w-28 h-28 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-2xl shadow-amber-500/30 mx-auto">
             <span className="text-5xl">⏳</span>
           </div>
         </div>
         <h2 className="font-black text-white text-2xl mb-2">Demande envoyée !</h2>
-        <p className="text-white/60 text-sm mb-1">
-          Votre demande de paiement a été transmise.
-        </p>
-        <p className="text-white/40 text-xs mb-6">
-          Notre équipe va vérifier votre dépôt et valider la transaction sous peu.
-        </p>
+        <p className="text-white/60 text-sm mb-1">Votre demande a été transmise.</p>
+        <p className="text-white/40 text-xs mb-6">Notre équipe va vérifier votre dépôt et valider sous peu.</p>
         <div className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-left space-y-1.5 mb-6">
           <p className="text-white/40 text-xs font-semibold uppercase tracking-wider mb-2">Récapitulatif</p>
-          <p className="text-white text-sm"><span className="text-white/40">Montant :</span> <span className="font-bold">{parseFloat(link.amount).toLocaleString("fr-FR")} {link.currency}</span></p>
+          <p className="text-white text-sm"><span className="text-white/40">Montant :</span> <span className="font-bold">{amount} {link.currency}</span></p>
           <p className="text-white text-sm"><span className="text-white/40">Lien :</span> {link.label}</p>
           <p className="text-white text-sm"><span className="text-white/40">Référence :</span> <span className="font-mono text-xs">{manualTxnId}</span></p>
         </div>
@@ -655,198 +423,388 @@ export default function PaymentLinkPage() {
     </div>
   );
 
-  // ── Main form ──
-  return (
-    <div className={`${BG} pb-12`} style={bgStyle}>
-      <style>{`
-        @keyframes bounce { 0%, 80%, 100% { transform: scale(0); opacity: 0.3 } 40% { transform: scale(1); opacity: 1 } }
-        @keyframes shimmer { 0% { background-position: -200% 0 } 100% { background-position: 200% 0 } }
-        .shine { background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent); background-size: 200% 100%; animation: shimmer 2.5s infinite; }
-      `}</style>
+  // ── Manual deposit step ──────────────────────────────────────────────────────
+  if (step === "manual") {
+    const depositNumber = depositInfo?.depositNumber || "";
+    const depositLabel = depositInfo?.depositLabel || `Numéro ${selectedOp?.name || ""}`;
+    return (
+      <div className="min-h-screen pb-28" style={BG}>
+        <style>{`@keyframes bounce { 0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1} }`}</style>
 
-      {/* Header */}
-      <div className="px-5 pt-6 pb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <img src="/logo.jpg" alt="SIKApay" className="w-8 h-8 rounded-xl object-cover ring-1 ring-white/20" />
-          <span className="font-black text-white text-sm tracking-wide">SIKApay</span>
+        {/* Header */}
+        <div style={{ background: "linear-gradient(135deg,#0f2460,#1a3a8f)" }} className="px-5 pt-6 pb-8">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2.5">
+              <img src="/logo.jpg" alt="SIKApay" className="w-10 h-10 rounded-2xl object-cover ring-2 ring-white/20" />
+              <div>
+                <p className="text-[10px] text-blue-300 uppercase tracking-wider font-bold">SIKApay</p>
+                <p className="font-black text-white text-sm leading-tight">SIKA TEXTE</p>
+              </div>
+            </div>
+            <button onClick={() => setStep("form")}
+              className="flex items-center gap-1.5 bg-white/10 rounded-xl px-3 py-1.5 text-xs font-semibold text-white/80">
+              <ChevronLeft size={14} /> Retour
+            </button>
+          </div>
+          <p className="text-blue-200 text-xs font-semibold mb-1 uppercase tracking-wider">Montant à déposer</p>
+          <div className="flex items-end gap-1">
+            <span className="text-4xl font-black text-white">{amount}</span>
+            <span className="text-lg font-bold text-blue-300 mb-0.5">{link.currency}</span>
+          </div>
+          <p className="text-blue-300 text-sm mt-1 font-semibold">{link.label}</p>
         </div>
-        <div className="flex items-center gap-1.5 bg-green-500/10 border border-green-500/20 rounded-full px-3 py-1.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-          <span className="text-green-400 text-xs font-semibold">Sécurisé</span>
+
+        {/* Steps indicator */}
+        <div className="bg-white/5 border-b border-white/5 px-5 py-3 flex items-center gap-2">
+          <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center">
+            <CheckCircle size={14} className="text-white" />
+          </div>
+          <span className="text-white/50 text-xs font-semibold">Coordonnées</span>
+          <ChevronRight size={14} className="text-white/20" />
+          <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center">
+            <span className="text-blue-800 text-xs font-black">2</span>
+          </div>
+          <span className="text-white text-xs font-semibold">Dépôt</span>
+        </div>
+
+        <div className="px-5 pt-4 space-y-4 max-w-md mx-auto">
+
+          {depositLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 size={32} className="text-blue-400 animate-spin" />
+            </div>
+          ) : (
+            <>
+              {/* Deposit number card */}
+              <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-white/5">
+                  <p className="text-white/40 text-[11px] uppercase tracking-widest font-bold">Étape 1 — Effectuer le dépôt</p>
+                </div>
+                <div className="p-5 space-y-4">
+                  {!depositNumber ? (
+                    <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 text-center">
+                      <AlertTriangle size={20} className="text-red-400 mx-auto mb-2" />
+                      <p className="text-red-300 text-sm font-semibold mb-1">Numéro non configuré</p>
+                      <p className="text-red-300/70 text-xs">
+                        Aucun numéro de dépôt pour {selectedOp?.name} ({selectedCountry?.name}). Contactez l'administrateur.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-1">
+                        <p className="text-white/40 text-xs font-semibold uppercase tracking-wide">{depositLabel}</p>
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="font-black text-white text-2xl font-mono tracking-wider">{depositNumber}</p>
+                          <button onClick={copyDepositNumber}
+                            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all"
+                            style={{ background: copied ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.1)", color: copied ? "#4ade80" : "#fff" }}>
+                            <Copy size={12} />{copied ? "Copié" : "Copier"}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between px-1">
+                        <span className="text-white/50 text-sm">Montant exact</span>
+                        <span className="text-white font-black text-xl">{amount} <span className="text-white/40 text-base">{link.currency}</span></span>
+                      </div>
+                    </>
+                  )}
+
+                  {depositInfo?.showInstruction && depositInfo?.instruction && (
+                    <div className="bg-blue-500/10 border border-blue-400/20 rounded-2xl p-4 flex gap-3">
+                      <Info size={16} className="text-blue-400 flex-shrink-0 mt-0.5" />
+                      <p className="text-blue-300 text-sm whitespace-pre-line">{depositInfo.instruction}</p>
+                    </div>
+                  )}
+
+                  {/* Auto-validation note */}
+                  <div className="bg-emerald-500/10 border border-emerald-400/20 rounded-2xl p-4 flex gap-3">
+                    <span className="text-lg flex-shrink-0">⚡</span>
+                    <div className="text-sm text-emerald-300">
+                      <p className="font-bold mb-1">Validation automatique possible</p>
+                      <p className="text-emerald-300/80 text-xs leading-relaxed">
+                        Votre paiement sera <strong>validé immédiatement</strong> si la transaction est effectuée (en temps réel) et si les informations saisies (ID, capture, numéro) sont correctes.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Confirmation form */}
+              <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-white/5">
+                  <p className="text-white/40 text-[11px] uppercase tracking-widest font-bold">Étape 2 — Confirmer le paiement</p>
+                </div>
+                <div className="p-5 space-y-4">
+                  {/* Screenshot */}
+                  <div>
+                    <p className="text-white/60 text-xs font-semibold mb-2 flex items-center gap-1.5">
+                      <ImageIcon size={12} /> Capture d'écran du reçu <span className="text-red-400">*</span>
+                    </p>
+                    <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) handleScreenshotSelect(f); }} />
+                    {screenshotPreview ? (
+                      <div className="relative rounded-2xl overflow-hidden border border-white/15">
+                        <img src={screenshotPreview} alt="Capture" className="w-full max-h-48 object-contain bg-white/5" />
+                        {manualUploading && (
+                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                            <Loader2 size={24} className="text-white animate-spin" />
+                          </div>
+                        )}
+                        <button onClick={() => { setScreenshotFile(null); setManualScreenshotUrl(""); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                          className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1">
+                          <XCircle size={16} />
+                        </button>
+                      </div>
+                    ) : (
+                      <button onClick={() => fileInputRef.current?.click()}
+                        className="w-full border-2 border-dashed border-white/15 rounded-2xl p-6 flex flex-col items-center gap-2 text-white/40 hover:border-blue-400/50 hover:text-blue-400 transition-colors">
+                        <Upload size={24} />
+                        <p className="text-sm font-semibold">Choisir une capture</p>
+                        <p className="text-xs">JPG, PNG — max 10 Mo</p>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Transaction ID */}
+                  <div>
+                    <p className="text-white/60 text-xs font-semibold mb-2">ID / Référence de transaction <span className="text-red-400">*</span></p>
+                    <input type="text" value={manualTxnId} onChange={e => setManualTxnId(e.target.value)}
+                      placeholder="ex: TXN20240125ABCDE"
+                      className="w-full border border-white/15 rounded-2xl px-4 py-3 text-sm font-semibold font-mono text-white placeholder:text-white/25 focus:outline-none focus:border-blue-400/60"
+                      style={{ background: "rgba(255,255,255,0.07)" }} />
+                  </div>
+                </div>
+              </div>
+
+              {error && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-2xl px-4 py-3 text-red-400 text-sm flex items-start gap-2">
+                  <span className="flex-shrink-0">⚠️</span><span>{error}</span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Fixed bottom button */}
+        <div className="fixed bottom-0 left-0 right-0 p-4 max-w-md mx-auto">
+          <div className="bg-[#0f172a] border-t border-white/5 pt-3">
+            <button onClick={handleManualSubmit}
+              disabled={manualSubmitting || manualUploading || !depositInfo}
+              className="w-full py-4 rounded-2xl font-bold text-white text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              style={{ background: "linear-gradient(135deg, #2563eb, #1d4ed8)" }}>
+              {manualSubmitting ? <><Loader2 size={16} className="animate-spin" /> Envoi en cours…</> : <><CheckCircle size={16} /> Envoyer la demande</>}
+            </button>
+            <p className="text-center text-[10px] text-white/25 mt-2 flex items-center justify-center gap-1">
+              <ShieldCheck size={10} /> Paiement sécurisé · SIKApay SIKA TEXTE
+            </p>
+          </div>
         </div>
       </div>
+    );
+  }
 
-      <div className="max-w-md mx-auto px-4 space-y-3"
-        style={{ opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(12px)", transition: "all 0.4s ease" }}>
+  // ── Main form (Step 1) ───────────────────────────────────────────────────────
+  return (
+    <div className="min-h-screen pb-28" style={BG}>
+      <style>{`@keyframes bounce { 0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1} }`}</style>
 
-        {/* Link image */}
+      {/* Header */}
+      <div style={{ background: "linear-gradient(135deg,#0f2460,#1a3a8f)" }} className="px-5 pt-6 pb-8">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2.5">
+            <img src="/logo.jpg" alt="SIKApay" className="w-10 h-10 rounded-2xl object-cover ring-2 ring-white/20" />
+            <div>
+              <p className="text-[10px] text-blue-300 uppercase tracking-wider font-bold">SIKApay</p>
+              <p className="font-black text-white text-sm leading-tight">SIKA TEXTE</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 bg-green-500/10 border border-green-500/20 rounded-full px-3 py-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+            <span className="text-green-400 text-xs font-semibold">Sécurisé</span>
+          </div>
+        </div>
+
         {link.imageUrl && (
-          <div className="rounded-3xl overflow-hidden ring-1 ring-white/10" style={{ maxHeight: 180 }}>
-            <img src={link.imageUrl} alt={link.label} className="w-full object-cover" style={{ maxHeight: 180 }} />
+          <div className="rounded-2xl overflow-hidden mb-4 ring-1 ring-white/10" style={{ maxHeight: 140 }}>
+            <img src={link.imageUrl} alt={link.label} className="w-full object-cover" style={{ maxHeight: 140 }} />
           </div>
         )}
 
-        {/* Amount card */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-blue-600/30 to-indigo-700/30 border border-blue-500/20 rounded-3xl p-6 text-center shine">
-          <p className="text-white/40 text-xs uppercase tracking-[0.15em] font-semibold mb-2">Total à payer</p>
-          <p className="font-black text-white leading-none" style={{ fontSize: "clamp(2.5rem,10vw,3.5rem)" }}>
-            {parseFloat(link.amount).toLocaleString("fr-FR")}
-            <span className="text-white/40 text-xl ml-2 font-bold">{link.currency}</span>
-          </p>
-          <p className="text-white/70 font-semibold mt-2 text-sm uppercase tracking-wide">{link.label}</p>
-          {link.description && <p className="text-white/70 text-sm mt-2 leading-relaxed">{link.description}</p>}
+        <p className="text-blue-200 text-xs font-semibold mb-1 uppercase tracking-wider">Total à payer</p>
+        <div className="flex items-end gap-1">
+          <span className="text-4xl font-black text-white">{amount}</span>
+          <span className="text-lg font-bold text-blue-300 mb-0.5">{link.currency}</span>
+        </div>
+        <p className="text-blue-300 text-sm mt-1 font-semibold">{link.label}</p>
+        {link.description && <p className="text-blue-200/70 text-xs mt-1 leading-relaxed">{link.description}</p>}
+      </div>
+
+      {/* Step indicator */}
+      <div className="bg-white/5 border-b border-white/5 px-5 py-3 flex items-center gap-2">
+        <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center">
+          <span className="text-blue-800 text-xs font-black">1</span>
+        </div>
+        <span className="text-white text-xs font-semibold">Coordonnées</span>
+        <ChevronRight size={14} className="text-white/20" />
+        <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center">
+          <span className="text-white/40 text-xs font-bold">2</span>
+        </div>
+        <span className="text-white/40 text-xs font-semibold">Paiement</span>
+      </div>
+
+      <div className="px-5 pt-4 space-y-4 max-w-md mx-auto">
+
+        {/* Pays */}
+        <div>
+          <p className="text-white/40 text-xs font-bold uppercase tracking-wider mb-2.5">🌍 Pays</p>
+          <div className="grid grid-cols-2 gap-2">
+            {COUNTRIES.map(c => (
+              <button key={c.code} onClick={() => { setCountry(c.code); setOperator(""); }}
+                className={`flex items-center gap-2.5 p-3 rounded-2xl border-2 text-left transition-all ${
+                  country === c.code ? "border-blue-400 bg-blue-500/15" : "border-white/10 bg-white/5"
+                }`}>
+                <span className="text-2xl">{c.flag}</span>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-xs font-bold leading-tight truncate ${country === c.code ? "text-white" : "text-white/70"}`}>{c.name}</p>
+                  <p className="text-[10px] text-white/30">+{c.prefix}</p>
+                </div>
+                {country === c.code && <CheckCircle size={13} className="text-blue-400 flex-shrink-0" />}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Country + Operator + Phone */}
-        <div className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-5">
-          {/* Country */}
+        {/* Opérateur */}
+        {selectedCountry && (
           <div>
-            <p className="text-white/40 text-[11px] uppercase tracking-[0.12em] font-semibold mb-2">Pays</p>
-            <div className="relative">
-              <select
-                value={selectedCountry.code}
-                onChange={e => handleCountryChange(e.target.value)}
-                className="w-full appearance-none bg-white/8 border border-white/15 rounded-2xl px-4 py-3 text-sm font-semibold text-white focus:outline-none focus:border-blue-400/50 cursor-pointer"
-                style={{ background: "rgba(255,255,255,0.07)" }}
-              >
-                {COUNTRIES.map(c => (
-                  <option key={c.code} value={c.code} style={{ background: "#1e293b" }}>
-                    {c.flag} {c.name} ({c.currency})
-                  </option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-white/40">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          {/* Operator */}
-          <div>
-            <p className="text-white/40 text-[11px] uppercase tracking-[0.12em] font-semibold mb-2">Opérateur Mobile Money</p>
-            <div className={`grid gap-2 ${selectedCountry.operators.length > 2 ? "grid-cols-2" : "grid-cols-2"}`}>
+            <p className="text-white/40 text-xs font-bold uppercase tracking-wider mb-2.5">Réseau Mobile Money</p>
+            <div className="space-y-2">
               {selectedCountry.operators.map(op => {
-                const active = selectedOperator.code === op.code;
+                const info = OPERATORS[op];
+                const selected = operator === op;
                 return (
-                  <button
-                    key={op.code}
-                    onClick={() => { setSelectedOperator(op); }}
-                    className={`p-3 rounded-2xl border-2 text-center transition-all duration-200 ${
-                      active ? "border-blue-400/70 bg-blue-500/15 scale-[1.02]" : "border-white/10 bg-white/5 hover:bg-white/8"
-                    }`}
-                  >
-                    <div className="w-10 h-10 rounded-full mx-auto mb-1.5 flex items-center justify-center font-black text-[11px] shadow-lg"
-                      style={{ background: op.bg, color: op.bg === "#FFCC00" ? "#333" : "#fff",
-                        boxShadow: active ? `0 4px 20px ${op.bg}55` : "none" }}>
-                      {op.short}
+                  <button key={op} onClick={() => setOperator(op)}
+                    className={`w-full flex items-center gap-3 p-3.5 rounded-2xl border-2 text-left transition-all ${
+                      selected ? "border-blue-400 bg-blue-500/15" : "border-white/10 bg-white/5"
+                    }`}>
+                    <OperatorBadge code={op} size="sm" />
+                    <div className="flex-1">
+                      <p className={`text-sm font-bold ${selected ? "text-white" : "text-white/70"}`}>{info.name}</p>
+                      <p className="text-[11px] text-white/30">{info.full}</p>
                     </div>
-                    <p className="text-xs font-semibold leading-tight"
-                      style={{ color: active ? "#fff" : "rgba(255,255,255,0.55)" }}>{op.name}</p>
+                    {selected && <CheckCircle size={16} className="text-blue-400 flex-shrink-0" />}
                   </button>
                 );
               })}
             </div>
           </div>
+        )}
 
-          {/* Phone */}
+        {/* Note CI redirect */}
+        {isCi && link?.ciRedirect && operator && (
+          <div className="bg-orange-500/10 border border-orange-400/20 rounded-2xl p-3.5 flex gap-3">
+            <ExternalLink size={16} className="text-orange-400 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-orange-300">
+              <strong>Côte d'Ivoire :</strong> Vous serez redirigé vers la page de paiement sécurisée pour finaliser votre transaction.
+            </p>
+          </div>
+        )}
+
+        {/* Note dépôt manuel (non-CI) */}
+        {!isCi && useManual && operator && (
+          <div className="bg-amber-500/10 border border-amber-400/20 rounded-2xl p-3.5 flex gap-3">
+            <Info size={16} className="text-amber-400 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-300">
+              Le paiement pour <strong>{selectedCountry?.name}</strong> se fait par <strong>dépôt manuel</strong>. À l'étape suivante, vous recevrez un numéro de dépôt.
+            </p>
+          </div>
+        )}
+
+        {/* Numéro Mobile Money */}
+        {operator && (
           <div>
-            <p className="text-white/40 text-[11px] uppercase tracking-[0.12em] font-semibold mb-2">Numéro Mobile Money</p>
+            <p className="text-white/40 text-xs font-bold uppercase tracking-wider mb-2.5">📱 Numéro Mobile Money</p>
             <div className="flex gap-2">
-              <div className="flex items-center gap-1.5 px-3 py-3 rounded-2xl border border-white/10 text-sm font-bold text-white/70 whitespace-nowrap flex-shrink-0"
-                style={{ background: "rgba(255,255,255,0.07)" }}>
-                <span>{selectedCountry.flag}</span>
-                <span>{selectedCountry.prefix}</span>
+              <div className="flex items-center justify-center bg-white/5 border border-white/10 rounded-2xl px-3 text-sm font-bold text-white/60 whitespace-nowrap">
+                +{selectedCountry?.prefix}
               </div>
-              <input
-                type="tel"
-                value={phone}
-                onChange={e => setPhone(e.target.value)}
-                placeholder={selectedCountry.phonePlaceholder}
-                className="flex-1 bg-white/7 border border-white/15 rounded-2xl px-4 py-3 text-sm font-semibold text-white placeholder:text-white/25 focus:outline-none focus:border-blue-400/50"
-                style={{ background: "rgba(255,255,255,0.07)" }}
-              />
+              <input type="tel" value={phone} onChange={e => setPhone(e.target.value.replace(/[^\d\s]/g, ""))}
+                placeholder={`Ex : ${selectedCountry?.phonePlaceholder}`}
+                className="flex-1 border border-white/15 rounded-2xl px-4 py-3 text-sm font-semibold text-white placeholder:text-white/25 focus:outline-none focus:border-blue-400/50"
+                style={{ background: "rgba(255,255,255,0.07)" }} />
+            </div>
+            <p className="text-white/25 text-xs mt-1.5 pl-1">Entrez votre numéro local (sans l'indicatif pays)</p>
+          </div>
+        )}
+
+        {/* Nom + Prénom + Email (pour PCS ou si renseignement demandé) */}
+        {operator && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { label: "Prénom", value: firstName, set: setFirstName, ph: "Jean" },
+                { label: "Nom", value: lastName, set: setLastName, ph: "Dupont" },
+              ].map(f => (
+                <div key={f.label}>
+                  <p className="text-white/40 text-[11px] uppercase tracking-wider font-semibold mb-2">{f.label}</p>
+                  <input type="text" value={f.value} onChange={e => f.set(e.target.value)} placeholder={f.ph}
+                    className="w-full border border-white/15 rounded-2xl px-3 py-3 text-sm font-semibold text-white placeholder:text-white/25 focus:outline-none focus:border-blue-400/50"
+                    style={{ background: "rgba(255,255,255,0.07)" }} />
+                </div>
+              ))}
+            </div>
+
+            {/* Email */}
+            <div>
+              <p className="text-white/40 text-[11px] uppercase tracking-wider font-semibold mb-2">
+                Email{link?.isPcs ? " — Compte Sika Texte" : ""}
+              </p>
+              {link?.isPcs && currentUserEmail ? (
+                <div className="w-full border border-green-500/30 rounded-2xl px-4 py-3 text-sm font-semibold text-white flex items-center gap-2"
+                  style={{ background: "rgba(34,197,94,0.07)" }}>
+                  <CheckCircle size={14} className="text-green-400 flex-shrink-0" />
+                  <span className="truncate">{email}</span>
+                </div>
+              ) : (
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                  placeholder={link?.isPcs ? "Adresse e-mail de votre compte Sika" : "jean@exemple.com"}
+                  className="w-full border border-white/15 rounded-2xl px-4 py-3 text-sm font-semibold text-white placeholder:text-white/25 focus:outline-none focus:border-blue-400/50"
+                  style={{ background: "rgba(255,255,255,0.07)" }} />
+              )}
+              {link?.isPcs && (
+                <p className="text-white/30 text-[10px] mt-1.5">⚠️ Seuls les comptes Sika Texte sont acceptés.</p>
+              )}
             </div>
           </div>
-        </div>
-
-        {/* Name + Email */}
-        <div className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { label: "Prénom", value: firstName, set: setFirstName, ph: "Jean" },
-              { label: "Nom", value: lastName, set: setLastName, ph: "Dupont" },
-            ].map(f => (
-              <div key={f.label}>
-                <p className="text-white/40 text-[11px] uppercase tracking-[0.12em] font-semibold mb-2">{f.label}</p>
-                <input type="text" value={f.value} onChange={e => f.set(e.target.value)}
-                  placeholder={f.ph}
-                  className="w-full border border-white/15 rounded-2xl px-3 py-3 text-sm font-semibold text-white placeholder:text-white/25 focus:outline-none focus:border-blue-400/50"
-                  style={{ background: "rgba(255,255,255,0.07)" }} />
-              </div>
-            ))}
-          </div>
-          <div>
-            <p className="text-white/40 text-[11px] uppercase tracking-[0.12em] font-semibold mb-2">
-              Email{link?.isPcs ? " — Compte Sika Texte" : ""}
-            </p>
-            {link?.isPcs && currentUserEmail ? (
-              <div className="w-full border border-green-500/30 rounded-2xl px-4 py-3 text-sm font-semibold text-white flex items-center gap-2"
-                style={{ background: "rgba(34,197,94,0.07)" }}>
-                <span className="text-green-400 flex-shrink-0">✓</span>
-                <span className="truncate">{email}</span>
-              </div>
-            ) : (
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                placeholder={link?.isPcs ? "Adresse e-mail de votre compte Sika" : "jean@exemple.com"}
-                readOnly={link?.isPcs && !!currentUserEmail}
-                className="w-full border border-white/15 rounded-2xl px-4 py-3 text-sm font-semibold text-white placeholder:text-white/25 focus:outline-none focus:border-blue-400/50"
-                style={{ background: "rgba(255,255,255,0.07)" }} />
-            )}
-            {link?.isPcs && (
-              <p className="text-white/30 text-[10px] mt-1.5">
-                ⚠️ Le code PCS sera envoyé à cet e-mail. Seuls les comptes Sika Texte sont acceptés.
-              </p>
-            )}
-          </div>
-        </div>
+        )}
 
         {/* Error */}
         {error && (
           <div className="bg-red-500/10 border border-red-500/30 rounded-2xl px-4 py-3 text-red-400 text-sm flex items-start gap-2">
-            <span className="flex-shrink-0 mt-0.5">⚠️</span>
-            <span>{error}</span>
+            <span className="flex-shrink-0 mt-0.5">⚠️</span><span>{error}</span>
           </div>
         )}
+      </div>
 
-        {/* Submit */}
-        <button
-          onClick={handleFormNext}
-          disabled={submitting}
-          className="w-full py-4 rounded-2xl font-black text-base text-white shadow-xl active:scale-[0.97] transition-all duration-150 disabled:opacity-50"
-          style={{
-            background: isCiRedirect
+      {/* Fixed CTA */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 max-w-md mx-auto">
+        <div className="bg-[#0f172a] border-t border-white/5 pt-3">
+          <button onClick={handleContinue} disabled={submitting || !country || !operator}
+            className="w-full py-4 rounded-2xl font-bold text-white text-base transition-all disabled:opacity-40 flex items-center justify-center gap-2"
+            style={{ background: useCiRedirect && operator
               ? "linear-gradient(135deg, #ea580c, #f97316)"
-              : "linear-gradient(135deg, #2563eb, #4f46e5)",
-            boxShadow: isCiRedirect
-              ? "0 8px 32px rgba(234,88,12,0.4)"
-              : "0 8px 32px rgba(79,70,229,0.4)"
-          }}
-        >
-          {submitting
-            ? <span className="flex items-center justify-center gap-2">Initiation<AnimatedDots /></span>
-            : isCiRedirect
-              ? <span className="flex items-center justify-center gap-2">
-                  Accéder au paiement <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                </span>
-              : `Payer ${parseFloat(link.amount).toLocaleString("fr-FR")} ${link.currency}`
-          }
-        </button>
-
-        <p className="text-center text-white/20 text-xs pb-4">
-          Paiement sécurisé par <span className="text-white/35 font-bold">SIKApay</span>
-        </p>
+              : "linear-gradient(135deg, #2563eb, #1d4ed8)" }}>
+            {submitting
+              ? <><Loader2 size={18} className="animate-spin" /> Traitement<AnimatedDots /></>
+              : useCiRedirect && operator
+                ? <><ExternalLink size={18} /> Accéder au paiement ({amount} {link.currency})</>
+                : <>Continuer <ChevronRight size={18} /></>
+            }
+          </button>
+          <p className="text-center text-[10px] text-white/25 mt-2 flex items-center justify-center gap-1">
+            <ShieldCheck size={10} /> Paiement sécurisé · SIKApay SIKA TEXTE
+          </p>
+        </div>
       </div>
     </div>
   );
