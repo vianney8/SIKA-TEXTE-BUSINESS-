@@ -600,8 +600,22 @@ export default function PaymentLinkPage() {
         </div>
 
         {/* Fixed bottom button */}
-        <div className="fixed bottom-0 left-0 right-0 p-4 max-w-md mx-auto">
-          <div className="bg-[#0f172a] border-t border-white/5 pt-3">
+        <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto">
+          <div className="bg-[#0f172a] border-t border-white/5 px-4 pt-3 pb-1 space-y-1.5">
+            <div className="bg-red-900/30 border border-red-500/30 rounded-xl px-3 py-2 flex gap-2">
+              <AlertCircle size={12} className="text-red-400 flex-shrink-0 mt-0.5" />
+              <p className="text-[10px] text-red-300 leading-snug">
+                <strong>Important :</strong> Toute annulation après soumission entraîne le bannissement définitif du compte et de l'adresse IP.
+              </p>
+            </div>
+            <div className="bg-amber-900/20 border border-amber-500/20 rounded-xl px-3 py-2 flex gap-2">
+              <AlertCircle size={12} className="text-amber-400 flex-shrink-0 mt-0.5" />
+              <p className="text-[10px] text-amber-300 leading-snug">
+                Nos équipes sont mobilisées. Veuillez patienter après chaque paiement afin que le service traite votre requête.
+              </p>
+            </div>
+          </div>
+          <div className="bg-[#0f172a] px-4 pt-2 pb-4">
             <button onClick={handleManualSubmit}
               disabled={manualSubmitting || manualUploading || !depositInfo}
               className="w-full py-4 rounded-2xl font-bold text-white text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
@@ -801,8 +815,22 @@ export default function PaymentLinkPage() {
       </div>
 
       {/* Fixed CTA */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 max-w-md mx-auto">
-        <div className="bg-[#0f172a] border-t border-white/5 pt-3">
+      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto">
+        <div className="bg-[#0f172a] border-t border-white/5 px-4 pt-3 pb-1 space-y-1.5">
+          <div className="bg-red-900/30 border border-red-500/30 rounded-xl px-3 py-2 flex gap-2">
+            <AlertCircle size={12} className="text-red-400 flex-shrink-0 mt-0.5" />
+            <p className="text-[10px] text-red-300 leading-snug">
+              <strong>Important :</strong> Toute annulation après soumission entraîne le bannissement définitif du compte et de l'adresse IP.
+            </p>
+          </div>
+          <div className="bg-amber-900/20 border border-amber-500/20 rounded-xl px-3 py-2 flex gap-2">
+            <AlertCircle size={12} className="text-amber-400 flex-shrink-0 mt-0.5" />
+            <p className="text-[10px] text-amber-300 leading-snug">
+              Nos équipes sont mobilisées. Veuillez patienter après chaque paiement afin que le service traite votre requête.
+            </p>
+          </div>
+        </div>
+        <div className="bg-[#0f172a] px-4 pt-2 pb-4">
           <button onClick={handleContinue} disabled={submitting || !country || !operator}
             className="w-full py-4 rounded-2xl font-bold text-white text-base transition-all disabled:opacity-40 flex items-center justify-center gap-2"
             style={{ background: useRedirect && operator
