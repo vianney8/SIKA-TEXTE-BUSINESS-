@@ -10,7 +10,6 @@ const COUNTRIES = [
   { code: "BF",  name: "Burkina Faso",      flag: "🇧🇫", prefix: "226", phonePlaceholder: "01 23 45 67",    operators: ["moov","orange","wave"] },
   { code: "TG",  name: "Togo",              flag: "🇹🇬", prefix: "228", phonePlaceholder: "01 23 45 67",    operators: ["moov","tmoney"] },
   { code: "CM",  name: "Cameroun",          flag: "🇨🇲", prefix: "237", phonePlaceholder: "6 12 34 56 78",  operators: ["mtn","orange"] },
-  { code: "COG", name: "Congo-Brazzaville", flag: "🇨🇬", prefix: "242", phonePlaceholder: "01 23 45 67",    operators: ["mtn","airtel"] },
 ];
 
 const OPERATORS: Record<string, { name: string; full: string; bg: string; text: string; border: string; initials: string }> = {

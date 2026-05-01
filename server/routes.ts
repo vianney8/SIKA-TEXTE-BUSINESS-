@@ -4205,7 +4205,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (/^\+?237/.test(p)) return { operator: 'mtn', country: 'CM' };
     if (/^\+?228/.test(p)) return { operator: 'tmoney', country: 'TG' };
     if (/^\+?226/.test(p)) return { operator: 'orange', country: 'BF' };
-    if (/^\+?242/.test(p)) return { operator: 'airtel', country: 'COG' };
     return { operator: 'mtn', country: 'BJ' };
   }
 
@@ -4257,9 +4256,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const redirectUrl = settings.find((s: any) => s.key === `${k}_redirect_url`)?.value || '';
         countryModes[k.toUpperCase()] = { mode, redirectUrl };
       }
-      // COG utilise la clé 'COG' côté frontend
-      if (!countryModes['COG']) countryModes['COG'] = { mode: 'manual', redirectUrl: '' };
-
       res.json({
         activationAmount,
         operator,

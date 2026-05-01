@@ -24,7 +24,6 @@ const MAINTENANCE_COUNTRIES = [
   { code: "BF",  name: "Burkina Faso",      flag: "🇧🇫", operators: [{ key: "moov", name: "Moov", bg: "#005BAA", text: "#fff" }, { key: "orange", name: "Orange", bg: "#FF6600", text: "#fff" }, { key: "wave", name: "Wave", bg: "#1B6FEE", text: "#fff" }] },
   { code: "TG",  name: "Togo",              flag: "🇹🇬", operators: [{ key: "moov", name: "Moov", bg: "#005BAA", text: "#fff" }, { key: "tmoney", name: "T-Money", bg: "#C8102E", text: "#fff" }] },
   { code: "CM",  name: "Cameroun",          flag: "🇨🇲", operators: [{ key: "mtn", name: "MTN", bg: "#FFCC00", text: "#000" }, { key: "orange", name: "Orange", bg: "#FF6600", text: "#fff" }] },
-  { code: "COG", name: "Congo-Brazza",      flag: "🇨🇬", operators: [{ key: "mtn", name: "MTN", bg: "#FFCC00", text: "#000" }, { key: "airtel", name: "Airtel", bg: "#E40000", text: "#fff" }] },
 ];
 
 export default function AdminSettings() {
@@ -586,7 +585,6 @@ export default function AdminSettings() {
               { code: 'BF',  flag: '🇧🇫', name: 'Burkina Faso',      key: 'bf',  operators: ['moov','orange','wave'] },
               { code: 'TG',  flag: '🇹🇬', name: 'Togo',              key: 'tg',  operators: ['moov','tmoney'] },
               { code: 'CM',  flag: '🇨🇲', name: 'Cameroun',          key: 'cm',  operators: ['mtn','orange'] },
-              { code: 'COG', flag: '🇨🇬', name: 'Congo-Brazzaville', key: 'cog', operators: ['mtn','airtel'] },
             ].map(({ code, flag, name, key, operators }) => {
               const opNames: Record<string,string> = { mtn:'MTN', moov:'Moov', orange:'Orange', wave:'Wave', tmoney:'T-Money', free:'Free', airtel:'Airtel' };
               const currentMode: string = settings[`${key}_activation_mode`] || 'manual';

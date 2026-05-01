@@ -24,7 +24,6 @@ const COUNTRIES = [
   { code: "BF", name: "Burkina Faso" },
   { code: "TG", name: "Togo" },
   { code: "CM", name: "Cameroun" },
-  { code: "COG", name: "Congo-Brazzaville" },
 ];
 
 const STATUS_OPTIONS: { value: 'actif' | 'inactif'; label: string; color: string }[] = [
