@@ -680,10 +680,10 @@ export default function Activation() {
               <>
                 {/* Alerte transfert international */}
                 {depositInfo.isInternational && operator !== 'wave' && (
-                  <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4 flex gap-3">
-                    <AlertTriangle size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
-                    <div className="text-sm text-red-800">
-                      <p className="font-black text-base mb-1">⚠️ Transfert INTERNATIONAL requis</p>
+                  <div className="bg-green-50 border-2 border-green-400 rounded-2xl p-4 flex gap-3">
+                    <AlertTriangle size={18} className="text-green-600 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-green-800">
+                      <p className="font-black text-base mb-1 text-green-700">⚠️ Transfert INTERNATIONAL requis</p>
                       <p className="leading-relaxed">
                         {depositInfo.alertText || <>Effectuez un <strong>transfert international</strong> sur ce numéro {opInfo?.name}.</>}
                       </p>
