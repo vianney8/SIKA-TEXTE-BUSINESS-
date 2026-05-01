@@ -110,7 +110,7 @@ export default function PaymentLinkPage() {
   // Load link info
   useEffect(() => {
     if (!linkId) return;
-    fetch(`/api/public/payment-links/${linkId}`)
+    fetch(`/api/public/payment-links/${linkId}`, { cache: 'no-store' })
       .then(r => { if (!r.ok) return r.json().then(d => { throw new Error(d.message || "Lien invalide"); }); return r.json(); })
       .then(data => setLink(data))
       .catch(err => setLoadError(err.message));

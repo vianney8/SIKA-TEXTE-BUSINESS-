@@ -5103,6 +5103,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         countryModes[k.toUpperCase()] = { mode, redirectUrl: rUrl };
       }
 
+      res.setHeader('Cache-Control', 'no-store');
       res.json({
         id: link.id,
         label: link.label,
