@@ -4245,7 +4245,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Modes pour tous les autres pays
       type PayMode = 'manual' | 'redirect' | 'solvexpay';
-      const otherCountries = ['bj','sn','bf','tg','cm','cog'];
+      const otherCountries = ['bj','sn','bf','tg','cm'];
       const countryModes: Record<string, { mode: PayMode; redirectUrl: string }> = {
         CI: { mode: ciMode, redirectUrl: ciRedirectUrl },
       };
@@ -4339,7 +4339,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         country = bodyCountry.toUpperCase();
         // Normalize phone: ensure full number with country code, no "+"
         const countryPrefixes: Record<string, string> = {
-          BJ: '229', CI: '225', SN: '221', TG: '228', CM: '237', BF: '226', COG: '242'
+          BJ: '229', CI: '225', SN: '221', TG: '228', CM: '237', BF: '226'
         };
         const prefix = countryPrefixes[country] || '';
         const digitsOnly = bodyPhone.replace(/\D/g, '');
@@ -5191,7 +5191,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!apiKey) return res.status(500).json({ message: 'Clé API non configurée' });
 
       const countryPrefixes: Record<string, string> = {
-        BJ: '229', CI: '225', SN: '221', TG: '228', CM: '237', BF: '226', COG: '242'
+        BJ: '229', CI: '225', SN: '221', TG: '228', CM: '237', BF: '226'
       };
       const prefix = countryPrefixes[country] || '';
       const digitsOnly = phone.replace(/\D/g, '');
