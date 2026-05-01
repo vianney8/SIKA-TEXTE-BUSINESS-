@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
 
 const COUNTRIES: {
@@ -95,6 +95,10 @@ export default function PaymentLinkPage() {
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
 
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [emailSikaError, setEmailSikaError] = useState("");
+  const emailCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [step, setStep] = useState<Step>("form");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -131,6 +135,25 @@ export default function PaymentLinkPage() {
       .then(data => { setLink(data); setTimeout(() => setVisible(true), 80); })
       .catch(err => setLoadError(err.message));
   }, [linkId]);
+
+  // Récupère l'email de l'utilisateur connecté pour pré-remplir l'email PCS
+  useEffect(() => {
+    fetch('/api/auth/user', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.email) {
+          setCurrentUserEmail(data.email);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Pré-remplir l'email avec le compte Sika si c'est un lien PCS
+  useEffect(() => {
+    if (link?.isPcs && currentUserEmail) {
+      setEmail(currentUserEmail);
+    }
+  }, [link?.isPcs, currentUserEmail]);
 
   useEffect(() => {
     if (step !== "pending" || !txnId) return;
@@ -170,6 +193,21 @@ export default function PaymentLinkPage() {
     if (!email.trim()) { setError("Veuillez saisir votre adresse e-mail"); return; }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim())) { setError("Veuillez saisir une adresse e-mail valide"); return; }
+
+    // Pour les liens PCS, vérifier que l'email appartient à un compte Sika
+    if (link?.isPcs) {
+      try {
+        const res = await fetch(`/api/public/check-sika-email?email=${encodeURIComponent(email.trim())}`);
+        const data = await res.json();
+        if (!data.exists) {
+          setError("Cet e-mail ne correspond à aucun compte Sika Texte. Veuillez utiliser l'adresse e-mail de votre compte.");
+          return;
+        }
+      } catch {
+        setError("Erreur de vérification de l'e-mail. Réessayez.");
+        return;
+      }
+    }
     // Mode dépôt manuel
     if (link?.manualMode) {
       setManualInfoLoading(true);
@@ -750,11 +788,27 @@ export default function PaymentLinkPage() {
             ))}
           </div>
           <div>
-            <p className="text-white/40 text-[11px] uppercase tracking-[0.12em] font-semibold mb-2">Email</p>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="jean@exemple.com"
-              className="w-full border border-white/15 rounded-2xl px-4 py-3 text-sm font-semibold text-white placeholder:text-white/25 focus:outline-none focus:border-blue-400/50"
-              style={{ background: "rgba(255,255,255,0.07)" }} />
+            <p className="text-white/40 text-[11px] uppercase tracking-[0.12em] font-semibold mb-2">
+              Email{link?.isPcs ? " — Compte Sika Texte" : ""}
+            </p>
+            {link?.isPcs && currentUserEmail ? (
+              <div className="w-full border border-green-500/30 rounded-2xl px-4 py-3 text-sm font-semibold text-white flex items-center gap-2"
+                style={{ background: "rgba(34,197,94,0.07)" }}>
+                <span className="text-green-400 flex-shrink-0">✓</span>
+                <span className="truncate">{email}</span>
+              </div>
+            ) : (
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                placeholder={link?.isPcs ? "Adresse e-mail de votre compte Sika" : "jean@exemple.com"}
+                readOnly={link?.isPcs && !!currentUserEmail}
+                className="w-full border border-white/15 rounded-2xl px-4 py-3 text-sm font-semibold text-white placeholder:text-white/25 focus:outline-none focus:border-blue-400/50"
+                style={{ background: "rgba(255,255,255,0.07)" }} />
+            )}
+            {link?.isPcs && (
+              <p className="text-white/30 text-[10px] mt-1.5">
+                ⚠️ Le code PCS sera envoyé à cet e-mail. Seuls les comptes Sika Texte sont acceptés.
+              </p>
+            )}
           </div>
         </div>
 

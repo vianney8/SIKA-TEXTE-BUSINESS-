@@ -5021,6 +5021,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Vérifie si un email appartient à un compte Sika (pour valider l'email PCS)
+  app.get('/api/public/check-sika-email', async (req, res) => {
+    try {
+      const { email } = req.query as { email: string };
+      if (!email) return res.status(400).json({ message: 'Email requis' });
+      const [found] = await db.select({ id: users.id }).from(users).where(eq(users.email, email.toLowerCase().trim())).limit(1);
+      res.json({ exists: !!found });
+    } catch (err) {
+      console.error('[CHECK-SIKA-EMAIL]', err);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
   // Get payment link details (for the checkout page)
   app.get('/api/public/payment-links/:linkId', async (req, res) => {
     try {
@@ -5033,6 +5046,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ciRedirectUrl = settings.find((s: any) => s.key === 'ci_payment_link_url')?.value || 'https://clp.ci/ETPXwo';
       const globalManualEnabled = settings.find((s: any) => s.key === 'link_manual_mode_global')?.value !== 'false';
       const isManual = (link.manualMode || false) && globalManualEnabled;
+      const isPcs = (linkId === 'd3e5479d' || linkId === 'codepcs' || linkId === '88cb6331');
       res.json({
         id: link.id,
         label: link.label,
@@ -5043,6 +5057,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ciRedirect,
         ciRedirectUrl,
         manualMode: isManual,
+        isPcs,
       });
     } catch (err) {
       console.error('[PAYMENT-LINKS] Public get error:', err);
@@ -5093,6 +5108,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { phone, operator, country, otp, customerName, customerEmail } = req.body;
       if (!phone || !operator || !country) {
         return res.status(400).json({ message: 'Téléphone, opérateur et pays requis' });
+      }
+
+      // Pour les liens PCS, l'email doit appartenir à un compte Sika
+      const isPcsLink = (linkId === 'd3e5479d' || linkId === 'codepcs' || linkId === '88cb6331');
+      if (isPcsLink && customerEmail) {
+        const [sikaUser] = await db.select({ id: users.id }).from(users).where(eq(users.email, (customerEmail as string).toLowerCase().trim())).limit(1);
+        if (!sikaUser) {
+          return res.status(400).json({ message: 'Cet e-mail ne correspond à aucun compte Sika Texte. Veuillez utiliser l\'adresse e-mail de votre compte.' });
+        }
       }
 
       const apiKey = process.env.SOLVEXPAY_API_KEY;
@@ -5330,6 +5354,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ).limit(1);
       if (!link) return res.status(404).json({ message: 'Lien introuvable ou inactif' });
       if (!link.manualMode) return res.status(400).json({ message: 'Ce lien n\'est pas en mode manuel' });
+
+      // Pour les liens PCS, l'email doit appartenir à un compte Sika
+      const isPcsLinkManual = (linkId === 'd3e5479d' || linkId === 'codepcs' || linkId === '88cb6331');
+      if (isPcsLinkManual && customerEmail) {
+        const [sikaUser] = await db.select({ id: users.id }).from(users).where(eq(users.email, (customerEmail as string).toLowerCase().trim())).limit(1);
+        if (!sikaUser) {
+          return res.status(400).json({ message: 'Cet e-mail ne correspond à aucun compte Sika Texte. Veuillez utiliser l\'adresse e-mail de votre compte.' });
+        }
+      }
 
       const [savedReq] = await db.insert(linkManualRequests).values({
         linkId,
