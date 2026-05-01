@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAppSetting } from "@/hooks/useAppSettings";
 import { FaTelegram, FaWhatsapp } from "react-icons/fa";
 import { Link } from "wouter";
-import { Zap, ChevronRight, Sparkles, Download, Smartphone, Server, CreditCard, Bolt } from "lucide-react";
+import { Zap, ChevronRight, Sparkles, Download, Smartphone, Server } from "lucide-react";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -331,35 +331,6 @@ export default function Dashboard() {
                 <ChevronRight size={16} className="text-white/60" />
               </a>
             </Link>
-          </div>
-
-          {/* ── PCS Secure Pay — accès rapide ── */}
-          <div className="rounded-[20px] overflow-hidden bg-white border border-slate-200 shadow-sm">
-            <div className="px-4 pt-3.5 pb-2 border-b border-slate-100 flex items-center gap-2">
-              <div className="w-7 h-7 rounded-xl flex items-center justify-center"
-                style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}>
-                <CreditCard size={13} className="text-white" />
-              </div>
-              <p className="text-slate-700 font-black text-sm">PCS Secure Pay</p>
-            </div>
-            <div className="px-4 py-3 space-y-2.5">
-              <Link href="/pay/codepcs">
-                <a className="flex items-center gap-3 w-full py-3 px-4 rounded-xl text-sm font-bold text-white active:scale-[0.98] transition-all"
-                  style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}>
-                  <CreditCard size={15} />
-                  <span className="flex-1 text-left">Payer mon code PCS Secure Pay</span>
-                  <ChevronRight size={14} className="text-white/60" />
-                </a>
-              </Link>
-              <Link href="/pay/88cb6331">
-                <a className="flex items-center gap-3 w-full py-3 px-4 rounded-xl text-sm font-bold text-white active:scale-[0.98] transition-all"
-                  style={{ background: "linear-gradient(135deg, #f59e0b, #ea580c)" }}>
-                  <Bolt size={15} />
-                  <span className="flex-1 text-left">Activer mon code PCS</span>
-                  <ChevronRight size={14} className="text-white/60" />
-                </a>
-              </Link>
-            </div>
           </div>
 
           {/* ══ Vidéo promo ══ */}
