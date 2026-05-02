@@ -3,7 +3,8 @@ import {
   ArrowDownCircle, ArrowUpCircle, Clock, RefreshCw,
   Users, ShoppingCart, ChevronLeft, Filter,
   TrendingUp, TrendingDown, CheckCircle2, AlertCircle,
-  XCircle, X, Copy, Wallet, Zap, Gift
+  XCircle, X, Copy, Wallet, Zap, Gift, LayoutGrid,
+  ArrowLeftRight
 } from "lucide-react";
 import { useState } from "react";
 import { formatFCFA } from "@/lib/utils";
@@ -81,13 +82,20 @@ const StatusPill = ({ status }: { status: string }) => {
   );
 };
 
-const typeOptions = [
-  { value: "all",        label: "Tout",        emoji: "📋" },
-  { value: "deposit",    label: "Récompenses", emoji: "🎁" },
-  { value: "pointage",   label: "Bonus",       emoji: "⚡" },
-  { value: "withdrawal", label: "Retraits",    emoji: "💸" },
-  { value: "referral",   label: "Parrainage",  emoji: "👥" },
-  { value: "transfer",   label: "Transferts",  emoji: "↔️" },
+const typeOptions: { value: string; label: string; icon: any; bg: string }[] = [
+  { value: "all",        label: "Tout",        icon: LayoutGrid,     bg: "linear-gradient(135deg,#334155,#475569)" },
+  { value: "deposit",    label: "Récompenses", icon: Gift,           bg: "linear-gradient(135deg,#16a34a,#059669)" },
+  { value: "pointage",   label: "Bonus",       icon: Zap,            bg: "linear-gradient(135deg,#0284c7,#2563eb)" },
+  { value: "withdrawal", label: "Retraits",    icon: Wallet,         bg: "linear-gradient(135deg,#dc2626,#e11d48)" },
+  { value: "referral",   label: "Parrainage",  icon: Users,          bg: "linear-gradient(135deg,#7c3aed,#6d28d9)" },
+  { value: "transfer",   label: "Transferts",  icon: ArrowLeftRight, bg: "linear-gradient(135deg,#ea580c,#d97706)" },
+];
+
+const statusOptions: { value: string; label: string; icon: any }[] = [
+  { value: "all",       label: "Tous",        icon: LayoutGrid    },
+  { value: "completed", label: "Complété",    icon: CheckCircle2  },
+  { value: "pending",   label: "En attente",  icon: Clock         },
+  { value: "failed",    label: "Échoué",      icon: XCircle       },
 ];
 
 export default function Transactions() {
@@ -188,35 +196,66 @@ export default function Transactions() {
 
       {/* ── FILTRES ── */}
       {showFilters && (
-        <div className="bg-white border-b border-gray-100 px-4 py-3 space-y-3">
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-            {typeOptions.map(o => (
-              <button key={o.value} onClick={() => setFilterType(o.value)}
-                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                  filterType === o.value
-                    ? "bg-blue-600 text-white shadow-sm shadow-blue-200"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                }`}>
-                <span>{o.emoji}</span> {o.label}
-              </button>
-            ))}
+        <div className="bg-white border-b border-gray-100/80 px-4 pt-4 pb-5 space-y-4 shadow-sm">
+
+          {/* Label type */}
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2.5">Par type</p>
+            <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-hide">
+              {typeOptions.map(o => {
+                const active = filterType === o.value;
+                const Icon = o.icon;
+                return (
+                  <button key={o.value} onClick={() => setFilterType(o.value)}
+                    className={`flex-shrink-0 flex items-center gap-2 pl-2.5 pr-3.5 py-2 rounded-2xl text-xs font-bold transition-all ${
+                      active ? "text-white shadow-md" : "bg-gray-50 border border-gray-200 text-gray-500"
+                    }`}
+                    style={active ? { background: o.bg } : {}}
+                  >
+                    <span className={`w-6 h-6 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                      active
+                        ? "bg-white/20"
+                        : "bg-gray-100"
+                    }`}>
+                      <Icon size={12} className={active ? "text-white" : "text-gray-400"} strokeWidth={2.5} />
+                    </span>
+                    {o.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <div className="flex gap-2">
-            {[
-              { value: "all",       label: "Tous" },
-              { value: "completed", label: "✅ Complété" },
-              { value: "pending",   label: "🕐 En attente" },
-              { value: "failed",    label: "❌ Échoué" },
-            ].map(o => (
-              <button key={o.value} onClick={() => setFilterStatus(o.value)}
-                className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                  filterStatus === o.value
-                    ? "bg-slate-800 text-white"
-                    : "bg-gray-100 text-gray-600"
-                }`}>
-                {o.label}
-              </button>
-            ))}
+
+          {/* Label statut */}
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2.5">Par statut</p>
+            <div className="flex gap-2 flex-wrap">
+              {statusOptions.map(o => {
+                const active = filterStatus === o.value;
+                const Icon = o.icon;
+                const colorMap: Record<string, string> = {
+                  all: "bg-slate-700",
+                  completed: "bg-green-500",
+                  pending: "bg-amber-500",
+                  failed: "bg-red-500",
+                };
+                return (
+                  <button key={o.value} onClick={() => setFilterStatus(o.value)}
+                    className={`flex items-center gap-2 pl-2 pr-3.5 py-2 rounded-2xl text-xs font-bold transition-all ${
+                      active
+                        ? "text-white shadow-md " + colorMap[o.value]
+                        : "bg-gray-50 border border-gray-200 text-gray-500"
+                    }`}>
+                    <span className={`w-5 h-5 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                      active ? "bg-white/20" : "bg-gray-100"
+                    }`}>
+                      <Icon size={11} className={active ? "text-white" : "text-gray-400"} strokeWidth={2.5} />
+                    </span>
+                    {o.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
@@ -280,9 +319,8 @@ export default function Transactions() {
                         <p className="text-gray-800 font-bold text-[13px] truncate">{cfg.label}</p>
                         <StatusPill status={t.status} />
                       </div>
-                      <p className="text-gray-400 text-[11px] truncate">
+                      <p className="text-gray-400 text-[11px]">
                         {new Date(t.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-                        {t.description ? ` · ${t.description}` : ""}
                       </p>
                     </div>
 
