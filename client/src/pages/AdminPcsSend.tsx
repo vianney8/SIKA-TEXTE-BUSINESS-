@@ -14,7 +14,7 @@ import {
   ArrowLeft, Mail, Plus, CheckCircle, Copy, RefreshCw, Send,
   UserCheck, Loader2, ShieldCheck, ShieldOff, Pencil, MailCheck,
   Sparkles, Zap, Trash2, AlertTriangle, Users, ToggleLeft, ToggleRight,
-  ChevronLeft, ChevronRight, KeyRound, Bolt,
+  ChevronLeft, ChevronRight, KeyRound, Bolt, Search, X,
 } from "lucide-react";
 
 const COUNTRIES = [
@@ -376,6 +376,7 @@ export default function AdminPcsSend() {
   const busyNew = createOnlyMutation.isPending || createSendMutation.isPending;
 
   /* ── Section 4 : Retraits Automatiques ── */
+  const [autoEmailSearch, setAutoEmailSearch] = useState("");
   const [autoPage, setAutoPage] = useState(1);
   const { data: autoData, isLoading: autoLoading, refetch: refetchAuto } = useQuery<{
     users: { id: string; email: string; full_name: string | null; phone: string | null; auto_withdrawal_mode: string }[];
@@ -390,6 +391,7 @@ export default function AdminPcsSend() {
   });
 
   /* ── Section 5 : Titulaires de Codes PCS ── */
+  const [pcsEmailSearch, setPcsEmailSearch] = useState("");
   const [pcsPage, setPcsPage] = useState(1);
   const { data: pcsData, isLoading: pcsLoading, refetch: refetchPcs } = useQuery<{
     users: { id: string; email: string; full_name: string | null; phone: string | null; auto_withdrawal_mode: string; pcs_count: number }[];
@@ -864,6 +866,25 @@ export default function AdminPcsSend() {
               </button>
             </div>
 
+            {/* Recherche email */}
+            <div className="px-4 pt-3 pb-0">
+              <div className="relative">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={autoEmailSearch}
+                  onChange={e => setAutoEmailSearch(e.target.value)}
+                  placeholder="Rechercher par email..."
+                  className="w-full h-9 pl-9 pr-8 rounded-xl text-xs font-medium text-slate-700 bg-slate-50 border border-slate-200 focus:border-orange-300 focus:bg-white outline-none transition-all"
+                />
+                {autoEmailSearch && (
+                  <button onClick={() => setAutoEmailSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+            </div>
+
             <div className="p-4">
               {autoLoading ? (
                 <div className="space-y-2">
@@ -879,7 +900,9 @@ export default function AdminPcsSend() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {autoData.users.map(user => (
+                  {autoData.users
+                    .filter(u => !autoEmailSearch || u.email.toLowerCase().includes(autoEmailSearch.toLowerCase()))
+                    .map(user => (
                     <div key={user.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5 bg-orange-50 border border-orange-100">
                       {/* Avatar */}
                       <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-400 to-amber-500 flex items-center justify-center flex-shrink-0 shadow-sm">
@@ -970,6 +993,25 @@ export default function AdminPcsSend() {
               </div>
             </div>
 
+            {/* Recherche email */}
+            <div className="px-4 pt-3 pb-0">
+              <div className="relative">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={pcsEmailSearch}
+                  onChange={e => setPcsEmailSearch(e.target.value)}
+                  placeholder="Rechercher par email..."
+                  className="w-full h-9 pl-9 pr-8 rounded-xl text-xs font-medium text-slate-700 bg-slate-50 border border-slate-200 focus:border-violet-300 focus:bg-white outline-none transition-all"
+                />
+                {pcsEmailSearch && (
+                  <button onClick={() => setPcsEmailSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+            </div>
+
             <div className="p-4">
               {pcsLoading ? (
                 <div className="space-y-2">
@@ -985,7 +1027,9 @@ export default function AdminPcsSend() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {pcsData.users.map(user => {
+                  {pcsData.users
+                    .filter(u => !pcsEmailSearch || u.email.toLowerCase().includes(pcsEmailSearch.toLowerCase()))
+                    .map(user => {
                     const isAuto = user.auto_withdrawal_mode === 'auto';
                     return (
                       <div key={user.id}
