@@ -309,54 +309,44 @@ export default function SpayNetwork() {
   if (withdrawalData && !withdrawalData.isAccountActive) return <AccessDenied paymentInfo={paymentInfo} />;
 
   return (
-    <div className="min-h-screen pb-28" style={{ background: "#080e1f" }}>
+    <div className="min-h-screen pb-28 bg-gradient-to-br from-slate-50 via-indigo-50/30 to-blue-50/20">
 
-      {/* ── HERO HEADER ── */}
+      {/* ── HERO HEADER — gradient indigo (même style que les autres pages) ── */}
       <div className="relative overflow-hidden"
-        style={{ background: "linear-gradient(150deg, #080e1f 0%, #0f1e40 40%, #1a0f3a 100%)" }}>
+        style={{ background: "linear-gradient(135deg, #312e81 0%, #4338ca 50%, #4f46e5 100%)" }}>
+        <div className="absolute inset-0 opacity-[0.06]"
+          style={{ backgroundImage: "radial-gradient(#a5b4fc 1px, transparent 1px)", backgroundSize: "22px 22px" }} />
+        <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full blur-3xl opacity-20"
+          style={{ background: "radial-gradient(circle, #818cf8, transparent)" }} />
 
-        {/* Ambient orbs */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <div className="absolute top-0 right-0 w-72 h-72 rounded-full blur-3xl opacity-20"
-            style={{ background: "radial-gradient(circle, #4f46e5, transparent)" }} />
-          <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full blur-3xl opacity-15"
-            style={{ background: "radial-gradient(circle, #7c3aed, transparent)" }} />
-          {/* Dot grid */}
-          <div className="absolute inset-0 opacity-[0.04]"
-            style={{ backgroundImage: "radial-gradient(#a5b4fc 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
-        </div>
-
-        {/* Top bar */}
         <div className="relative flex items-center gap-3 px-4 pt-5 pb-4">
           <Link href="/">
-            <div className="w-9 h-9 bg-white/10 rounded-xl flex items-center justify-center active:bg-white/20">
+            <div className="w-9 h-9 bg-white/15 rounded-xl flex items-center justify-center active:bg-white/25">
               <ChevronLeft size={20} className="text-white" />
             </div>
           </Link>
           <div className="flex-1">
-            <p className="text-white/40 text-[9px] font-bold uppercase tracking-[0.25em] font-mono">SPAY NETWORK OS · v4.1</p>
+            <p className="text-indigo-200/60 text-[9px] font-bold uppercase tracking-[0.25em] font-mono">SPAY NETWORK · v4.1</p>
             <h1 className="text-white font-black text-xl leading-tight">Réseau Spay</h1>
           </div>
-          <div className="relative w-12 h-12 rounded-2xl flex items-center justify-center"
-            style={{ background: "rgba(79,70,229,0.3)", border: "1px solid rgba(99,102,241,0.4)" }}>
-            <Shield size={22} className="text-indigo-300" />
+          <div className="relative w-11 h-11 rounded-2xl flex items-center justify-center bg-white/15">
+            <Shield size={20} className="text-white" />
             <div className="absolute -top-1 -right-1"><PulseRing color="#10b981" size={2} /></div>
           </div>
         </div>
 
-        {/* Live metrics strip */}
+        {/* Métriques live */}
         <div className="relative px-4 pb-5">
           <div className="grid grid-cols-3 gap-2">
             {[
-              { label: "STATUT",  val: "EN LIGNE",          color: "#10b981", icon: <Radio size={10} />,    bg: "#10b98120" },
-              { label: "LATENCE", val: ping ? `${ping}ms` : "...", color: pingColor, icon: <Activity size={10} />, bg: `${pingColor}20` },
-              { label: "CHARGE",  val: `${serverLoad}%`,    color: loadColor, icon: <Cpu size={10} />,      bg: `${loadColor}20` },
+              { label: "STATUT",  val: "EN LIGNE",                   color: "#6ee7b7", icon: <Radio size={10} /> },
+              { label: "LATENCE", val: ping ? `${ping}ms` : "...",   color: ping && ping < 80 ? "#6ee7b7" : ping && ping < 250 ? "#fcd34d" : "#fca5a5", icon: <Activity size={10} /> },
+              { label: "CHARGE",  val: `${serverLoad}%`,             color: serverLoad < 30 ? "#6ee7b7" : serverLoad < 60 ? "#fcd34d" : "#fca5a5",     icon: <Cpu size={10} /> },
             ].map((m, i) => (
-              <div key={i} className="rounded-2xl px-3 py-2.5"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <div key={i} className="rounded-2xl px-3 py-2.5 bg-white/10 border border-white/15">
                 <div className="flex items-center gap-1 mb-1">
                   <span style={{ color: m.color }}>{m.icon}</span>
-                  <span className="text-white/40 text-[8px] font-black tracking-widest">{m.label}</span>
+                  <span className="text-white/50 text-[8px] font-black tracking-widest">{m.label}</span>
                 </div>
                 <p className="font-black text-sm" style={{ color: m.color }}>{m.val}</p>
               </div>
@@ -365,92 +355,77 @@ export default function SpayNetwork() {
         </div>
       </div>
 
-      {/* ── FLOW DIAGRAM ── */}
-      <div className="mx-4 mt-4 rounded-3xl overflow-hidden relative"
-        style={{ background: "linear-gradient(135deg, #0f1a3a 0%, #1a1040 50%, #0a1a30 100%)", border: "1px solid rgba(99,102,241,0.25)" }}>
-        {/* Glow */}
-        <div className="absolute -top-8 left-1/2 -translate-x-1/2 w-48 h-24 rounded-full blur-3xl opacity-30"
-          style={{ background: "radial-gradient(circle, #4f46e5, transparent)" }} />
-        <div className="relative px-5 pt-5 pb-2">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="flex gap-1">
-              {[0,1,2].map(i => (
-                <div key={i} className="h-1.5 rounded-full animate-pulse"
-                  style={{ width: i === 2 ? 20 : i === 1 ? 14 : 8, background: "#a5b4fc", animationDelay: `${i * 0.2}s` }} />
-              ))}
-            </div>
-            <span className="text-indigo-300/60 text-[9px] font-black uppercase tracking-[0.2em]">FLUX DE PAIEMENT EN DIRECT</span>
+      {/* ── FLOW DIAGRAM — garde son fond sombre car c'est une zone graphique animée ── */}
+      <div className="mx-4 mt-4 rounded-[20px] overflow-hidden relative shadow-lg shadow-indigo-200/40"
+        style={{ background: "linear-gradient(135deg, #312e81 0%, #3730a3 50%, #4338ca 100%)" }}>
+        <div className="absolute inset-0 opacity-[0.05]"
+          style={{ backgroundImage: "radial-gradient(#a5b4fc 1px, transparent 1px)", backgroundSize: "18px 18px" }} />
+        <div className="relative px-5 pt-4 pb-1 flex items-center gap-2">
+          <div className="flex gap-1">
+            {[0,1,2].map(i => (
+              <div key={i} className="h-1.5 rounded-full animate-pulse"
+                style={{ width: i === 2 ? 20 : i === 1 ? 14 : 8, background: "#a5b4fc", animationDelay: `${i * 0.2}s` }} />
+            ))}
           </div>
-          <p className="text-white font-black text-base">Circuit de retrait</p>
+          <p className="text-white font-black text-sm">Circuit de retrait</p>
+          <span className="text-indigo-200/50 text-[9px] font-mono ml-auto">EN DIRECT</span>
         </div>
         <MoneyFlowDiagram />
-
-        {/* Bottom ticker */}
-        <div className="relative border-t px-5 py-2 overflow-hidden"
-          style={{ borderColor: "rgba(99,102,241,0.2)", background: "rgba(79,70,229,0.08)" }}>
-          <div className="flex items-center gap-3">
-            <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse flex-shrink-0" />
-            <p className="text-indigo-300/40 text-[9px] font-mono truncate">
-              PKT#{packets.toString().padStart(8, '0')} · TLS/1.3 · AES-256-GCM · SPAY-SECURE-CHANNEL-ACTIVE
+        <div className="relative border-t border-white/10 px-5 py-2 bg-white/5">
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-indigo-300 animate-pulse flex-shrink-0" />
+            <p className="text-indigo-200/40 text-[9px] font-mono truncate">
+              PKT#{packets.toString().padStart(8, '0')} · TLS/1.3 · AES-256-GCM
             </p>
           </div>
         </div>
       </div>
 
-      <div className="px-4 mt-4 space-y-4">
+      <div className="px-4 mt-4 space-y-3">
 
         {/* ── PCS SECURE PAY ── */}
-        <div className="rounded-3xl overflow-hidden"
-          style={{ background: "linear-gradient(135deg, #0f1230 0%, #1a1050 100%)", border: "1px solid rgba(99,102,241,0.25)" }}>
-
-          <div className="px-5 pt-4 pb-3 border-b flex items-center gap-3" style={{ borderColor: "rgba(99,102,241,0.15)" }}>
-            <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 relative"
+        <div className="rounded-[20px] overflow-hidden bg-white border border-slate-200 shadow-sm shadow-slate-100">
+          <div className="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 relative"
               style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}>
-              <KeyRound size={19} className="text-white" />
+              <KeyRound size={18} className="text-white" />
               {settings?.hasSavedPcsCode && (
                 <div className="absolute -top-1 -right-1"><PulseRing color="#10b981" size={2} /></div>
               )}
             </div>
             <div className="flex-1">
-              <p className="text-white font-black text-sm">PCS Secure Pay</p>
-              <p className="text-indigo-300/50 text-[10px] font-mono">module://auth/pcs-gateway</p>
+              <p className="text-slate-800 font-black text-sm">PCS Secure Pay</p>
+              <p className="text-slate-400 text-[10px] font-mono">module://auth/pcs-gateway</p>
             </div>
             <div className={`text-[9px] font-black px-2.5 py-1 rounded-full border ${
               settings?.hasSavedPcsCode
-                ? 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10'
-                : 'border-amber-500/40 text-amber-400 bg-amber-500/10'
+                ? 'border-emerald-300 text-emerald-600 bg-emerald-50'
+                : 'border-amber-300 text-amber-600 bg-amber-50'
             }`}>
-              {settings?.hasSavedPcsCode ? '● CONFIGURÉ' : '○ EN ATTENTE'}
+              {settings?.hasSavedPcsCode ? 'CONFIGURÉ' : 'EN ATTENTE'}
             </div>
           </div>
 
           {isLoading ? (
-            <div className="px-5 py-4">
-              <div className="h-12 rounded-2xl animate-pulse" style={{ background: "rgba(255,255,255,0.05)" }} />
-            </div>
+            <div className="px-5 py-4"><div className="h-10 rounded-xl animate-pulse bg-slate-100" /></div>
           ) : settings?.hasSavedPcsCode ? (
             <div className="px-5 py-4 space-y-3">
-              <div className="rounded-2xl p-4 flex items-center gap-3"
-                style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.25)" }}>
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: "rgba(16,185,129,0.15)" }}>
-                  <ShieldCheck size={20} className="text-emerald-400" />
+              <div className="rounded-2xl p-3.5 flex items-center gap-3 bg-emerald-50 border border-emerald-200">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                  <ShieldCheck size={18} className="text-emerald-600" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-emerald-400 text-[9px] font-black uppercase tracking-widest mb-0.5">Code Actif</p>
-                  <p className="text-white font-mono font-bold text-sm">{settings.savedPcsCodeMasked}</p>
+                  <p className="text-emerald-600 text-[9px] font-black uppercase tracking-widest mb-0.5">Code Actif</p>
+                  <p className="text-slate-800 font-mono font-bold text-sm">{settings.savedPcsCodeMasked}</p>
                 </div>
                 <PulseRing color="#10b981" size={2} />
               </div>
-              <div className="flex items-center gap-2 rounded-xl px-3 py-2.5"
-                style={{ background: "rgba(79,70,229,0.1)", border: "1px solid rgba(79,70,229,0.2)" }}>
-                <Zap size={12} className="text-indigo-400 flex-shrink-0" />
-                <p className="text-indigo-300 text-[10px]">Retraits traités automatiquement sans saisie manuelle</p>
+              <div className="flex items-center gap-2 rounded-xl px-3 py-2 bg-indigo-50 border border-indigo-100">
+                <Zap size={12} className="text-indigo-500 flex-shrink-0" />
+                <p className="text-indigo-600 text-[10px]">Retraits traités automatiquement sans saisie</p>
               </div>
-              <button onClick={() => deletePcsMutation.mutate()}
-                disabled={deletePcsMutation.isPending}
-                className="w-full py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
-                style={{ background: "rgba(220,38,38,0.1)", border: "1px solid rgba(220,38,38,0.25)", color: "#f87171" }}>
+              <button onClick={() => deletePcsMutation.mutate()} disabled={deletePcsMutation.isPending}
+                className="w-full py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50 border border-rose-200 text-rose-600 bg-rose-50 hover:bg-rose-100">
                 <Trash2 size={13} /> {deletePcsMutation.isPending ? "Suppression..." : "Supprimer le code"}
               </button>
             </div>
@@ -458,36 +433,32 @@ export default function SpayNetwork() {
             <div className="px-5 py-4 space-y-3">
               {!showPcsInput ? (
                 <button onClick={() => setShowPcsInput(true)}
-                  className="w-full py-3.5 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
-                  style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)", boxShadow: "0 4px 20px rgba(79,70,229,0.4)" }}>
+                  className="w-full py-3 rounded-xl text-white text-sm font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-md shadow-indigo-200"
+                  style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}>
                   <Fingerprint size={16} /> Configurer mon code PCS
                 </button>
               ) : (
                 <>
                   <div className="relative">
-                    <KeyRound size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-400" />
+                    <KeyRound size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input type={showCode ? "text" : "password"} value={pcsInput}
                       onChange={e => setPcsInput(e.target.value.toUpperCase())}
                       onKeyDown={e => e.key === 'Enter' && pcsInput.trim() && savePcsMutation.mutate(pcsInput.trim())}
-                      placeholder="PCS-XXXX-XXXX-XXXX-XXXX"
-                      autoFocus
-                      className="w-full h-12 pl-10 pr-12 rounded-xl text-sm font-mono font-bold tracking-wider outline-none transition-all"
-                      style={{ background: "rgba(255,255,255,0.06)", border: "2px solid rgba(99,102,241,0.4)", color: "white" }}
-                    />
+                      placeholder="PCS-XXXX-XXXX-XXXX-XXXX" autoFocus
+                      className="w-full h-12 pl-10 pr-12 rounded-xl text-sm font-mono font-bold text-slate-800 outline-none bg-slate-50 border-2 border-indigo-200 focus:border-indigo-400 tracking-wider" />
                     <button type="button" onClick={() => setShowCode(v => !v)}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-indigo-400">
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400">
                       {showCode ? <EyeOff size={15} /> : <Eye size={15} />}
                     </button>
                   </div>
                   <div className="flex gap-2">
                     <button onClick={() => { setShowPcsInput(false); setPcsInput(""); }}
-                      className="flex-1 py-2.5 rounded-xl text-xs font-bold transition-all"
-                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)" }}>
+                      className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-500 border-2 border-slate-200 hover:bg-slate-50 transition-all">
                       Annuler
                     </button>
                     <button onClick={() => pcsInput.trim() && savePcsMutation.mutate(pcsInput.trim())}
                       disabled={savePcsMutation.isPending || !pcsInput.trim()}
-                      className="flex-[2] py-2.5 rounded-xl text-white text-xs font-black flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all disabled:opacity-40"
+                      className="flex-[2] py-2.5 rounded-xl text-white text-xs font-black flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all disabled:opacity-40 shadow-md shadow-indigo-200"
                       style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}>
                       <CheckCircle size={13} /> {savePcsMutation.isPending ? "Enregistrement..." : "Enregistrer"}
                     </button>
@@ -499,82 +470,69 @@ export default function SpayNetwork() {
         </div>
 
         {/* ── MES CODES PCS ── */}
-        <div className="rounded-3xl overflow-hidden"
-          style={{ background: "#0d1428", border: "1px solid rgba(99,102,241,0.2)" }}>
-
-          <div className="px-5 pt-4 pb-3 border-b flex items-center gap-2" style={{ borderColor: "rgba(99,102,241,0.15)" }}>
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center"
-              style={{ background: "rgba(124,58,237,0.2)" }}>
-              <KeyRound size={14} className="text-violet-400" />
+        <div className="rounded-[20px] overflow-hidden bg-white border border-slate-200 shadow-sm shadow-slate-100">
+          <div className="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center">
+              <KeyRound size={14} className="text-violet-500" />
             </div>
-            <p className="text-white/70 text-xs font-black uppercase tracking-widest">Mes Codes PCS</p>
+            <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.2em]">Mes Codes PCS</p>
           </div>
-
           <div className="px-5 py-4 space-y-3">
             {userPcsCodes.length === 0 ? (
-              <div className="rounded-2xl px-4 py-3 flex items-center gap-2"
-                style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)" }}>
+              <div className="rounded-xl px-3 py-2.5 flex items-center gap-2 bg-amber-50 border border-amber-200">
                 <AlertTriangle size={13} className="text-amber-400 flex-shrink-0" />
-                <p className="text-amber-300/70 text-[10px]">Aucun code PCS attribué à votre compte.</p>
+                <p className="text-amber-600 text-[10px]">Aucun code PCS attribué à votre compte.</p>
               </div>
             ) : (
               <div className="space-y-2">
                 {userPcsCodes.map(pcs => (
-                  <div key={pcs.id} className="rounded-2xl px-3.5 py-3 flex items-center gap-3"
+                  <div key={pcs.id} className="rounded-xl px-3 py-2.5 flex items-center gap-3"
                     style={{
-                      background: pcs.status === 'actif' ? "rgba(16,185,129,0.08)" : "rgba(255,255,255,0.03)",
-                      border: `1px solid ${pcs.status === 'actif' ? "rgba(16,185,129,0.25)" : "rgba(255,255,255,0.07)"}`,
+                      background: pcs.status === 'actif' ? "#f0fdf4" : "#f8fafc",
+                      border: `1px solid ${pcs.status === 'actif' ? "#bbf7d0" : "#e2e8f0"}`,
                     }}>
                     <div className="flex-shrink-0">
-                      {pcs.status === 'actif' ? <PulseRing color="#10b981" size={2} /> : <div className="w-2 h-2 rounded-full bg-white/20" />}
+                      {pcs.status === 'actif' ? <PulseRing color="#10b981" size={2} /> : <div className="w-2 h-2 rounded-full bg-slate-300" />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <code className="text-[11px] font-mono font-bold text-white/80 block truncate">{pcs.code}</code>
+                      <code className="text-[11px] font-mono font-bold text-slate-700 block truncate">{pcs.code}</code>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className={`text-[9px] font-black uppercase tracking-wider ${pcs.status === 'actif' ? 'text-emerald-400' : 'text-white/30'}`}>
+                        <span className={`text-[9px] font-black uppercase tracking-wider ${pcs.status === 'actif' ? 'text-emerald-600' : 'text-slate-400'}`}>
                           {pcs.status === 'actif' ? '● Actif' : '○ Inactif'}
                         </span>
-                        <span className="text-white/20 text-[9px]">·</span>
-                        <span className="text-white/30 text-[9px] font-mono">
+                        <span className="text-slate-300 text-[9px]">·</span>
+                        <span className="text-slate-400 text-[9px] font-mono">
                           {new Date(pcs.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
                         </span>
                       </div>
                     </div>
-                    <button
-                      onClick={() => {
+                    <button onClick={() => {
                         navigator.clipboard.writeText(pcs.code);
                         setCopiedPcsId(pcs.id);
                         setTimeout(() => setCopiedPcsId(null), 1500);
                         toast({ title: "Code copié !" });
                       }}
-                      className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center transition-all active:scale-90"
-                      style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                      {copiedPcsId === pcs.id
-                        ? <CheckCircle size={13} className="text-emerald-400" />
-                        : <Copy size={13} className="text-white/40" />
-                      }
+                      className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all active:scale-90 bg-white border border-slate-200">
+                      {copiedPcsId === pcs.id ? <CheckCircle size={13} className="text-emerald-500" /> : <Copy size={13} className="text-slate-400" />}
                     </button>
                   </div>
                 ))}
               </div>
             )}
-
             <Link href="/pay/codepcs">
-              <a className="block w-full py-3.5 rounded-2xl text-sm font-black flex items-center justify-center gap-2 text-white active:scale-[0.98] transition-all"
-                style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)", boxShadow: "0 4px 20px rgba(79,70,229,0.35)" }}>
+              <a className="block w-full py-3 rounded-xl text-sm font-black flex items-center justify-center gap-2 text-white shadow-md shadow-indigo-200 active:scale-[0.98] transition-all"
+                style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}>
                 <CreditCard size={16} /> Payer mon code PCS Secure Pay
               </a>
             </Link>
-
             {userPcsCodes.some(c => c.status !== 'actif') && (
-              <div className="mt-1 p-4 rounded-2xl"
-                style={{ background: "rgba(245,158,11,0.07)", border: "1px solid rgba(245,158,11,0.2)" }}>
-                <p className="text-[11px] text-amber-300/70 leading-relaxed mb-3">
-                  L'activation du code est <b className="text-amber-300">obligatoire</b> pour finaliser la configuration SIKApay via SecurPay.
+              <div className="p-3 rounded-xl border border-amber-200 bg-amber-50">
+                <p className="text-[11px] text-amber-800 leading-relaxed mb-2.5">
+                  L'activation est <b>obligatoire</b> pour finaliser la configuration SIKApay via SecurPay.
                 </p>
                 <a href="https://sikatexte.site/pay/88cb6331" target="_blank" rel="noopener noreferrer"
-                  className="block w-full py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-2 text-white active:scale-[0.98] transition-all"
-                  style={{ background: "linear-gradient(135deg, #f59e0b, #ea580c)", boxShadow: "0 4px 16px rgba(245,158,11,0.3)" }}>
+                  className="block w-full py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-2 text-white shadow-md shadow-amber-200 active:scale-[0.98] transition-all"
+                  style={{ background: "linear-gradient(135deg, #f59e0b, #ea580c)" }}>
                   <Bolt size={14} /> Rendre mon code PCS actif
                 </a>
               </div>
@@ -582,185 +540,130 @@ export default function SpayNetwork() {
           </div>
         </div>
 
-        {/* ── PARAMÈTRES RÉSEAU ── */}
-        <div className="rounded-3xl overflow-hidden"
-          style={{ background: "#0d1428", border: "1px solid rgba(99,102,241,0.2)" }}>
-          <div className="px-5 pt-4 pb-3 border-b flex items-center gap-2" style={{ borderColor: "rgba(99,102,241,0.15)" }}>
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "rgba(59,130,246,0.2)" }}>
-              <Cpu size={14} className="text-blue-400" />
+        {/* ── PARAMÈTRES RÉSEAU — compact ── */}
+        <div className="rounded-[20px] overflow-hidden bg-white border border-slate-200 shadow-sm shadow-slate-100">
+          <div className="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Cpu size={13} className="text-indigo-400" />
+              <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.2em]">Paramètres Réseau</p>
             </div>
-            <p className="text-white/70 text-xs font-black uppercase tracking-widest">Paramètres Réseau</p>
+            {/* Mode Faible Latence inline */}
+            <div className="flex items-center gap-2">
+              <Zap size={12} style={{ color: settings?.lowLatencyMode ? "#10b981" : "#94a3b8" }} />
+              <span className="text-slate-500 text-[10px] font-semibold">Faible latence</span>
+              <button onClick={() => !isLoading && lowLatencyMutation.mutate(!settings?.lowLatencyMode)}
+                disabled={lowLatencyMutation.isPending || isLoading} className="transition-all active:scale-95">
+                {settings?.lowLatencyMode
+                  ? <ToggleRight size={30} className="text-emerald-500" />
+                  : <ToggleLeft size={30} className="text-slate-300" />}
+              </button>
+            </div>
           </div>
-
-          {/* Mode Faible Latence */}
-          <div className="px-5 py-4 flex items-center gap-3 border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: settings?.lowLatencyMode ? "rgba(16,185,129,0.15)" : "rgba(255,255,255,0.05)" }}>
-              <Zap size={17} style={{ color: settings?.lowLatencyMode ? "#10b981" : "#475569" }} />
-            </div>
-            <div className="flex-1">
-              <p className="text-white/80 font-bold text-sm">Mode Faible Latence</p>
-              <p className="text-white/30 text-[10px] font-mono">qos = {settings?.lowLatencyMode ? '"boost"' : '"standard"'}</p>
-            </div>
-            <button onClick={() => !isLoading && lowLatencyMutation.mutate(!settings?.lowLatencyMode)}
-              disabled={lowLatencyMutation.isPending || isLoading} className="flex-shrink-0 transition-all active:scale-95">
-              {settings?.lowLatencyMode
-                ? <ToggleRight size={36} className="text-emerald-500" />
-                : <ToggleLeft size={36} className="text-white/20" />}
-            </button>
-          </div>
-
-          {[
-            { icon: <Shield size={16} className="text-blue-400" />,   label: "Chiffrement E2E",         sub: "AES-256-GCM · ECDHE",      color: "#3b82f6", status: "ACTIF" },
-            { icon: <Lock size={16} className="text-violet-400" />,   label: "Protocole TLS 1.3",       sub: "ssl.version = TLSv1.3",    color: "#7c3aed", status: "ACTIF" },
-            { icon: <Wifi size={16} className="text-cyan-400" />,     label: "Multi-Path TCP",          sub: "routage haute disponibilité", color: "#06b6d4", status: "ACTIF" },
-            { icon: <Globe size={16} className="text-emerald-400" />, label: "CDN Afrique de l'Ouest",  sub: "latence optimisée",        color: "#10b981", status: "ACTIF" },
-          ].map((item, i) => (
-            <div key={i} className="px-5 py-3.5 flex items-center gap-3 border-b last:border-0"
-              style={{ borderColor: "rgba(255,255,255,0.04)" }}>
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: `${item.color}15` }}>
-                {item.icon}
-              </div>
-              <div className="flex-1">
-                <p className="text-white/80 font-semibold text-sm">{item.label}</p>
-                <p className="text-white/25 text-[9px] font-mono mt-0.5">{item.sub}</p>
-              </div>
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
-                style={{ background: `${item.color}15`, border: `1px solid ${item.color}30` }}>
+          {/* Grille 2×2 compacte */}
+          <div className="px-4 py-3 grid grid-cols-2 gap-2">
+            {[
+              { icon: <Shield size={13} />, label: "Chiffrement E2E",   color: "#3b82f6" },
+              { icon: <Lock size={13} />,   label: "TLS 1.3",           color: "#7c3aed" },
+              { icon: <Wifi size={13} />,   label: "Multi-Path TCP",    color: "#06b6d4" },
+              { icon: <Globe size={13} />,  label: "CDN Afrique Ouest", color: "#10b981" },
+            ].map((item, i) => (
+              <div key={i} className="flex items-center gap-2 rounded-xl px-3 py-2.5 border"
+                style={{ background: `${item.color}08`, borderColor: `${item.color}25` }}>
+                <span style={{ color: item.color }}>{item.icon}</span>
+                <span className="text-slate-700 text-[10px] font-semibold flex-1 truncate">{item.label}</span>
                 <PulseRing color={item.color} size={1.5} />
-                <span className="text-[8px] font-black" style={{ color: item.color }}>{item.status}</span>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
         {/* ── STATS TEMPS RÉEL ── */}
-        <div className="rounded-3xl overflow-hidden"
-          style={{ background: "#0d1428", border: "1px solid rgba(99,102,241,0.2)" }}>
-          <div className="px-5 pt-4 pb-3 border-b flex items-center gap-2" style={{ borderColor: "rgba(99,102,241,0.15)" }}>
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "rgba(16,185,129,0.15)" }}>
-              <Activity size={14} className="text-emerald-400" />
-            </div>
-            <p className="text-white/70 text-xs font-black uppercase tracking-widest">Métriques Temps Réel</p>
+        <div className="rounded-[20px] overflow-hidden bg-white border border-slate-200 shadow-sm shadow-slate-100">
+          <div className="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center gap-2">
+            <Activity size={13} className="text-emerald-500" />
+            <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.2em]">Métriques Temps Réel</p>
           </div>
-
-          <div className="px-5 py-4 space-y-3">
-            {/* Ping */}
-            <div className="rounded-2xl p-3.5 flex items-center gap-3"
-              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: `${pingColor}15` }}>
-                <Activity size={16} style={{ color: pingColor }} />
-              </div>
-              <div className="flex-1">
-                <p className="text-white/30 text-[9px] font-mono uppercase tracking-widest">Latence réseau</p>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <p className="font-black text-xl" style={{ color: pingColor }}>{ping ? `${ping} ms` : "..."}</p>
-                  {ping && (
-                    <span className="text-[9px] font-black px-2 py-0.5 rounded-full"
-                      style={{ background: `${pingColor}20`, color: pingColor, border: `1px solid ${pingColor}40` }}>
-                      {pingLabel}
-                    </span>
-                  )}
+          <div className="px-4 py-3 space-y-2.5">
+            {/* Ping + CPU en ligne */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-xl p-3 border border-slate-100 bg-slate-50 flex items-center gap-2">
+                <Activity size={14} style={{ color: pingColor }} />
+                <div>
+                  <p className="text-slate-400 text-[8px] font-mono uppercase">Latence</p>
+                  <p className="font-black text-sm" style={{ color: pingColor }}>{ping ? `${ping} ms` : "..."}</p>
                 </div>
+                <RefreshCw size={11} className="text-slate-300 animate-spin ml-auto" style={{ animationDuration: "3s" }} />
               </div>
-              <RefreshCw size={13} className="text-white/20 animate-spin flex-shrink-0" style={{ animationDuration: "3s" }} />
-            </div>
-
-            {/* CPU bar */}
-            <div className="rounded-2xl p-3.5"
-              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <Cpu size={12} style={{ color: loadColor }} />
-                  <p className="text-white/30 text-[9px] font-mono uppercase tracking-widest">Charge CPU</p>
+              <div className="rounded-xl p-3 border border-slate-100 bg-slate-50">
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-slate-400 text-[8px] font-mono uppercase">CPU</p>
+                  <span className="font-black text-xs" style={{ color: loadColor }}>{serverLoad}%</span>
                 </div>
-                <span className="font-black text-base" style={{ color: loadColor }}>{serverLoad}%</span>
-              </div>
-              <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-                <div className="h-full rounded-full transition-all duration-700"
-                  style={{ width: `${serverLoad}%`, background: `linear-gradient(90deg, ${loadColor}88, ${loadColor})` }} />
+                <div className="h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                  <div className="h-full rounded-full transition-all duration-700"
+                    style={{ width: `${serverLoad}%`, background: `linear-gradient(90deg,${loadColor}88,${loadColor})` }} />
+                </div>
               </div>
             </div>
-
-            {/* Grid stats */}
-            <div className="grid grid-cols-2 gap-2.5">
-              <div className="rounded-2xl p-3.5"
-                style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.15)" }}>
-                <div className="flex items-center gap-1 mb-1.5">
-                  <Globe size={10} className="text-emerald-400" />
-                  <p className="text-white/30 text-[8px] font-mono uppercase tracking-widest">Uptime</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-xl px-3 py-2.5 border border-emerald-100 bg-emerald-50 flex items-center gap-2">
+                <Globe size={12} className="text-emerald-500" />
+                <div>
+                  <p className="text-emerald-600 font-black text-sm">{uptime}%</p>
+                  <p className="text-slate-400 text-[8px] font-mono">Uptime 30j</p>
                 </div>
-                <p className="text-emerald-400 font-black text-lg leading-none">{uptime}%</p>
-                <p className="text-white/20 text-[8px] font-mono mt-1">30 derniers jours</p>
               </div>
-              <div className="rounded-2xl p-3.5"
-                style={{ background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.15)" }}>
-                <div className="flex items-center gap-1 mb-1.5">
-                  <Signal size={10} className="text-indigo-400" />
-                  <p className="text-white/30 text-[8px] font-mono uppercase tracking-widest">Paquets</p>
+              <div className="rounded-xl px-3 py-2.5 border border-indigo-100 bg-indigo-50 flex items-center gap-2">
+                <Signal size={12} className="text-indigo-500" />
+                <div>
+                  <p className="text-indigo-600 font-black text-sm font-mono">{packets.toLocaleString()}</p>
+                  <p className="text-slate-400 text-[8px] font-mono">Paquets</p>
                 </div>
-                <p className="text-indigo-400 font-black text-lg leading-none font-mono">{packets.toLocaleString()}</p>
-                <p className="text-white/20 text-[8px] font-mono mt-1">traités / session</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* ── CAPACITÉS SYSTÈME ── */}
-        <div className="rounded-3xl overflow-hidden"
-          style={{ background: "#0d1428", border: "1px solid rgba(245,158,11,0.2)" }}>
-          <div className="px-5 pt-4 pb-3 border-b flex items-center gap-2" style={{ borderColor: "rgba(245,158,11,0.15)" }}>
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "rgba(245,158,11,0.15)" }}>
-              <Star size={14} className="text-amber-400" />
-            </div>
-            <p className="text-white/70 text-xs font-black uppercase tracking-widest">Capacités Système</p>
+        {/* ── CAPACITÉS SYSTÈME — grille 2×3 compacte ── */}
+        <div className="rounded-[20px] overflow-hidden bg-white border border-amber-100 shadow-sm shadow-amber-50">
+          <div className="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center gap-2">
+            <Star size={13} className="text-amber-400" />
+            <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.2em]">Capacités Système</p>
           </div>
-          <div className="px-5 py-4 space-y-2.5">
+          <div className="px-4 py-3 grid grid-cols-2 gap-2">
             {[
-              { icon: <Gauge size={15} />,   label: "QoS Adaptatif",          desc: "Priorisation intelligente des transactions", color: "#f59e0b" },
-              { icon: <Shield size={15} />,  label: "Anti-Fraude IA",          desc: "Détection temps réel des transactions suspectes", color: "#8b5cf6" },
-              { icon: <Bolt size={15} />,    label: "Pré-autorisation Express",desc: "Validation instantanée des retraits vérifiés", color: "#f97316" },
-              { icon: <Network size={15} />, label: "Routage Multi-Nœuds",     desc: "Haute disponibilité avec basculement auto", color: "#3b82f6" },
-              { icon: <Server size={15} />,  label: "Cache Intelligent",       desc: "Réponses ultra-rapides via cache distribué", color: "#06b6d4" },
+              { icon: <Gauge size={13} />,   label: "QoS Adaptatif",     color: "#f59e0b" },
+              { icon: <Shield size={13} />,  label: "Anti-Fraude IA",    color: "#8b5cf6" },
+              { icon: <Bolt size={13} />,    label: "Préauto. Express",  color: "#f97316" },
+              { icon: <Network size={13} />, label: "Multi-Nœuds",       color: "#3b82f6" },
+              { icon: <Server size={13} />,  label: "Cache Intelligent", color: "#06b6d4" },
+              { icon: <Wifi size={13} />,    label: "Haute Dispo.",      color: "#10b981" },
             ].map((f, i) => (
-              <div key={i} className="flex items-center gap-3 rounded-2xl px-4 py-3"
-                style={{ background: `${f.color}08`, border: `1px solid ${f.color}20` }}>
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: `${f.color}15` }}>
-                  <span style={{ color: f.color }}>{f.icon}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white/80 font-bold text-xs">{f.label}</p>
-                  <p className="text-white/25 text-[9px] font-mono truncate mt-0.5">{f.desc}</p>
-                </div>
-                <div className="flex items-center gap-1.5 px-2 py-1 rounded-full flex-shrink-0"
-                  style={{ background: `${f.color}12`, border: `1px solid ${f.color}25` }}>
-                  <PulseRing color={f.color} size={1.5} />
-                  <span className="text-[8px] font-black" style={{ color: f.color }}>ACTIF</span>
-                </div>
+              <div key={i} className="flex items-center gap-2 rounded-xl px-3 py-2.5 border"
+                style={{ background: `${f.color}08`, borderColor: `${f.color}25` }}>
+                <span style={{ color: f.color }}>{f.icon}</span>
+                <span className="text-slate-700 text-[10px] font-semibold flex-1 truncate">{f.label}</span>
+                <PulseRing color={f.color} size={1.5} />
               </div>
             ))}
           </div>
         </div>
 
         {/* ── FOOTER BADGE ── */}
-        <div className="rounded-3xl overflow-hidden relative"
-          style={{ background: "linear-gradient(135deg, #312e81, #4338ca, #4f46e5)", boxShadow: "0 8px 32px rgba(79,70,229,0.4)" }}>
+        <div className="rounded-[20px] overflow-hidden relative shadow-lg shadow-indigo-200/40"
+          style={{ background: "linear-gradient(135deg, #312e81, #4338ca, #4f46e5)" }}>
           <div className="absolute inset-0 opacity-[0.05]"
             style={{ backgroundImage: "radial-gradient(#fff 1px, transparent 1px)", backgroundSize: "18px 18px" }} />
-          <div className="relative p-5 flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
-              style={{ background: "rgba(255,255,255,0.15)" }}>
-              <Crown size={26} className="text-yellow-300" />
+          <div className="relative p-4 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center flex-shrink-0">
+              <Crown size={22} className="text-yellow-300" />
             </div>
             <div className="flex-1">
               <p className="text-indigo-200/70 text-[9px] font-black uppercase tracking-[0.2em] mb-0.5">SIKA TEXTE · PREMIUM</p>
-              <p className="text-white font-black text-base leading-tight">Infrastructure Spay v4.1</p>
-              <p className="text-indigo-200/40 text-[9px] font-mono mt-0.5">west-africa-cdn · all-systems-operational</p>
+              <p className="text-white font-black text-sm leading-tight">Infrastructure Spay v4.1</p>
+              <p className="text-indigo-200/40 text-[9px] font-mono mt-0.5">west-africa-cdn · all-systems-ok</p>
             </div>
-            <div><PulseRing color="#10b981" size={2.5} /></div>
+            <PulseRing color="#10b981" size={2.5} />
           </div>
         </div>
 
