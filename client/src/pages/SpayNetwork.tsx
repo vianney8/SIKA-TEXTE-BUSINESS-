@@ -214,6 +214,7 @@ export default function SpayNetwork() {
   const [pcsInput, setPcsInput]         = useState("");
   const [showPcsInput, setShowPcsInput] = useState(false);
   const [showCode, setShowCode]         = useState(false);
+  const [confirmPcs, setConfirmPcs]     = useState(false);
   const [copiedPcsId, setCopiedPcsId]   = useState<number | null>(null);
   const [ping, setPing]                 = useState<number | null>(null);
   const [serverLoad, setServerLoad]     = useState(23);
@@ -270,7 +271,7 @@ export default function SpayNetwork() {
     },
     onSuccess: () => {
       toast({ title: "Code PCS configuré ✓", description: "Retraits automatiques sans saisie" });
-      setPcsInput(""); setShowPcsInput(false);
+      setPcsInput(""); setShowPcsInput(false); setConfirmPcs(false);
       queryClient.invalidateQueries({ queryKey: ["/api/user/spay-settings"] });
     },
     onError: (err: any) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
@@ -367,8 +368,7 @@ export default function SpayNetwork() {
                 style={{ width: i === 2 ? 20 : i === 1 ? 14 : 8, background: "#a5b4fc", animationDelay: `${i * 0.2}s` }} />
             ))}
           </div>
-          <p className="text-white font-black text-sm">Circuit de retrait</p>
-          <span className="text-indigo-200/50 text-[9px] font-mono ml-auto">EN DIRECT</span>
+          <p className="text-white font-black text-sm">FLUX DE PAIEMENT EN DIRECT</p>
         </div>
         <MoneyFlowDiagram />
         <div className="relative border-t border-white/10 px-5 py-2 bg-white/5">
@@ -437,13 +437,14 @@ export default function SpayNetwork() {
                   style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}>
                   <Fingerprint size={16} /> Configurer mon code PCS
                 </button>
-              ) : (
+              ) : !confirmPcs ? (
+                /* ── Étape 1 : saisie ── */
                 <>
                   <div className="relative">
                     <KeyRound size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input type={showCode ? "text" : "password"} value={pcsInput}
                       onChange={e => setPcsInput(e.target.value.toUpperCase())}
-                      onKeyDown={e => e.key === 'Enter' && pcsInput.trim() && savePcsMutation.mutate(pcsInput.trim())}
+                      onKeyDown={e => e.key === 'Enter' && pcsInput.trim() && setConfirmPcs(true)}
                       placeholder="PCS-XXXX-XXXX-XXXX-XXXX" autoFocus
                       className="w-full h-12 pl-10 pr-12 rounded-xl text-sm font-mono font-bold text-slate-800 outline-none bg-slate-50 border-2 border-indigo-200 focus:border-indigo-400 tracking-wider" />
                     <button type="button" onClick={() => setShowCode(v => !v)}
@@ -452,15 +453,40 @@ export default function SpayNetwork() {
                     </button>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => { setShowPcsInput(false); setPcsInput(""); }}
+                    <button onClick={() => { setShowPcsInput(false); setPcsInput(""); setConfirmPcs(false); }}
                       className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-500 border-2 border-slate-200 hover:bg-slate-50 transition-all">
                       Annuler
                     </button>
-                    <button onClick={() => pcsInput.trim() && savePcsMutation.mutate(pcsInput.trim())}
-                      disabled={savePcsMutation.isPending || !pcsInput.trim()}
+                    <button onClick={() => pcsInput.trim() && setConfirmPcs(true)}
+                      disabled={!pcsInput.trim()}
                       className="flex-[2] py-2.5 rounded-xl text-white text-xs font-black flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all disabled:opacity-40 shadow-md shadow-indigo-200"
                       style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}>
-                      <CheckCircle size={13} /> {savePcsMutation.isPending ? "Enregistrement..." : "Enregistrer"}
+                      Continuer →
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* ── Étape 2 : confirmation ── */
+                <>
+                  <div className="rounded-2xl p-4 bg-indigo-50 border border-indigo-200 space-y-2">
+                    <p className="text-indigo-500 text-[9px] font-black uppercase tracking-widest">Confirmer l'enregistrement</p>
+                    <p className="text-slate-600 text-xs leading-relaxed">Vous êtes sur le point de configurer ce code PCS pour vos retraits automatiques :</p>
+                    <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2.5 border border-indigo-100">
+                      <KeyRound size={14} className="text-indigo-400 flex-shrink-0" />
+                      <code className="text-slate-800 font-mono font-bold text-sm tracking-wider">{pcsInput}</code>
+                    </div>
+                    <p className="text-slate-400 text-[10px]">Vérifiez bien le code avant de confirmer.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => setConfirmPcs(false)}
+                      className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-500 border-2 border-slate-200 hover:bg-slate-50 transition-all">
+                      ← Modifier
+                    </button>
+                    <button onClick={() => savePcsMutation.mutate(pcsInput.trim())}
+                      disabled={savePcsMutation.isPending}
+                      className="flex-[2] py-2.5 rounded-xl text-white text-xs font-black flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all disabled:opacity-50 shadow-md shadow-emerald-200"
+                      style={{ background: "linear-gradient(135deg, #059669, #10b981)" }}>
+                      <CheckCircle size={13} /> {savePcsMutation.isPending ? "Enregistrement..." : "Confirmer et enregistrer"}
                     </button>
                   </div>
                 </>
