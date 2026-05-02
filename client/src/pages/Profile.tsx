@@ -27,10 +27,11 @@ export default function Profile() {
   const updateNameMutation = useMutation({
     mutationFn: async () => {
       const u = user as any;
+      const newFullName = `${firstName.trim()} ${lastName.trim()}`;
       return apiRequest("PUT", "/api/user/profile", {
         email: u?.email || "",
         phone: u?.phone,
-        fullName: u?.fullName,
+        fullName: newFullName,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
       });
