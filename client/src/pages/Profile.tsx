@@ -1,11 +1,18 @@
+import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useQuery } from "@tanstack/react-query";
-import { Calendar, Hash, Shield, CheckCircle, XCircle, LogOut, ChevronLeft, Mail, Phone } from "lucide-react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { Calendar, Hash, Shield, CheckCircle, XCircle, LogOut, ChevronLeft, Mail, Phone, Pencil, X, Save } from "lucide-react";
 import BottomNavigation from "@/components/BottomNavigation";
 import { Link } from "wouter";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Profile() {
   const { user } = useAuth();
+  const { toast } = useToast();
+  const [editingName, setEditingName] = useState(false);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
 
   const { data: activationStatus } = useQuery<{ isActive: boolean; activatedAt: string | null }>({
     queryKey: ["/api/activation/status"],
@@ -17,7 +24,37 @@ export default function Profile() {
       .finally(() => { window.location.href = "/"; });
   };
 
-  const userName = (user as any)?.fullName || ((user as any)?.firstName + " " + (user as any)?.lastName) || "Utilisateur";
+  const updateNameMutation = useMutation({
+    mutationFn: async () => {
+      const u = user as any;
+      return apiRequest("PUT", "/api/user/profile", {
+        email: u?.email || "",
+        phone: u?.phone,
+        fullName: u?.fullName,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      setEditingName(false);
+      toast({ title: "Nom mis à jour avec succès" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Erreur", description: err?.message || "Impossible de mettre à jour le nom", variant: "destructive" });
+    },
+  });
+
+  const openEditName = () => {
+    const u = user as any;
+    setFirstName(u?.firstName || "");
+    setLastName(u?.lastName || "");
+    setEditingName(true);
+  };
+
+  const userName = (user as any)?.fullName || ((user as any)?.firstName && (user as any)?.lastName
+    ? `${(user as any).firstName} ${(user as any).lastName}`
+    : (user as any)?.firstName || (user as any)?.lastName || "Utilisateur");
   const userEmail = (user as any)?.email || "";
   const userPhone = (user as any)?.phone || "";
   const userInitial = userName.charAt(0).toUpperCase();
@@ -77,6 +114,74 @@ export default function Profile() {
       </div>
 
       <div className="px-4 pt-4 pb-28 space-y-4">
+
+        {/* Modifier nom & prénom */}
+        <div className="bg-white rounded-[20px] shadow-sm overflow-hidden">
+          <div className="px-5 pt-4 pb-2 border-b border-gray-50 flex items-center justify-between">
+            <p className="text-gray-500 text-xs font-bold uppercase tracking-wider">Nom & Prénom</p>
+            {!editingName && (
+              <button onClick={openEditName}
+                className="flex items-center gap-1 text-blue-600 text-xs font-semibold active:opacity-70">
+                <Pencil size={12} /> Modifier
+              </button>
+            )}
+          </div>
+
+          {editingName ? (
+            <div className="px-5 py-4 space-y-3">
+              <div>
+                <label className="text-xs text-gray-500 font-semibold mb-1 block">Prénom</label>
+                <input
+                  type="text"
+                  value={firstName}
+                  onChange={e => setFirstName(e.target.value)}
+                  placeholder="Votre prénom"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-blue-400"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 font-semibold mb-1 block">Nom de famille</label>
+                <input
+                  type="text"
+                  value={lastName}
+                  onChange={e => setLastName(e.target.value)}
+                  placeholder="Votre nom"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-blue-400"
+                />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => setEditingName(false)}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold active:bg-gray-50">
+                  <X size={14} /> Annuler
+                </button>
+                <button
+                  onClick={() => updateNameMutation.mutate()}
+                  disabled={updateNameMutation.isPending || !firstName.trim() || !lastName.trim()}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-white text-sm font-semibold active:opacity-80 disabled:opacity-50"
+                  style={{ background: "linear-gradient(135deg, #1a4fa0, #6366f1)" }}>
+                  {updateNameMutation.isPending
+                    ? <span className="animate-pulse">Enregistrement…</span>
+                    : <><Save size={14} /> Enregistrer</>
+                  }
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50">
+              <InfoRow
+                icon={<span className="text-gray-400 text-sm">👤</span>}
+                label="Prénom"
+                value={(user as any)?.firstName || "—"}
+              />
+              <InfoRow
+                icon={<span className="text-gray-400 text-sm">👤</span>}
+                label="Nom"
+                value={(user as any)?.lastName || "—"}
+              />
+            </div>
+          )}
+        </div>
 
         {/* Infos compte */}
         <div className="bg-white rounded-[20px] shadow-sm overflow-hidden">

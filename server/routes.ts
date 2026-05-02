@@ -828,7 +828,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/user/profile', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session.userId;
-      const { fullName, phone, email } = req.body;
+      const { fullName, phone, email, firstName, lastName } = req.body;
 
       if (!email || !email.trim()) {
         return res.status(400).json({ message: "L'adresse email est obligatoire" });
@@ -838,11 +838,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Adresse email invalide" });
       }
 
+      if (firstName !== undefined && !firstName.trim()) {
+        return res.status(400).json({ message: "Le prénom ne peut pas être vide" });
+      }
+      if (lastName !== undefined && !lastName.trim()) {
+        return res.status(400).json({ message: "Le nom ne peut pas être vide" });
+      }
+
       const user = await storage.upsertUser({
         id: userId,
         fullName,
         phone,
         email,
+        ...(firstName !== undefined && { firstName: firstName.trim() }),
+        ...(lastName !== undefined && { lastName: lastName.trim() }),
         updatedAt: new Date(),
       });
 
