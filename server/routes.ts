@@ -3681,25 +3681,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
             else {
               // Approuver + générer PCS si applicable
               let pcsCode: string | null = null;
+              let pcsInsertedToAccount = false;
+              let emailSentOk = false;
               if ((r.linkId === 'd3e5479d' || r.linkId === 'codepcs') && r.customerEmail) {
+                // Générer un code unique (vérifié dans pcsCodes ET linkManualRequests)
                 pcsCode = generatePcsCode();
                 for (let attempt = 1; attempt < 5; attempt++) {
-                  const clash = await db.select({ id: linkManualRequests.id }).from(linkManualRequests).where(eq(linkManualRequests.pcsCode, pcsCode)).limit(1);
-                  if (clash.length === 0) break;
+                  const [clashA] = await db.select({ id: linkManualRequests.id }).from(linkManualRequests).where(eq(linkManualRequests.pcsCode, pcsCode)).limit(1);
+                  const [clashB] = await db.select({ id: pcsCodes.id }).from(pcsCodes).where(eq(pcsCodes.code, pcsCode)).limit(1);
+                  if (!clashA && !clashB) break;
                   pcsCode = generatePcsCode();
                 }
+
+                // Trouver l'utilisateur par email pour lier le code au compte
+                const [foundUser] = await db.select({ id: users.id }).from(users).where(ilike(users.email, r.customerEmail)).limit(1);
+                if (foundUser) {
+                  try {
+                    await db.insert(pcsCodes).values({ userId: foundUser.id, code: pcsCode, status: 'inactif' });
+                    pcsInsertedToAccount = true;
+                    console.log('[LNKMA-OK] Code PCS inséré dans pcs_codes:', pcsCode, 'pour userId:', foundUser.id);
+                  } catch (insertErr) {
+                    console.error('[LNKMA-OK] Échec insert pcs_codes:', insertErr);
+                  }
+                } else {
+                  console.warn('[LNKMA-OK] Aucun compte Sika trouvé pour email:', r.customerEmail, '— code non rattaché');
+                }
+
+                // Envoi email (avec await pour capturer les erreurs)
                 const nameParts = (r.customerName || '').split(' ');
-                sendPcsEmail({
+                emailSentOk = await sendPcsEmailBatch({
                   to: r.customerEmail,
-                  firstName: nameParts[0] || '',
-                  lastName: nameParts.slice(1).join(' ') || nameParts[0] || '',
-                  countryCode: r.country || '',
-                  pcsCode,
+                  firstName: nameParts[0] || 'Cher',
+                  lastName: nameParts.slice(1).join(' ') || 'Client',
+                  countryCode: r.country || 'CI',
+                  pcsCodesWithStatus: [{ code: pcsCode, status: 'inactif' }],
                   issuedAt: new Date(),
-                }).catch(e => console.error('[LNKMA-PCS-EMAIL]', e));
+                }).catch((e: any) => { console.error('[LNKMA-PCS-EMAIL]', e); return false; });
               }
+
               await db.update(linkManualRequests).set({ status: 'approved', pcsCode: pcsCode || null, updatedAt: new Date() }).where(eq(linkManualRequests.id, reqId));
-              answerText = '✅ Paiement validé !';
+
+              if (pcsCode) {
+                answerText = emailSentOk ? '✅ Code créé & email envoyé' : '⚠️ Code créé, échec email';
+              } else {
+                answerText = '✅ Paiement validé !';
+              }
+
               if (chatId && messageId) {
                 await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageCaption`, {
                   method:'POST', headers:{'Content-Type':'application/json'},
@@ -3711,13 +3738,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   });
                 });
               }
+
+              const summaryLines = [
+                `✅ <b>Paiement validé</b>`,
+                ``,
+                `🔗 ${r.linkLabel||r.linkId}`,
+                `👤 ${r.customerName||'N/A'}`,
+                `📱 <code>${r.phone||'—'}</code>`,
+              ];
+              if (pcsCode) {
+                summaryLines.push(`🎫 Code PCS : <code>${pcsCode}</code>`);
+                summaryLines.push(`📊 Statut : 🔴 <b>Inactif</b>`);
+                summaryLines.push(`🔗 Compte lié : ${pcsInsertedToAccount ? '✅ Oui' : '❌ Aucun compte trouvé'}`);
+                summaryLines.push(emailSentOk ? '✉️ Email envoyé avec succès.' : '⚠️ Échec envoi email.');
+              }
               await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
                 method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({ chat_id: chatId,
-                  text: `✅ <b>Paiement validé</b>\n\n🔗 ${r.linkLabel||r.linkId}\n👤 ${r.customerName||'N/A'}\n📱 <code>${r.phone||'—'}</code>${pcsCode ? `\n🎫 Code PCS envoyé : <code>${pcsCode}</code>` : ''}`,
-                  parse_mode:'HTML'
-                })
+                body: JSON.stringify({ chat_id: chatId, text: summaryLines.join('\n'), parse_mode:'HTML' })
               });
+
+              // Pour activation PCS (88cb6331) : montrer les codes actuels pour que l'admin puisse les activer
+              if (r.linkId === '88cb6331' && r.customerEmail && chatId) {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                  method:'POST', headers:{'Content-Type':'application/json'},
+                  body: JSON.stringify({ chat_id: chatId, text: `🔑 <b>Codes PCS à activer pour :</b> <code>${r.customerEmail}</code>\n\nCliquez sur un code ci-dessous pour l'activer.`, parse_mode:'HTML' })
+                });
+                await sendUserPcsCodesListToTelegram(String(chatId), r.customerEmail, TELEGRAM_TOKEN);
+              }
             }
           } catch(e:any) { answerText='❌ Erreur'; console.error('[LNKMA-OK]',e); }
 
