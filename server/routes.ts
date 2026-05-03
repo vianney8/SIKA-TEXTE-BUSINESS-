@@ -3177,6 +3177,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         let answerText = '';
+        let callbackError: any = null;
+        try {
 
         // ── Activation CI: step 1 - Edit original message to ask confirmation ──
         if (data.startsWith('act_approve_pre_')) {
@@ -3873,12 +3875,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log('[CI-UPDATE] Declined via Telegram for user:', userId);
         }
 
-        // Answer the callback query (required by Telegram)
-        await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/answerCallbackQuery`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ callback_query_id: callbackQuery.id, text: answerText })
-        });
+        } catch (cbErr: any) {
+          callbackError = cbErr;
+          console.error('[TELEGRAM] Callback handler error:', cbErr?.message || cbErr);
+          if (!answerText) answerText = '❌ Erreur interne';
+        } finally {
+          // Always answer the callback query — required by Telegram, prevents spinner
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/answerCallbackQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ callback_query_id: callbackQuery.id, text: answerText })
+          }).catch((e: any) => console.error('[TELEGRAM] answerCallbackQuery failed:', e?.message));
+        }
       }
 
       res.sendStatus(200);
