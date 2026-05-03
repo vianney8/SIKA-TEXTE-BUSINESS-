@@ -753,6 +753,14 @@ export default function Withdrawal() {
               }
             </button>
 
+            {/* Configurer code PCS */}
+            <Link
+              href="/spay-network"
+              className="w-full py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 border-2 border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 active:scale-[0.97] transition-all"
+            >
+              <KeyRound size={15} /> Configurer mon code PCS
+            </Link>
+
             {/* Annuler */}
             <button
               onClick={() => setShowPcsModal(false)}
