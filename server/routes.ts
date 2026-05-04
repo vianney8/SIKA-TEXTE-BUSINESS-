@@ -33,6 +33,7 @@ import {
   manualActivationRequests,
   linkManualRequests,
   pcsCodes,
+  platformNotifications,
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import session from "express-session";
@@ -1589,6 +1590,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error marking notification as seen:", error);
       res.status(500).json({ message: "Erreur lors du marquage de la notification" });
+    }
+  });
+
+  // ── NOTIFICATIONS PLATEFORME ──────────────────────────────────────────────
+
+  // GET public : notifications actives pour les utilisateurs
+  app.get('/api/platform-notifications', async (_req, res) => {
+    try {
+      const notifs = await db.select().from(platformNotifications)
+        .where(eq(platformNotifications.isActive, true))
+        .orderBy(desc(platformNotifications.createdAt))
+        .limit(10);
+      res.json(notifs);
+    } catch (err) {
+      res.status(500).json({ message: 'Erreur' });
+    }
+  });
+
+  // GET admin : toutes les notifications
+  app.get('/api/admin/platform-notifications', requireAdmin, async (_req, res) => {
+    try {
+      const notifs = await db.select().from(platformNotifications)
+        .orderBy(desc(platformNotifications.createdAt))
+        .limit(50);
+      res.json(notifs);
+    } catch (err) {
+      res.status(500).json({ message: 'Erreur' });
+    }
+  });
+
+  // POST admin : créer une notification
+  app.post('/api/admin/platform-notifications', requireAdmin, async (req: any, res) => {
+    try {
+      const { message, color } = req.body;
+      if (!message?.trim()) return res.status(400).json({ message: 'Message requis' });
+      const [notif] = await db.insert(platformNotifications).values({
+        message: message.trim(),
+        color: color === 'red' ? 'red' : 'green',
+        isActive: true,
+      }).returning();
+      res.json(notif);
+    } catch (err) {
+      res.status(500).json({ message: 'Erreur lors de la création' });
+    }
+  });
+
+  // PATCH admin : modifier une notification
+  app.patch('/api/admin/platform-notifications/:id', requireAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { message, color, isActive } = req.body;
+      const updateData: any = { updatedAt: new Date() };
+      if (message !== undefined) updateData.message = message.trim();
+      if (color !== undefined) updateData.color = color === 'red' ? 'red' : 'green';
+      if (isActive !== undefined) updateData.isActive = Boolean(isActive);
+      const [notif] = await db.update(platformNotifications)
+        .set(updateData)
+        .where(eq(platformNotifications.id, id))
+        .returning();
+      if (!notif) return res.status(404).json({ message: 'Notification introuvable' });
+      res.json(notif);
+    } catch (err) {
+      res.status(500).json({ message: 'Erreur lors de la modification' });
+    }
+  });
+
+  // DELETE admin : supprimer une notification
+  app.delete('/api/admin/platform-notifications/:id', requireAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      await db.delete(platformNotifications).where(eq(platformNotifications.id, id));
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ message: 'Erreur lors de la suppression' });
     }
   });
 

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle, XCircle, Settings, MessageCircle, MessageSquareOff, RefreshCw, Link2, Plus, Copy, ToggleLeft, ToggleRight, ExternalLink, History, ChevronLeft, ChevronRight, Mail, Bot } from "lucide-react";
+import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle, XCircle, Settings, MessageCircle, MessageSquareOff, RefreshCw, Link2, Plus, Copy, ToggleLeft, ToggleRight, ExternalLink, History, ChevronLeft, ChevronRight, Mail, Bot, Bell, BellOff, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 
@@ -91,6 +91,13 @@ export default function AdminDashboard() {
   // Notification en masse
   const [notifyAllModal, setNotifyAllModal] = useState(false);
   const [notifyAllMessage, setNotifyAllMessage] = useState("");
+
+  // Notifications plateforme
+  const [pnMessage, setPnMessage] = useState("");
+  const [pnColor, setPnColor] = useState<'green' | 'red'>('green');
+  const [pnEditId, setPnEditId] = useState<string | null>(null);
+  const [pnEditMessage, setPnEditMessage] = useState("");
+  const [pnEditColor, setPnEditColor] = useState<'green' | 'red'>('green');
 
   // Payment links — create
   const [paymentLinkModal, setPaymentLinkModal] = useState(false);
@@ -187,6 +194,52 @@ export default function AdminDashboard() {
     refetchOnWindowFocus: false,
   });
   const totalUnreadMessages = conversations.reduce((sum: number, c: any) => sum + (c.unreadCount || 0), 0);
+
+  // Notifications plateforme — queries & mutations
+  const { data: platformNotifs = [], isLoading: isLoadingPn } = useQuery<any[]>({
+    queryKey: ['/api/admin/platform-notifications'],
+    staleTime: 15000,
+    refetchOnWindowFocus: false,
+  });
+
+  const createPnMutation = useMutation({
+    mutationFn: async (body: { message: string; color: string }) => {
+      const res = await apiRequest('POST', '/api/admin/platform-notifications', body);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/platform-notifications'] });
+      setPnMessage("");
+      setPnColor('green');
+      toast({ title: "✅ Notification créée et active" });
+    },
+    onError: () => toast({ title: "Erreur", description: "Échec de la création", variant: "destructive" }),
+  });
+
+  const updatePnMutation = useMutation({
+    mutationFn: async ({ id, body }: { id: string; body: any }) => {
+      const res = await apiRequest('PATCH', `/api/admin/platform-notifications/${id}`, body);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/platform-notifications'] });
+      setPnEditId(null);
+      toast({ title: "✅ Notification mise à jour" });
+    },
+    onError: () => toast({ title: "Erreur", description: "Échec de la modification", variant: "destructive" }),
+  });
+
+  const deletePnMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest('DELETE', `/api/admin/platform-notifications/${id}`, {});
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/platform-notifications'] });
+      toast({ title: "Notification supprimée" });
+    },
+    onError: () => toast({ title: "Erreur", variant: "destructive" }),
+  });
 
   // Chat enabled status
   const { data: chatEnabledData } = useQuery<{ value: string }>({
@@ -2140,6 +2193,149 @@ export default function AdminDashboard() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* ── NOTIFICATIONS PLATEFORME ─────────────────────────────────────── */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5 text-orange-500" />
+              Notifications Plateforme
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Formulaire de création */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+              <p className="text-sm font-semibold text-slate-700">Nouvelle notification</p>
+              <Textarea
+                placeholder="Texte de la notification affiché à tous les utilisateurs…"
+                value={pnMessage}
+                onChange={e => setPnMessage(e.target.value)}
+                className="resize-none min-h-[72px] text-sm"
+              />
+              <div className="flex items-center gap-3">
+                <p className="text-sm font-medium text-slate-600">Couleur :</p>
+                <button
+                  onClick={() => setPnColor('green')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border-2 transition-all ${pnColor === 'green' ? 'bg-green-500 text-white border-green-500' : 'bg-white text-green-600 border-green-300'}`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-current" />
+                  Verte (info)
+                </button>
+                <button
+                  onClick={() => setPnColor('red')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border-2 transition-all ${pnColor === 'red' ? 'bg-red-500 text-white border-red-500' : 'bg-white text-red-600 border-red-300'}`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-current" />
+                  Rouge (alerte)
+                </button>
+              </div>
+              <Button
+                onClick={() => {
+                  if (!pnMessage.trim()) return;
+                  createPnMutation.mutate({ message: pnMessage.trim(), color: pnColor });
+                }}
+                disabled={createPnMutation.isPending || !pnMessage.trim()}
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold h-10 rounded-xl"
+              >
+                {createPnMutation.isPending ? "Envoi…" : <><Send className="h-4 w-4 mr-2" />Envoyer à tous les utilisateurs</>}
+              </Button>
+            </div>
+
+            {/* Liste des notifications récentes */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Notifications récentes</p>
+              {isLoadingPn ? (
+                <p className="text-sm text-slate-400 py-4 text-center">Chargement…</p>
+              ) : platformNotifs.length === 0 ? (
+                <p className="text-sm text-slate-400 py-4 text-center">Aucune notification créée</p>
+              ) : (
+                platformNotifs.map((n: any) => (
+                  <div
+                    key={n.id}
+                    className={`rounded-xl border-2 p-3 space-y-2 ${n.color === 'red' ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}`}
+                  >
+                    {pnEditId === n.id ? (
+                      /* Mode édition */
+                      <div className="space-y-2">
+                        <Textarea
+                          value={pnEditMessage}
+                          onChange={e => setPnEditMessage(e.target.value)}
+                          className="resize-none min-h-[60px] text-sm"
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setPnEditColor('green')}
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border-2 ${pnEditColor === 'green' ? 'bg-green-500 text-white border-green-500' : 'bg-white text-green-600 border-green-300'}`}
+                          >Verte</button>
+                          <button
+                            onClick={() => setPnEditColor('red')}
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border-2 ${pnEditColor === 'red' ? 'bg-red-500 text-white border-red-500' : 'bg-white text-red-600 border-red-300'}`}
+                          >Rouge</button>
+                          <div className="ml-auto flex gap-2">
+                            <Button size="sm" variant="outline" className="h-8 rounded-lg" onClick={() => setPnEditId(null)}>Annuler</Button>
+                            <Button
+                              size="sm"
+                              className="h-8 rounded-lg bg-blue-500 hover:bg-blue-600 text-white font-bold"
+                              disabled={updatePnMutation.isPending}
+                              onClick={() => updatePnMutation.mutate({ id: n.id, body: { message: pnEditMessage, color: pnEditColor } })}
+                            >
+                              {updatePnMutation.isPending ? "…" : "Sauvegarder"}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Mode affichage */
+                      <>
+                        <div className="flex items-start justify-between gap-2">
+                          <p className={`text-sm font-medium flex-1 ${n.color === 'red' ? 'text-red-800' : 'text-green-800'}`}>{n.message}</p>
+                          <div className={`flex-shrink-0 px-2 py-0.5 rounded-full text-xs font-bold ${n.isActive ? (n.color === 'red' ? 'bg-red-200 text-red-700' : 'bg-green-200 text-green-700') : 'bg-slate-200 text-slate-500'}`}>
+                            {n.isActive ? "Active" : "Inactive"}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[10px] text-slate-400">{new Date(n.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                          <div className="ml-auto flex gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 rounded-lg text-xs font-bold px-2.5"
+                              disabled={updatePnMutation.isPending}
+                              onClick={() => updatePnMutation.mutate({ id: n.id, body: { isActive: !n.isActive } })}
+                            >
+                              {n.isActive ? <><BellOff className="h-3 w-3 mr-1" />Désactiver</> : <><Bell className="h-3 w-3 mr-1" />Activer</>}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 rounded-lg text-xs font-bold px-2.5"
+                              onClick={() => {
+                                setPnEditId(n.id);
+                                setPnEditMessage(n.message);
+                                setPnEditColor(n.color as 'green' | 'red');
+                              }}
+                            >
+                              <Edit className="h-3 w-3 mr-1" />Modifier
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="h-7 rounded-lg text-xs font-bold px-2.5"
+                              disabled={deletePnMutation.isPending}
+                              onClick={() => deletePnMutation.mutate(n.id)}
+                            >
+                              <Trash className="h-3 w-3 mr-1" />Suppr.
+                            </Button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Users Section with Real-time Search */}
         <Card>

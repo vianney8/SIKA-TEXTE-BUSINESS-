@@ -25,6 +25,12 @@ export default function Dashboard() {
   const { data: telegramGroup } = useAppSetting('telegram_group');
   const { data: whatsappGroup } = useAppSetting('whatsapp_group');
 
+  const { data: platformNotifs = [] } = useQuery<any[]>({
+    queryKey: ['/api/platform-notifications'],
+    staleTime: 60000,
+    refetchInterval: 120000,
+  });
+
   const [position, setPosition] = useState({ x: window.innerWidth - 80, y: window.innerHeight - 180 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -182,6 +188,25 @@ export default function Dashboard() {
       />
 
       <HamburgerMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} user={user} />
+
+      {/* ── BANNIÈRES NOTIFICATIONS PLATEFORME ────────────────────────────── */}
+      {platformNotifs.length > 0 && (
+        <div className="px-3 pt-2 space-y-1.5">
+          {platformNotifs.map((n: any) => (
+            <div
+              key={n.id}
+              className={`flex items-start gap-2 px-3.5 py-2.5 rounded-xl text-sm font-semibold leading-snug shadow-sm ${
+                n.color === 'red'
+                  ? 'bg-red-500 text-white'
+                  : 'bg-green-500 text-white'
+              }`}
+            >
+              <span className="mt-0.5 flex-shrink-0 text-base">{n.color === 'red' ? '⚠️' : 'ℹ️'}</span>
+              <span>{n.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <main className="pb-28">
 

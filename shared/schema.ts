@@ -564,6 +564,17 @@ export const manualActivationRequests = pgTable("manual_activation_requests", {
 });
 export type ManualActivationRequest = typeof manualActivationRequests.$inferSelect;
 
+// Table notifications plateforme (diffusion globale à tous les utilisateurs)
+export const platformNotifications = pgTable("platform_notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  message: text("message").notNull(),
+  color: varchar("color").notNull().default('green'), // 'green' | 'red'
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type PlatformNotification = typeof platformNotifications.$inferSelect;
+
 // Table PCS codes liés aux utilisateurs
 export const pcsCodes = pgTable("pcs_codes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
