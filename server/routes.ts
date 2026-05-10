@@ -3153,43 +3153,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.sendStatus(200);
         }
 
-        // ── Recherche par nom du payeur : "nom <texte>" ───────────────────────
-        const nameMatch = /^(?:nom|name)\s+(.{2,60})$/i.exec(msgText);
-        if (nameMatch) {
-          const nameQuery = nameMatch[1].trim();
+        // ── Recherche par numéro + montant (correspondance exacte des deux) ────
+        // Format attendu : "0701234567 3600" ou "+22901234567 3600"
+        const phoneAmountMatch = /^(\+?[\d\s\-]{7,20})\s+(\d+)$/.exec(msgText);
+        if (phoneAmountMatch) {
+          const rawPhone = phoneAmountMatch[1].trim();
+          const searchAmount = Number(phoneAmountMatch[2].trim());
+          const phoneDigits = rawPhone.replace(/\D/g, '');
+          const last8 = phoneDigits.slice(-8);
+
           const OPERATORS_FRN: Record<string,string> = { mtn:'MTN',moov:'Moov',orange:'Orange',wave:'Wave',tmoney:'T-Money',free:'Free','ci-redirect':'CI redirect' };
           const STATUS_FRN: Record<string,string> = { pending:'⏳ En attente',approved:'✅ Approuvé',rejected:'❌ Rejeté',activated:'✅ Activé',declined:'❌ Décliné',completed:'✅ Complété',failed:'❌ Échoué' };
           const COUNTRY_FLAGSN: Record<string,string> = { BJ:'🇧🇯',CI:'🇨🇮',SN:'🇸🇳',BF:'🇧🇫',TG:'🇹🇬',CM:'🇨🇲' };
-          const nameLike = `%${nameQuery}%`;
 
-          // 1) Activations manuelles : payer_name OR full_name
+          // 1) Activations manuelles — numéro exact + montant exact
           const manualActivR = await db.execute(sql`
             SELECT * FROM manual_activation_requests
-            WHERE payer_name ILIKE ${nameLike} OR full_name ILIKE ${nameLike}
+            WHERE (regexp_replace(payment_phone,'[^0-9]','','g') LIKE ${'%'+last8}
+                OR regexp_replace(payment_phone,'[^0-9]','','g') = ${phoneDigits})
+              AND amount = ${searchAmount}
             ORDER BY created_at DESC LIMIT 10
           `);
           const manualActivRows = (manualActivR.rows || []) as any[];
 
-          // 2) Paiements lien manuels : customer_name
+          // 2) Paiements lien manuels — numéro exact + montant exact
           const linkManualR = await db.execute(sql`
             SELECT * FROM link_manual_requests
-            WHERE customer_name ILIKE ${nameLike}
+            WHERE (regexp_replace(phone,'[^0-9]','','g') LIKE ${'%'+last8}
+                OR regexp_replace(phone,'[^0-9]','','g') = ${phoneDigits})
+              AND amount = ${searchAmount}
             ORDER BY created_at DESC LIMIT 10
           `);
           const linkManualRows = (linkManualR.rows || []) as any[];
 
-          // 3) Paiements SolvexPay : customer_name
+          // 3) Paiements SolvexPay — numéro exact + montant exact
           const srR = await db.execute(sql`
             SELECT * FROM payment_link_transactions
-            WHERE customer_name ILIKE ${nameLike}
+            WHERE (regexp_replace(customer_phone,'[^0-9]','','g') LIKE ${'%'+last8}
+                OR regexp_replace(customer_phone,'[^0-9]','','g') = ${phoneDigits})
+              AND amount = ${searchAmount}
             ORDER BY created_at DESC LIMIT 10
           `);
           const srRows = (srR.rows || []) as any[];
 
-          // 4) Activations CI : full_name
+          // 4) Activations CI — numéro exact + montant exact
           const ciR = await db.execute(sql`
             SELECT * FROM ci_activation_requests
-            WHERE full_name ILIKE ${nameLike}
+            WHERE (regexp_replace(payment_phone,'[^0-9]','','g') LIKE ${'%'+last8}
+                OR regexp_replace(payment_phone,'[^0-9]','','g') = ${phoneDigits})
+              AND amount = ${searchAmount}
             ORDER BY created_at DESC LIMIT 10
           `).catch(() => ({ rows: [] }));
           const ciRows = (ciR.rows || []) as any[];
@@ -3201,7 +3213,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               method:'POST', headers:{'Content-Type':'application/json'},
               body: JSON.stringify({
                 chat_id: chatId,
-                text: `🔍 <b>Recherche par nom : <code>${nameQuery}</code></b>\n\nAucune transaction trouvée.\n\n💡 Essayez un fragment du nom (ex : <code>nom Kouassi</code>).`,
+                text: `🔍 <b>Recherche : <code>${rawPhone}</code> — ${searchAmount.toLocaleString('fr-FR')} FCFA</b>\n\nAucune transaction trouvée.\n\n💡 Format : <code>numéro montant</code> (ex : <code>0701234567 3600</code>)`,
                 parse_mode:'HTML'
               })
             });
@@ -3212,7 +3224,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             method:'POST', headers:{'Content-Type':'application/json'},
             body: JSON.stringify({
               chat_id: chatId,
-              text: `🔍 <b>Recherche par nom : <code>${nameQuery}</code></b>\n${totalFound} résultat(s) trouvé(s)\n\n• 🆔 Activations manuelles : ${manualActivRows.length}\n• 🏦 Paiements lien manuels : ${linkManualRows.length}\n• ⚡ Paiements SolvexPay : ${srRows.length}\n• 🇨🇮 Activations CI : ${ciRows.length}`,
+              text: `🔍 <b>Résultats : <code>${rawPhone}</code> — ${searchAmount.toLocaleString('fr-FR')} FCFA</b>\n${totalFound} résultat(s)\n\n• 🆔 Activations manuelles : ${manualActivRows.length}\n• 🏦 Paiements lien manuels : ${linkManualRows.length}\n• ⚡ Paiements SolvexPay : ${srRows.length}\n• 🇨🇮 Activations CI : ${ciRows.length}`,
               parse_mode:'HTML'
             })
           });
