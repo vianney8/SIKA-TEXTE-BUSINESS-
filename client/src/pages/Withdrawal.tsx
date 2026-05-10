@@ -607,95 +607,44 @@ export default function Withdrawal() {
           </div>
         </div>
 
-        {/* Formulaire retrait OU invitation à configurer le code PCS */}
-        {!spaySettings?.hasSavedPcsCode ? (
-          <div className="bg-white rounded-[20px] shadow-sm border border-amber-100 p-5">
-            <div className="flex flex-col items-center text-center mb-4">
-              <div className="w-14 h-14 rounded-[16px] flex items-center justify-center mb-3"
-                style={{ background: "linear-gradient(135deg, #4f46e5, #6d28d9)" }}>
-                <KeyRound size={24} className="text-white" />
-              </div>
-              <h3 className="text-gray-800 font-black text-base mb-1">Code PCS requis</h3>
-              <p className="text-gray-500 text-sm leading-relaxed">
-                Pour effectuer un retrait, vous devez d'abord configurer votre code PCS Secure Pay dans votre espace <strong>Serveur & Réseaux Spay</strong>.
-              </p>
-            </div>
+        {/* Formulaire retrait */}
+        <div className="bg-white rounded-[20px] shadow-sm border border-gray-100 p-5">
+          <p className="text-gray-800 font-bold text-base mb-4">Nouveau retrait</p>
 
-            <div className="bg-indigo-50 rounded-xl px-4 py-3 mb-4 space-y-1.5">
-              {[
-                "Accédez à votre espace Spay Network",
-                "Configurez votre code PCS Secure Pay",
-                "Revenez ici pour effectuer votre retrait",
-              ].map((step, i) => (
-                <div key={i} className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-indigo-600 flex items-center justify-center flex-shrink-0">
-                    <span className="text-white font-black text-[9px]">{i + 1}</span>
-                  </div>
-                  <p className="text-indigo-800 text-xs font-medium">{step}</p>
-                </div>
-              ))}
+          <div className="mb-4">
+            <label className="text-gray-500 text-xs font-semibold uppercase tracking-wider block mb-1.5">
+              Montant à retirer (FCFA)
+            </label>
+            <div className="relative">
+              <ArrowDownCircle size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                data-testid="input-withdrawal-amount"
+                type="number"
+                value={amount}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (v > 0 || e.target.value === "") setAmount(e.target.value);
+                }}
+                min="1"
+                placeholder="Entrez le montant"
+                className="w-full h-12 pl-10 pr-4 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+              />
             </div>
-
-            <Link href="/spay-network">
-              <button
-                data-testid="button-configure-pcs"
-                className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 shadow-md active:scale-[0.97] transition-all"
-                style={{ background: "linear-gradient(135deg, #4f46e5, #6d28d9)" }}
-              >
-                <Smartphone size={18} /> Configurer mon code PCS
-              </button>
-            </Link>
           </div>
-        ) : (
-          <div className="bg-white rounded-[20px] shadow-sm border border-gray-100 p-5">
-            <p className="text-gray-800 font-bold text-base mb-4">Nouveau retrait</p>
 
-            <div className="mb-4">
-              <label className="text-gray-500 text-xs font-semibold uppercase tracking-wider block mb-1.5">
-                Montant à retirer (FCFA)
-              </label>
-              <div className="relative">
-                <ArrowDownCircle size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  data-testid="input-withdrawal-amount"
-                  type="number"
-                  value={amount}
-                  onChange={(e) => {
-                    const v = parseFloat(e.target.value);
-                    if (v > 0 || e.target.value === "") setAmount(e.target.value);
-                  }}
-                  min="1"
-                  placeholder="Entrez le montant"
-                  className="w-full h-12 pl-10 pr-4 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
-                />
-              </div>
-            </div>
-
-            {/* Code PCS enregistré */}
-            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2.5 mb-4">
-              <ShieldCheck size={15} className="text-emerald-600 flex-shrink-0" />
-              <p className="text-emerald-700 text-xs font-semibold flex-1">
-                Code PCS configuré — {spaySettings.savedPcsCodeMasked || "****"}
-              </p>
-              <Link href="/spay-network" className="text-emerald-600 hover:text-emerald-800 transition-colors">
-                <Edit3 size={13} />
-              </Link>
-            </div>
-
-            <button
-              data-testid="button-request-withdrawal"
-              onClick={handleWithdraw}
-              disabled={withdrawMutation.isPending || !amount}
-              className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 shadow-md active:scale-[0.97] transition-all disabled:opacity-50"
-              style={{ background: "linear-gradient(135deg, #1a4fa0, #3b82f6)" }}
-            >
-              {withdrawMutation.isPending
-                ? "Traitement..."
-                : <><Send size={16} /> Demander le retrait</>
-              }
-            </button>
-          </div>
-        )}
+          <button
+            data-testid="button-request-withdrawal"
+            onClick={handleWithdraw}
+            disabled={withdrawMutation.isPending || !amount}
+            className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 shadow-md active:scale-[0.97] transition-all disabled:opacity-50"
+            style={{ background: "linear-gradient(135deg, #1a4fa0, #3b82f6)" }}
+          >
+            {withdrawMutation.isPending
+              ? "Traitement..."
+              : <><Send size={16} /> Demander le retrait</>
+            }
+          </button>
+        </div>
 
         {/* Support */}
         <div className="bg-white rounded-[20px] shadow-sm border border-gray-100 p-5">
