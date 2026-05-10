@@ -26,10 +26,12 @@ const OPERATORS: Record<string, { name: string; full: string; bg: string; text: 
 };
 
 // ─── Design tokens ─────────────────────────────────────────────────────────
-const PG  = "#EFF2F7";
-const HDR = "#0D1B2A";
-const EM1 = "#10B981";
-const EM2 = "#059669";
+const PG    = "#EFF2F7";
+const HDR   = "linear-gradient(135deg, #1a237e 0%, #283593 40%, #1565c0 100%)";
+const EM1   = "#10B981";
+const EM2   = "#059669";
+const BLU   = "#1565c0";
+const BLU2  = "#0d47a1";
 
 // ─── Sous-composants ────────────────────────────────────────────────────────
 
@@ -420,7 +422,7 @@ export default function PaymentLinkPage() {
           <div className="flex items-center gap-2.5">
             <img src="/logo.jpg" alt="SIKApay" className="w-9 h-9 rounded-xl object-cover ring-2 ring-white/15" />
             <div>
-              <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: EM1 }}>SIKApay</p>
+              <p className="text-[9px] font-bold uppercase tracking-widest text-white/60">SIKApay</p>
               <p className="text-white font-black text-sm">SIKA TEXTE</p>
             </div>
           </div>
@@ -542,9 +544,9 @@ export default function PaymentLinkPage() {
             <p className="text-white font-black text-sm">SIKA TEXTE</p>
           </div>
           <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1.5"
-            style={{ background: `${EM1}18`, border: `1px solid ${EM1}40` }}>
-            <div className="w-1.5 h-1.5 rounded-full" style={{ background: EM1 }} />
-            <span className="text-[10px] font-bold" style={{ color: EM1 }}>Sécurisé</span>
+            style={{ background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)" }}>
+            <div className="w-1.5 h-1.5 rounded-full bg-white" />
+            <span className="text-[10px] font-bold text-white">Sécurisé</span>
           </div>
         </div>
 
@@ -561,7 +563,7 @@ export default function PaymentLinkPage() {
                 <div className="flex items-center gap-2.5">
                   <OperatorBadge code={operator} size="sm" />
                   <div>
-                    <p className="text-white/50 text-[10px] font-bold uppercase tracking-wider">Dépôt Mobile Money</p>
+                    <p className="text-white/60 text-[10px] font-bold uppercase tracking-wider">Dépôt Mobile Money</p>
                     <p className="text-white font-black text-sm">{selectedOp?.name}</p>
                   </div>
                 </div>
@@ -580,9 +582,9 @@ export default function PaymentLinkPage() {
                     <button onClick={copyDepositNumber}
                       className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 font-bold text-sm transition-all flex-shrink-0"
                       style={{
-                        background: copied ? "#D1FAE5" : `${EM1}12`,
-                        color: copied ? EM2 : EM1,
-                        border: `1px solid ${copied ? "#6EE7B7" : `${EM1}30`}`
+                        background: copied ? "#DBEAFE" : `${BLU}12`,
+                        color: copied ? BLU2 : BLU,
+                        border: `1px solid ${copied ? "#93C5FD" : `${BLU}30`}`
                       }}>
                       <Copy size={13} /> {copied ? "Copié ✓" : "Copier"}
                     </button>
@@ -632,7 +634,7 @@ export default function PaymentLinkPage() {
                 </p>
                 <input type="text" value={manualTxnId} onChange={e => setManualTxnId(e.target.value)}
                   placeholder="ex: TXN20240125ABCDE"
-                  className="w-full bg-slate-50 border-2 border-slate-100 focus:border-emerald-300 rounded-2xl px-4 py-3.5 text-sm font-semibold font-mono text-slate-800 placeholder:text-slate-300 focus:outline-none transition-colors" />
+                  className="w-full bg-slate-50 border-2 border-slate-100 focus:border-blue-400 rounded-2xl px-4 py-3.5 text-sm font-semibold font-mono text-slate-800 placeholder:text-slate-300 focus:outline-none transition-colors" />
                 <p className="text-slate-300 text-[10px] mt-1.5 pl-1">ID reçu par SMS après votre paiement</p>
               </div>
 
@@ -666,9 +668,9 @@ export default function PaymentLinkPage() {
                   </div>
                 ) : (
                   <button onClick={() => fileInputRef.current?.click()}
-                    className="w-full rounded-2xl p-5 flex flex-col items-center gap-2.5 border-2 border-dashed border-slate-200 bg-slate-50 hover:border-emerald-300 hover:bg-emerald-50 transition-colors">
-                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: `${EM1}12` }}>
-                      <Upload size={20} style={{ color: EM1 }} />
+                    className="w-full rounded-2xl p-5 flex flex-col items-center gap-2.5 border-2 border-dashed border-slate-200 bg-slate-50 hover:border-blue-400 hover:bg-blue-50 transition-colors">
+                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: `${BLU}12` }}>
+                      <Upload size={20} style={{ color: BLU }} />
                     </div>
                     <p className="text-slate-600 text-sm font-semibold">Ajouter une capture d'écran</p>
                     <p className="text-slate-400 text-xs">JPG, PNG — Max 10 Mo</p>
@@ -732,14 +734,14 @@ export default function PaymentLinkPage() {
           <div className="flex items-center gap-2.5">
             <img src="/logo.jpg" alt="SIKApay" className="w-10 h-10 rounded-2xl object-cover ring-2 ring-white/10" />
             <div>
-              <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: EM1 }}>SIKApay</p>
+              <p className="text-[9px] font-bold uppercase tracking-widest text-white/60">SIKApay</p>
               <p className="text-white font-black text-sm">SIKA TEXTE</p>
             </div>
           </div>
           <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1.5"
-            style={{ background: `${EM1}18`, border: `1px solid ${EM1}40` }}>
-            <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: EM1 }} />
-            <span className="text-[10px] font-bold" style={{ color: EM1 }}>Sécurisé</span>
+            style={{ background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)" }}>
+            <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+            <span className="text-[10px] font-bold text-white">Sécurisé</span>
           </div>
         </div>
 
@@ -750,7 +752,7 @@ export default function PaymentLinkPage() {
         )}
 
         <div className="px-5 pb-5">
-          <p className="text-[11px] font-semibold uppercase tracking-widest mb-1" style={{ color: `${EM1}80` }}>Total à payer</p>
+          <p className="text-[11px] font-semibold uppercase tracking-widest mb-1 text-white/50">Total à payer</p>
           <div className="flex items-end gap-2">
             <span className="text-5xl font-black text-white leading-none">{amount}</span>
             <span className="text-xl font-bold text-white/40 mb-1">{link.currency}</span>
@@ -772,14 +774,14 @@ export default function PaymentLinkPage() {
             {COUNTRIES.map(c => (
               <button key={c.code} onClick={() => { setCountry(c.code); setOperator(""); }}
                 className={`flex items-center gap-2.5 p-3 rounded-2xl border-2 text-left transition-all ${
-                  country === c.code ? "border-emerald-400 bg-emerald-50" : "border-slate-100 bg-slate-50 hover:border-slate-200"
+                  country === c.code ? "border-blue-500 bg-blue-50" : "border-slate-100 bg-slate-50 hover:border-slate-200"
                 }`}>
                 <span className="text-2xl">{c.flag}</span>
                 <div className="flex-1 min-w-0">
-                  <p className={`text-xs font-bold leading-tight truncate ${country === c.code ? "text-emerald-800" : "text-slate-700"}`}>{c.name}</p>
+                  <p className={`text-xs font-bold leading-tight truncate ${country === c.code ? "text-blue-900" : "text-slate-700"}`}>{c.name}</p>
                   <p className="text-[10px] text-slate-400">+{c.prefix}</p>
                 </div>
-                {country === c.code && <CheckCircle size={13} style={{ color: EM1 }} className="flex-shrink-0" />}
+                {country === c.code && <CheckCircle size={13} style={{ color: BLU }} className="flex-shrink-0" />}
               </button>
             ))}
           </div>
@@ -799,19 +801,19 @@ export default function PaymentLinkPage() {
                     onClick={() => { if (!inMaintenance) setOperator(op); }}
                     className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 transition-all select-none ${
                       inMaintenance ? "border-slate-100 bg-slate-50 opacity-50 cursor-not-allowed"
-                        : selected ? "border-emerald-400 bg-emerald-50 cursor-pointer"
+                        : selected ? "border-blue-500 bg-blue-50 cursor-pointer"
                         : "border-slate-100 bg-slate-50 cursor-pointer hover:border-slate-200"
                     }`}>
                     <div className={inMaintenance ? "grayscale opacity-50" : ""}><OperatorBadge code={op} size="sm" /></div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className={`text-sm font-bold ${inMaintenance ? "text-slate-400" : selected ? "text-emerald-800" : "text-slate-700"}`}>{info.name}</p>
+                        <p className={`text-sm font-bold ${inMaintenance ? "text-slate-400" : selected ? "text-blue-900" : "text-slate-700"}`}>{info.name}</p>
                         {inMaintenance && <MaintenanceBadge />}
                       </div>
                       <p className="text-[11px] text-slate-400">{info.full}</p>
                       {inMaintenance && <p className="text-[10px] text-red-500 font-semibold mt-0.5">Indisponible — en maintenance</p>}
                     </div>
-                    {selected && !inMaintenance && <CheckCircle size={16} style={{ color: EM1 }} className="flex-shrink-0" />}
+                    {selected && !inMaintenance && <CheckCircle size={16} style={{ color: BLU }} className="flex-shrink-0" />}
                   </div>
                 );
               })}
@@ -852,7 +854,7 @@ export default function PaymentLinkPage() {
               <input type="tel" inputMode="numeric" value={phone}
                 onChange={e => setPhone(e.target.value.replace(/[^\d\s]/g, ""))}
                 placeholder={`Ex : ${selectedCountry?.phonePlaceholder}`}
-                className="flex-1 bg-slate-50 border-2 border-slate-100 focus:border-emerald-300 rounded-2xl px-4 py-3 text-base font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none transition-colors" />
+                className="flex-1 bg-slate-50 border-2 border-slate-100 focus:border-blue-400 rounded-2xl px-4 py-3 text-base font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none transition-colors" />
             </div>
             <p className="text-slate-300 text-xs mt-2 pl-1">Entrez votre numéro local (sans l'indicatif pays)</p>
           </div>
@@ -869,7 +871,7 @@ export default function PaymentLinkPage() {
                 <div key={f.label}>
                   <p className="text-slate-400 text-[11px] font-black uppercase tracking-wider mb-2">{f.label}</p>
                   <input type="text" value={f.value} onChange={e => f.set(e.target.value)} placeholder={f.ph}
-                    className="w-full bg-slate-50 border-2 border-slate-100 focus:border-emerald-300 rounded-2xl px-3 py-3 text-sm font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none transition-colors" />
+                    className="w-full bg-slate-50 border-2 border-slate-100 focus:border-blue-400 rounded-2xl px-3 py-3 text-sm font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none transition-colors" />
                 </div>
               ))}
             </div>
@@ -885,7 +887,7 @@ export default function PaymentLinkPage() {
               ) : (
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)}
                   placeholder={link?.isPcs ? "Adresse e-mail de votre compte Sika" : "jean@exemple.com"}
-                  className="w-full bg-slate-50 border-2 border-slate-100 focus:border-emerald-300 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none transition-colors" />
+                  className="w-full bg-slate-50 border-2 border-slate-100 focus:border-blue-400 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none transition-colors" />
               )}
               {link?.isPcs && (
                 <p className="text-slate-300 text-[10px] mt-1.5">⚠️ Seuls les comptes Sika Texte sont acceptés.</p>
@@ -924,8 +926,8 @@ export default function PaymentLinkPage() {
             style={{
               background: useRedirect && operator
                 ? "linear-gradient(135deg,#ea580c,#f97316)"
-                : `linear-gradient(135deg,${EM1},${EM2})`,
-              boxShadow: `0 8px 24px ${useRedirect && operator ? "#f9731640" : `${EM1}35`}`
+                : `linear-gradient(135deg,${BLU},${BLU2})`,
+              boxShadow: `0 8px 24px ${useRedirect && operator ? "#f9731640" : `${BLU}50`}`
             }}>
             {submitting
               ? <><Loader2 size={18} className="animate-spin" /> Traitement<AnimatedDots /></>
