@@ -198,6 +198,9 @@ export default function Activation() {
   const [operator, setOperator] = useState("");
   const [phone, setPhone]       = useState("");
 
+  // Initialisation — empêche le flash de l'étape 1 pendant le chargement
+  const [initializing, setInitializing] = useState(true);
+
   // Manual activation state
   const [depositInfo, setDepositInfo]         = useState<{ enabled: boolean; depositNumber: string; activationAmount: number; isInternational: boolean; alertText: string; depositLabel: string; instruction: string; showInstruction: boolean } | null>(null);
   const [depositLoading, setDepositLoading]   = useState(false);
@@ -306,8 +309,14 @@ export default function Activation() {
   // Restaurer l'état pending au chargement de la page
   useEffect(() => {
     if (activationStatus === undefined) return;
-    if (activationStatus?.isActive) return;
-    if (manualSubmitted || rejectionNote !== null) return;
+    if (activationStatus?.isActive) {
+      setInitializing(false);
+      return;
+    }
+    if (manualSubmitted || rejectionNote !== null) {
+      setInitializing(false);
+      return;
+    }
     fetch("/api/activation/my-pending-request", { credentials: "include" })
       .then(r => r.json())
       .then(data => {
@@ -321,7 +330,8 @@ export default function Activation() {
           setRejectionNote(data.adminNote || "");
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setInitializing(false));
   }, [activationStatus]);
 
   // SolvexPay polling
@@ -477,6 +487,25 @@ export default function Activation() {
       setStatusChecking(false);
     }
   };
+
+  // ── Chargement initial (évite le flash de la page de formulaire) ─────────
+  if (initializing || activationStatus === undefined) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-5"
+        style={{ background: "linear-gradient(180deg, #060b18 0%, #0a1628 100%)" }}>
+        <div className="relative">
+          <div className="absolute inset-0 rounded-full bg-blue-500/15 animate-ping" style={{ animationDuration: "2s" }} />
+          <div className="relative w-16 h-16 rounded-full border border-blue-400/25 bg-blue-500/10 flex items-center justify-center">
+            <Loader2 size={28} className="text-blue-300 animate-spin" />
+          </div>
+        </div>
+        <div className="text-center">
+          <p className="text-white font-bold text-base">Vérification en cours…</p>
+          <p className="text-white/30 text-xs mt-1">Récupération de votre statut</p>
+        </div>
+      </div>
+    );
+  }
 
   // ── Compte déjà activé ────────────────────────────────────────────────────
   if (activationStatus?.isActive) {
