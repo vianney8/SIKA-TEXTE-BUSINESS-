@@ -3775,11 +3775,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const newStatus = c.status === 'actif' ? 'inactif' : 'actif';
               answerText = `⚠️ Confirmer ${c.status} → ${newStatus}`;
               if (chatId && messageId) {
-                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     chat_id: chatId,
+                    message_id: messageId,
                     text: `🔄 <b>Changement de statut</b>\n\n🔑 Code : <code>${c.code}</code>\n📊 Actuel : <b>${c.status === 'actif' ? '🟢 Actif' : '🔴 Inactif'}</b>\n➡ Nouveau : <b>${newStatus === 'actif' ? '🟢 Actif' : '🔴 Inactif'}</b>\n\nConfirmer ?`,
                     parse_mode: 'HTML',
                     reply_markup: {
@@ -4098,17 +4099,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
             else if (r.status !== 'pending') { answerText = `Déjà traitée : ${r.status}`; }
             else {
               answerText = '⚠️ Confirmer approbation ?';
-              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-                method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({ chat_id: chatId,
-                  text: `✅ <b>Confirmer approbation ?</b>\n\n🔗 Lien : ${r.linkLabel||r.linkId}\n👤 ${r.customerName||'N/A'}\n📱 <code>${r.phone||'—'}</code>\n🔖 ID tx : <code>${r.transactionId||'—'}</code>\n💰 ${Number(r.amount).toLocaleString('fr-FR')} ${r.currency||'FCFA'}\n\nCela va <b>valider ce paiement</b>.`,
-                  parse_mode:'HTML',
-                  reply_markup:{ inline_keyboard:[[
-                    { text:'✅ Oui, valider', callback_data:`lnkma_ok_${reqId}` },
-                    { text:'◀ Annuler', callback_data:`lnkma_no_${reqId}` }
-                  ]]}
-                })
-              });
+              if (chatId && messageId) {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
+                  method:'POST', headers:{'Content-Type':'application/json'},
+                  body: JSON.stringify({ chat_id: chatId, message_id: messageId,
+                    text: `✅ <b>Confirmer approbation ?</b>\n\n🔗 Lien : ${r.linkLabel||r.linkId}\n👤 ${r.customerName||'N/A'}\n📱 <code>${r.phone||'—'}</code>\n🔖 ID tx : <code>${r.transactionId||'—'}</code>\n💰 ${Number(r.amount).toLocaleString('fr-FR')} ${r.currency||'FCFA'}\n\nCela va <b>valider ce paiement</b>.`,
+                    parse_mode:'HTML',
+                    reply_markup:{ inline_keyboard:[[
+                      { text:'✅ Oui, valider', callback_data:`lnkma_ok_${reqId}` },
+                      { text:'◀ Annuler', callback_data:`lnkma_no_${reqId}` }
+                    ]]}
+                  })
+                });
+              }
             }
           } catch(e) { answerText='❌ Erreur'; console.error('[LNKMA-PRE]',e); }
 
@@ -4230,17 +4233,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
             else if (r.status !== 'pending') { answerText = `Déjà traitée : ${r.status}`; }
             else {
               answerText = '⚠️ Confirmer rejet ?';
-              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-                method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({ chat_id: chatId,
-                  text: `❌ <b>Confirmer le rejet ?</b>\n\n🔗 ${r.linkLabel||r.linkId}\n👤 ${r.customerName||'N/A'}\n📱 <code>${r.phone||'—'}</code>\n\nLe paiement sera <b>rejeté</b>.`,
-                  parse_mode:'HTML',
-                  reply_markup:{ inline_keyboard:[[
-                    { text:'❌ Oui, rejeter', callback_data:`lnkrej_ok_${reqId}` },
-                    { text:'◀ Annuler', callback_data:`lnkrej_no_${reqId}` }
-                  ]]}
-                })
-              });
+              if (chatId && messageId) {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
+                  method:'POST', headers:{'Content-Type':'application/json'},
+                  body: JSON.stringify({ chat_id: chatId, message_id: messageId,
+                    text: `❌ <b>Confirmer le rejet ?</b>\n\n🔗 ${r.linkLabel||r.linkId}\n👤 ${r.customerName||'N/A'}\n📱 <code>${r.phone||'—'}</code>\n\nLe paiement sera <b>rejeté</b>.`,
+                    parse_mode:'HTML',
+                    reply_markup:{ inline_keyboard:[[
+                      { text:'❌ Oui, rejeter', callback_data:`lnkrej_ok_${reqId}` },
+                      { text:'◀ Annuler', callback_data:`lnkrej_no_${reqId}` }
+                    ]]}
+                  })
+                });
+              }
             }
           } catch(e) { answerText='❌ Erreur'; console.error('[LNKREJ-PRE]',e); }
 
@@ -4378,18 +4383,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
             else if (blkUser.isBlocked) { answerText = '⚠️ Compte déjà bloqué'; }
             else {
               answerText = '⚠️ Confirmer le blocage ?';
-              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-                method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({
-                  chat_id: chatId,
-                  text: `🔒 <b>Confirmer le blocage du compte ?</b>\n\n👤 ${blkUser.fullName||'N/A'}\n📱 <code>${blkUser.phone||'—'}</code>\n📧 ${blkUser.email||'—'}\n\n⚠️ L'utilisateur ne pourra plus se connecter.`,
-                  parse_mode:'HTML',
-                  reply_markup:{ inline_keyboard:[[
-                    { text:'🔒 Oui, bloquer', callback_data:`blkuser_ok_${blkUserId}` },
-                    { text:'◀ Annuler',        callback_data:`blkuser_no_${blkUserId}` }
-                  ]]}
-                })
-              });
+              if (chatId && messageId) {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
+                  method:'POST', headers:{'Content-Type':'application/json'},
+                  body: JSON.stringify({
+                    chat_id: chatId, message_id: messageId,
+                    text: `🔒 <b>Confirmer le blocage du compte ?</b>\n\n👤 ${blkUser.fullName||'N/A'}\n📱 <code>${blkUser.phone||'—'}</code>\n📧 ${blkUser.email||'—'}\n\n⚠️ L'utilisateur ne pourra plus se connecter.`,
+                    parse_mode:'HTML',
+                    reply_markup:{ inline_keyboard:[[
+                      { text:'🔒 Oui, bloquer', callback_data:`blkuser_ok_${blkUserId}` },
+                      { text:'◀ Annuler',        callback_data:`blkuser_no_${blkUserId}` }
+                    ]]}
+                  })
+                });
+              }
             }
           } catch(e) { answerText='❌ Erreur'; console.error('[BLKUSER-PRE]',e); }
 
@@ -4441,18 +4448,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
               else if (u.is_blocked) { answerText = '⚠️ Compte déjà bloqué'; }
               else {
                 answerText = '⚠️ Confirmer le blocage ?';
-                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-                  method:'POST', headers:{'Content-Type':'application/json'},
-                  body: JSON.stringify({
-                    chat_id: chatId,
-                    text: `🔒 <b>Confirmer le blocage du compte ?</b>\n\n👤 ${u.full_name||'N/A'}\n📱 <code>${u.phone||'—'}</code>\n📧 ${u.email||'—'}\n\n⚠️ L'utilisateur ne pourra plus se connecter.`,
-                    parse_mode:'HTML',
-                    reply_markup:{ inline_keyboard:[[
-                      { text:'🔒 Oui, bloquer', callback_data:`blkuser_ok_${u.id}` },
-                      { text:'◀ Annuler',        callback_data:`blkuser_no_${u.id}` }
-                    ]]}
-                  })
-                });
+                if (chatId && messageId) {
+                  await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({
+                      chat_id: chatId, message_id: messageId,
+                      text: `🔒 <b>Confirmer le blocage du compte ?</b>\n\n👤 ${u.full_name||'N/A'}\n📱 <code>${u.phone||'—'}</code>\n📧 ${u.email||'—'}\n\n⚠️ L'utilisateur ne pourra plus se connecter.`,
+                      parse_mode:'HTML',
+                      reply_markup:{ inline_keyboard:[[
+                        { text:'🔒 Oui, bloquer', callback_data:`blkuser_ok_${u.id}` },
+                        { text:'◀ Annuler',        callback_data:`blkuser_no_${u.id}` }
+                      ]]}
+                    })
+                  });
+                }
               }
             }
           } catch(e) { answerText='❌ Erreur'; console.error('[BLKLNKR-PRE]',e); }
@@ -4471,18 +4480,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
               else if (u.is_blocked) { answerText = '⚠️ Compte déjà bloqué'; }
               else {
                 answerText = '⚠️ Confirmer le blocage ?';
-                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-                  method:'POST', headers:{'Content-Type':'application/json'},
-                  body: JSON.stringify({
-                    chat_id: chatId,
-                    text: `🔒 <b>Confirmer le blocage du compte ?</b>\n\n👤 ${u.full_name||'N/A'}\n📱 <code>${u.phone||'—'}</code>\n📧 ${u.email||'—'}\n\n⚠️ L'utilisateur ne pourra plus se connecter.`,
-                    parse_mode:'HTML',
-                    reply_markup:{ inline_keyboard:[[
-                      { text:'🔒 Oui, bloquer', callback_data:`blkuser_ok_${u.id}` },
-                      { text:'◀ Annuler',        callback_data:`blkuser_no_${u.id}` }
-                    ]]}
-                  })
-                });
+                if (chatId && messageId) {
+                  await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({
+                      chat_id: chatId, message_id: messageId,
+                      text: `🔒 <b>Confirmer le blocage du compte ?</b>\n\n👤 ${u.full_name||'N/A'}\n📱 <code>${u.phone||'—'}</code>\n📧 ${u.email||'—'}\n\n⚠️ L'utilisateur ne pourra plus se connecter.`,
+                      parse_mode:'HTML',
+                      reply_markup:{ inline_keyboard:[[
+                        { text:'🔒 Oui, bloquer', callback_data:`blkuser_ok_${u.id}` },
+                        { text:'◀ Annuler',        callback_data:`blkuser_no_${u.id}` }
+                      ]]}
+                    })
+                  });
+                }
               }
             }
           } catch(e) { answerText='❌ Erreur'; console.error('[BLKPLT-PRE]',e); }
