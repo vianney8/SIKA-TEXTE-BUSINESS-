@@ -2845,7 +2845,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // ── Récupérer toutes les demandes en attente (une seule requête) ──────
           const pendingRes = await db.execute(sql`
-            SELECT * FROM manual_activation_requests WHERE status = 'pending' ORDER BY created_at DESC LIMIT 200
+            SELECT * FROM manual_activation_requests WHERE status = 'pending' ORDER BY created_at DESC
           `);
           const pending = (pendingRes.rows || []) as any[];
 
