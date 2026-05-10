@@ -2355,7 +2355,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const depositLabel    = settings.find((s: any) => s.key === `${countryLower}_${opLower}_deposit_label`)?.value || '';
       const instruction     = settings.find((s: any) => s.key === `${countryLower}_${opLower}_instruction`)?.value || '';
       const showInstruction = settings.find((s: any) => s.key === `${countryLower}_${opLower}_show_instruction`)?.value === 'true';
-      res.json({ enabled, depositNumber, activationAmount, isInternational, alertText, depositLabel, instruction, showInstruction });
+      const internationalNote = isInternational
+        ? (settings.find((s: any) => s.key === `international_deposit_note_${countryLower}`)?.value || '')
+        : '';
+      res.json({ enabled, depositNumber, activationAmount, isInternational, alertText, depositLabel, instruction, showInstruction, internationalNote });
     } catch (err) {
       console.error('[MANUAL-DEPOSIT-INFO]', err);
       res.status(500).json({ message: 'Erreur serveur' });
