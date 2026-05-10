@@ -24,6 +24,19 @@ const OPERATORS: Record<string, { name: string; full: string; bg: string; text: 
 
 type Step = "form" | "manual" | "pending" | "success" | "failed" | "redirected" | "submitted";
 
+function ElapsedTimer({ since }: { since: string | null }) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!since) return;
+    const start = new Date(since).getTime();
+    const iv = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
+    return () => clearInterval(iv);
+  }, [since]);
+  const m = Math.floor(elapsed / 60);
+  const s = elapsed % 60;
+  return <span className="font-mono text-blue-300 font-bold">{String(m).padStart(2, "0")}:{String(s).padStart(2, "0")}</span>;
+}
+
 function AnimatedDots() {
   return (
     <span className="inline-flex gap-1 ml-1">
@@ -416,18 +429,6 @@ export default function PaymentLinkPage() {
 
   // ── Manual submitted ─────────────────────────────────────────────────────────
   if (step === "submitted") {
-    function ElapsedTimer({ since }: { since: string | null }) {
-      const [elapsed, setElapsed] = useState(0);
-      useEffect(() => {
-        if (!since) return;
-        const start = new Date(since).getTime();
-        const iv = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
-        return () => clearInterval(iv);
-      }, [since]);
-      const m = Math.floor(elapsed / 60);
-      const s = elapsed % 60;
-      return <span className="font-mono text-blue-300 font-bold">{String(m).padStart(2,"0")}:{String(s).padStart(2,"0")}</span>;
-    }
     return (
       <div className="min-h-screen flex flex-col" style={BG}>
         <style>{`@keyframes bounce{0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1}}`}</style>
