@@ -1,6 +1,42 @@
-node_modules
-dist
+# Dépendances
+node_modules/
+dist/
+
+# Fichiers système
 .DS_Store
-server/public
+Thumbs.db
+
+# Fichiers de build Vite
 vite.config.ts.*
+server/public/
+
+# Fichiers volumineux / archives
 *.tar.gz
+*.zip
+zipFile.zip
+
+# Variables d'environnement (secrets)
+.env
+.env.local
+.env.development
+.env.production
+.env.*
+!.env.example
+
+# Dossiers Replit internes
+.cache/
+.upm/
+.local/
+
+# Fichiers uploadés par les utilisateurs (non versionné)
+attached_assets/
+uploads/*
+!uploads/.gitkeep
+
+# Logs
+*.log
+npm-debug.log*
+
+# Vidéos uploadées par les utilisateurs via le bot (large)
+server/assets/
+public/withdrawal-video.mp4
