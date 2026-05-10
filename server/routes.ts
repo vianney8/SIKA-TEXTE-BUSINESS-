@@ -2797,92 +2797,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Déclenché quand le message contient au moins "Msisdn" + ("OAmount" ou "Payer")
         const isMobileMoneySms = /Msisdn\s+\d/i.test(msgText) && (/OAmount\s+[\d.]+/i.test(msgText) || /Payer\s+[A-Z]/i.test(msgText));
         if (isMobileMoneySms) {
-          // — Extraire montant (OAmount ou "recu X FCFA")
-          const oAmtM = /OAmount\s+([\d.]+)/i.exec(msgText);
-          const recuM = /re[cç]u\s+([\d\s]+)\s*FCFA/i.exec(msgText);
-          const parsedAmount = oAmtM
-            ? Math.round(parseFloat(oAmtM[1]))
-            : (recuM ? parseInt(recuM[1].replace(/\s/g,'')) : null);
+          // ── Découper le message en blocs SMS individuels ──────────────────────
+          // Chaque bloc commence par "Vous avez recu" ou contient OAmount+Msisdn
+          const smsBlocks: string[] = [];
+          const byRecu = msgText.split(/(?=Vous\s+avez\s+re[cç]u\s)/i);
+          if (byRecu.length > 1) {
+            byRecu.forEach(b => { if (/Msisdn\s+\d/i.test(b)) smsBlocks.push(b.trim()); });
+          }
+          // Fallback : séparation par ligne vide
+          if (smsBlocks.length === 0) {
+            msgText.split(/\n\s*\n/).forEach(b => { if (/Msisdn\s+\d/i.test(b)) smsBlocks.push(b.trim()); });
+          }
+          // Dernier recours : message entier = un seul bloc
+          if (smsBlocks.length === 0) smsBlocks.push(msgText);
 
-          // — Extraire nom payeur (Payer ... jusqu'au prochain mot-clé connu)
-          const payerM = /Payer\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s\-']+?)(?=\s+(?:Msisdn|Gender|Nlty|OCountry|OCurrency|$)|\s*$)/i.exec(msgText);
-          const parsedPayer = payerM ? payerM[1].trim().toUpperCase() : null;
+          // ── Parseur d'un seul bloc SMS ────────────────────────────────────────
+          interface SmsData { amount: number|null; payer: string|null; msisdn: string|null; }
+          const parseSmsBlock = (block: string): SmsData => {
+            const oAmtM  = /OAmount\s+([\d.]+)/i.exec(block);
+            const recuM  = /re[cç]u\s+([\d\s]+)\s*FCFA/i.exec(block);
+            const amount = oAmtM
+              ? Math.round(parseFloat(oAmtM[1]))
+              : (recuM ? parseInt(recuM[1].replace(/\s/g,'')) : null);
+            const payerM = /Payer\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s\-']+?)(?=\s+(?:Msisdn|Gender|Nlty|OCountry|OCurrency)|\s*$)/i.exec(block);
+            const payer  = payerM ? payerM[1].trim().toUpperCase() : null;
+            const msisdnM = /Msisdn\s+(\d+)/i.exec(block);
+            const msisdn  = msisdnM ? msisdnM[1].trim() : null;
+            return { amount, payer, msisdn };
+          };
 
-          // — Extraire MSISDN (numéro brut sans +)
-          const msisdnM = /Msisdn\s+(\d+)/i.exec(msgText);
-          const parsedMsisdn = msisdnM ? msisdnM[1].trim() : null;
+          const parsedBlocks = smsBlocks.map(parseSmsBlock);
 
-          // Résumé des données extraites à afficher
-          const parsedSummary = [
-            parsedAmount !== null ? `💰 Montant : <b>${parsedAmount.toLocaleString('fr-FR')} FCFA</b>` : '💰 Montant : <i>non détecté</i>',
-            parsedPayer ? `👤 Payeur : <b>${parsedPayer}</b>` : '👤 Payeur : <i>non détecté</i>',
-            parsedMsisdn ? `📱 MSISDN : <code>+${parsedMsisdn}</code>` : '📱 MSISDN : <i>non détecté</i>',
-          ].join('\n');
-
-          // Récupérer toutes les demandes d'activation manuelle en attente
+          // ── Récupérer toutes les demandes en attente (une seule requête) ──────
           const pendingRes = await db.execute(sql`
             SELECT * FROM manual_activation_requests WHERE status = 'pending' ORDER BY created_at DESC LIMIT 200
           `);
           const pending = (pendingRes.rows || []) as any[];
 
-          // Fonction de normalisation pour comparaison texte
+          // ── Normalisation texte pour comparaison de noms ──────────────────────
           const normStr = (s: string) => (s || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z0-9\s]/g,'').replace(/\s+/g,' ').trim();
 
-          // Scoring : 1 point par critère correspondant
-          const SMS_MATCHES: Array<{req: any, score: number, reasons: string[]}> = [];
+          // ── Scoring : tester chaque demande contre TOUS les blocs SMS ─────────
+          // On garde le meilleur score obtenu pour chaque demande
+          const bestMatch = new Map<string, {req: any, score: number, reasons: string[], smsIndex: number}>();
 
-          for (const req of pending) {
-            let score = 0;
-            const reasons: string[] = [];
+          for (let si = 0; si < parsedBlocks.length; si++) {
+            const { amount: parsedAmount, payer: parsedPayer, msisdn: parsedMsisdn } = parsedBlocks[si];
 
-            // Critère 1 — Montant (tolérance ±5%)
-            if (parsedAmount !== null) {
-              const reqAmt = Number(req.amount);
-              if (reqAmt > 0 && Math.abs(reqAmt - parsedAmount) <= Math.max(parsedAmount * 0.05, 10)) {
-                score++;
-                reasons.push(`💰 Montant ${reqAmt.toLocaleString('fr-FR')} FCFA`);
+            for (const req of pending) {
+              let score = 0;
+              const reasons: string[] = [];
+
+              // Critère 1 — Montant (tolérance ±5%)
+              if (parsedAmount !== null) {
+                const reqAmt = Number(req.amount);
+                if (reqAmt > 0 && Math.abs(reqAmt - parsedAmount) <= Math.max(parsedAmount * 0.05, 10)) {
+                  score++;
+                  reasons.push(`💰 ${reqAmt.toLocaleString('fr-FR')} FCFA`);
+                }
               }
-            }
 
-            // Critère 2 — Nom du payeur (correspondance de mots ≥ 1 mot clé de 3+ lettres)
-            if (parsedPayer) {
-              const normSms = normStr(parsedPayer);
-              const normReq = normStr(req.payer_name || req.full_name || '');
-              const smsWords = normSms.split(' ').filter(w => w.length >= 3);
-              const reqWords = normReq.split(' ').filter(w => w.length >= 3);
-              const matchedWords = smsWords.filter(w => reqWords.includes(w));
-              if (matchedWords.length >= 1) {
-                score++;
-                reasons.push(`👤 Nom "${matchedWords.join(' ')}"`);
+              // Critère 2 — Nom du payeur (≥1 mot de 3+ lettres en commun)
+              if (parsedPayer) {
+                const normSms = normStr(parsedPayer);
+                const normReq = normStr(req.payer_name || req.full_name || '');
+                const smsWords = normSms.split(' ').filter((w: string) => w.length >= 3);
+                const reqWords = normReq.split(' ').filter((w: string) => w.length >= 3);
+                const matchedWords = smsWords.filter((w: string) => reqWords.includes(w));
+                if (matchedWords.length >= 1) {
+                  score++;
+                  reasons.push(`👤 "${matchedWords.join(' ')}"`);
+                }
               }
-            }
 
-            // Critère 3 — MSISDN (comparer les 8 derniers chiffres)
-            if (parsedMsisdn) {
-              const msisdnDigits = parsedMsisdn.replace(/\D/g,'');
-              const reqDigits = (req.payment_phone || '').replace(/\D/g,'');
-              const last8Sms = msisdnDigits.slice(-8);
-              const last8Req = reqDigits.slice(-8);
-              if (last8Sms && last8Req && last8Sms === last8Req) {
-                score++;
-                reasons.push(`📱 Numéro ${req.payment_phone}`);
+              // Critère 3 — MSISDN (8 derniers chiffres)
+              if (parsedMsisdn) {
+                const msisdnDigits = parsedMsisdn.replace(/\D/g,'');
+                const reqDigits    = (req.payment_phone || '').replace(/\D/g,'');
+                const last8Sms = msisdnDigits.slice(-8);
+                const last8Req = reqDigits.slice(-8);
+                if (last8Sms && last8Req && last8Sms === last8Req) {
+                  score++;
+                  reasons.push(`📱 ${req.payment_phone}`);
+                }
               }
-            }
 
-            if (score >= 2) {
-              SMS_MATCHES.push({ req, score, reasons });
+              if (score >= 2) {
+                const existing = bestMatch.get(req.id);
+                if (!existing || score > existing.score) {
+                  bestMatch.set(req.id, { req, score, reasons, smsIndex: si });
+                }
+              }
             }
           }
 
-          // Trier par score décroissant
-          SMS_MATCHES.sort((a, b) => b.score - a.score);
+          // ── Trier par score décroissant, puis par date ────────────────────────
+          const SMS_MATCHES = Array.from(bestMatch.values()).sort((a, b) => b.score - a.score);
+
+          // ── Résumé des blocs parsés ───────────────────────────────────────────
+          const blocksSummary = parsedBlocks.map((b, i) => {
+            const lines = [
+              `<b>SMS ${i + 1}</b>`,
+              b.amount !== null ? `  💰 ${b.amount.toLocaleString('fr-FR')} FCFA` : '  💰 <i>—</i>',
+              b.payer           ? `  👤 ${b.payer}`                              : '  👤 <i>—</i>',
+              b.msisdn          ? `  📱 +${b.msisdn}`                            : '  📱 <i>—</i>',
+            ];
+            return lines.join('\n');
+          }).join('\n\n');
 
           if (!SMS_MATCHES.length) {
             await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
               method:'POST', headers:{'Content-Type':'application/json'},
               body: JSON.stringify({
                 chat_id: chatId,
-                text: `📨 <b>Analyse SMS Mobile Money</b>\n\n${parsedSummary}\n\n❌ <b>Aucune correspondance</b> parmi ${pending.length} demande(s) en attente\n\n<i>Aucune demande n'a ≥2 critères correspondants.</i>`,
+                text: `📨 <b>Analyse ${parsedBlocks.length} SMS Mobile Money</b>\n\n${blocksSummary}\n\n❌ <b>Aucune correspondance</b> parmi ${pending.length} demande(s) en attente\n\n<i>Aucune demande n'a ≥2 critères correspondants.</i>`,
                 parse_mode:'HTML'
               })
             });
@@ -2891,7 +2919,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               method:'POST', headers:{'Content-Type':'application/json'},
               body: JSON.stringify({
                 chat_id: chatId,
-                text: `📨 <b>Analyse SMS Mobile Money</b>\n\n${parsedSummary}\n\n✅ <b>${SMS_MATCHES.length} correspondance(s)</b> trouvée(s) sur ${pending.length} demande(s) en attente\n\n<i>Résultats triés par score — ≥2 critères sur 3.</i>`,
+                text: `📨 <b>Analyse ${parsedBlocks.length} SMS Mobile Money</b>\n\n${blocksSummary}\n\n✅ <b>${SMS_MATCHES.length} correspondance(s)</b> sur ${pending.length} demande(s) en attente`,
                 parse_mode:'HTML'
               })
             });
@@ -2899,13 +2927,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const COUNTRY_FLAGS_SMS: Record<string,string> = { BJ:'🇧🇯',CI:'🇨🇮',SN:'🇸🇳',BF:'🇧🇫',TG:'🇹🇬',CM:'🇨🇲' };
             const OPERATORS_SMS: Record<string,string> = { mtn:'MTN',moov:'Moov',orange:'Orange',wave:'Wave',tmoney:'T-Money',free:'Free',airtel:'Airtel' };
 
-            for (const { req: r, score, reasons } of SMS_MATCHES) {
+            for (const { req: r, score, reasons, smsIndex } of SMS_MATCHES) {
               const date = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'}) : '—';
-              const flag = COUNTRY_FLAGS_SMS[r.country] || '🌍';
+              const flag  = COUNTRY_FLAGS_SMS[r.country] || '🌍';
               const stars = score >= 3 ? '🟢 3/3' : '🟡 2/3';
               const cardText =
-                `${flag} <b>${stars} critères — ${OPERATORS_SMS[r.operator]||r.operator||'—'}</b>\n` +
-                `🎯 Correspondances : ${reasons.join(' | ')}\n\n` +
+                `${flag} <b>${stars} — SMS ${smsIndex + 1} — ${OPERATORS_SMS[r.operator]||r.operator||'—'}</b>\n` +
+                `🎯 ${reasons.join(' | ')}\n\n` +
                 `📊 ⏳ En attente\n` +
                 `👤 Payeur SIM : <b>${r.payer_name||r.full_name||'N/A'}</b>\n` +
                 `🪪 Compte : ${r.full_name||'N/A'}\n` +
