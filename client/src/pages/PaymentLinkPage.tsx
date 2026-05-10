@@ -22,6 +22,18 @@ const OPERATORS: Record<string, { name: string; full: string; bg: string; text: 
   airtel: { name: "Airtel",  full: "Airtel Money",      bg: "#E40000", text: "#fff",    border: "#c20000", initials: "AM"  },
 };
 
+function OperatorLogo({ code, size = "md" }: { code: string; size?: "sm" | "md" | "lg" }) {
+  const op = OPERATORS[code];
+  if (!op) return null;
+  const sizes = { sm: "w-10 h-10 text-xs", md: "w-14 h-14 text-sm", lg: "w-16 h-16 text-base" };
+  return (
+    <div className={`${sizes[size]} rounded-2xl flex items-center justify-center font-black shadow-sm border-2 flex-shrink-0`}
+      style={{ backgroundColor: op.bg, color: op.text, borderColor: op.border }}>
+      {op.initials}
+    </div>
+  );
+}
+
 type Step = "form" | "manual" | "pending" | "success" | "failed" | "redirected" | "submitted";
 
 function ElapsedTimer({ since }: { since: string | null }) {
@@ -547,203 +559,226 @@ export default function PaymentLinkPage() {
   // ── Manual deposit step ──────────────────────────────────────────────────────
   if (step === "manual") {
     const depositNumber = depositInfo?.depositNumber || "";
-    const depositLabel = depositInfo?.depositLabel || `Numéro ${selectedOp?.name || ""}`;
+    const opCardGradient: Record<string, string> = {
+      mtn:     "linear-gradient(135deg, #d97706 0%, #f59e0b 40%, #fbbf24 100%)",
+      orange:  "linear-gradient(135deg, #c2410c 0%, #ea580c 40%, #f97316 100%)",
+      moov:    "linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 40%, #3b82f6 100%)",
+      wave:    "linear-gradient(135deg, #0369a1 0%, #0284c7 40%, #06b6d4 100%)",
+      togocel: "linear-gradient(135deg, #991b1b 0%, #b91c1c 40%, #dc2626 100%)",
+      tmoney:  "linear-gradient(135deg, #166534 0%, #16a34a 40%, #22c55e 100%)",
+    };
+    const cardBg = opCardGradient[operator] || "linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 40%, #3b82f6 100%)";
+    const canSend = !!manualTxnId.trim() && !manualUploading;
+
     return (
-      <div className="min-h-screen pb-60" style={BG}>
-        <style>{`@keyframes bounce { 0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1} }`}</style>
-
-        {/* Header */}
-        <div style={{ background: "linear-gradient(135deg,#0f2460,#1a3a8f)" }} className="px-5 pt-6 pb-8">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-2.5">
-              <img src="/logo.jpg" alt="SIKApay" className="w-10 h-10 rounded-2xl object-cover ring-2 ring-white/20" />
-              <div>
-                <p className="text-[10px] text-blue-300 uppercase tracking-wider font-bold">SIKApay</p>
-                <p className="font-black text-white text-sm leading-tight">SIKA TEXTE</p>
-              </div>
-            </div>
-            <button onClick={() => setStep("form")}
-              className="flex items-center gap-1.5 bg-white/10 rounded-xl px-3 py-1.5 text-xs font-semibold text-white/80">
-              <ChevronLeft size={14} /> Retour
-            </button>
+      <div className="min-h-screen pb-52" style={{ background: "linear-gradient(180deg, #060b18 0%, #0a1628 100%)" }}>
+        {/* Top nav */}
+        <div className="px-5 pt-8 pb-3 flex items-center justify-between">
+          <button onClick={() => setStep("form")}
+            className="w-10 h-10 rounded-2xl flex items-center justify-center"
+            style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)" }}>
+            <ChevronLeft size={20} className="text-white" />
+          </button>
+          <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
+            style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.25)" }}>
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+            <span className="text-emerald-300 text-[11px] font-bold">Paiement sécurisé</span>
           </div>
-          <p className="text-blue-200 text-xs font-semibold mb-1 uppercase tracking-wider">Montant à déposer</p>
-          <div className="flex items-end gap-1">
-            <span className="text-4xl font-black text-white">{amount}</span>
-            <span className="text-lg font-bold text-blue-300 mb-0.5">{link.currency}</span>
+          <div className="w-8 h-8 rounded-xl overflow-hidden ring-1 ring-white/15">
+            <img src="/logo.jpg" alt="SIKApay" className="w-full h-full object-cover" />
           </div>
-          <p className="text-blue-300 text-sm mt-1 font-semibold">{link.label}</p>
         </div>
 
-        {/* Steps indicator */}
-        <div className="bg-white/5 border-b border-white/5 px-5 py-3 flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center">
-            <CheckCircle size={14} className="text-white" />
+        {depositLoading ? (
+          <div className="flex items-center justify-center py-32">
+            <Loader2 size={36} className="text-blue-400 animate-spin" />
           </div>
-          <span className="text-white/50 text-xs font-semibold">Coordonnées</span>
-          <ChevronRight size={14} className="text-white/20" />
-          <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center">
-            <span className="text-blue-800 text-xs font-black">2</span>
-          </div>
-          <span className="text-white text-xs font-semibold">Dépôt</span>
-        </div>
-
-        <div className="px-5 pt-4 space-y-4 max-w-md mx-auto">
-
-          {depositLoading ? (
-            <div className="flex items-center justify-center py-16">
-              <Loader2 size={32} className="text-blue-400 animate-spin" />
-            </div>
-          ) : (
-            <>
-              {/* Deposit number card */}
-              <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
-                <div className="px-5 py-4 border-b border-white/5">
-                  <p className="text-white/40 text-[11px] uppercase tracking-widest font-bold">Étape 1 — Effectuer le dépôt</p>
+        ) : (
+          <>
+            {/* ── Carte de virement ── */}
+            <div className="px-5 mt-3 mb-5">
+              {!depositNumber ? (
+                <div className="rounded-3xl p-5 text-center"
+                  style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                  <AlertTriangle size={24} className="text-red-400 mx-auto mb-3" />
+                  <p className="text-red-300 font-bold mb-1">Numéro non configuré</p>
+                  <p className="text-red-300/60 text-xs">Aucun numéro de dépôt pour {selectedOp?.name} ({selectedCountry?.name}). Contactez l'administrateur.</p>
                 </div>
-                <div className="p-5 space-y-4">
-                  {!depositNumber ? (
-                    <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 text-center">
-                      <AlertTriangle size={20} className="text-red-400 mx-auto mb-2" />
-                      <p className="text-red-300 text-sm font-semibold mb-1">Numéro non configuré</p>
-                      <p className="text-red-300/70 text-xs">
-                        Aucun numéro de dépôt pour {selectedOp?.name} ({selectedCountry?.name}). Contactez l'administrateur.
-                      </p>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-1">
-                        <p className="text-white/40 text-xs font-semibold uppercase tracking-wide">{depositLabel}</p>
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="font-black text-white text-2xl font-mono tracking-wider">{depositNumber}</p>
-                          <button onClick={copyDepositNumber}
-                            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all"
-                            style={{ background: copied ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.1)", color: copied ? "#4ade80" : "#fff" }}>
-                            <Copy size={12} />{copied ? "Copié" : "Copier"}
-                          </button>
+              ) : (
+                <div className="relative rounded-3xl overflow-hidden p-6"
+                  style={{ background: cardBg, boxShadow: "0 24px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.1)" }}>
+                  {/* Décorations */}
+                  <div className="absolute -right-6 -top-6 w-36 h-36 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }} />
+                  <div className="absolute right-6 -bottom-10 w-28 h-28 rounded-full" style={{ background: "rgba(255,255,255,0.06)" }} />
+                  <div className="absolute left-1/2 -bottom-6 w-20 h-20 rounded-full" style={{ background: "rgba(255,255,255,0.05)" }} />
+
+                  <div className="relative">
+                    {/* En-tête carte */}
+                    <div className="flex items-center justify-between mb-5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-11 h-11 rounded-2xl overflow-hidden flex items-center justify-center"
+                          style={{ background: "rgba(255,255,255,0.2)" }}>
+                          <OperatorLogo code={operator} size="sm" />
+                        </div>
+                        <div>
+                          <p className="text-white/60 text-[10px] font-bold uppercase tracking-[0.15em]">Dépôt Mobile Money</p>
+                          <p className="text-white font-black text-sm leading-tight">{selectedOp?.name}</p>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between px-1">
-                        <span className="text-white/50 text-sm">Montant exact</span>
-                        <span className="text-white font-black text-xl">{amount} <span className="text-white/40 text-base">{link.currency}</span></span>
-                      </div>
-                    </>
-                  )}
-
-                  {/* Alerte transfert international */}
-                  {depositInfo?.isInternational && depositNumber && (
-                    <div className="bg-green-500/10 border-2 border-green-500/40 rounded-2xl p-4 flex gap-3">
-                      <AlertTriangle size={16} className="text-green-400 flex-shrink-0 mt-0.5" />
-                      <div className="text-sm text-green-300">
-                        <p className="font-black text-base mb-1 text-green-400">⚠️ Transfert INTERNATIONAL requis</p>
-                        <p className="leading-relaxed text-xs">
-                          {depositInfo.alertText || <>Effectuez un <strong>transfert international</strong> sur ce numéro {selectedOp?.name}.</>}
-                        </p>
+                      <div className="rounded-xl px-2.5 py-1" style={{ background: "rgba(255,255,255,0.15)" }}>
+                        <p className="text-white text-[10px] font-bold">{selectedCountry?.flag} {selectedCountry?.name}</p>
                       </div>
                     </div>
-                  )}
 
-                  {depositInfo?.showInstruction && depositInfo?.instruction && (
-                    <div className="bg-blue-500/10 border border-blue-400/20 rounded-2xl p-4 flex gap-3">
-                      <Info size={16} className="text-blue-400 flex-shrink-0 mt-0.5" />
-                      <p className="text-blue-300 text-sm whitespace-pre-line">{depositInfo.instruction}</p>
-                    </div>
-                  )}
-
-                  {/* Auto-validation note */}
-                  <div className="bg-emerald-500/10 border border-emerald-400/20 rounded-2xl p-4 flex gap-3">
-                    <span className="text-lg flex-shrink-0">⚡</span>
-                    <div className="text-sm text-emerald-300">
-                      <p className="font-bold mb-1">Validation automatique possible</p>
-                      <p className="text-emerald-300/80 text-xs leading-relaxed">
-                        Votre paiement sera <strong>validé immédiatement</strong> si la transaction est effectuée (en temps réel) et si les informations saisies (ID, capture, numéro) sont correctes.
+                    {/* Numéro central */}
+                    <div className="mb-5">
+                      <p className="text-white/50 text-[10px] font-bold uppercase tracking-widest mb-1.5">Numéro de dépôt</p>
+                      <p className="text-white font-black text-[27px] tracking-[0.06em] font-mono leading-none">
+                        {depositNumber}
                       </p>
                     </div>
+
+                    {/* Montant + Copier */}
+                    <div className="flex items-end justify-between">
+                      <div>
+                        <p className="text-white/50 text-[10px] font-bold uppercase tracking-widest mb-0.5">Montant exact</p>
+                        <p className="text-white font-black text-2xl leading-none">
+                          {amount} <span className="text-white/60 text-sm font-bold">{link.currency}</span>
+                        </p>
+                      </div>
+                      <button onClick={copyDepositNumber}
+                        className="flex items-center gap-2 rounded-2xl px-4 py-2.5 font-bold text-sm transition-all"
+                        style={{ background: copied ? "rgba(34,197,94,0.3)" : "rgba(255,255,255,0.2)", color: copied ? "#4ade80" : "#fff" }}>
+                        <Copy size={14} /> {copied ? "Copié ✓" : "Copier"}
+                      </button>
+                    </div>
                   </div>
+                </div>
+              )}
+            </div>
+
+            {/* Pills d'info */}
+            <div className="px-5 flex gap-2 mb-5">
+              <div className="flex-1 rounded-2xl px-4 py-3"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                <p className="text-white/30 text-[10px] font-bold uppercase tracking-wider mb-1">Service</p>
+                <p className="text-white/70 text-sm font-semibold truncate">{link.label}</p>
+              </div>
+              {depositInfo?.isInternational && depositNumber && (
+                <div className="flex-1 rounded-2xl px-4 py-3"
+                  style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.2)" }}>
+                  <p className="text-amber-400/80 text-[10px] font-bold uppercase tracking-wider mb-1">⚠ Type</p>
+                  <p className="text-amber-300 text-sm font-bold">International</p>
+                </div>
+              )}
+            </div>
+
+            {/* Instruction admin */}
+            {depositInfo?.showInstruction && depositInfo?.instruction && (
+              <div className="px-5 mb-4">
+                <div className="rounded-2xl px-4 py-3 flex gap-3"
+                  style={{ background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.15)" }}>
+                  <Info size={14} className="text-blue-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-blue-300/80 text-xs whitespace-pre-line leading-relaxed">{depositInfo.instruction}</p>
                 </div>
               </div>
+            )}
 
-              {/* Confirmation form */}
-              <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
-                <div className="px-5 py-4 border-b border-white/5">
-                  <p className="text-white/40 text-[11px] uppercase tracking-widest font-bold">Étape 2 — Confirmer le paiement</p>
-                </div>
-                <div className="p-5 space-y-4">
-                  {/* Screenshot */}
-                  <div>
-                    <p className="text-white/60 text-xs font-semibold mb-2 flex items-center gap-1.5">
-                      <ImageIcon size={12} /> Capture d'écran du reçu <span className="text-red-400">*</span>
-                    </p>
-                    <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
-                      onChange={e => { const f = e.target.files?.[0]; if (f) handleScreenshotSelect(f); }} />
-                    {screenshotPreview ? (
-                      <div className="relative rounded-2xl overflow-hidden border border-white/15">
-                        <img src={screenshotPreview} alt="Capture" className="w-full max-h-48 object-contain bg-white/5" />
-                        {manualUploading && (
-                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                            <Loader2 size={24} className="text-white animate-spin" />
-                          </div>
-                        )}
-                        <button onClick={() => { setScreenshotFile(null); setManualScreenshotUrl(""); if (fileInputRef.current) fileInputRef.current.value = ""; }}
-                          className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1">
-                          <XCircle size={16} />
-                        </button>
+            {/* Séparateur */}
+            <div className="px-5 flex items-center gap-3 mb-5">
+              <div className="h-px flex-1" style={{ background: "rgba(255,255,255,0.06)" }} />
+              <p className="text-white/25 text-[10px] font-bold uppercase tracking-widest">Confirmer votre paiement</p>
+              <div className="h-px flex-1" style={{ background: "rgba(255,255,255,0.06)" }} />
+            </div>
+
+            {/* Champs formulaire */}
+            <div className="px-5 space-y-3">
+              {/* Capture d'écran */}
+              <div>
+                <p className="text-white/40 text-[11px] font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <ImageIcon size={11} /> Capture d'écran du reçu <span className="text-red-400">*</span>
+                </p>
+                <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleScreenshotSelect(f); }} />
+                {screenshotPreview ? (
+                  <div className="relative rounded-2xl overflow-hidden"
+                    style={{ border: "1px solid rgba(255,255,255,0.09)" }}>
+                    <img src={screenshotPreview} alt="Capture" className="w-full max-h-44 object-contain"
+                      style={{ background: "rgba(255,255,255,0.04)" }} />
+                    {manualUploading && (
+                      <div className="absolute inset-0 flex items-center justify-center"
+                        style={{ background: "rgba(0,0,0,0.5)" }}>
+                        <Loader2 size={24} className="text-white animate-spin" />
                       </div>
-                    ) : (
-                      <button onClick={() => fileInputRef.current?.click()}
-                        className="w-full border-2 border-dashed border-white/15 rounded-2xl p-6 flex flex-col items-center gap-2 text-white/40 hover:border-blue-400/50 hover:text-blue-400 transition-colors">
-                        <Upload size={24} />
-                        <p className="text-sm font-semibold">Choisir une capture</p>
-                        <p className="text-xs">JPG, PNG — max 10 Mo</p>
-                      </button>
                     )}
+                    <button onClick={() => { setScreenshotFile(null); setManualScreenshotUrl(""); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                      className="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center">
+                      <XCircle size={14} />
+                    </button>
                   </div>
+                ) : (
+                  <button onClick={() => fileInputRef.current?.click()}
+                    className="w-full rounded-2xl p-5 flex flex-col items-center gap-2 transition-colors"
+                    style={{ background: "rgba(255,255,255,0.04)", border: "1.5px dashed rgba(255,255,255,0.1)" }}>
+                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
+                      style={{ background: "rgba(255,255,255,0.07)" }}>
+                      <Upload size={20} className="text-white/40" />
+                    </div>
+                    <p className="text-white/50 text-sm font-semibold">Ajouter une capture d'écran</p>
+                    <p className="text-white/20 text-xs">JPG, PNG — Max 10 Mo</p>
+                  </button>
+                )}
+              </div>
 
-                  {/* Transaction ID */}
-                  <div>
-                    <p className="text-white/60 text-xs font-semibold mb-2">ID / Référence de transaction <span className="text-red-400">*</span></p>
-                    <input type="text" value={manualTxnId} onChange={e => setManualTxnId(e.target.value)}
-                      placeholder="ex: TXN20240125ABCDE"
-                      className="w-full border border-white/15 rounded-2xl px-4 py-3 text-sm font-semibold font-mono text-white placeholder:text-white/25 focus:outline-none focus:border-blue-400/60"
-                      style={{ background: "rgba(255,255,255,0.07)" }} />
-                  </div>
-                </div>
+              {/* ID Transaction */}
+              <div>
+                <p className="text-white/40 text-[11px] font-bold uppercase tracking-wider mb-2">
+                  ID / Référence de transaction <span className="text-red-400">*</span>
+                </p>
+                <input type="text" value={manualTxnId} onChange={e => setManualTxnId(e.target.value)}
+                  placeholder="ex: TXN20240125ABCDE"
+                  className="w-full rounded-2xl px-4 py-3.5 text-sm font-semibold font-mono text-white placeholder:text-white/20 focus:outline-none transition-colors"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.09)" }}
+                />
+                <p className="text-white/20 text-[10px] mt-1.5 pl-1">ID reçu par SMS après votre paiement</p>
               </div>
 
               {error && (
-                <div className="bg-red-500/10 border border-red-500/30 rounded-2xl px-4 py-3 text-red-400 text-sm flex items-start gap-2">
-                  <span className="flex-shrink-0">⚠️</span><span>{error}</span>
+                <div className="rounded-2xl px-4 py-3 text-sm flex items-start gap-2"
+                  style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                  <span className="flex-shrink-0 text-red-400">⚠️</span>
+                  <span className="text-red-300">{error}</span>
                 </div>
               )}
-            </>
-          )}
-        </div>
+            </div>
+          </>
+        )}
 
-        {/* Fixed bottom button */}
+        {/* Barre fixe en bas */}
         <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto">
-          <div className="bg-[#0f172a] border-t border-white/5 px-4 pt-3 pb-1 space-y-1.5">
-            <div className="bg-red-900/30 border border-red-500/30 rounded-xl px-3 py-2 flex gap-2">
-              <AlertCircle size={12} className="text-red-400 flex-shrink-0 mt-0.5" />
-              <p className="text-[10px] text-red-300 leading-snug">
-                <strong>Important :</strong> Toute annulation après soumission entraîne le bannissement définitif du compte et de l'adresse IP.
+          <div className="px-5 pb-5 pt-4 space-y-3"
+            style={{ background: "linear-gradient(to top, #060b18 65%, transparent)" }}>
+            <div className="rounded-2xl px-3 py-2.5 flex gap-2"
+              style={{ background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.15)" }}>
+              <AlertCircle size={11} className="text-red-400 flex-shrink-0 mt-0.5" />
+              <p className="text-[10px] text-white/40 leading-snug">
+                <span className="text-red-400 font-bold">Important :</span> Toute annulation après soumission entraîne un bannissement définitif du compte et de l'adresse IP.
               </p>
             </div>
-            <div className="bg-amber-900/20 border border-amber-500/20 rounded-xl px-3 py-2 flex gap-2">
-              <AlertCircle size={12} className="text-amber-400 flex-shrink-0 mt-0.5" />
-              <p className="text-[10px] text-amber-300 leading-snug">
-                Nos équipes sont mobilisées. Veuillez patienter après chaque paiement afin que le service traite votre requête.
-              </p>
-            </div>
-          </div>
-          <div className="bg-[#0f172a] px-4 pt-2 pb-4">
             <button onClick={handleManualSubmit}
-              disabled={manualSubmitting || manualUploading || !depositInfo}
-              className="w-full py-4 rounded-2xl font-bold text-white text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-              style={{ background: "linear-gradient(135deg, #2563eb, #1d4ed8)" }}>
-              {manualSubmitting ? <><Loader2 size={16} className="animate-spin" /> Envoi en cours…</> : <><CheckCircle size={16} /> Envoyer la demande</>}
+              disabled={manualSubmitting || manualUploading || !depositInfo || !canSend}
+              className="w-full py-4 rounded-2xl font-black text-white text-base transition-all disabled:opacity-40 flex items-center justify-center gap-2.5"
+              style={{
+                background: canSend && !manualSubmitting ? "linear-gradient(135deg, #3b82f6 0%, #2563eb 50%, #1d4ed8 100%)" : "rgba(255,255,255,0.08)",
+                boxShadow: canSend && !manualSubmitting ? "0 8px 32px rgba(37,99,235,0.35)" : "none"
+              }}>
+              {manualSubmitting
+                ? <><Loader2 size={18} className="animate-spin" /> Envoi en cours…</>
+                : <><ShieldCheck size={18} /> Envoyer la demande</>
+              }
             </button>
-            <p className="text-center text-[10px] text-white/25 mt-2 flex items-center justify-center gap-1">
-              <ShieldCheck size={10} /> Paiement sécurisé · SIKApay SIKA TEXTE
+            <p className="text-center text-[10px] text-white/20 flex items-center justify-center gap-1">
+              <ShieldCheck size={9} /> SIKApay · SIKA TEXTE · Sécurisé
             </p>
           </div>
         </div>
