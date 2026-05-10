@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,12 @@ import { Link } from "wouter";
 
 export default function AdminWithdrawals() {
   const { toast } = useToast();
+  const processingRef = useRef<Set<string>>(new Set());
+  const guard = (key: string, fn: () => void) => {
+    if (processingRef.current.has(key)) return;
+    processingRef.current.add(key);
+    fn();
+  };
   const [search, setSearch] = useState("");
   const [notifyAllModal, setNotifyAllModal] = useState(false);
   const [notifyAllMessage, setNotifyAllMessage] = useState("");
@@ -52,7 +58,8 @@ export default function AdminWithdrawals() {
       return response.json();
     },
     onSuccess: () => { invalidate(); toast({ title: "✓ Retrait approuvé" }); },
-    onError: () => toast({ title: "Erreur", description: "Erreur lors de l'approbation", variant: "destructive" })
+    onError: () => toast({ title: "Erreur", description: "Erreur lors de l'approbation", variant: "destructive" }),
+    onSettled: (_d, _e, id) => processingRef.current.delete(`approve_${id}`)
   });
 
   const rejectWithdrawalMutation = useMutation({
@@ -61,7 +68,8 @@ export default function AdminWithdrawals() {
       return response.json();
     },
     onSuccess: () => { invalidate(); toast({ title: "✓ Retrait rejeté" }); },
-    onError: () => toast({ title: "Erreur", description: "Erreur lors du rejet", variant: "destructive" })
+    onError: () => toast({ title: "Erreur", description: "Erreur lors du rejet", variant: "destructive" }),
+    onSettled: (_d, _e, id) => processingRef.current.delete(`reject_${id}`)
   });
 
   const cancelWithdrawalMutation = useMutation({
@@ -70,7 +78,8 @@ export default function AdminWithdrawals() {
       return response.json();
     },
     onSuccess: () => { invalidate(); toast({ title: "✓ Retrait annulé et utilisateur remboursé" }); },
-    onError: (error: any) => toast({ title: "Erreur", description: error.message || "Erreur lors de l'annulation", variant: "destructive" })
+    onError: (error: any) => toast({ title: "Erreur", description: error.message || "Erreur lors de l'annulation", variant: "destructive" }),
+    onSettled: (_d, _e, id) => processingRef.current.delete(`cancel_${id}`)
   });
 
   const approveAllWithdrawalsMutation = useMutation({
@@ -279,7 +288,7 @@ export default function AdminWithdrawals() {
                         <Button
                           size="sm"
                           className="bg-green-600 hover:bg-green-700"
-                          onClick={() => approveWithdrawalMutation.mutate(withdrawal.id)}
+                          onClick={() => guard(`approve_${withdrawal.id}`, () => approveWithdrawalMutation.mutate(withdrawal.id))}
                           disabled={approveWithdrawalMutation.isPending}
                         >
                           <CheckCircle className="h-4 w-4 mr-1" />
@@ -290,7 +299,7 @@ export default function AdminWithdrawals() {
                           variant="destructive"
                           onClick={() => {
                             if (confirm("Rejeter ce retrait ?")) {
-                              rejectWithdrawalMutation.mutate(withdrawal.id);
+                              guard(`reject_${withdrawal.id}`, () => rejectWithdrawalMutation.mutate(withdrawal.id));
                             }
                           }}
                           disabled={rejectWithdrawalMutation.isPending}
@@ -303,7 +312,7 @@ export default function AdminWithdrawals() {
                           className="border-orange-500 text-orange-600 hover:bg-orange-50"
                           onClick={() => {
                             if (confirm("ATTENTION : Annuler ce retrait va le supprimer et rembourser l'utilisateur. Continuer ?")) {
-                              cancelWithdrawalMutation.mutate(withdrawal.id);
+                              guard(`cancel_${withdrawal.id}`, () => cancelWithdrawalMutation.mutate(withdrawal.id));
                             }
                           }}
                           disabled={cancelWithdrawalMutation.isPending}

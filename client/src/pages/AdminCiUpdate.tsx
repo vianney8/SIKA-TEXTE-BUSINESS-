@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,12 @@ import { Link } from "wouter";
 
 export default function AdminCiUpdate() {
   const { toast } = useToast();
+  const processingRef = useRef<Set<string>>(new Set());
+  const guard = (key: string, fn: () => void) => {
+    if (processingRef.current.has(key)) return;
+    processingRef.current.add(key);
+    fn();
+  };
   const [showCiSearch, setShowCiSearch] = useState(false);
   const [ciSearchQuery, setCiSearchQuery] = useState("");
   const [showTelegramConfig, setShowTelegramConfig] = useState(false);
@@ -45,7 +51,8 @@ export default function AdminCiUpdate() {
     },
     onError: () => {
       toast({ title: "Erreur", description: "Erreur lors de la validation", variant: "destructive" });
-    }
+    },
+    onSettled: (_d, _e, id) => processingRef.current.delete(`validate_${id}`)
   });
 
   const ciResetMutation = useMutation({
@@ -60,7 +67,8 @@ export default function AdminCiUpdate() {
     },
     onError: () => {
       toast({ title: "Erreur", description: "Erreur lors de la réactivation", variant: "destructive" });
-    }
+    },
+    onSettled: (_d, _e, id) => processingRef.current.delete(`reset_${id}`)
   });
 
   const ciDisableAllMutation = useMutation({
@@ -239,7 +247,7 @@ export default function AdminCiUpdate() {
                     </div>
                     <Button
                       size="sm"
-                      onClick={() => ciValidateMutation.mutate(u.id)}
+                      onClick={() => guard(`validate_${u.id}`, () => ciValidateMutation.mutate(u.id))}
                       disabled={ciValidateMutation.isPending}
                       className="bg-green-500 hover:bg-green-600 text-white"
                     >
@@ -302,7 +310,7 @@ export default function AdminCiUpdate() {
                       {!u.ciUpdateValidated ? (
                         <Button
                           size="sm"
-                          onClick={() => ciValidateMutation.mutate(u.id)}
+                          onClick={() => guard(`validate_${u.id}`, () => ciValidateMutation.mutate(u.id))}
                           disabled={ciValidateMutation.isPending}
                           className="bg-green-500 hover:bg-green-600 text-white text-xs"
                         >
@@ -312,7 +320,7 @@ export default function AdminCiUpdate() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => ciResetMutation.mutate(u.id)}
+                          onClick={() => guard(`reset_${u.id}`, () => ciResetMutation.mutate(u.id))}
                           disabled={ciResetMutation.isPending}
                           className="border-orange-400 text-orange-600 text-xs"
                         >
