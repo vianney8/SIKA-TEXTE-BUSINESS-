@@ -3371,9 +3371,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ? `⏳ <b>${totalPending} demande(s) d'activation en attente</b>\n📋 Affichage des <b>${LIMIT_PA} plus récentes</b>`
             : `⏳ <b>${totalPending} demande(s) d'activation en attente</b>`;
 
+          // Bouton "Tout Rejeter" inclus dans le message de résumé (garanti d'apparaître)
           await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
             method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({ chat_id: chatId, text: msgResume, parse_mode:'HTML' })
+            body: JSON.stringify({
+              chat_id: chatId,
+              text: msgResume,
+              parse_mode:'HTML',
+              reply_markup: { inline_keyboard: [[
+                { text:`🗑 Tout Rejeter (${totalPending})`, callback_data:'manact_reject_all_pre' }
+              ]]}
+            })
           });
 
           for (const r of pendingActs) {
@@ -3399,22 +3407,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               method:'POST', headers:{'Content-Type':'application/json'},
               body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', reply_markup: buttons })
             });
-            if (r.screenshot_url) await sendShot(chatId, r.screenshot_url);
+            if (r.screenshot_url) { try { await sendShot(chatId, r.screenshot_url); } catch(_){} }
             await new Promise(resolve => setTimeout(resolve, 80));
           }
 
-          // Bouton "Tout Rejeter" avec le total réel
-          await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-            method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({
-              chat_id: chatId,
-              text: `⚠️ <b>${totalPending} demande(s) en attente au total.</b>\n\nVoulez-vous toutes les rejeter en un seul clic ?`,
-              parse_mode:'HTML',
-              reply_markup: { inline_keyboard: [[
-                { text:`🗑 Tout Rejeter (${totalPending})`, callback_data:'manact_reject_all_pre' }
-              ]]}
-            })
-          });
           return res.sendStatus(200);
         }
 
