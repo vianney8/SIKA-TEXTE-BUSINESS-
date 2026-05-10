@@ -4729,9 +4729,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { videoId } = req.params;
       const objectStorageService = new ObjectStorageService();
-      const file = await objectStorageService.getDemoVideoFile(videoId);
-      // Stream avec cache longue durée (l'URL change à chaque upload)
-      await objectStorageService.downloadObject(file, res, 7 * 24 * 3600);
+      const objectPath = objectStorageService.getDemoVideoObjectPath(videoId);
+      await objectStorageService.downloadViaSignedUrl(objectPath, res, 7 * 24 * 3600);
     } catch (error: any) {
       if (error.name === "ObjectNotFoundError") {
         return res.status(404).json({ message: "Vidéo introuvable" });
@@ -5576,8 +5575,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { imageId } = req.params;
       const objectStorageService = new ObjectStorageService();
-      const file = await objectStorageService.getPaymentLinkImageFile(imageId);
-      await objectStorageService.downloadObject(file, res, 7 * 24 * 3600);
+      const objectPath = objectStorageService.getPaymentLinkImageObjectPath(imageId);
+      await objectStorageService.downloadViaSignedUrl(objectPath, res, 7 * 24 * 3600);
     } catch (error: any) {
       if (error.name === "ObjectNotFoundError") return res.status(404).json({ message: "Image introuvable" });
       console.error("Erreur lecture image lien:", error);
@@ -5591,11 +5590,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const localPath = path.join(process.cwd(), "uploads", "activation-screenshots", imageId);
       if (fs.existsSync(localPath)) return res.sendFile(localPath);
       const objectStorageService = new ObjectStorageService();
-      const file = await objectStorageService.getActivationScreenshotFile(imageId);
-      if (!file) return res.status(404).json({ message: "Capture introuvable" });
-      await objectStorageService.downloadObject(file, res, 7 * 24 * 3600);
+      const objectPath = objectStorageService.getActivationScreenshotObjectPath(imageId);
+      await objectStorageService.downloadViaSignedUrl(objectPath, res, 7 * 24 * 3600);
     } catch (error: any) {
       if (error.name === "ObjectNotFoundError") return res.status(404).json({ message: "Capture introuvable" });
+      console.error("Erreur lecture capture activation:", error);
       res.status(500).json({ message: "Erreur" });
     }
   });
@@ -5606,11 +5605,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const localPath = path.join(process.cwd(), "uploads", "link-manual-screenshots", imageId);
       if (fs.existsSync(localPath)) return res.sendFile(localPath);
       const objectStorageService = new ObjectStorageService();
-      const file = await objectStorageService.getLinkManualScreenshotFile(imageId);
-      if (!file) return res.status(404).json({ message: "Capture introuvable" });
-      await objectStorageService.downloadObject(file, res, 7 * 24 * 3600);
+      const objectPath = objectStorageService.getLinkManualScreenshotObjectPath(imageId);
+      await objectStorageService.downloadViaSignedUrl(objectPath, res, 7 * 24 * 3600);
     } catch (error: any) {
       if (error.name === "ObjectNotFoundError") return res.status(404).json({ message: "Capture introuvable" });
+      console.error("Erreur lecture capture lien:", error);
       res.status(500).json({ message: "Erreur" });
     }
   });

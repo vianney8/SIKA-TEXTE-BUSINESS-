@@ -68,39 +68,32 @@ export class ObjectStorageService {
   async searchPublicObject(filePath: string): Promise<File | null> {
     for (const searchPath of this.getPublicObjectSearchPaths()) {
       const fullPath = `${searchPath}/${filePath}`;
-
       const { bucketName, objectName } = parseObjectPath(fullPath);
       const bucket = objectStorageClient.bucket(bucketName);
       const file = bucket.file(objectName);
-
       const [exists] = await file.exists();
       if (exists) {
         return file;
       }
     }
-
     return null;
   }
 
   async downloadObject(file: File, res: Response, cacheTtlSec: number = 3600) {
     try {
       const [metadata] = await file.getMetadata();
-      
       res.set({
         "Content-Type": metadata.contentType || "application/octet-stream",
         "Content-Length": metadata.size,
         "Cache-Control": `public, max-age=${cacheTtlSec}`,
       });
-
       const stream = file.createReadStream();
-
       stream.on("error", (err: Error) => {
         console.error("Stream error:", err);
         if (!res.headersSent) {
           res.status(500).json({ error: "Error streaming file" });
         }
       });
-
       stream.pipe(res);
     } catch (error) {
       console.error("Error downloading file:", error);
@@ -110,72 +103,94 @@ export class ObjectStorageService {
     }
   }
 
+  // Télécharge un fichier via URL signée GET (contourne la validation du nom de bucket GCS)
+  async downloadViaSignedUrl(objectPath: string, res: Response, cacheTtlSec: number = 3600) {
+    const { bucketName, objectName } = parseObjectPath(objectPath);
+    const getUrl = await signObjectURL({ bucketName, objectName, method: "GET", ttlSec: 300 });
+    const upstream = await fetch(getUrl);
+    if (!upstream.ok) {
+      if (upstream.status === 404) throw new ObjectNotFoundError();
+      throw new Error(`Storage fetch failed: ${upstream.status}`);
+    }
+    const contentType = upstream.headers.get("content-type") || "application/octet-stream";
+    const contentLength = upstream.headers.get("content-length");
+    res.set({
+      "Content-Type": contentType,
+      "Cache-Control": `public, max-age=${cacheTtlSec}`,
+    });
+    if (contentLength) res.set("Content-Length", contentLength);
+    const { Readable } = await import("stream");
+    const nodeStream = Readable.fromWeb(upstream.body as any);
+    nodeStream.on("error", (err: Error) => {
+      console.error("Stream error:", err);
+      if (!res.headersSent) res.status(500).json({ error: "Error streaming file" });
+    });
+    nodeStream.pipe(res);
+  }
+
+  // Vérifie l'existence via URL signée HEAD (contourne la validation du nom de bucket GCS)
+  async existsViaSignedUrl(objectPath: string): Promise<boolean> {
+    try {
+      const { bucketName, objectName } = parseObjectPath(objectPath);
+      const getUrl = await signObjectURL({ bucketName, objectName, method: "GET", ttlSec: 60 });
+      const resp = await fetch(getUrl, { method: "HEAD" });
+      return resp.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  // Upload un buffer via URL signée PUT (contourne la validation du nom de bucket GCS)
+  async uploadViaSignedUrl(buffer: Buffer, mimeType: string, objectPath: string): Promise<void> {
+    const { bucketName, objectName } = parseObjectPath(objectPath);
+    const putUrl = await signObjectURL({ bucketName, objectName, method: "PUT", ttlSec: 300 });
+    const resp = await fetch(putUrl, {
+      method: "PUT",
+      body: buffer,
+      headers: { "Content-Type": mimeType },
+    });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      throw new Error(`Upload failed: ${resp.status} ${text}`);
+    }
+  }
+
   async getUploadURL(fileName: string): Promise<string> {
     const privateObjectDir = this.getPrivateObjectDir();
-    if (!privateObjectDir) {
-      throw new Error(
-        "PRIVATE_OBJECT_DIR not set. Create a bucket in 'Object Storage' " +
-          "tool and set PRIVATE_OBJECT_DIR env var."
-      );
-    }
-
     const objectId = randomUUID();
     const extension = fileName.split('.').pop() || 'jpg';
     const fullPath = `${privateObjectDir}/profile-photos/${objectId}.${extension}`;
-
     const { bucketName, objectName } = parseObjectPath(fullPath);
-
-    return signObjectURL({
-      bucketName,
-      objectName,
-      method: "PUT",
-      ttlSec: 900,
-    });
+    return signObjectURL({ bucketName, objectName, method: "PUT", ttlSec: 900 });
   }
 
   normalizeObjectPath(rawPath: string): string {
     if (!rawPath.startsWith("https://storage.googleapis.com/")) {
       return rawPath;
     }
-  
     const url = new URL(rawPath);
     const rawObjectPath = url.pathname;
-  
     let objectEntityDir = this.getPrivateObjectDir();
-    if (!objectEntityDir.endsWith("/")) {
-      objectEntityDir = `${objectEntityDir}/`;
-    }
-  
-    if (!rawObjectPath.startsWith(objectEntityDir)) {
-      return rawObjectPath;
-    }
-
+    if (!objectEntityDir.endsWith("/")) objectEntityDir = `${objectEntityDir}/`;
+    if (!rawObjectPath.startsWith(objectEntityDir)) return rawObjectPath;
     const entityId = rawObjectPath.slice(objectEntityDir.length);
     return `/profile-photos/${entityId}`;
   }
 
   async getProfilePhotoFile(photoPath: string): Promise<File> {
-    if (!photoPath.startsWith("/profile-photos/")) {
-      throw new ObjectNotFoundError();
-    }
-
+    if (!photoPath.startsWith("/profile-photos/")) throw new ObjectNotFoundError();
     const fileName = photoPath.replace("/profile-photos/", "");
     let entityDir = this.getPrivateObjectDir();
-    if (!entityDir.endsWith("/")) {
-      entityDir = `${entityDir}/`;
-    }
+    if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
     const objectEntityPath = `${entityDir}profile-photos/${fileName}`;
     const { bucketName, objectName } = parseObjectPath(objectEntityPath);
     const bucket = objectStorageClient.bucket(bucketName);
     const objectFile = bucket.file(objectName);
     const [exists] = await objectFile.exists();
-    if (!exists) {
-      throw new ObjectNotFoundError();
-    }
+    if (!exists) throw new ObjectNotFoundError();
     return objectFile;
   }
 
-  // Génère une URL signée pour upload direct navigateur → GCS (évite le transit par le serveur)
   async getDemoVideoUploadURL(originalFileName: string): Promise<{ uploadUrl: string; videoId: string }> {
     const ext = (originalFileName.split(".").pop() || "mp4").toLowerCase().replace("quicktime", "mov");
     const videoId = `${randomUUID()}.${ext}`;
@@ -187,7 +202,6 @@ export class ObjectStorageService {
     return { uploadUrl, videoId };
   }
 
-  // Upload a demo video buffer to private object storage (kept for fallback)
   async uploadDemoVideo(buffer: Buffer, mimeType: string): Promise<string> {
     const ext = mimeType.split("/")[1] || "mp4";
     const videoId = randomUUID();
@@ -195,10 +209,7 @@ export class ObjectStorageService {
     let entityDir = this.getPrivateObjectDir();
     if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
     const objectPath = `${entityDir}demo-videos/${fileName}`;
-    const { bucketName, objectName } = parseObjectPath(objectPath);
-    const bucket = objectStorageClient.bucket(bucketName);
-    const file = bucket.file(objectName);
-    await file.save(buffer, { contentType: mimeType, resumable: false });
+    await this.uploadViaSignedUrl(buffer, mimeType, objectPath);
     return `/api/media/demo-video/${videoId}.${ext}`;
   }
 
@@ -214,18 +225,23 @@ export class ObjectStorageService {
     return file;
   }
 
-  // Supprime une ancienne vidéo de démonstration (nettoyage après remplacement)
+  // Récupère le chemin GCS d'une vidéo de démo (pour streaming via URL signée)
+  getDemoVideoObjectPath(videoId: string): string {
+    let entityDir = this.getPrivateObjectDir();
+    if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
+    return `${entityDir}demo-videos/${videoId}`;
+  }
+
   async deleteDemoVideo(videoId: string): Promise<void> {
     try {
       let entityDir = this.getPrivateObjectDir();
       if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
       const objectPath = `${entityDir}demo-videos/${videoId}`;
-      const { bucketName, objectName } = parseObjectPath(objectPath);
-      const bucket = objectStorageClient.bucket(bucketName);
-      const file = bucket.file(objectName);
-      const [exists] = await file.exists();
+      const exists = await this.existsViaSignedUrl(objectPath);
       if (exists) {
-        await file.delete();
+        const { bucketName, objectName } = parseObjectPath(objectPath);
+        const delUrl = await signObjectURL({ bucketName, objectName, method: "DELETE", ttlSec: 60 });
+        await fetch(delUrl, { method: "DELETE" });
         console.log("[DEMO-VIDEO] Ancienne vidéo supprimée:", objectPath);
       }
     } catch (err) {
@@ -233,7 +249,6 @@ export class ObjectStorageService {
     }
   }
 
-  // Upload an image for a payment link, returns a proxy URL path
   async uploadPaymentLinkImage(buffer: Buffer, mimeType: string): Promise<string> {
     const ext = (mimeType.split("/")[1] || "jpg").replace("jpeg", "jpg");
     const imageId = randomUUID();
@@ -241,10 +256,7 @@ export class ObjectStorageService {
     let entityDir = this.getPrivateObjectDir();
     if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
     const objectPath = `${entityDir}payment-link-images/${fileName}`;
-    const { bucketName, objectName } = parseObjectPath(objectPath);
-    const bucket = objectStorageClient.bucket(bucketName);
-    const file = bucket.file(objectName);
-    await file.save(buffer, { contentType: mimeType, resumable: false });
+    await this.uploadViaSignedUrl(buffer, mimeType, objectPath);
     return `/api/media/payment-link-image/${fileName}`;
   }
 
@@ -262,10 +274,7 @@ export class ObjectStorageService {
     let entityDir = privateDir;
     if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
     const objectPath = `${entityDir}activation-screenshots/${fileName}`;
-    const { bucketName, objectName } = parseObjectPath(objectPath);
-    const bucket = objectStorageClient.bucket(bucketName);
-    const file = bucket.file(objectName);
-    await file.save(buffer, { contentType: mimeType, resumable: false });
+    await this.uploadViaSignedUrl(buffer, mimeType, objectPath);
     return `/api/media/activation-screenshot/${fileName}`;
   }
 
@@ -280,9 +289,17 @@ export class ObjectStorageService {
     const { bucketName, objectName } = parseObjectPath(objectPath);
     const bucket = objectStorageClient.bucket(bucketName);
     const file = bucket.file(objectName);
-    const [exists] = await file.exists();
+    const [exists] = await file.exists().catch(() => [false]);
     if (!exists) throw new ObjectNotFoundError();
     return file;
+  }
+
+  // Chemin GCS d'une capture d'activation (pour streaming via URL signée)
+  getActivationScreenshotObjectPath(imageId: string): string {
+    const privateDir = process.env.PRIVATE_OBJECT_DIR || "";
+    let entityDir = privateDir;
+    if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
+    return `${entityDir}activation-screenshots/${imageId}`;
   }
 
   async uploadLinkManualScreenshot(buffer: Buffer, mimeType: string): Promise<string> {
@@ -299,10 +316,7 @@ export class ObjectStorageService {
     let entityDir = privateDir;
     if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
     const objectPath = `${entityDir}link-manual-screenshots/${fileName}`;
-    const { bucketName, objectName } = parseObjectPath(objectPath);
-    const bucket = objectStorageClient.bucket(bucketName);
-    const file = bucket.file(objectName);
-    await file.save(buffer, { contentType: mimeType, resumable: false });
+    await this.uploadViaSignedUrl(buffer, mimeType, objectPath);
     return `/api/media/link-manual-screenshot/${fileName}`;
   }
 
@@ -317,9 +331,17 @@ export class ObjectStorageService {
     const { bucketName, objectName } = parseObjectPath(objectPath);
     const bucket = objectStorageClient.bucket(bucketName);
     const file = bucket.file(objectName);
-    const [exists] = await file.exists();
+    const [exists] = await file.exists().catch(() => [false]);
     if (!exists) throw new ObjectNotFoundError();
     return file;
+  }
+
+  // Chemin GCS d'une capture de paiement lien (pour streaming via URL signée)
+  getLinkManualScreenshotObjectPath(imageId: string): string {
+    const privateDir = process.env.PRIVATE_OBJECT_DIR || "";
+    let entityDir = privateDir;
+    if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
+    return `${entityDir}link-manual-screenshots/${imageId}`;
   }
 
   async getPaymentLinkImageFile(imageId: string): Promise<File> {
@@ -329,9 +351,16 @@ export class ObjectStorageService {
     const { bucketName, objectName } = parseObjectPath(objectPath);
     const bucket = objectStorageClient.bucket(bucketName);
     const file = bucket.file(objectName);
-    const [exists] = await file.exists();
+    const [exists] = await file.exists().catch(() => [false]);
     if (!exists) throw new ObjectNotFoundError();
     return file;
+  }
+
+  // Chemin GCS d'une image de lien paiement (pour streaming via URL signée)
+  getPaymentLinkImageObjectPath(imageId: string): string {
+    let entityDir = this.getPrivateObjectDir();
+    if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
+    return `${entityDir}payment-link-images/${imageId}`;
   }
 }
 
@@ -346,14 +375,9 @@ function parseObjectPath(path: string): {
   if (pathParts.length < 3) {
     throw new Error("Invalid path: must contain at least a bucket name");
   }
-
   const bucketName = pathParts[1];
   const objectName = pathParts.slice(2).join("/");
-
-  return {
-    bucketName,
-    objectName,
-  };
+  return { bucketName, objectName };
 }
 
 async function signObjectURL({
@@ -377,9 +401,7 @@ async function signObjectURL({
     `${REPLIT_SIDECAR_ENDPOINT}/object-storage/signed-object-url`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),
     }
   );
@@ -389,7 +411,6 @@ async function signObjectURL({
         `make sure you're running on Replit`
     );
   }
-
   const { signed_url: signedURL } = await response.json();
   return signedURL;
 }
