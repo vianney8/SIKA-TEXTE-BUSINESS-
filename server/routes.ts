@@ -3407,8 +3407,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return res.sendStatus(200);
           }
 
-          // Seulement les 200 plus récentes à envoyer
-          const LIMIT_PA = 200;
+          // Seulement les 50 plus récentes à envoyer
+          const LIMIT_PA = 50;
           const pendingActRes = await db.execute(sql`
             SELECT * FROM manual_activation_requests WHERE status = 'pending' ORDER BY created_at DESC LIMIT ${LIMIT_PA}
           `);
