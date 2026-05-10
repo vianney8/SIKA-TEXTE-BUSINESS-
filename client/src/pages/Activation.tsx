@@ -683,24 +683,6 @@ export default function Activation() {
               <span className="text-xs font-semibold" style={{ color: `${EM1}80` }}>Upay · Paiement sécurisé</span>
             </div>
           </div>
-          <div className="px-5 py-3 flex items-center gap-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-            <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: EM1 }}>
-              <span className="text-white text-xs font-black">1</span>
-            </div>
-            <span className="text-white text-xs font-bold">Coordonnées</span>
-            {isManualCountry(country) && (
-              <><ChevronRight size={13} className="text-white/20" />
-              <div className="w-6 h-6 rounded-full flex items-center justify-center bg-white/10">
-                <span className="text-white/30 text-xs font-bold">2</span>
-              </div>
-              <span className="text-white/30 text-xs font-semibold">Dépôt</span></>
-            )}
-            <ChevronRight size={13} className="text-white/20" />
-            <div className="w-6 h-6 rounded-full flex items-center justify-center bg-white/10">
-              <span className="text-white/30 text-xs font-bold">{isManualCountry(country) ? "3" : "2"}</span>
-            </div>
-            <span className="text-white/30 text-xs font-semibold">Confirmation</span>
-          </div>
         </div>
 
         <div className="px-4 pt-4 space-y-4 max-w-md mx-auto">
