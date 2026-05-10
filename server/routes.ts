@@ -3920,17 +3920,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
             else if (r.status !== 'pending') { answerText = `Déjà traitée : ${r.status}`; }
             else {
               answerText = '⚠️ Confirmer approbation ?';
-              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-                method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({ chat_id: chatId,
-                  text: `✅ <b>Confirmer approbation ?</b>\n\n👤 ${r.fullName||'N/A'}\n📱 <code>${r.paymentPhone}</code>\n🔖 ID tx : <code>${r.transactionId||'—'}</code>\n\nCela va <b>activer le compte</b> de cet utilisateur.`,
-                  parse_mode:'HTML',
-                  reply_markup:{ inline_keyboard:[[
-                    { text:'✅ Oui, activer', callback_data:`manact_app_ok_${reqId}` },
-                    { text:'◀ Annuler', callback_data:`manact_app_no_${reqId}` }
-                  ]]}
-                })
-              });
+              // Modifier le message en place (pas de nouveau message → évite les doublons)
+              if (chatId && messageId) {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
+                  method:'POST', headers:{'Content-Type':'application/json'},
+                  body: JSON.stringify({ chat_id: chatId, message_id: messageId,
+                    text: `✅ <b>Confirmer approbation ?</b>\n\n👤 ${r.fullName||'N/A'}\n📱 <code>${r.paymentPhone}</code>\n🔖 ID tx : <code>${r.transactionId||'—'}</code>\n\nCela va <b>activer le compte</b> de cet utilisateur.`,
+                    parse_mode:'HTML',
+                    reply_markup:{ inline_keyboard:[[
+                      { text:'✅ Oui, activer', callback_data:`manact_app_ok_${reqId}` },
+                      { text:'◀ Annuler', callback_data:`manact_app_no_${reqId}` }
+                    ]]}
+                  })
+                });
+              }
             }
           } catch(e) { answerText='❌ Erreur'; console.error('[MANACT-APP-PRE]',e); }
 
@@ -3981,17 +3984,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
             else if (r.status !== 'pending') { answerText = `Déjà traitée : ${r.status}`; }
             else {
               answerText = '⚠️ Confirmer rejet ?';
-              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-                method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({ chat_id: chatId,
-                  text: `❌ <b>Confirmer le rejet ?</b>\n\n👤 ${r.fullName||'N/A'}\n📱 <code>${r.paymentPhone}</code>\n\nLe compte ne sera PAS activé.`,
-                  parse_mode:'HTML',
-                  reply_markup:{ inline_keyboard:[[
-                    { text:'❌ Oui, rejeter', callback_data:`manact_rej_ok_${reqId}` },
-                    { text:'◀ Annuler', callback_data:`manact_rej_no_${reqId}` }
-                  ]]}
-                })
-              });
+              // Modifier le message en place (évite les doublons si multi-clic)
+              if (chatId && messageId) {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
+                  method:'POST', headers:{'Content-Type':'application/json'},
+                  body: JSON.stringify({ chat_id: chatId, message_id: messageId,
+                    text: `❌ <b>Confirmer le rejet ?</b>\n\n👤 ${r.fullName||'N/A'}\n📱 <code>${r.paymentPhone}</code>\n\nLe compte ne sera PAS activé.`,
+                    parse_mode:'HTML',
+                    reply_markup:{ inline_keyboard:[[
+                      { text:'❌ Oui, rejeter', callback_data:`manact_rej_ok_${reqId}` },
+                      { text:'◀ Annuler', callback_data:`manact_rej_no_${reqId}` }
+                    ]]}
+                  })
+                });
+              }
             }
           } catch(e) { answerText='❌ Erreur'; console.error('[MANACT-REJ-PRE]',e); }
 
