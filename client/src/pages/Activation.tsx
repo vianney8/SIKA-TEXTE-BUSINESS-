@@ -145,7 +145,7 @@ export default function Activation() {
   const { toast } = useToast();
 
   const { data: activationStatus, refetch: refetchStatus } = useQuery({ queryKey: ["/api/activation/status"] }) as any;
-  const { data: paymentInfo }                               = useQuery({ queryKey: ["/api/activation/payment-info"] }) as any;
+  const { data: paymentInfo }                               = useQuery({ queryKey: ["/api/activation/payment-info"], refetchInterval: 30000 }) as any;
 
   const [step, setStep]       = useState<1 | 2 | 3>(1);
   const [country, setCountry] = useState("");
