@@ -5093,8 +5093,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/media/activation-screenshot/:imageId", async (req: any, res) => {
     try {
       const { imageId } = req.params;
+      const localPath = path.join(process.cwd(), "uploads", "activation-screenshots", imageId);
+      if (fs.existsSync(localPath)) return res.sendFile(localPath);
       const objectStorageService = new ObjectStorageService();
       const file = await objectStorageService.getActivationScreenshotFile(imageId);
+      if (!file) return res.status(404).json({ message: "Capture introuvable" });
       await objectStorageService.downloadObject(file, res, 7 * 24 * 3600);
     } catch (error: any) {
       if (error.name === "ObjectNotFoundError") return res.status(404).json({ message: "Capture introuvable" });
@@ -5105,8 +5108,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/media/link-manual-screenshot/:imageId", async (req: any, res) => {
     try {
       const { imageId } = req.params;
+      const localPath = path.join(process.cwd(), "uploads", "link-manual-screenshots", imageId);
+      if (fs.existsSync(localPath)) return res.sendFile(localPath);
       const objectStorageService = new ObjectStorageService();
       const file = await objectStorageService.getLinkManualScreenshotFile(imageId);
+      if (!file) return res.status(404).json({ message: "Capture introuvable" });
       await objectStorageService.downloadObject(file, res, 7 * 24 * 3600);
     } catch (error: any) {
       if (error.name === "ObjectNotFoundError") return res.status(404).json({ message: "Capture introuvable" });

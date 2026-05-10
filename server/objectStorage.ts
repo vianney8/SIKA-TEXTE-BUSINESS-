@@ -1,6 +1,8 @@
 import { Storage, File } from "@google-cloud/storage";
 import { Response } from "express";
 import { randomUUID } from "crypto";
+import fs from "fs";
+import path from "path";
 
 const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
 
@@ -250,7 +252,14 @@ export class ObjectStorageService {
     const ext = (mimeType.split("/")[1] || "jpg").replace("jpeg", "jpg");
     const imageId = randomUUID();
     const fileName = `${imageId}.${ext}`;
-    let entityDir = this.getPrivateObjectDir();
+    const privateDir = process.env.PRIVATE_OBJECT_DIR || "";
+    if (!privateDir) {
+      const localDir = path.join(process.cwd(), "uploads", "activation-screenshots");
+      fs.mkdirSync(localDir, { recursive: true });
+      fs.writeFileSync(path.join(localDir, fileName), buffer);
+      return `/api/media/activation-screenshot/${fileName}`;
+    }
+    let entityDir = privateDir;
     if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
     const objectPath = `${entityDir}activation-screenshots/${fileName}`;
     const { bucketName, objectName } = parseObjectPath(objectPath);
@@ -260,8 +269,12 @@ export class ObjectStorageService {
     return `/api/media/activation-screenshot/${fileName}`;
   }
 
-  async getActivationScreenshotFile(imageId: string): Promise<File> {
-    let entityDir = this.getPrivateObjectDir();
+  async getActivationScreenshotFile(imageId: string): Promise<File | null> {
+    const localPath = path.join(process.cwd(), "uploads", "activation-screenshots", imageId);
+    if (fs.existsSync(localPath)) return null;
+    const privateDir = process.env.PRIVATE_OBJECT_DIR || "";
+    if (!privateDir) throw new ObjectNotFoundError();
+    let entityDir = privateDir;
     if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
     const objectPath = `${entityDir}activation-screenshots/${imageId}`;
     const { bucketName, objectName } = parseObjectPath(objectPath);
@@ -276,7 +289,14 @@ export class ObjectStorageService {
     const ext = (mimeType.split("/")[1] || "jpg").replace("jpeg", "jpg");
     const imageId = randomUUID();
     const fileName = `${imageId}.${ext}`;
-    let entityDir = this.getPrivateObjectDir();
+    const privateDir = process.env.PRIVATE_OBJECT_DIR || "";
+    if (!privateDir) {
+      const localDir = path.join(process.cwd(), "uploads", "link-manual-screenshots");
+      fs.mkdirSync(localDir, { recursive: true });
+      fs.writeFileSync(path.join(localDir, fileName), buffer);
+      return `/api/media/link-manual-screenshot/${fileName}`;
+    }
+    let entityDir = privateDir;
     if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
     const objectPath = `${entityDir}link-manual-screenshots/${fileName}`;
     const { bucketName, objectName } = parseObjectPath(objectPath);
@@ -286,8 +306,12 @@ export class ObjectStorageService {
     return `/api/media/link-manual-screenshot/${fileName}`;
   }
 
-  async getLinkManualScreenshotFile(imageId: string): Promise<File> {
-    let entityDir = this.getPrivateObjectDir();
+  async getLinkManualScreenshotFile(imageId: string): Promise<File | null> {
+    const localPath = path.join(process.cwd(), "uploads", "link-manual-screenshots", imageId);
+    if (fs.existsSync(localPath)) return null;
+    const privateDir = process.env.PRIVATE_OBJECT_DIR || "";
+    if (!privateDir) throw new ObjectNotFoundError();
+    let entityDir = privateDir;
     if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
     const objectPath = `${entityDir}link-manual-screenshots/${imageId}`;
     const { bucketName, objectName } = parseObjectPath(objectPath);
