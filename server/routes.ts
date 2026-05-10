@@ -3377,6 +3377,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.sendStatus(200);
         }
 
+        // ── Demandes d'activation en attente ─────────────────────────────────
+        const isPendingActCmd = /demande[s]?\s+d['']activation\s+en\s+attente|activation[s]?\s+en\s+attente|en\s+attente\s+activation/i.test(msgText);
+        if (isPendingActCmd) {
+          const pendingActRes = await db.execute(sql`
+            SELECT * FROM manual_activation_requests WHERE status = 'pending' ORDER BY created_at ASC
+          `);
+          const pendingActs = (pendingActRes.rows || []) as any[];
+          const COUNTRY_FLAGS_PA: Record<string,string> = { BJ:'🇧🇯',CI:'🇨🇮',SN:'🇸🇳',BF:'🇧🇫',TG:'🇹🇬',CM:'🇨🇲' };
+          const OPERATORS_PA: Record<string,string>    = { mtn:'MTN',moov:'Moov',orange:'Orange',wave:'Wave',tmoney:'T-Money',free:'Free' };
+
+          if (!pendingActs.length) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, text: `✅ <b>Aucune demande d'activation en attente.</b>`, parse_mode:'HTML' })
+            });
+            return res.sendStatus(200);
+          }
+
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ chat_id: chatId, text: `⏳ <b>${pendingActs.length} demande(s) d'activation en attente</b>`, parse_mode:'HTML' })
+          });
+
+          for (const r of pendingActs) {
+            const date = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'}) : '—';
+            const flag = COUNTRY_FLAGS_PA[r.country] || '🌍';
+            const cardText =
+              `${flag} <b>ACTIVATION — ${OPERATORS_PA[r.operator]||r.operator||'—'}</b>\n` +
+              `📊 ⏳ En attente\n` +
+              `👤 <b>${r.full_name||r.payer_name||'N/A'}</b>\n` +
+              `📱 <code>${r.payment_phone||'—'}</code>\n` +
+              `💰 ${Number(r.amount||0).toLocaleString('fr-FR')} FCFA\n` +
+              `📧 ${r.email||'N/A'}\n` +
+              `🔖 ID tx : <code>${r.transaction_id||'—'}</code>\n` +
+              `🕒 ${date}`;
+            const buttons = { inline_keyboard: [
+              [
+                { text:'✅ Approuver', callback_data:`manact_app_pre_${r.id}` },
+                { text:'❌ Rejeter',   callback_data:`manact_rej_pre_${r.id}` },
+              ],
+              [{ text:'🔒 Bloquer', callback_data:`blkuser_pre_${r.user_id}` }]
+            ]};
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', reply_markup: buttons })
+            });
+            if (r.screenshot_url) await sendShot(chatId, r.screenshot_url);
+            await new Promise(resolve => setTimeout(resolve, 80));
+          }
+
+          // Bouton "Tout Rejeter" à la fin
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({
+              chat_id: chatId,
+              text: `⚠️ <b>${pendingActs.length} demande(s) listée(s) ci-dessus.</b>\n\nVoulez-vous toutes les rejeter en un seul clic ?`,
+              parse_mode:'HTML',
+              reply_markup: { inline_keyboard: [[
+                { text:`🗑 Tout Rejeter (${pendingActs.length})`, callback_data:'manact_reject_all_pre' }
+              ]]}
+            })
+          });
+          return res.sendStatus(200);
+        }
+
         const isPhoneSearch = /^[\+\d\s\-]{7,20}$/.test(msgText) && msgText.replace(/\D/g, '').length >= 7;
         if (isPhoneSearch) {
           const requests = await storage.getCiActivationRequestsByPhone(msgText);
@@ -3959,6 +4024,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } catch(e:any) { answerText='❌ Erreur'; console.error('[MANACT-REJ-OK]',e); }
 
         } else if (data.startsWith('manact_rej_no_')) {
+          answerText = 'Annulé.';
+          if (chatId && messageId) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup:{ inline_keyboard:[] } })
+            });
+          }
+
+        // ── Tout rejeter : pré-confirmation ──────────────────────────────────
+        } else if (data === 'manact_reject_all_pre') {
+          answerText = '⚠️ Confirmer ?';
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({
+              chat_id: chatId,
+              text: `⚠️ <b>Confirmer le rejet de TOUTES les demandes en attente ?</b>\n\nCette action est irréversible.`,
+              parse_mode:'HTML',
+              reply_markup: { inline_keyboard: [[
+                { text:'🗑 Oui, tout rejeter', callback_data:'manact_reject_all_ok' },
+                { text:'◀ Annuler',            callback_data:'manact_reject_all_no' },
+              ]]}
+            })
+          });
+
+        // ── Tout rejeter : exécution ──────────────────────────────────────────
+        } else if (data === 'manact_reject_all_ok') {
+          try {
+            const countRes = await db.execute(sql`SELECT COUNT(*) as n FROM manual_activation_requests WHERE status = 'pending'`);
+            const total = Number((countRes.rows[0] as any)?.n || 0);
+            if (total === 0) {
+              answerText = 'Aucune demande en attente.';
+            } else {
+              await db.execute(sql`UPDATE manual_activation_requests SET status = 'rejected', updated_at = NOW() WHERE status = 'pending'`);
+              answerText = `✅ ${total} demande(s) rejetée(s)`;
+              if (chatId && messageId) {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+                  method:'POST', headers:{'Content-Type':'application/json'},
+                  body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup:{ inline_keyboard:[] } })
+                });
+              }
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  text: `🗑 <b>${total} demande(s) d'activation rejetée(s).</b>\n\nTous les statuts ont été mis à jour.`,
+                  parse_mode:'HTML'
+                })
+              });
+            }
+          } catch(e:any) { answerText='❌ Erreur'; console.error('[REJECT-ALL]',e); }
+
+        // ── Tout rejeter : annulé ─────────────────────────────────────────────
+        } else if (data === 'manact_reject_all_no') {
           answerText = 'Annulé.';
           if (chatId && messageId) {
             await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
