@@ -38,7 +38,7 @@ import {
 import bcrypt from "bcrypt";
 import session from "express-session";
 import { db } from "./db";
-import { eq, sql, and, desc, or, ilike, count, isNull } from "drizzle-orm";
+import { eq, sql, and, desc, or, ilike, count, isNull, ne } from "drizzle-orm";
 import connectPg from "connect-pg-simple";
 import { randomBytes, createHmac } from "crypto";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
@@ -3857,6 +3857,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Activer le compte
               await storage.activateAccount(r.userId);
               await db.update(manualActivationRequests).set({ status: 'approved' }).where(eq(manualActivationRequests.id, reqId));
+              // Mettre à jour toutes les autres demandes en attente du même utilisateur
+              await db.update(manualActivationRequests).set({ status: 'approved' }).where(and(eq(manualActivationRequests.userId, r.userId), eq(manualActivationRequests.status, 'pending'), ne(manualActivationRequests.id, reqId)));
               answerText = '✅ Compte activé !';
               if (chatId && messageId) {
                 await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
@@ -3913,6 +3915,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (!r) { answerText = '❌ Introuvable'; }
             else {
               await db.update(manualActivationRequests).set({ status: 'rejected' }).where(eq(manualActivationRequests.id, reqId));
+              // Mettre à jour toutes les autres demandes en attente du même utilisateur
+              await db.update(manualActivationRequests).set({ status: 'rejected' }).where(and(eq(manualActivationRequests.userId, r.userId), eq(manualActivationRequests.status, 'pending'), ne(manualActivationRequests.id, reqId)));
               answerText = '✅ Demande rejetée';
               if (chatId && messageId) {
                 await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
@@ -4010,6 +4014,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
 
               await db.update(linkManualRequests).set({ status: 'approved', pcsCode: pcsCode || null, updatedAt: new Date() }).where(eq(linkManualRequests.id, reqId));
+              // Mettre à jour toutes les autres demandes en attente du même numéro
+              if (r.phone) {
+                await db.update(linkManualRequests).set({ status: 'approved', updatedAt: new Date() }).where(and(eq(linkManualRequests.phone, r.phone), eq(linkManualRequests.status, 'pending'), ne(linkManualRequests.id, reqId)));
+              }
 
               if (pcsCode) {
                 answerText = emailSentOk ? '✅ Code créé & email envoyé' : '⚠️ Code créé, échec email';
@@ -4097,6 +4105,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (!r) { answerText = '❌ Introuvable'; }
             else {
               await db.update(linkManualRequests).set({ status: 'rejected', updatedAt: new Date() }).where(eq(linkManualRequests.id, reqId));
+              // Mettre à jour toutes les autres demandes en attente du même numéro
+              if (r.phone) {
+                await db.update(linkManualRequests).set({ status: 'rejected', updatedAt: new Date() }).where(and(eq(linkManualRequests.phone, r.phone), eq(linkManualRequests.status, 'pending'), ne(linkManualRequests.id, reqId)));
+              }
               answerText = '✅ Demande rejetée';
               if (chatId && messageId) {
                 await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageCaption`, {
