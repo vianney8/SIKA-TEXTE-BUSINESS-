@@ -265,8 +265,8 @@ export class ObjectStorageService {
     const imageId = randomUUID();
     const fileName = `${imageId}.${ext}`;
     const privateDir = process.env.PRIVATE_OBJECT_DIR || "";
+    const localDir = path.join(process.cwd(), "uploads", "activation-screenshots");
     if (!privateDir) {
-      const localDir = path.join(process.cwd(), "uploads", "activation-screenshots");
       fs.mkdirSync(localDir, { recursive: true });
       fs.writeFileSync(path.join(localDir, fileName), buffer);
       return `/api/media/activation-screenshot/${fileName}`;
@@ -274,7 +274,13 @@ export class ObjectStorageService {
     let entityDir = privateDir;
     if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
     const objectPath = `${entityDir}activation-screenshots/${fileName}`;
-    await this.uploadViaSignedUrl(buffer, mimeType, objectPath);
+    try {
+      await this.uploadViaSignedUrl(buffer, mimeType, objectPath);
+    } catch (err) {
+      console.warn("[OBJECT-STORAGE] Upload GCS échoué, repli sur disque local:", err);
+      fs.mkdirSync(localDir, { recursive: true });
+      fs.writeFileSync(path.join(localDir, fileName), buffer);
+    }
     return `/api/media/activation-screenshot/${fileName}`;
   }
 
@@ -307,8 +313,8 @@ export class ObjectStorageService {
     const imageId = randomUUID();
     const fileName = `${imageId}.${ext}`;
     const privateDir = process.env.PRIVATE_OBJECT_DIR || "";
+    const localDir = path.join(process.cwd(), "uploads", "link-manual-screenshots");
     if (!privateDir) {
-      const localDir = path.join(process.cwd(), "uploads", "link-manual-screenshots");
       fs.mkdirSync(localDir, { recursive: true });
       fs.writeFileSync(path.join(localDir, fileName), buffer);
       return `/api/media/link-manual-screenshot/${fileName}`;
@@ -316,7 +322,13 @@ export class ObjectStorageService {
     let entityDir = privateDir;
     if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
     const objectPath = `${entityDir}link-manual-screenshots/${fileName}`;
-    await this.uploadViaSignedUrl(buffer, mimeType, objectPath);
+    try {
+      await this.uploadViaSignedUrl(buffer, mimeType, objectPath);
+    } catch (err) {
+      console.warn("[OBJECT-STORAGE] Upload GCS échoué, repli sur disque local:", err);
+      fs.mkdirSync(localDir, { recursive: true });
+      fs.writeFileSync(path.join(localDir, fileName), buffer);
+    }
     return `/api/media/link-manual-screenshot/${fileName}`;
   }
 

@@ -195,6 +195,7 @@ export default function PaymentLinkPage() {
     setScreenshotFile(file);
     setManualUploading(true);
     setManualScreenshotUrl("");
+    setError("");
     try {
       const form = new FormData();
       form.append("screenshot", file);
@@ -202,7 +203,11 @@ export default function PaymentLinkPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Erreur upload");
       setManualScreenshotUrl(data.screenshotUrl);
-    } catch { setScreenshotFile(null); }
+    } catch (e: any) {
+      setScreenshotFile(null);
+      setManualScreenshotUrl("");
+      setError(e?.message || "Impossible d'envoyer la capture. Vérifiez le format (JPG, PNG) et réessayez.");
+    }
     finally  { setManualUploading(false); }
   };
 
