@@ -2551,7 +2551,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               chat_id: chatId,
-              text: '✅ <b>Bot SIKA TEXTE configuré avec succès !</b>\n\nVous recevrez désormais les demandes d\'activation CI.\n\n💡 <b>Recherches disponibles :</b>\n• <code>+229XXXXXXXX</code> → demandes d\'activation CI\n• <code>+229XXXXXXXX pcs</code> → achats de code PCS\n• <code>+229XXXXXXXX act pcs</code> → activations PCS\n• <code>+229XXXXXXXX paie act</code> → activations manuelles\n• <code>+229XXXXXXXX pay lien</code> → paiements lien manuels\n• <code>tx ABC123</code> → recherche par ID de transaction\n• <code>nom Kouassi Jean</code> → recherche par nom du payeur',
+              text: '✅ <b>Bot SIKA TEXTE configuré avec succès !</b>\n\nVous recevrez désormais les demandes d\'activation CI.\n\n💡 <b>Recherches disponibles :</b>\n• <code>+229XXXXXXXX</code> → demandes d\'activation CI\n• <code>+229XXXXXXXX pcs</code> → achats de code PCS\n• <code>+229XXXXXXXX act pcs</code> → activations PCS\n• <code>+229XXXXXXXX paie act</code> → activations manuelles\n• <code>+229XXXXXXXX pay lien</code> → paiements lien manuels\n• <code>tx ABC123</code> → recherche par ID de transaction\n• <code>nom Kouassi Jean</code> → recherche par nom du payeur\n\n📨 <b>Vérification SMS Mobile Money :</b>\nCollez directement un SMS de confirmation Mobile Money (contenant OAmount, Payer et Msisdn) — le système extrait automatiquement le montant, le nom et le numéro, puis affiche toutes les demandes en attente correspondantes (≥2 critères sur 3).',
               parse_mode: 'HTML'
             })
           });
@@ -2788,6 +2788,143 @@ export async function registerRoutes(app: Express): Promise<Server> {
               });
               await sendShot(chatId, r.screenshot_url);
               await new Promise(r=>setTimeout(r,60));
+            }
+          }
+          return res.sendStatus(200);
+        }
+
+        // ── Parsing SMS Mobile Money en masse (OAmount / Payer / Msisdn) ──────
+        // Déclenché quand le message contient au moins "Msisdn" + ("OAmount" ou "Payer")
+        const isMobileMoneySms = /Msisdn\s+\d/i.test(msgText) && (/OAmount\s+[\d.]+/i.test(msgText) || /Payer\s+[A-Z]/i.test(msgText));
+        if (isMobileMoneySms) {
+          // — Extraire montant (OAmount ou "recu X FCFA")
+          const oAmtM = /OAmount\s+([\d.]+)/i.exec(msgText);
+          const recuM = /re[cç]u\s+([\d\s]+)\s*FCFA/i.exec(msgText);
+          const parsedAmount = oAmtM
+            ? Math.round(parseFloat(oAmtM[1]))
+            : (recuM ? parseInt(recuM[1].replace(/\s/g,'')) : null);
+
+          // — Extraire nom payeur (Payer ... jusqu'au prochain mot-clé connu)
+          const payerM = /Payer\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s\-']+?)(?=\s+(?:Msisdn|Gender|Nlty|OCountry|OCurrency|$)|\s*$)/i.exec(msgText);
+          const parsedPayer = payerM ? payerM[1].trim().toUpperCase() : null;
+
+          // — Extraire MSISDN (numéro brut sans +)
+          const msisdnM = /Msisdn\s+(\d+)/i.exec(msgText);
+          const parsedMsisdn = msisdnM ? msisdnM[1].trim() : null;
+
+          // Résumé des données extraites à afficher
+          const parsedSummary = [
+            parsedAmount !== null ? `💰 Montant : <b>${parsedAmount.toLocaleString('fr-FR')} FCFA</b>` : '💰 Montant : <i>non détecté</i>',
+            parsedPayer ? `👤 Payeur : <b>${parsedPayer}</b>` : '👤 Payeur : <i>non détecté</i>',
+            parsedMsisdn ? `📱 MSISDN : <code>+${parsedMsisdn}</code>` : '📱 MSISDN : <i>non détecté</i>',
+          ].join('\n');
+
+          // Récupérer toutes les demandes d'activation manuelle en attente
+          const pendingRes = await db.execute(sql`
+            SELECT * FROM manual_activation_requests WHERE status = 'pending' ORDER BY created_at DESC LIMIT 200
+          `);
+          const pending = (pendingRes.rows || []) as any[];
+
+          // Fonction de normalisation pour comparaison texte
+          const normStr = (s: string) => (s || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z0-9\s]/g,'').replace(/\s+/g,' ').trim();
+
+          // Scoring : 1 point par critère correspondant
+          const SMS_MATCHES: Array<{req: any, score: number, reasons: string[]}> = [];
+
+          for (const req of pending) {
+            let score = 0;
+            const reasons: string[] = [];
+
+            // Critère 1 — Montant (tolérance ±5%)
+            if (parsedAmount !== null) {
+              const reqAmt = Number(req.amount);
+              if (reqAmt > 0 && Math.abs(reqAmt - parsedAmount) <= Math.max(parsedAmount * 0.05, 10)) {
+                score++;
+                reasons.push(`💰 Montant ${reqAmt.toLocaleString('fr-FR')} FCFA`);
+              }
+            }
+
+            // Critère 2 — Nom du payeur (correspondance de mots ≥ 1 mot clé de 3+ lettres)
+            if (parsedPayer) {
+              const normSms = normStr(parsedPayer);
+              const normReq = normStr(req.payer_name || req.full_name || '');
+              const smsWords = normSms.split(' ').filter(w => w.length >= 3);
+              const reqWords = normReq.split(' ').filter(w => w.length >= 3);
+              const matchedWords = smsWords.filter(w => reqWords.includes(w));
+              if (matchedWords.length >= 1) {
+                score++;
+                reasons.push(`👤 Nom "${matchedWords.join(' ')}"`);
+              }
+            }
+
+            // Critère 3 — MSISDN (comparer les 8 derniers chiffres)
+            if (parsedMsisdn) {
+              const msisdnDigits = parsedMsisdn.replace(/\D/g,'');
+              const reqDigits = (req.payment_phone || '').replace(/\D/g,'');
+              const last8Sms = msisdnDigits.slice(-8);
+              const last8Req = reqDigits.slice(-8);
+              if (last8Sms && last8Req && last8Sms === last8Req) {
+                score++;
+                reasons.push(`📱 Numéro ${req.payment_phone}`);
+              }
+            }
+
+            if (score >= 2) {
+              SMS_MATCHES.push({ req, score, reasons });
+            }
+          }
+
+          // Trier par score décroissant
+          SMS_MATCHES.sort((a, b) => b.score - a.score);
+
+          if (!SMS_MATCHES.length) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({
+                chat_id: chatId,
+                text: `📨 <b>Analyse SMS Mobile Money</b>\n\n${parsedSummary}\n\n❌ <b>Aucune correspondance</b> parmi ${pending.length} demande(s) en attente\n\n<i>Aucune demande n'a ≥2 critères correspondants.</i>`,
+                parse_mode:'HTML'
+              })
+            });
+          } else {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({
+                chat_id: chatId,
+                text: `📨 <b>Analyse SMS Mobile Money</b>\n\n${parsedSummary}\n\n✅ <b>${SMS_MATCHES.length} correspondance(s)</b> trouvée(s) sur ${pending.length} demande(s) en attente\n\n<i>Résultats triés par score — ≥2 critères sur 3.</i>`,
+                parse_mode:'HTML'
+              })
+            });
+
+            const COUNTRY_FLAGS_SMS: Record<string,string> = { BJ:'🇧🇯',CI:'🇨🇮',SN:'🇸🇳',BF:'🇧🇫',TG:'🇹🇬',CM:'🇨🇲' };
+            const OPERATORS_SMS: Record<string,string> = { mtn:'MTN',moov:'Moov',orange:'Orange',wave:'Wave',tmoney:'T-Money',free:'Free',airtel:'Airtel' };
+
+            for (const { req: r, score, reasons } of SMS_MATCHES) {
+              const date = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'}) : '—';
+              const flag = COUNTRY_FLAGS_SMS[r.country] || '🌍';
+              const stars = score >= 3 ? '🟢 3/3' : '🟡 2/3';
+              const cardText =
+                `${flag} <b>${stars} critères — ${OPERATORS_SMS[r.operator]||r.operator||'—'}</b>\n` +
+                `🎯 Correspondances : ${reasons.join(' | ')}\n\n` +
+                `📊 ⏳ En attente\n` +
+                `👤 Payeur SIM : <b>${r.payer_name||r.full_name||'N/A'}</b>\n` +
+                `🪪 Compte : ${r.full_name||'N/A'}\n` +
+                `📱 <code>${r.payment_phone}</code>\n` +
+                `💰 ${Number(r.amount).toLocaleString('fr-FR')} FCFA\n` +
+                `📧 ${r.email||'N/A'}\n` +
+                `📋 Sika : <code>${r.referral_code||'N/A'}</code>\n` +
+                `🔖 ID tx : <code>${r.transaction_id||'—'}</code>\n` +
+                `🕒 ${date}`;
+              const buttons = { inline_keyboard: [[
+                { text:'✅ Approuver le compte', callback_data:`manact_app_pre_${r.id}` },
+                { text:'❌ Rejeter',             callback_data:`manact_rej_pre_${r.id}` },
+              ]]};
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', reply_markup: buttons })
+              });
+              if (r.screenshot_url) await sendShot(chatId, r.screenshot_url);
+              await new Promise(resolve => setTimeout(resolve, 80));
             }
           }
           return res.sendStatus(200);
