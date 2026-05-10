@@ -69,6 +69,7 @@ export default function Withdrawal() {
   const [animStep, setAnimStep] = useState(0); // 0=initial 1=arrow 2=done
 
   const { data: telegramSupervisor } = useAppSetting("telegram_supervisor");
+  const { data: withdrawalVideoUrl } = useAppSetting("withdrawal_video_url");
 
   const { data: spaySettings } = useQuery<{ hasSavedPcsCode: boolean; savedPcsCodeMasked: string | null; lowLatencyMode: boolean }>({
     queryKey: ["/api/user/spay-settings"],
@@ -456,6 +457,20 @@ export default function Withdrawal() {
                   Pour accéder au retrait, vous devez d'abord activer votre compte SIKA TEXTE.
                 </p>
               </div>
+
+              {/* Vidéo preuve de retrait */}
+              {withdrawalVideoUrl && (
+                <div className="mb-4 rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
+                  <p className="text-center text-xs font-bold text-gray-500 py-2 bg-gray-50">📹 Preuve de retrait réel</p>
+                  <video
+                    src={withdrawalVideoUrl}
+                    controls
+                    playsInline
+                    className="w-full"
+                    style={{ maxHeight: "260px", objectFit: "cover", background: "#000" }}
+                  />
+                </div>
+              )}
 
               {/* Bénéfices */}
               <div className="space-y-2.5 mb-5">
