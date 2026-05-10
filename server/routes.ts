@@ -2848,9 +2848,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           const parsedBlocks = smsBlocks.map(parseSmsBlock);
 
-          // ── Récupérer toutes les demandes en attente (une seule requête) ──────
+          // ── Récupérer toutes les demandes en attente (activation + liens paiement) ──
           const pendingRes = await db.execute(sql`
-            SELECT * FROM manual_activation_requests WHERE status = 'pending' ORDER BY created_at DESC
+            SELECT id, 'activation' AS src, user_id, payment_phone AS phone, payer_name, full_name AS customer_name,
+                   amount, transaction_id, screenshot_url, country, operator, email, referral_code, NULL AS link_id, NULL AS link_label, created_at
+            FROM manual_activation_requests WHERE status = 'pending'
+            UNION ALL
+            SELECT id, 'link' AS src, NULL AS user_id, phone, NULL AS payer_name, customer_name,
+                   amount, transaction_id, screenshot_url, country, operator, customer_email AS email, NULL AS referral_code, link_id, link_label, created_at
+            FROM link_manual_requests WHERE status = 'pending'
+            ORDER BY created_at DESC
           `);
           const pending = (pendingRes.rows || []) as any[];
 
@@ -2880,7 +2887,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Critère 2 — Nom du payeur (≥1 mot de 3+ lettres en commun)
               if (parsedPayer) {
                 const normSms = normStr(parsedPayer);
-                const normReq = normStr(req.payer_name || req.full_name || '');
+                const normReq = normStr(req.payer_name || req.customer_name || '');
                 const smsWords = normSms.split(' ').filter((w: string) => w.length >= 3);
                 const reqWords = normReq.split(' ').filter((w: string) => w.length >= 3);
                 const matchedWords = smsWords.filter((w: string) => reqWords.includes(w));
@@ -2893,12 +2900,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Critère 3 — MSISDN (8 derniers chiffres)
               if (parsedMsisdn) {
                 const msisdnDigits = parsedMsisdn.replace(/\D/g,'');
-                const reqDigits    = (req.payment_phone || '').replace(/\D/g,'');
+                const reqDigits    = (req.phone || '').replace(/\D/g,'');
                 const last8Sms = msisdnDigits.slice(-8);
                 const last8Req = reqDigits.slice(-8);
                 if (last8Sms && last8Req && last8Sms === last8Req) {
                   score++;
-                  reasons.push(`📱 ${req.payment_phone}`);
+                  reasons.push(`📱 ${req.phone}`);
                 }
               }
 
@@ -2951,25 +2958,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const date = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'}) : '—';
               const flag  = COUNTRY_FLAGS_SMS[r.country] || '🌍';
               const stars = score >= 3 ? '🟢 3/3' : '🟡 2/3';
-              const cardText =
-                `${flag} <b>${stars} — SMS ${smsIndex + 1} — ${OPERATORS_SMS[r.operator]||r.operator||'—'}</b>\n` +
-                `🎯 ${reasons.join(' | ')}\n\n` +
-                `📊 ⏳ En attente\n` +
-                `👤 Payeur SIM : <b>${r.payer_name||r.full_name||'N/A'}</b>\n` +
-                `🪪 Compte : ${r.full_name||'N/A'}\n` +
-                `📱 <code>${r.payment_phone}</code>\n` +
-                `💰 ${Number(r.amount).toLocaleString('fr-FR')} FCFA\n` +
-                `📧 ${r.email||'N/A'}\n` +
-                `📋 Sika : <code>${r.referral_code||'N/A'}</code>\n` +
-                `🔖 ID tx : <code>${r.transaction_id||'—'}</code>\n` +
-                `🕒 ${date}`;
-              const buttons = { inline_keyboard: [
-                [
-                  { text:'✅ Approuver le compte', callback_data:`manact_app_pre_${r.id}` },
-                  { text:'❌ Rejeter',             callback_data:`manact_rej_pre_${r.id}` },
-                ],
-                [{ text:'🔒 Bloquer le compte', callback_data:`blkuser_pre_${r.user_id}` }]
-              ]};
+              const isLink = r.src === 'link';
+              const cardText = isLink
+                ? `🔗 <b>${stars} — SMS ${smsIndex + 1} — LIEN PAIEMENT</b>\n` +
+                  `${flag} ${OPERATORS_SMS[r.operator]||r.operator||'—'} | <b>${r.link_label||r.link_id||'—'}</b>\n` +
+                  `🎯 ${reasons.join(' | ')}\n\n` +
+                  `📊 ⏳ En attente\n` +
+                  `👤 Client : <b>${r.customer_name||'N/A'}</b>\n` +
+                  `📱 <code>${r.phone||'—'}</code>\n` +
+                  `💰 ${Number(r.amount).toLocaleString('fr-FR')} FCFA\n` +
+                  `📧 ${r.email||'N/A'}\n` +
+                  `🔖 ID tx : <code>${r.transaction_id||'—'}</code>\n` +
+                  `🕒 ${date}`
+                : `${flag} <b>${stars} — SMS ${smsIndex + 1} — ACTIVATION — ${OPERATORS_SMS[r.operator]||r.operator||'—'}</b>\n` +
+                  `🎯 ${reasons.join(' | ')}\n\n` +
+                  `📊 ⏳ En attente\n` +
+                  `👤 Payeur SIM : <b>${r.payer_name||r.customer_name||'N/A'}</b>\n` +
+                  `📱 <code>${r.phone||'—'}</code>\n` +
+                  `💰 ${Number(r.amount).toLocaleString('fr-FR')} FCFA\n` +
+                  `📧 ${r.email||'N/A'}\n` +
+                  `📋 Sika : <code>${r.referral_code||'N/A'}</code>\n` +
+                  `🔖 ID tx : <code>${r.transaction_id||'—'}</code>\n` +
+                  `🕒 ${date}`;
+              const buttons = isLink
+                ? { inline_keyboard: [
+                    [{ text:'✅ Approuver', callback_data:`lnkma_pre_${r.id}` }, { text:'❌ Rejeter', callback_data:`lnkrej_pre_${r.id}` }],
+                    [{ text:'🔒 Bloquer', callback_data:`blklnkr_pre_${r.id}` }]
+                  ]}
+                : { inline_keyboard: [
+                    [{ text:'✅ Approuver le compte', callback_data:`manact_app_pre_${r.id}` }, { text:'❌ Rejeter', callback_data:`manact_rej_pre_${r.id}` }],
+                    [{ text:'🔒 Bloquer le compte', callback_data:`blkuser_pre_${r.user_id}` }]
+                  ]};
               await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
                 method:'POST', headers:{'Content-Type':'application/json'},
                 body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', reply_markup: buttons })
