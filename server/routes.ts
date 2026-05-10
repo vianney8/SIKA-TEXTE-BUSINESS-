@@ -2380,11 +2380,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ── Activation manuelle : soumission avec capture d'écran ────────────────
   const multerManual = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 10 * 1024 * 1024 },
-    fileFilter: (_req, file, cb) => {
-      if (file.mimetype.startsWith('image/')) cb(null, true);
-      else cb(new Error('Seules les images sont acceptées'));
-    },
+    limits: { fileSize: 20 * 1024 * 1024 },
   });
   app.post('/api/activation/manual-submit', requireAuth, multerManual.single('screenshot'), async (req: any, res) => {
     try {
@@ -5552,11 +5548,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Upload image for a payment link
   const imageMemUpload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 10 * 1024 * 1024 },
-    fileFilter: (_req, file, cb) => {
-      if (file.mimetype.startsWith("image/")) cb(null, true);
-      else cb(new Error("Seuls les fichiers image sont acceptés"));
-    },
+    limits: { fileSize: 20 * 1024 * 1024 },
   });
   app.post("/api/admin/payment-links/upload-image", requireAdmin, imageMemUpload.single("image"), async (req: any, res) => {
     try {

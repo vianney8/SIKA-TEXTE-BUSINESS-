@@ -952,11 +952,21 @@ export default function Activation() {
                 <p className="text-slate-500 text-[11px] font-black uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <ImageIcon size={11} /> Capture d'écran <span className="text-red-400">*</span>
                 </p>
-                <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
+                <input ref={fileInputRef} type="file" accept="image/*,image/heic,image/heif,.heic,.heif,.pdf,.webp" className="hidden"
                   onChange={e => { const f = e.target.files?.[0]; if (f) setScreenshotFile(f); }} />
-                {screenshotPreview ? (
-                  <div className="relative rounded-2xl overflow-hidden border-2 border-slate-100">
-                    <img src={screenshotPreview} alt="Capture" className="w-full max-h-44 object-contain bg-slate-50" />
+                {screenshotFile ? (
+                  <div className="relative rounded-2xl overflow-hidden border-2 border-emerald-100 bg-emerald-50">
+                    {screenshotFile.type.startsWith("image/") && screenshotPreview ? (
+                      <img src={screenshotPreview} alt="Capture" className="w-full max-h-44 object-contain bg-slate-50" />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center gap-2 py-8 px-4">
+                        <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-emerald-100">
+                          <CheckCircle size={22} style={{ color: EM1 }} />
+                        </div>
+                        <p className="text-slate-700 font-semibold text-sm text-center">{screenshotFile.name}</p>
+                        <p className="text-slate-400 text-xs">{(screenshotFile.size / 1024 / 1024).toFixed(1)} Mo</p>
+                      </div>
+                    )}
                     <button onClick={() => { setScreenshotFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
                       className="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center">
                       <XCircle size={14} />
@@ -969,7 +979,7 @@ export default function Activation() {
                       <Upload size={20} style={{ color: EM1 }} />
                     </div>
                     <p className="text-slate-600 text-sm font-semibold">Ajouter une capture d'écran</p>
-                    <p className="text-slate-400 text-xs">JPG, PNG — Max 10 Mo</p>
+                    <p className="text-slate-400 text-xs">JPG, PNG, HEIC, PDF, WebP — Max 20 Mo</p>
                   </button>
                 )}
               </div>

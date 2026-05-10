@@ -250,7 +250,7 @@ export class ObjectStorageService {
   }
 
   async uploadPaymentLinkImage(buffer: Buffer, mimeType: string): Promise<string> {
-    const ext = (mimeType.split("/")[1] || "jpg").replace("jpeg", "jpg");
+    const ext = mimeToExt(mimeType);
     const imageId = randomUUID();
     const fileName = `${imageId}.${ext}`;
     let entityDir = this.getPrivateObjectDir();
@@ -261,7 +261,7 @@ export class ObjectStorageService {
   }
 
   async uploadActivationScreenshot(buffer: Buffer, mimeType: string): Promise<string> {
-    const ext = (mimeType.split("/")[1] || "jpg").replace("jpeg", "jpg");
+    const ext = mimeToExt(mimeType);
     const imageId = randomUUID();
     const fileName = `${imageId}.${ext}`;
     const privateDir = process.env.PRIVATE_OBJECT_DIR || "";
@@ -309,7 +309,7 @@ export class ObjectStorageService {
   }
 
   async uploadLinkManualScreenshot(buffer: Buffer, mimeType: string): Promise<string> {
-    const ext = (mimeType.split("/")[1] || "jpg").replace("jpeg", "jpg");
+    const ext = mimeToExt(mimeType);
     const imageId = randomUUID();
     const fileName = `${imageId}.${ext}`;
     const privateDir = process.env.PRIVATE_OBJECT_DIR || "";
@@ -374,6 +374,25 @@ export class ObjectStorageService {
     if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
     return `${entityDir}payment-link-images/${imageId}`;
   }
+}
+
+function mimeToExt(mimeType: string): string {
+  const map: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+    "image/bmp": "bmp",
+    "image/tiff": "tiff",
+    "image/heic": "heic",
+    "image/heif": "heif",
+    "image/avif": "avif",
+    "image/svg+xml": "svg",
+    "application/pdf": "pdf",
+    "application/octet-stream": "bin",
+  };
+  return map[mimeType] || (mimeType.split("/")[1] || "jpg").replace("jpeg", "jpg");
 }
 
 function parseObjectPath(path: string): {
