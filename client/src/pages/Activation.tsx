@@ -242,7 +242,7 @@ export default function Activation() {
         if (data.status === "pending" && hoursDiff < 24) {
           setPendingCreatedAt(createdAt.toISOString()); setManualSubmitted(true);
         } else if (data.status === "rejected") {
-          const dismissedAt  = sessionStorage.getItem("sika_rejection_dismissed_at");
+          const dismissedAt  = localStorage.getItem("sika_rejection_dismissed_at");
           const requestTime  = new Date(data.createdAt).getTime();
           if (!dismissedAt || requestTime > parseInt(dismissedAt)) setRejectionNote(data.adminNote || "");
         }
@@ -307,7 +307,7 @@ export default function Activation() {
   };
 
   const handleReset = () => {
-    sessionStorage.setItem("sika_rejection_dismissed_at", Date.now().toString());
+    localStorage.setItem("sika_rejection_dismissed_at", Date.now().toString());
     setTransactionId(null); setTxStatus(null); setCheckCount(0);
     setStep(1); setPhone(""); setPayerName(""); setTransactionId2(""); setScreenshotFile(null);
     setManualSubmitted(false); setDepositInfo(null); setPendingCreatedAt(null); setRejectionNote(null);
