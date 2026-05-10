@@ -672,26 +672,6 @@ export default function AdminSettings() {
                             </div>
 
                             <div>
-                              <Label className="text-xs text-gray-600">Titre affiché (libellé)</Label>
-                              <Input
-                                value={settings[`${key}_${op}_deposit_label`] ?? (isWaveOp ? 'Numéro WAVE' : `Numéro de dépôt ${opName}`)}
-                                onChange={(e) => handleInputChange(`${key}_${op}_deposit_label`, e.target.value)}
-                                className="mt-1 text-sm"
-                              />
-                            </div>
-
-                            {!isWaveOp && (
-                              <div>
-                                <Label className="text-xs text-gray-600">Texte alerte ⚠️ transfert international</Label>
-                                <Input
-                                  value={settings[`${key}_${op}_alert_text`] ?? `Effectuez un transfert international sur ce numéro ${opName}.`}
-                                  onChange={(e) => handleInputChange(`${key}_${op}_alert_text`, e.target.value)}
-                                  className="mt-1 text-sm"
-                                />
-                              </div>
-                            )}
-
-                            <div>
                               <Label className="text-xs text-amber-700 font-semibold">🌍 Note dépôt international</Label>
                               <textarea
                                 value={settings[`international_deposit_note_${key}_${op}`] ?? ''}
@@ -699,26 +679,6 @@ export default function AdminSettings() {
                                 placeholder="Message affiché pour ce dépôt international (laisser vide = aucun message)"
                                 rows={2}
                                 className="mt-1 w-full border border-amber-200 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 bg-amber-50"
-                              />
-                            </div>
-
-                            <div>
-                              <div className="flex items-center justify-between mb-1">
-                                <Label className="text-xs text-gray-600">Instruction personnalisée</Label>
-                                <button
-                                  type="button"
-                                  onClick={() => handleInputChange(`${key}_${op}_show_instruction`, settings[`${key}_${op}_show_instruction`] === 'true' ? 'false' : 'true')}
-                                  className={`text-[10px] px-2 py-0.5 rounded font-semibold transition-colors ${settings[`${key}_${op}_show_instruction`] === 'true' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}
-                                >
-                                  {settings[`${key}_${op}_show_instruction`] === 'true' ? '✓ Afficher' : 'Masqué'}
-                                </button>
-                              </div>
-                              <textarea
-                                value={settings[`${key}_${op}_instruction`] || ''}
-                                onChange={(e) => handleInputChange(`${key}_${op}_instruction`, e.target.value)}
-                                placeholder="Instruction affichée à l'utilisateur..."
-                                rows={2}
-                                className="w-full border border-input rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
                               />
                             </div>
                           </div>
