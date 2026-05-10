@@ -368,7 +368,11 @@ export default function Activation() {
           setPendingCreatedAt(createdAt.toISOString());
           setManualSubmitted(true);
         } else if (data.status === "rejected") {
-          setRejectionNote(data.adminNote || "");
+          const dismissedAt = sessionStorage.getItem("sika_rejection_dismissed_at");
+          const requestTime = new Date(data.createdAt).getTime();
+          if (!dismissedAt || requestTime > parseInt(dismissedAt)) {
+            setRejectionNote(data.adminNote || "");
+          }
         }
       })
       .catch(() => {})
@@ -501,6 +505,7 @@ export default function Activation() {
   };
 
   const handleReset = () => {
+    sessionStorage.setItem("sika_rejection_dismissed_at", Date.now().toString());
     setTransactionId(null); setTxStatus(null); setCheckCount(0);
     setStep(1); setPhone(""); setPayerName(""); setTransactionId2(""); setScreenshotFile(null);
     setManualSubmitted(false); setDepositInfo(null);
