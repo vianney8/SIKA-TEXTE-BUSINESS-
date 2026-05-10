@@ -912,7 +912,7 @@ export default function Activation() {
             {depositInfo.isInternational && depositInfo.internationalNote && (
               <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex gap-3">
                 <AlertTriangle size={15} className="text-amber-500 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-amber-800"><strong>Dépôt international :</strong> {depositInfo.internationalNote}</p>
+                <p className="text-xs text-amber-800">{depositInfo.internationalNote}</p>
               </div>
             )}
 
