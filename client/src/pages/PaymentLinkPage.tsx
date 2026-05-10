@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
-import { CheckCircle, ChevronLeft, ChevronRight, Copy, ExternalLink, ImageIcon, Loader2, Upload, XCircle, ShieldCheck, AlertTriangle, AlertCircle, Info, Wrench } from "lucide-react";
+import { CheckCircle, ChevronLeft, ChevronRight, Clock, Copy, ExternalLink, ImageIcon, Loader2, Upload, XCircle, ShieldCheck, AlertTriangle, AlertCircle, Info, Wrench } from "lucide-react";
 
 // ─── Config pays & opérateurs ────────────────────────────────────────────────
 const COUNTRIES = [
@@ -78,6 +78,7 @@ export default function PaymentLinkPage() {
   // USSD state
   const [txnId, setTxnId] = useState("");
   const [pollCount, setPollCount] = useState(0);
+  const [submittedAt, setSubmittedAt] = useState<string | null>(null);
 
   const [step, setStep] = useState<Step>("form");
   const [submitting, setSubmitting] = useState(false);
@@ -276,6 +277,7 @@ export default function PaymentLinkPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Erreur serveur");
+      setSubmittedAt(new Date().toISOString());
       setStep("submitted");
     } catch (e: any) { setError(e.message || "Erreur lors de l'envoi. Réessayez."); }
     finally { setManualSubmitting(false); }
@@ -413,30 +415,133 @@ export default function PaymentLinkPage() {
   );
 
   // ── Manual submitted ─────────────────────────────────────────────────────────
-  if (step === "submitted") return (
-    <div className="min-h-screen flex items-center justify-center px-5" style={BG}>
-      <div className="text-center max-w-sm w-full">
-        <div className="relative w-28 h-28 mx-auto mb-6">
-          <div className="absolute inset-0 rounded-full bg-amber-500/20 animate-pulse" />
-          <div className="w-28 h-28 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-2xl shadow-amber-500/30 mx-auto">
-            <span className="text-5xl">⏳</span>
+  if (step === "submitted") {
+    function ElapsedTimer({ since }: { since: string | null }) {
+      const [elapsed, setElapsed] = useState(0);
+      useEffect(() => {
+        if (!since) return;
+        const start = new Date(since).getTime();
+        const iv = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
+        return () => clearInterval(iv);
+      }, [since]);
+      const m = Math.floor(elapsed / 60);
+      const s = elapsed % 60;
+      return <span className="font-mono text-blue-300 font-bold">{String(m).padStart(2,"0")}:{String(s).padStart(2,"0")}</span>;
+    }
+    return (
+      <div className="min-h-screen flex flex-col" style={BG}>
+        <style>{`@keyframes bounce{0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1}}`}</style>
+
+        {/* Top bar */}
+        <div style={{ background: "linear-gradient(135deg,#0f2460,#1a3a8f)" }} className="px-5 pt-6 pb-5 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-2.5">
+            <img src="/logo.jpg" alt="SIKApay" className="w-9 h-9 rounded-xl object-cover ring-2 ring-white/20" />
+            <div>
+              <p className="text-[9px] text-blue-300 uppercase tracking-[0.2em] font-bold">SIKApay</p>
+              <p className="font-black text-white text-sm leading-tight">SIKA TEXTE</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 bg-amber-500/15 border border-amber-400/30 rounded-full px-3 py-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span className="text-amber-300 text-[11px] font-bold">En vérification</span>
           </div>
         </div>
-        <h2 className="font-black text-white text-2xl mb-2">Demande envoyée !</h2>
-        <p className="text-white/60 text-sm mb-1">Votre demande a été transmise.</p>
-        <p className="text-white/40 text-xs mb-6">Notre équipe va vérifier votre dépôt et valider sous peu.</p>
-        <div className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-left space-y-1.5 mb-6">
-          <p className="text-white/40 text-xs font-semibold uppercase tracking-wider mb-2">Récapitulatif</p>
-          <p className="text-white text-sm"><span className="text-white/40">Montant :</span> <span className="font-bold">{amount} {link.currency}</span></p>
-          <p className="text-white text-sm"><span className="text-white/40">Lien :</span> {link.label}</p>
-          <p className="text-white text-sm"><span className="text-white/40">Référence :</span> <span className="font-mono text-xs">{manualTxnId}</span></p>
-        </div>
-        <div className="border-t border-white/10 pt-4">
-          <p className="text-white/25 text-xs">Paiement sécurisé par <span className="text-white/40 font-bold">SIKApay</span></p>
+
+        {/* Main content */}
+        <div className="flex-1 flex flex-col items-center px-5 py-6 overflow-y-auto">
+
+          {/* Pulsing icon */}
+          <div className="relative mb-5">
+            <div className="absolute inset-0 rounded-full bg-blue-500/15 animate-ping" style={{ animationDuration: "2.5s" }} />
+            <div className="relative w-20 h-20 rounded-full border border-blue-400/30 bg-blue-500/10 flex items-center justify-center">
+              <ShieldCheck size={36} className="text-blue-300" />
+            </div>
+          </div>
+
+          <h1 className="text-white font-black text-2xl text-center mb-1">Vérification en cours</h1>
+          <p className="text-white/45 text-sm text-center mb-5 max-w-xs leading-relaxed">
+            Votre demande a bien été reçue et est en cours d'examen par nos agents.
+          </p>
+
+          {/* Elapsed time */}
+          <div className="bg-white/5 border border-white/10 rounded-2xl px-5 py-3 flex items-center justify-between w-full max-w-sm mb-4">
+            <div className="flex items-center gap-2">
+              <Clock size={14} className="text-white/40" />
+              <span className="text-white/40 text-xs font-semibold">Temps écoulé depuis l'envoi</span>
+            </div>
+            <ElapsedTimer since={submittedAt} />
+          </div>
+
+          {/* Teams mobilized */}
+          <div className="w-full max-w-sm bg-white/5 border border-white/10 rounded-2xl px-4 py-3 flex items-center gap-3 mb-4">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 flex items-center justify-center flex-shrink-0">
+              <span className="text-lg">👥</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-white text-sm font-bold">Équipes mobilisées</p>
+              <p className="text-white/35 text-xs">Nos agents vérifient votre paiement</p>
+            </div>
+            <div className="flex gap-1 flex-shrink-0">
+              {[0,1,2].map(i => (
+                <div key={i} className="w-1.5 h-1.5 rounded-full bg-emerald-400"
+                  style={{ animation: `bounce 1.2s ${i*0.3}s infinite ease-in-out` }} />
+              ))}
+            </div>
+          </div>
+
+          {/* Steps */}
+          <div className="w-full max-w-sm space-y-2 mb-5">
+            {[
+              { icon: "✅", label: "Demande envoyée avec succès", state: "done" },
+              { icon: "🔍", label: "Vérification du paiement", state: "active" },
+              { icon: "🔑", label: "Génération du code PCS", state: "pending" },
+            ].map((row, i) => (
+              <div key={i} className={`flex items-center gap-3 px-4 py-2.5 rounded-xl ${
+                row.state === "done" ? "bg-emerald-500/8 border border-emerald-400/20"
+                : row.state === "active" ? "bg-blue-500/10 border border-blue-400/25"
+                : "bg-white/3 border border-white/6"
+              }`}>
+                <span className="text-base flex-shrink-0">{row.icon}</span>
+                <p className={`text-sm font-semibold ${
+                  row.state === "done" ? "text-emerald-300"
+                  : row.state === "active" ? "text-blue-300"
+                  : "text-white/25"
+                }`}>{row.label}</p>
+                {row.state === "active" && <Loader2 size={12} className="text-blue-400 animate-spin ml-auto flex-shrink-0" />}
+              </div>
+            ))}
+          </div>
+
+          {/* Recap card */}
+          <div className="w-full max-w-sm bg-white/5 border border-white/10 rounded-2xl px-5 py-4 mb-6">
+            <p className="text-white/35 text-[10px] uppercase tracking-widest font-bold mb-3">Récapitulatif</p>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-white/40 text-sm">Montant</span>
+                <span className="text-white font-black text-base">{amount} <span className="text-white/50 text-sm font-semibold">{link.currency}</span></span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-white/40 text-sm">Service</span>
+                <span className="text-white font-semibold text-sm truncate max-w-[160px]">{link.label}</span>
+              </div>
+              {manualTxnId && (
+                <div className="flex justify-between items-center">
+                  <span className="text-white/40 text-sm">Référence</span>
+                  <span className="text-white/70 font-mono text-xs">{manualTxnId}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="w-full max-w-sm border-t border-white/8 pt-4 text-center">
+            <p className="text-white/20 text-[11px] flex items-center justify-center gap-1.5">
+              <ShieldCheck size={9} /> Paiement sécurisé · SIKApay SIKA TEXTE
+            </p>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   // ── Manual deposit step ──────────────────────────────────────────────────────
   if (step === "manual") {

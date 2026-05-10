@@ -131,6 +131,61 @@ function MaintenanceBadge() {
   );
 }
 
+function CountdownCircle({ createdAt }: { createdAt: string }) {
+  const [remaining, setRemaining] = useState(0);
+  const [progress, setProgress] = useState(1);
+  useEffect(() => {
+    const deadline = new Date(createdAt).getTime() + 24 * 60 * 60 * 1000;
+    const update = () => {
+      const now = Date.now();
+      const diff = Math.max(0, deadline - now);
+      setRemaining(diff);
+      setProgress(diff / (24 * 60 * 60 * 1000));
+    };
+    update();
+    const iv = setInterval(update, 1000);
+    return () => clearInterval(iv);
+  }, [createdAt]);
+  const h = Math.floor(remaining / 3600000);
+  const m = Math.floor((remaining % 3600000) / 60000);
+  const s = Math.floor((remaining % 60000) / 1000);
+  const R = 52;
+  const C = 2 * Math.PI * R;
+  const offset = C * (1 - Math.min(1, Math.max(0, progress)));
+  const expired = remaining === 0;
+  return (
+    <div className="relative flex items-center justify-center w-36 h-36">
+      <svg width="144" height="144" className="-rotate-90 absolute inset-0">
+        <circle cx="72" cy="72" r={R} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="8" />
+        <circle cx="72" cy="72" r={R} fill="none"
+          stroke={expired ? "#ef4444" : "url(#timerGrad)"}
+          strokeWidth="8" strokeLinecap="round"
+          strokeDasharray={C} strokeDashoffset={offset}
+          style={{ transition: "stroke-dashoffset 1s linear" }}
+        />
+        <defs>
+          <linearGradient id="timerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#60a5fa" />
+            <stop offset="100%" stopColor="#a78bfa" />
+          </linearGradient>
+        </defs>
+      </svg>
+      <div className="absolute flex flex-col items-center">
+        {expired ? (
+          <span className="text-red-400 text-xs font-bold">Expiré</span>
+        ) : (
+          <>
+            <span className="text-white font-black text-xl font-mono tracking-tight leading-none">
+              {String(h).padStart(2, "0")}:{String(m).padStart(2, "0")}:{String(s).padStart(2, "0")}
+            </span>
+            <span className="text-white/35 text-[10px] mt-1 font-semibold uppercase tracking-wider">restant</span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Page principale ──────────────────────────────────────────────────────────
 export default function Activation() {
   const { toast } = useToast();
@@ -152,6 +207,9 @@ export default function Activation() {
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
   const [manualSubmitting, setManualSubmitting] = useState(false);
   const [manualSubmitted, setManualSubmitted]   = useState(false);
+  const [pendingCreatedAt, setPendingCreatedAt] = useState<string | null>(null);
+  const [rejectionNote, setRejectionNote]       = useState<string | null>(null);
+  const [statusChecking, setStatusChecking]     = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // SolvexPay state
@@ -222,6 +280,28 @@ export default function Activation() {
     setScreenshotPreview(url);
     return () => URL.revokeObjectURL(url);
   }, [screenshotFile]);
+
+  // Auto-polling du statut quand demande en attente
+  useEffect(() => {
+    if (!manualSubmitted) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch("/api/activation/my-pending-request", { credentials: "include" });
+        const data = await res.json();
+        if (cancelled) return;
+        if (data.status === "approved") {
+          setManualSubmitted(false);
+          refetchStatus();
+        } else if (data.status === "rejected") {
+          setManualSubmitted(false);
+          setRejectionNote(data.adminNote || "");
+        }
+      } catch {}
+    };
+    const iv = setInterval(poll, 30000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [manualSubmitted]);
 
   // SolvexPay polling
   useEffect(() => {
@@ -295,6 +375,8 @@ export default function Activation() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || "Erreur de soumission");
+      if (data.createdAt) setPendingCreatedAt(new Date(data.createdAt).toISOString());
+      else setPendingCreatedAt(new Date().toISOString());
       setManualSubmitted(true);
     } catch (err: any) {
       toast({ title: "Erreur", description: err.message, variant: "destructive" });
@@ -350,7 +432,29 @@ export default function Activation() {
     setTransactionId(null); setTxStatus(null); setCheckCount(0);
     setStep(1); setPhone(""); setPayerName(""); setTransactionId2(""); setScreenshotFile(null);
     setManualSubmitted(false); setDepositInfo(null);
+    setPendingCreatedAt(null); setRejectionNote(null);
     if (intervalRef.current) clearInterval(intervalRef.current);
+  };
+
+  const checkPendingStatus = async () => {
+    setStatusChecking(true);
+    try {
+      const res = await fetch("/api/activation/my-pending-request", { credentials: "include" });
+      const data = await res.json();
+      if (data.status === "approved") {
+        setManualSubmitted(false);
+        refetchStatus();
+      } else if (data.status === "rejected") {
+        setManualSubmitted(false);
+        setRejectionNote(data.adminNote || "");
+      } else {
+        toast({ title: "Toujours en attente", description: "Votre demande est en cours de vérification par nos équipes." });
+      }
+    } catch {
+      toast({ title: "Erreur réseau", description: "Impossible de vérifier le statut.", variant: "destructive" });
+    } finally {
+      setStatusChecking(false);
+    }
   };
 
   // ── Compte déjà activé ────────────────────────────────────────────────────
@@ -456,46 +560,172 @@ export default function Activation() {
     );
   }
 
+  // ── DEMANDE REJETÉE ───────────────────────────────────────────────────────
+  if (rejectionNote !== null) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-5"
+        style={{ background: "linear-gradient(160deg, #1a0608 0%, #2d0a0e 60%, #1a0608 100%)" }}>
+        <style>{`@keyframes bounce{0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1}}`}</style>
+        <div className="w-full max-w-sm">
+          <div className="flex items-center gap-2.5 mb-8">
+            <img src={sikaLogo} alt="Sika" className="w-9 h-9 rounded-xl object-cover border border-white/15" />
+            <div>
+              <p className="text-[9px] text-red-400 uppercase tracking-[0.2em] font-bold">Sika Services</p>
+              <p className="font-black text-white text-sm leading-tight">SIKA TEXTE</p>
+            </div>
+          </div>
+          <div className="text-center mb-8">
+            <div className="relative w-24 h-24 mx-auto mb-5">
+              <div className="absolute inset-0 rounded-full bg-red-500/20 animate-pulse" />
+              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-red-600/40 to-rose-700/40 border border-red-500/40 flex items-center justify-center mx-auto">
+                <XCircle size={44} className="text-red-400" />
+              </div>
+            </div>
+            <h1 className="text-white font-black text-2xl mb-2">Demande rejetée</h1>
+            <p className="text-white/50 text-sm leading-relaxed">
+              Votre demande d'activation n'a pas été validée par nos équipes.
+            </p>
+          </div>
+          {rejectionNote && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 mb-5">
+              <p className="text-red-300/60 text-[10px] uppercase tracking-wider font-bold mb-1">Motif</p>
+              <p className="text-red-200 text-sm leading-relaxed">{rejectionNote}</p>
+            </div>
+          )}
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-4 mb-6 space-y-2">
+            <p className="text-white/40 text-xs font-bold uppercase tracking-wider mb-2">Que faire ?</p>
+            <div className="flex gap-3 text-sm text-white/60"><span>🔄</span><span>Vérifiez votre paiement et réessayez</span></div>
+            <div className="flex gap-3 text-sm text-white/60"><span>📸</span><span>Assurez-vous que la capture est lisible</span></div>
+            <div className="flex gap-3 text-sm text-white/60"><span>💬</span><span>Contactez l'assistance si nécessaire</span></div>
+          </div>
+          <Button
+            onClick={handleReset}
+            className="w-full py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 mb-3"
+            style={{ background: "linear-gradient(135deg, #2563eb, #1d4ed8)", color: "#fff" }}
+          >
+            <RefreshCw size={16} /> Soumettre une nouvelle demande
+          </Button>
+          <Button asChild variant="ghost" className="w-full text-sm text-white/30 hover:text-white/60">
+            <Link href="/">Retour à l'accueil</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   // ── DEMANDE MANUELLE SOUMISE (attente admin) ──────────────────────────────
   if (manualSubmitted) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
-        <Card className="border-0 shadow-2xl w-full max-w-sm rounded-3xl overflow-hidden">
-          <div className="bg-gradient-to-br from-[#0f2460] to-[#1a3a8f] p-6 flex items-center gap-3">
-            <img src={sikaLogo} alt="Sika Services" className="w-12 h-12 rounded-2xl object-cover border-2 border-white/20" />
-            <div className="text-white">
-              <p className="text-xs text-blue-300 font-bold uppercase tracking-wider">Sika Services</p>
-              <p className="font-black text-lg">SIKA TEXTE</p>
+      <div className="min-h-screen flex flex-col"
+        style={{ background: "linear-gradient(160deg, #060c1a 0%, #0d1530 60%, #060c1a 100%)" }}>
+        <style>{`@keyframes bounce{0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1}}`}</style>
+
+        {/* Barre du haut */}
+        <div className="px-5 pt-6 pb-4 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-2.5">
+            <img src={sikaLogo} alt="Sika" className="w-9 h-9 rounded-xl object-cover border border-white/15" />
+            <div>
+              <p className="text-[9px] text-blue-400 uppercase tracking-[0.2em] font-bold">Sika Services</p>
+              <p className="font-black text-white text-sm leading-tight">SIKA TEXTE</p>
             </div>
           </div>
-          <CardContent className="p-8 text-center space-y-5">
-            <div className="bg-amber-100 w-20 h-20 rounded-full mx-auto flex items-center justify-center">
-              <Clock className="text-amber-600" size={40} />
+          <div className="flex items-center gap-1.5 bg-amber-500/15 border border-amber-400/30 rounded-full px-3 py-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span className="text-amber-300 text-[11px] font-bold">En vérification</span>
+          </div>
+        </div>
+
+        {/* Contenu principal */}
+        <div className="flex-1 flex flex-col items-center px-5 py-4 overflow-y-auto">
+
+          {/* Icône centrale animée */}
+          <div className="relative mb-5 flex-shrink-0">
+            <div className="absolute inset-0 rounded-full bg-blue-500/15 animate-ping" style={{ animationDuration: "2.5s" }} />
+            <div className="relative w-20 h-20 rounded-full border border-blue-400/30 bg-blue-500/10 flex items-center justify-center">
+              <ShieldCheck size={36} className="text-blue-300" />
             </div>
-            <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">Demande envoyée !</h2>
-              <p className="text-gray-500 text-sm leading-relaxed">
-                Votre demande d'activation a été transmise à l'administrateur. Votre compte sera activé après vérification du paiement, généralement sous <strong>quelques minutes à quelques heures</strong>.
-              </p>
+          </div>
+
+          <h1 className="text-white font-black text-2xl text-center mb-1 flex-shrink-0">Vérification en cours</h1>
+          <p className="text-white/45 text-sm text-center mb-5 max-w-xs flex-shrink-0">
+            Votre demande a bien été reçue et est en cours d'examen par nos agents.
+          </p>
+
+          {/* Compte à rebours */}
+          {pendingCreatedAt && (
+            <div className="flex flex-col items-center mb-5 flex-shrink-0">
+              <p className="text-white/25 text-[10px] uppercase tracking-widest font-bold mb-3">Délai maximum de traitement</p>
+              <CountdownCircle createdAt={pendingCreatedAt} />
             </div>
-            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-left space-y-2">
-              <p className="text-xs font-bold text-blue-800 uppercase tracking-wide">Que faire maintenant ?</p>
-              <div className="flex gap-2 text-xs text-blue-700"><span>📱</span><span>Gardez votre téléphone accessible</span></div>
-              <div className="flex gap-2 text-xs text-blue-700"><span>✉️</span><span>Vous serez notifié dès l'activation</span></div>
-              <div className="flex gap-2 text-xs text-blue-700"><span>🔄</span><span>Revenez sur cette page pour vérifier</span></div>
+          )}
+
+          {/* Badge équipes mobilisées */}
+          <div className="w-full max-w-sm bg-white/5 border border-white/10 rounded-2xl px-4 py-3 flex items-center gap-3 mb-4 flex-shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 flex items-center justify-center flex-shrink-0">
+              <span className="text-lg">👥</span>
             </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-white text-sm font-bold leading-tight">Équipes mobilisées</p>
+              <p className="text-white/35 text-xs">Nos agents vérifient votre paiement</p>
+            </div>
+            <div className="flex gap-1 flex-shrink-0">
+              {[0, 1, 2].map(i => (
+                <div key={i} className="w-1.5 h-1.5 rounded-full bg-emerald-400"
+                  style={{ animation: `bounce 1.2s ${i * 0.3}s infinite ease-in-out` }} />
+              ))}
+            </div>
+          </div>
+
+          {/* Étapes de vérification */}
+          <div className="w-full max-w-sm space-y-2 mb-6 flex-shrink-0">
+            {[
+              { icon: "✅", label: "Demande envoyée avec succès", state: "done" },
+              { icon: "🔍", label: "Vérification du paiement en cours", state: "active" },
+              { icon: "🚀", label: "Activation du compte", state: "pending" },
+            ].map((row, i) => (
+              <div key={i} className={`flex items-center gap-3 px-4 py-2.5 rounded-xl ${
+                row.state === "done" ? "bg-emerald-500/8 border border-emerald-400/20"
+                : row.state === "active" ? "bg-blue-500/10 border border-blue-400/25"
+                : "bg-white/3 border border-white/6"
+              }`}>
+                <span className="text-base flex-shrink-0">{row.icon}</span>
+                <p className={`text-sm font-semibold ${
+                  row.state === "done" ? "text-emerald-300"
+                  : row.state === "active" ? "text-blue-300"
+                  : "text-white/25"
+                }`}>{row.label}</p>
+                {row.state === "active" && (
+                  <Loader2 size={12} className="text-blue-400 animate-spin ml-auto flex-shrink-0" />
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Boutons */}
+          <div className="w-full max-w-sm space-y-3 flex-shrink-0">
             <Button
-              onClick={() => refetchStatus()}
-              variant="outline"
-              className="w-full rounded-xl py-3 font-semibold border-2 border-blue-200 text-blue-700"
+              onClick={checkPendingStatus}
+              disabled={statusChecking}
+              className="w-full py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 border border-white/15"
+              style={{ background: "rgba(255,255,255,0.07)", color: "#fff" }}
             >
-              <RefreshCw size={14} className="mr-2" /> Vérifier l'activation
+              {statusChecking
+                ? <><Loader2 size={14} className="animate-spin" /> Vérification…</>
+                : <><RefreshCw size={14} /> Actualiser le statut</>
+              }
             </Button>
-            <Button asChild variant="ghost" className="w-full text-sm text-gray-500">
+            <Button asChild variant="ghost" className="w-full text-sm text-white/30 hover:text-white/60">
               <Link href="/">Retour à l'accueil</Link>
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+
+        {/* Pied de page */}
+        <div className="px-5 pb-6 text-center flex-shrink-0">
+          <p className="text-white/18 text-[10px] flex items-center justify-center gap-1.5">
+            <ShieldCheck size={9} /> Vérification sécurisée · Mise à jour automatique toutes les 30 s
+          </p>
+        </div>
       </div>
     );
   }
