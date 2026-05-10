@@ -303,6 +303,27 @@ export default function Activation() {
     return () => { cancelled = true; clearInterval(iv); };
   }, [manualSubmitted]);
 
+  // Restaurer l'état pending au chargement de la page
+  useEffect(() => {
+    if (activationStatus === undefined) return;
+    if (activationStatus?.isActive) return;
+    if (manualSubmitted || rejectionNote !== null) return;
+    fetch("/api/activation/my-pending-request", { credentials: "include" })
+      .then(r => r.json())
+      .then(data => {
+        if (!data.found) return;
+        const createdAt = new Date(data.createdAt);
+        const hoursDiff = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60);
+        if (data.status === "pending" && hoursDiff < 24) {
+          setPendingCreatedAt(createdAt.toISOString());
+          setManualSubmitted(true);
+        } else if (data.status === "rejected") {
+          setRejectionNote(data.adminNote || "");
+        }
+      })
+      .catch(() => {});
+  }, [activationStatus]);
+
   // SolvexPay polling
   useEffect(() => {
     if (!transactionId || txStatus === "completed" || txStatus === "failed") return;
@@ -734,150 +755,207 @@ export default function Activation() {
   if (step === 1) {
     const canContinue = country && operator && phone.replace(/\D/g, "").length >= 6
       && !isOpMaintenance(country, operator);
+    const PGBG = { background: "linear-gradient(160deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)" };
     return (
-      <div className="min-h-screen bg-gray-50">
-        <UpayHeader amount={activationAmount} />
-        <div className="-mt-0 bg-gray-50 overflow-hidden">
-          <StepIndicator step={1} manual={isManualCountry(country)} />
-          <div className="px-5 pt-4 pb-60 space-y-5 max-w-md mx-auto">
-
-            {/* Sélection pays */}
-            <div>
-              <label className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2.5">
-                <Globe size={13} /> Pays
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                {COUNTRIES.map(c => (
-                  <button
-                    key={c.code}
-                    onClick={() => { setCountry(c.code); setOperator(""); }}
-                    className={`flex items-center gap-2.5 p-3 rounded-2xl border-2 text-left transition-all ${
-                      country === c.code ? "border-blue-700 bg-blue-50 shadow-sm" : "border-gray-200 bg-white hover:border-gray-300"
-                    }`}
-                  >
-                    <span className="text-2xl">{c.flag}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-xs font-bold leading-tight truncate ${country === c.code ? "text-blue-800" : "text-gray-700"}`}>{c.name}</p>
-                      <p className="text-[10px] text-gray-400">+{c.prefix}</p>
-                    </div>
-                    {country === c.code && <CheckCircle size={14} className="text-blue-600 flex-shrink-0" />}
-                  </button>
-                ))}
+      <div className="min-h-screen pb-44" style={PGBG}>
+        {/* Header */}
+        <div style={{ background: "linear-gradient(135deg,#0f2460,#1a3a8f)" }} className="px-5 pt-6 pb-8">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2.5">
+              <img src={sikaLogo} alt="Sika" className="w-10 h-10 rounded-2xl object-cover ring-2 ring-white/20" />
+              <div>
+                <p className="text-[9px] text-blue-300 uppercase tracking-[0.2em] font-bold">Sika Services</p>
+                <p className="font-black text-white text-sm leading-tight">SIKA TEXTE</p>
               </div>
             </div>
+            <Link href="/withdrawal">
+              <button className="flex items-center gap-1.5 bg-white/10 rounded-xl px-3 py-1.5 text-xs font-semibold text-white/70">
+                <ArrowLeft size={13} /> Retour
+              </button>
+            </Link>
+          </div>
+          <p className="text-blue-200 text-xs uppercase tracking-widest font-bold mb-1">Frais d'activation</p>
+          <div className="flex items-end gap-1">
+            <span className="text-4xl font-black text-white">{activationAmount}</span>
+            <span className="text-lg font-bold text-blue-300 mb-0.5">FCFA</span>
+          </div>
+          <div className="flex items-center gap-1.5 mt-2">
+            <ShieldCheck size={12} className="text-blue-300" />
+            <span className="text-blue-300/70 text-[11px] font-semibold">Upay · Paiement sécurisé</span>
+          </div>
+        </div>
 
-            {/* Sélection opérateur */}
-            {selectedCountry && (
-              <div>
-                <label className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2.5">
-                  Réseau Mobile Money
-                </label>
-                <div className="space-y-2">
-                  {selectedCountry.operators.map(op => {
-                    const info = OPERATORS[op];
-                    const selected = operator === op;
-                    const inMaintenance = isOpMaintenance(country, op);
-                    return (
-                      <div
-                        key={op}
-                        onClick={() => { if (!inMaintenance) setOperator(op); }}
-                        className={`w-full flex items-center gap-3 p-3.5 rounded-2xl border-2 text-left transition-all select-none ${
-                          inMaintenance ? "border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed"
-                            : selected ? "border-blue-700 bg-blue-50 shadow-sm cursor-pointer"
-                            : "border-gray-200 bg-white hover:border-gray-300 cursor-pointer"
-                        }`}
-                      >
-                        <div className={inMaintenance ? "grayscale" : ""}><OperatorLogo code={op} size="sm" /></div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className={`text-sm font-bold ${inMaintenance ? "text-gray-400" : selected ? "text-blue-900" : "text-gray-800"}`}>{info.name}</p>
-                            {inMaintenance && <MaintenanceBadge />}
-                          </div>
-                          <p className="text-[11px] text-gray-400 mb-1">{info.full}</p>
-                          {!inMaintenance && <div className="flex items-center gap-1.5 flex-wrap"><MethodBadge method={info.method} /></div>}
-                          {inMaintenance && <p className="text-[10px] text-red-400 font-semibold mt-0.5">Indisponible — en maintenance</p>}
-                        </div>
-                        {selected && !inMaintenance && <CheckCircle size={16} className="text-blue-600 flex-shrink-0" />}
-                      </div>
-                    );
-                  })}
-                </div>
+        {/* Step indicator */}
+        <div className="bg-white/5 border-b border-white/5 px-5 py-3 flex items-center gap-2">
+          <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center">
+            <span className="text-blue-900 text-xs font-black">1</span>
+          </div>
+          <span className="text-white text-xs font-semibold">Coordonnées</span>
+          {isManualCountry(country) && (
+            <>
+              <ChevronRight size={13} className="text-white/20" />
+              <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center">
+                <span className="text-white/40 text-xs font-bold">2</span>
               </div>
-            )}
+              <span className="text-white/40 text-xs font-semibold">Dépôt</span>
+            </>
+          )}
+          <ChevronRight size={13} className="text-white/20" />
+          <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center">
+            <span className="text-white/40 text-xs font-bold">{isManualCountry(country) ? "3" : "2"}</span>
+          </div>
+          <span className="text-white/40 text-xs font-semibold">Confirmation</span>
+        </div>
 
-            {/* Note Wave */}
-            {isWave && (
-              <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-3.5 flex gap-3">
-                <ExternalLink size={16} className="text-indigo-500 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-indigo-800">
-                  <p className="font-bold mb-0.5">Paiement Wave</p>
-                  <p className="text-xs">Vous serez redirigé vers la page de paiement Wave pour finaliser votre transaction.</p>
-                </div>
-              </div>
-            )}
-
-            {/* Numéro de paiement */}
-            {operator && (
-              <div>
-                <label className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2.5">
-                  <Phone size={13} /> Numéro de paiement
-                </label>
-                <div className="flex gap-2">
-                  <div className="flex items-center justify-center bg-white border-2 border-gray-200 rounded-xl px-3 text-sm font-bold text-gray-600 whitespace-nowrap">
-                    +{selectedCountry?.prefix}
+        <div className="px-5 pt-4 space-y-5 max-w-md mx-auto">
+          {/* Pays */}
+          <div>
+            <p className="text-white/40 text-xs font-bold uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+              <Globe size={12} /> Pays
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {COUNTRIES.map(c => (
+                <button key={c.code}
+                  onClick={() => { setCountry(c.code); setOperator(""); }}
+                  className={`flex items-center gap-2.5 p-3 rounded-2xl border-2 text-left transition-all ${
+                    country === c.code ? "border-blue-400 bg-blue-500/15" : "border-white/10 bg-white/5"
+                  }`}>
+                  <span className="text-2xl">{c.flag}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs font-bold leading-tight truncate ${country === c.code ? "text-white" : "text-white/70"}`}>{c.name}</p>
+                    <p className="text-[10px] text-white/30">+{c.prefix}</p>
                   </div>
-                  <Input
-                    type="tel" inputMode="numeric"
-                    placeholder={`Ex : ${phonePlaceholder}`}
-                    value={phone}
-                    onChange={e => setPhone(e.target.value.replace(/[^\d\s]/g, ""))}
-                    className="flex-1 rounded-xl border-2 border-gray-200 focus:border-blue-600 py-3 text-base font-semibold"
-                  />
-                </div>
-                <p className="text-xs text-gray-400 mt-1.5 pl-1">Entrez votre numéro local (sans l'indicatif pays)</p>
-              </div>
-            )}
-
-            {/* Maintenance warning */}
-            {operator && isOpMaintenance(country, operator) && (
-              <div className="bg-red-50 border border-red-200 rounded-2xl p-3.5 flex gap-3">
-                <AlertTriangle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
-                <div className="text-xs text-red-800">
-                  <p className="font-bold mb-0.5">⚠ {selectedOp?.name} — En maintenance</p>
-                  <p>SolvexPay signale une maintenance sur cet opérateur. Le paiement peut échouer ou être retardé.</p>
-                </div>
-              </div>
-            )}
-
-            {/* Note dépôt manuel */}
-            {country && operator && isManualCountry(country) && (
-              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex gap-3">
-                <Info size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-amber-800">
-                  L'activation pour <strong>{selectedCountry?.name}</strong> se fait par <strong>dépôt manuel</strong>. À l'étape suivante, vous recevrez un numéro de dépôt et devrez soumettre votre preuve de paiement.
-                </p>
-              </div>
-            )}
-
-            {/* Note redirection */}
-            {country && operator && isRedirectCountry(country) && (
-              <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-3.5 flex gap-3">
-                <ExternalLink size={16} className="text-indigo-600 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-indigo-800">
-                  Vous serez redirigé vers la <strong>page de paiement sécurisée</strong> de votre opérateur pour finaliser l'activation.
-                </p>
-              </div>
-            )}
-
-            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 shadow-lg max-w-md mx-auto">
-              <Button
-                onClick={handleStep1Continue}
-                disabled={!canContinue}
-                className="w-full bg-blue-800 hover:bg-blue-900 disabled:opacity-40 text-white font-bold py-4 rounded-2xl text-base shadow-xl flex items-center justify-center gap-2"
-              >
-                Continuer <ChevronRight size={18} />
-              </Button>
+                  {country === c.code && <CheckCircle size={13} className="text-blue-400 flex-shrink-0" />}
+                </button>
+              ))}
             </div>
+          </div>
+
+          {/* Opérateur */}
+          {selectedCountry && (
+            <div>
+              <p className="text-white/40 text-xs font-bold uppercase tracking-wider mb-2.5">Réseau Mobile Money</p>
+              <div className="space-y-2">
+                {selectedCountry.operators.map(op => {
+                  const info = OPERATORS[op];
+                  const selected = operator === op;
+                  const inMaintenance = isOpMaintenance(country, op);
+                  return (
+                    <div key={op}
+                      onClick={() => { if (!inMaintenance) setOperator(op); }}
+                      className={`w-full flex items-center gap-3 p-3.5 rounded-2xl border-2 text-left transition-all select-none ${
+                        inMaintenance ? "border-white/5 bg-white/3 opacity-50 cursor-not-allowed"
+                          : selected ? "border-blue-400 bg-blue-500/15 cursor-pointer"
+                          : "border-white/10 bg-white/5 cursor-pointer"
+                      }`}>
+                      <div className={inMaintenance ? "grayscale opacity-50" : ""}><OperatorLogo code={op} size="sm" /></div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className={`text-sm font-bold ${inMaintenance ? "text-white/30" : selected ? "text-white" : "text-white/70"}`}>{info.name}</p>
+                          {inMaintenance && <MaintenanceBadge />}
+                        </div>
+                        <p className="text-[11px] text-white/30 mb-1">{info.full}</p>
+                        {!inMaintenance && <MethodBadge method={info.method} />}
+                        {inMaintenance && <p className="text-[10px] text-red-400 font-semibold mt-0.5">Indisponible — en maintenance</p>}
+                      </div>
+                      {selected && !inMaintenance && <CheckCircle size={16} className="text-blue-400 flex-shrink-0" />}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Note Wave */}
+          {isWave && (
+            <div className="bg-indigo-500/10 border border-indigo-400/20 rounded-2xl p-3.5 flex gap-3">
+              <ExternalLink size={16} className="text-indigo-400 flex-shrink-0 mt-0.5" />
+              <div className="text-sm">
+                <p className="font-bold text-indigo-300 mb-0.5">Paiement Wave</p>
+                <p className="text-xs text-indigo-300/70">Vous serez redirigé vers la page de paiement Wave pour finaliser votre transaction.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Numéro */}
+          {operator && (
+            <div>
+              <p className="text-white/40 text-xs font-bold uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                <Phone size={12} /> Numéro de paiement
+              </p>
+              <div className="flex gap-2">
+                <div className="flex items-center justify-center bg-white/5 border border-white/15 rounded-2xl px-3 text-sm font-bold text-white/60 whitespace-nowrap">
+                  +{selectedCountry?.prefix}
+                </div>
+                <input type="tel" inputMode="numeric"
+                  placeholder={`Ex : ${phonePlaceholder}`}
+                  value={phone}
+                  onChange={e => setPhone(e.target.value.replace(/[^\d\s]/g, ""))}
+                  className="flex-1 border border-white/15 rounded-2xl px-4 py-3 text-base font-semibold text-white placeholder:text-white/25 focus:outline-none focus:border-blue-400/60"
+                  style={{ background: "rgba(255,255,255,0.07)" }}
+                />
+              </div>
+              <p className="text-white/25 text-xs mt-1.5 pl-1">Entrez votre numéro local (sans l'indicatif pays)</p>
+            </div>
+          )}
+
+          {/* Maintenance */}
+          {operator && isOpMaintenance(country, operator) && (
+            <div className="bg-red-500/10 border border-red-400/20 rounded-2xl p-3.5 flex gap-3">
+              <AlertTriangle size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
+              <div className="text-xs text-red-300">
+                <p className="font-bold mb-0.5">⚠ {selectedOp?.name} — En maintenance</p>
+                <p>SolvexPay signale une maintenance sur cet opérateur. Le paiement peut échouer.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Note dépôt manuel */}
+          {country && operator && isManualCountry(country) && (
+            <div className="bg-amber-500/10 border border-amber-400/20 rounded-2xl p-3.5 flex gap-3">
+              <Info size={16} className="text-amber-400 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-300">
+                L'activation pour <strong>{selectedCountry?.name}</strong> se fait par <strong>dépôt manuel</strong>. À l'étape suivante, vous recevrez un numéro de dépôt et devrez soumettre votre preuve de paiement.
+              </p>
+            </div>
+          )}
+
+          {/* Note redirection */}
+          {country && operator && isRedirectCountry(country) && (
+            <div className="bg-indigo-500/10 border border-indigo-400/20 rounded-2xl p-3.5 flex gap-3">
+              <ExternalLink size={16} className="text-indigo-400 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-indigo-300">
+                Vous serez redirigé vers la <strong>page de paiement sécurisée</strong> de votre opérateur pour finaliser l'activation.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Bouton fixe en bas */}
+        <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto">
+          <div className="bg-[#0f172a] border-t border-white/5 px-4 pt-3 pb-1 space-y-1.5">
+            <div className="bg-red-900/30 border border-red-500/30 rounded-xl px-3 py-2 flex gap-2">
+              <AlertCircle size={12} className="text-red-400 flex-shrink-0 mt-0.5" />
+              <p className="text-[10px] text-red-300 leading-snug">
+                <strong>Important :</strong> Toute annulation après soumission entraîne le bannissement définitif du compte et de l'adresse IP.
+              </p>
+            </div>
+            <div className="bg-amber-900/20 border border-amber-500/20 rounded-xl px-3 py-2 flex gap-2">
+              <AlertCircle size={12} className="text-amber-400 flex-shrink-0 mt-0.5" />
+              <p className="text-[10px] text-amber-300 leading-snug">
+                Nos équipes sont mobilisées. Veuillez patienter après chaque paiement afin que le service traite votre requête.
+              </p>
+            </div>
+          </div>
+          <div className="bg-[#0f172a] px-4 pt-2 pb-4">
+            <button onClick={handleStep1Continue} disabled={!canContinue}
+              className="w-full py-4 rounded-2xl font-bold text-white text-base transition-all disabled:opacity-40 flex items-center justify-center gap-2"
+              style={{ background: canContinue ? "linear-gradient(135deg, #2563eb, #1d4ed8)" : "rgba(255,255,255,0.08)" }}>
+              Continuer <ChevronRight size={18} />
+            </button>
+            <p className="text-center text-[10px] text-white/25 mt-2 flex items-center justify-center gap-1">
+              <ShieldCheck size={10} /> Paiement sécurisé · Upay SIKA TEXTE
+            </p>
           </div>
         </div>
       </div>
@@ -889,162 +967,182 @@ export default function Activation() {
     const canSubmit = transactionId2.trim().length >= 3;
     const opInfo = selectedOp;
     const fullPhone = `+${selectedCountry?.prefix}${phone.replace(/\s/g, "")}`;
+    const PGBG = { background: "linear-gradient(160deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)" };
 
     return (
-      <div className="min-h-screen bg-gray-50">
-        <UpayHeader amount={activationAmount} />
-        <div className="bg-gray-50 overflow-hidden">
-          <StepIndicator step={2} manual={true} />
-          <div className="px-5 pt-4 pb-60 space-y-4 max-w-md mx-auto">
-
-            {/* Back button */}
-            <button onClick={() => setStep(1)} className="flex items-center gap-1.5 text-blue-700 text-sm font-semibold">
-              <ChevronLeft size={16} /> Modifier les coordonnées
-            </button>
-
-            {depositLoading ? (
-              <div className="flex items-center justify-center py-12 text-gray-400">
-                <Loader2 size={28} className="animate-spin" />
+      <div className="min-h-screen pb-48" style={PGBG}>
+        {/* Header */}
+        <div style={{ background: "linear-gradient(135deg,#0f2460,#1a3a8f)" }} className="px-5 pt-6 pb-8">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2.5">
+              <img src={sikaLogo} alt="Sika" className="w-10 h-10 rounded-2xl object-cover ring-2 ring-white/20" />
+              <div>
+                <p className="text-[9px] text-blue-300 uppercase tracking-[0.2em] font-bold">Sika Services</p>
+                <p className="font-black text-white text-sm leading-tight">SIKA TEXTE</p>
               </div>
-            ) : depositInfo ? (
-              <>
-                {/* Alerte transfert international */}
-                {depositInfo.isInternational && operator !== 'wave' && (
-                  <div className="bg-green-50 border-2 border-green-400 rounded-2xl p-4 flex gap-3">
-                    <AlertTriangle size={18} className="text-green-600 flex-shrink-0 mt-0.5" />
-                    <div className="text-sm text-green-800">
-                      <p className="font-black text-base mb-1 text-green-700">⚠️ Transfert INTERNATIONAL requis</p>
-                      <p className="leading-relaxed">
-                        {depositInfo.alertText || <>Effectuez un <strong>transfert international</strong> sur ce numéro {opInfo?.name}.</>}
-                      </p>
-                    </div>
-                  </div>
-                )}
+            </div>
+            <button onClick={() => setStep(1)} className="flex items-center gap-1.5 bg-white/10 rounded-xl px-3 py-1.5 text-xs font-semibold text-white/70">
+              <ChevronLeft size={13} /> Retour
+            </button>
+          </div>
+          <p className="text-blue-200 text-xs uppercase tracking-widest font-bold mb-1">Montant à déposer</p>
+          <div className="flex items-end gap-1">
+            <span className="text-4xl font-black text-white">{activationAmount}</span>
+            <span className="text-lg font-bold text-blue-300 mb-0.5">FCFA</span>
+          </div>
+          <div className="flex items-center gap-1.5 mt-2">
+            <ShieldCheck size={12} className="text-blue-300" />
+            <span className="text-blue-300/70 text-[11px] font-semibold">Upay · Paiement sécurisé</span>
+          </div>
+        </div>
 
-                {/* Numéro de dépôt */}
-                <Card className="border-0 shadow-xl rounded-3xl overflow-hidden">
-                  <div className="px-5 py-4 bg-white border-b border-gray-100">
-                    <p className="font-bold text-gray-800 text-base">
-                      {depositInfo.depositLabel || (operator === 'wave' ? 'Numéro WAVE' : `Numéro de dépôt ${opInfo?.name}`)}
+        {/* Step indicator */}
+        <div className="bg-white/5 border-b border-white/5 px-5 py-3 flex items-center gap-2">
+          <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center">
+            <CheckCircle size={13} className="text-white" />
+          </div>
+          <span className="text-white/50 text-xs font-semibold">Coordonnées</span>
+          <ChevronRight size={13} className="text-white/20" />
+          <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center">
+            <span className="text-blue-900 text-xs font-black">2</span>
+          </div>
+          <span className="text-white text-xs font-semibold">Dépôt</span>
+          <ChevronRight size={13} className="text-white/20" />
+          <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center">
+            <span className="text-white/40 text-xs font-bold">3</span>
+          </div>
+          <span className="text-white/40 text-xs font-semibold">Confirmation</span>
+        </div>
+
+        <div className="px-5 pt-4 space-y-4 max-w-md mx-auto">
+          {depositLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 size={32} className="text-blue-400 animate-spin" />
+            </div>
+          ) : depositInfo ? (
+            <>
+              {/* Alerte transfert international */}
+              {depositInfo.isInternational && operator !== 'wave' && (
+                <div className="bg-green-500/10 border-2 border-green-500/40 rounded-2xl p-4 flex gap-3">
+                  <AlertTriangle size={18} className="text-green-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-black text-base mb-1 text-green-400">⚠️ Transfert INTERNATIONAL requis</p>
+                    <p className="text-xs text-green-300/80 leading-relaxed">
+                      {depositInfo.alertText || <>Effectuez un <strong>transfert international</strong> sur ce numéro {opInfo?.name}.</>}
                     </p>
-                    <p className="text-xs text-gray-500 mt-0.5">Effectuez votre paiement sur ce numéro</p>
-                  </div>
-                  <CardContent className="p-5 space-y-4">
-                    <div className="flex items-center gap-3 bg-gray-50 rounded-2xl p-4">
-                      <div className="flex-1">
-                        <p className="text-xs text-gray-500 font-semibold mb-0.5">Numéro {opInfo?.name}</p>
-                        <p className="text-2xl font-black text-gray-900 tracking-wider font-mono">
-                          {depositInfo.depositNumber || "Non configuré"}
-                        </p>
-                      </div>
-                      {depositInfo.depositNumber && (
-                        <button
-                          onClick={copyDepositNumber}
-                          className="flex items-center gap-1.5 bg-blue-700 text-white rounded-xl px-4 py-2.5 text-sm font-bold hover:bg-blue-800 transition-colors flex-shrink-0"
-                        >
-                          <Copy size={14} /> Copier
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between px-1">
-                      <span className="text-sm text-gray-500">Montant exact à envoyer</span>
-                      <span className="text-xl font-black text-blue-800">
-                        {depositInfo.activationAmount?.toLocaleString("fr-FR")} <span className="text-sm font-bold text-blue-400">FCFA</span>
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between px-1">
-                      <span className="text-sm text-gray-500">Votre numéro</span>
-                      <span className="font-bold text-gray-700 font-mono text-sm">{fullPhone}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-
-
-                {/* Instruction personnalisée (si activée par l'admin) */}
-                {depositInfo.showInstruction && depositInfo.instruction && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex gap-3">
-                    <Info size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-blue-800 whitespace-pre-line">{depositInfo.instruction}</p>
-                  </div>
-                )}
-
-                {/* Activation directe — note importante */}
-                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex gap-3">
-                  <CheckCircle size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
-                  <div className="text-sm text-emerald-900">
-                    <p className="font-bold mb-1">⚡ Activation automatique</p>
-                    <p className="leading-relaxed">
-                      Votre compte sera <strong>activé immédiatement</strong> si :
-                    </p>
-                    <ul className="list-disc list-inside mt-1 space-y-0.5 text-emerald-800">
-                      <li>la transaction est effectuée (en temps réel) ;</li>
-                      <li>les informations saisies sont correctes (ID transaction, capture, numéro).</li>
-                    </ul>
                   </div>
                 </div>
+              )}
 
-                {/* Formulaire */}
-                <div className="space-y-4">
-                  {/* Nom & prénom du payeur (carte SIM) */}
+              {/* Numéro de dépôt */}
+              <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-white/5">
+                  <p className="text-white font-bold text-base">
+                    {depositInfo.depositLabel || (operator === 'wave' ? 'Numéro WAVE' : `Numéro de dépôt ${opInfo?.name}`)}
+                  </p>
+                  <p className="text-white/40 text-xs mt-0.5">Effectuez votre paiement sur ce numéro</p>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center gap-3">
+                    <div className="flex-1">
+                      <p className="text-white/40 text-xs font-semibold mb-0.5">Numéro {opInfo?.name}</p>
+                      <p className="text-2xl font-black text-white tracking-wider font-mono">
+                        {depositInfo.depositNumber || "Non configuré"}
+                      </p>
+                    </div>
+                    {depositInfo.depositNumber && (
+                      <button onClick={copyDepositNumber}
+                        className="flex items-center gap-1.5 bg-blue-600 text-white rounded-xl px-4 py-2.5 text-sm font-bold hover:bg-blue-700 transition-colors flex-shrink-0">
+                        <Copy size={14} /> Copier
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-white/50 text-sm">Montant exact à envoyer</span>
+                    <span className="text-white font-black text-xl">
+                      {depositInfo.activationAmount?.toLocaleString("fr-FR")} <span className="text-white/40 text-sm font-bold">FCFA</span>
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-white/50 text-sm">Votre numéro</span>
+                    <span className="text-white/70 font-bold font-mono text-sm">{fullPhone}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Instruction personnalisée */}
+              {depositInfo.showInstruction && depositInfo.instruction && (
+                <div className="bg-blue-500/10 border border-blue-400/20 rounded-2xl p-4 flex gap-3">
+                  <Info size={16} className="text-blue-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-blue-300 text-sm whitespace-pre-line">{depositInfo.instruction}</p>
+                </div>
+              )}
+
+              {/* Activation automatique */}
+              <div className="bg-emerald-500/10 border border-emerald-400/20 rounded-2xl p-4 flex gap-3">
+                <span className="text-lg flex-shrink-0">⚡</span>
+                <div>
+                  <p className="font-bold text-emerald-300 mb-1">Activation automatique</p>
+                  <p className="text-emerald-300/70 text-xs leading-relaxed">
+                    Votre compte sera <strong>activé immédiatement</strong> si la transaction est effectuée en temps réel et si les informations saisies sont exactes.
+                  </p>
+                </div>
+              </div>
+
+              {/* Formulaire */}
+              <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-white/5">
+                  <p className="text-white/40 text-[11px] uppercase tracking-widest font-bold">Confirmer le paiement</p>
+                </div>
+                <div className="p-5 space-y-5">
+                  {/* Nom payeur */}
                   <div>
-                    <label className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                      Nom et prénom du payeur <span className="text-red-500">*</span>
-                    </label>
-                    <Input
+                    <p className="text-white/60 text-xs font-semibold mb-2">
+                      Nom et prénom du payeur <span className="text-red-400">*</span>
+                    </p>
+                    <input type="text"
                       placeholder="Ex : KOUASSI Jean"
                       value={payerName}
                       onChange={e => setPayerName(e.target.value)}
-                      className="rounded-xl border-2 border-gray-200 focus:border-blue-600 py-3 text-sm"
+                      className="w-full border border-white/15 rounded-2xl px-4 py-3 text-sm font-semibold text-white placeholder:text-white/25 focus:outline-none focus:border-blue-400/60"
+                      style={{ background: "rgba(255,255,255,0.07)" }}
                     />
-                    <p className="text-xs text-gray-400 mt-1 pl-1">
-                      Saisissez le <strong>vrai nom et prénom</strong> de la carte SIM utilisée pour le paiement.
-                    </p>
+                    <p className="text-white/25 text-xs mt-1 pl-1">Vrai nom et prénom de la carte SIM utilisée</p>
                   </div>
 
                   {/* ID Transaction */}
                   <div>
-                    <label className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                      ID de transaction <span className="text-red-500">*</span>
-                    </label>
-                    <Input
+                    <p className="text-white/60 text-xs font-semibold mb-2">
+                      ID de transaction <span className="text-red-400">*</span>
+                    </p>
+                    <input type="text"
                       placeholder="Ex : TXN1234567890"
                       value={transactionId2}
                       onChange={e => setTransactionId2(e.target.value)}
-                      className="rounded-xl border-2 border-gray-200 focus:border-blue-600 py-3 font-mono text-sm"
+                      className="w-full border border-white/15 rounded-2xl px-4 py-3 text-sm font-semibold font-mono text-white placeholder:text-white/25 focus:outline-none focus:border-blue-400/60"
+                      style={{ background: "rgba(255,255,255,0.07)" }}
                     />
-                    <p className="text-xs text-gray-400 mt-1 pl-1">Copiez l'ID reçu par SMS après votre paiement</p>
+                    <p className="text-white/25 text-xs mt-1 pl-1">ID reçu par SMS après votre paiement</p>
                   </div>
 
                   {/* Capture d'écran */}
                   <div>
-                    <label className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                      <ImageIcon size={13} /> Capture d'écran du paiement <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={e => {
-                        const f = e.target.files?.[0];
-                        if (f) setScreenshotFile(f);
-                      }}
-                    />
+                    <p className="text-white/60 text-xs font-semibold mb-2 flex items-center gap-1.5">
+                      <ImageIcon size={12} /> Capture d'écran du paiement <span className="text-red-400">*</span>
+                    </p>
+                    <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) setScreenshotFile(f); }} />
                     {screenshotPreview ? (
-                      <div className="relative rounded-2xl overflow-hidden border-2 border-blue-200">
-                        <img src={screenshotPreview} alt="Capture" className="w-full max-h-48 object-contain bg-gray-50" />
-                        <button
-                          onClick={() => { setScreenshotFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
-                          className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
-                        >
+                      <div className="relative rounded-2xl overflow-hidden border border-white/15">
+                        <img src={screenshotPreview} alt="Capture" className="w-full max-h-48 object-contain bg-white/5" />
+                        <button onClick={() => { setScreenshotFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                          className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1">
                           <XCircle size={16} />
                         </button>
                       </div>
                     ) : (
-                      <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="w-full border-2 border-dashed border-gray-300 rounded-2xl p-6 flex flex-col items-center gap-2 text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors"
-                      >
+                      <button onClick={() => fileInputRef.current?.click()}
+                        className="w-full border-2 border-dashed border-white/15 rounded-2xl p-6 flex flex-col items-center gap-2 text-white/40 hover:border-blue-400/50 hover:text-blue-400 transition-colors">
                         <Upload size={24} />
                         <p className="text-sm font-semibold">Appuyez pour ajouter une capture</p>
                         <p className="text-xs">JPG, PNG — Max 10 Mo</p>
@@ -1052,44 +1150,44 @@ export default function Activation() {
                     )}
                   </div>
                 </div>
-              </>
-            ) : (
-              <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-center text-red-700 text-sm">
-                Impossible de charger les informations de dépôt. Veuillez réessayer.
               </div>
-            )}
-
-            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 shadow-lg max-w-md mx-auto">
-              <div className="px-4 pt-3 pb-1 space-y-1.5">
-                <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 flex gap-2">
-                  <AlertCircle size={13} className="text-red-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-[11px] text-red-700 leading-snug">
-                    <strong>Important :</strong> Toute annulation de paiement après soumission est synonyme de bannissement définitif du compte et de l'adresse IP.
-                  </p>
-                </div>
-                <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 flex gap-2">
-                  <AlertCircle size={13} className="text-amber-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-[11px] text-amber-700 leading-snug">
-                    Nos équipes sont mobilisées. Veuillez patienter après chaque paiement afin que le service puisse traiter votre requête.
-                  </p>
-                </div>
-              </div>
-              <div className="px-4 pt-2 pb-4">
-                <Button
-                  onClick={handleManualSubmit}
-                  disabled={!canSubmit || manualSubmitting || depositLoading || !depositInfo}
-                  className="w-full bg-blue-800 hover:bg-blue-900 disabled:opacity-40 text-white font-bold py-4 rounded-2xl text-base shadow-xl flex items-center justify-center gap-2"
-                >
-                  {manualSubmitting
-                    ? <><Loader2 size={18} className="animate-spin mr-1" />Envoi…</>
-                    : <><CheckCircle size={18} className="mr-1" />Soumettre ma demande</>
-                  }
-                </Button>
-                <p className="text-center text-[10px] text-gray-400 mt-2 flex items-center justify-center gap-1">
-                  <ShieldCheck size={11} /> Votre demande sera vérifiée sous peu
-                </p>
-              </div>
+            </>
+          ) : (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 text-center text-red-400 text-sm">
+              Impossible de charger les informations de dépôt. Veuillez réessayer.
             </div>
+          )}
+        </div>
+
+        {/* Bouton fixe en bas */}
+        <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto">
+          <div className="bg-[#0f172a] border-t border-white/5 px-4 pt-3 pb-1 space-y-1.5">
+            <div className="bg-red-900/30 border border-red-500/30 rounded-xl px-3 py-2 flex gap-2">
+              <AlertCircle size={12} className="text-red-400 flex-shrink-0 mt-0.5" />
+              <p className="text-[10px] text-red-300 leading-snug">
+                <strong>Important :</strong> Toute annulation après soumission entraîne le bannissement définitif du compte et de l'adresse IP.
+              </p>
+            </div>
+            <div className="bg-amber-900/20 border border-amber-500/20 rounded-xl px-3 py-2 flex gap-2">
+              <AlertCircle size={12} className="text-amber-400 flex-shrink-0 mt-0.5" />
+              <p className="text-[10px] text-amber-300 leading-snug">
+                Nos équipes sont mobilisées. Veuillez patienter après chaque paiement afin que le service traite votre requête.
+              </p>
+            </div>
+          </div>
+          <div className="bg-[#0f172a] px-4 pt-2 pb-4">
+            <button onClick={handleManualSubmit}
+              disabled={!canSubmit || manualSubmitting || depositLoading || !depositInfo}
+              className="w-full py-4 rounded-2xl font-bold text-white text-base transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              style={{ background: "linear-gradient(135deg, #2563eb, #1d4ed8)" }}>
+              {manualSubmitting
+                ? <><Loader2 size={18} className="animate-spin" /> Envoi en cours…</>
+                : <><CheckCircle size={18} /> Soumettre ma demande</>
+              }
+            </button>
+            <p className="text-center text-[10px] text-white/25 mt-2 flex items-center justify-center gap-1">
+              <ShieldCheck size={10} /> Paiement sécurisé · Upay SIKA TEXTE
+            </p>
           </div>
         </div>
       </div>
