@@ -2356,7 +2356,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const instruction     = settings.find((s: any) => s.key === `${countryLower}_${opLower}_instruction`)?.value || '';
       const showInstruction = settings.find((s: any) => s.key === `${countryLower}_${opLower}_show_instruction`)?.value === 'true';
       const internationalNote = isInternational
-        ? (settings.find((s: any) => s.key === `international_deposit_note_${countryLower}`)?.value || '')
+        ? (settings.find((s: any) => s.key === `international_deposit_note_${countryLower}_${opLower}`)?.value
+          || settings.find((s: any) => s.key === `international_deposit_note_${countryLower}`)?.value
+          || '')
         : '';
       res.json({ enabled, depositNumber, activationAmount, isInternational, alertText, depositLabel, instruction, showInstruction, internationalNote });
     } catch (err) {
@@ -5645,7 +5647,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // isInternational : transfert international requis si pays différent de CI
       const isInternational = country.toUpperCase() !== 'CI';
       const internationalNote = isInternational
-        ? (settings.find((s: any) => s.key === `international_deposit_note_${countryLower}`)?.value || '')
+        ? (settings.find((s: any) => s.key === `international_deposit_note_${countryLower}_${opLower}`)?.value
+          || settings.find((s: any) => s.key === `international_deposit_note_${countryLower}`)?.value
+          || '')
         : '';
       res.json({
         enabled: globalEnabled && (isManualMode || (link.manualMode || false)),

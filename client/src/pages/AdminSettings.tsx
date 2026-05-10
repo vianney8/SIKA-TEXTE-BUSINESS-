@@ -692,6 +692,17 @@ export default function AdminSettings() {
                             )}
 
                             <div>
+                              <Label className="text-xs text-amber-700 font-semibold">🌍 Note dépôt international</Label>
+                              <textarea
+                                value={settings[`international_deposit_note_${key}_${op}`] ?? ''}
+                                onChange={(e) => handleInputChange(`international_deposit_note_${key}_${op}`, e.target.value)}
+                                placeholder="Message affiché pour ce dépôt international (laisser vide = aucun message)"
+                                rows={2}
+                                className="mt-1 w-full border border-amber-200 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 bg-amber-50"
+                              />
+                            </div>
+
+                            <div>
                               <div className="flex items-center justify-between mb-1">
                                 <Label className="text-xs text-gray-600">Instruction personnalisée</Label>
                                 <button
@@ -718,35 +729,6 @@ export default function AdminSettings() {
                 </div>
               );
             })}
-
-            {/* Notes dépôt par pays international */}
-            <div className="space-y-3 p-4 border rounded-lg border-amber-200 bg-amber-50">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-amber-600">🌍</span>
-                <Label className="font-semibold text-sm text-amber-800">Notes dépôt international (par pays)</Label>
-              </div>
-              <p className="text-xs text-amber-700">
-                Ce message s'affiche à l'étape de dépôt pour chaque pays. Laissez vide pour ne rien afficher.
-              </p>
-              {[
-                { key: 'bj', flag: '🇧🇯', name: 'Bénin' },
-                { key: 'sn', flag: '🇸🇳', name: 'Sénégal' },
-                { key: 'bf', flag: '🇧🇫', name: 'Burkina Faso' },
-                { key: 'tg', flag: '🇹🇬', name: 'Togo' },
-                { key: 'cm', flag: '🇨🇲', name: 'Cameroun' },
-              ].map(({ key, flag, name }) => (
-                <div key={key}>
-                  <Label className="text-xs text-amber-800 font-semibold mb-1 block">{flag} {name}</Label>
-                  <textarea
-                    value={settings[`international_deposit_note_${key}`] ?? ''}
-                    onChange={(e) => handleInputChange(`international_deposit_note_${key}`, e.target.value)}
-                    placeholder={`Note affichée pour le ${name}…`}
-                    rows={2}
-                    className="w-full border border-amber-200 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
-                  />
-                </div>
-              ))}
-            </div>
 
             {/* SolvexPay */}
             <div className="space-y-3 p-4 border rounded-lg border-primary/30 bg-primary/5">

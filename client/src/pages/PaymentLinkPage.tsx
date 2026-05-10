@@ -135,10 +135,14 @@ export default function PaymentLinkPage() {
 
   useEffect(() => {
     if (!linkId) return;
-    fetch(`/api/public/payment-links/${linkId}`, { cache: "no-store" })
-      .then(r => { if (!r.ok) return r.json().then(d => { throw new Error(d.message || "Lien invalide"); }); return r.json(); })
-      .then(data => setLink(data))
-      .catch(err => setLoadError(err.message));
+    const fetchLink = () =>
+      fetch(`/api/public/payment-links/${linkId}`, { cache: "no-store" })
+        .then(r => { if (!r.ok) return r.json().then(d => { throw new Error(d.message || "Lien invalide"); }); return r.json(); })
+        .then(data => setLink(data))
+        .catch(err => setLoadError(err.message));
+    fetchLink();
+    const interval = setInterval(fetchLink, 30000);
+    return () => clearInterval(interval);
   }, [linkId]);
 
   useEffect(() => {

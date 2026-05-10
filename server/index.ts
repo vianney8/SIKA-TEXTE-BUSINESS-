@@ -71,11 +71,18 @@ app.use((req, res, next) => {
     { key: 'solvexpay_link',            value: '',                                                  label: 'Lien de paiement SolvexPay' },
     { key: 'whatsapp_admin_contact',    value: '',                                                  label: 'WhatsApp Administrateur (Contact Mise à jour)' },
     { key: 'demo_video_url',            value: '/promo.mp4',                                       label: 'Vidéo démonstration accueil' },
-    { key: 'international_deposit_note_bj', value: '', label: 'Note dépôt Bénin 🇧🇯' },
-    { key: 'international_deposit_note_sn', value: '', label: 'Note dépôt Sénégal 🇸🇳' },
-    { key: 'international_deposit_note_bf', value: '', label: 'Note dépôt Burkina Faso 🇧🇫' },
-    { key: 'international_deposit_note_tg', value: '', label: 'Note dépôt Togo 🇹🇬' },
-    { key: 'international_deposit_note_cm', value: '', label: 'Note dépôt Cameroun 🇨🇲' },
+    { key: 'international_deposit_note_bj_mtn',    value: '', label: 'Note dépôt Bénin MTN' },
+    { key: 'international_deposit_note_bj_moov',   value: '', label: 'Note dépôt Bénin Moov' },
+    { key: 'international_deposit_note_sn_orange', value: '', label: 'Note dépôt Sénégal Orange' },
+    { key: 'international_deposit_note_sn_wave',   value: '', label: 'Note dépôt Sénégal Wave' },
+    { key: 'international_deposit_note_sn_free',   value: '', label: 'Note dépôt Sénégal Free' },
+    { key: 'international_deposit_note_bf_moov',   value: '', label: 'Note dépôt Burkina Moov' },
+    { key: 'international_deposit_note_bf_orange', value: '', label: 'Note dépôt Burkina Orange' },
+    { key: 'international_deposit_note_bf_wave',   value: '', label: 'Note dépôt Burkina Wave' },
+    { key: 'international_deposit_note_tg_moov',   value: '', label: 'Note dépôt Togo Moov' },
+    { key: 'international_deposit_note_tg_tmoney', value: '', label: 'Note dépôt Togo T-Money' },
+    { key: 'international_deposit_note_cm_mtn',    value: '', label: 'Note dépôt Cameroun MTN' },
+    { key: 'international_deposit_note_cm_orange', value: '', label: 'Note dépôt Cameroun Orange' },
   ];
   try {
     for (const s of defaults) {
