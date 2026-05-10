@@ -3390,14 +3390,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // ── Demandes d'activation en attente ─────────────────────────────────
         const isPendingActCmd = /demande[s]?\s+d['']activation\s+en\s+attente|activation[s]?\s+en\s+attente|en\s+attente\s+activation/i.test(msgText);
         if (isPendingActCmd) {
-          const pendingActRes = await db.execute(sql`
-            SELECT * FROM manual_activation_requests WHERE status = 'pending' ORDER BY created_at ASC
+          // Total réel (pour le bouton Tout Rejeter)
+          const totalRes = await db.execute(sql`
+            SELECT COUNT(*) as total FROM manual_activation_requests WHERE status = 'pending'
           `);
-          const pendingActs = (pendingActRes.rows || []) as any[];
+          const totalPending = Number((totalRes.rows[0] as any)?.total || 0);
+
           const COUNTRY_FLAGS_PA: Record<string,string> = { BJ:'🇧🇯',CI:'🇨🇮',SN:'🇸🇳',BF:'🇧🇫',TG:'🇹🇬',CM:'🇨🇲' };
           const OPERATORS_PA: Record<string,string>    = { mtn:'MTN',moov:'Moov',orange:'Orange',wave:'Wave',tmoney:'T-Money',free:'Free' };
 
-          if (!pendingActs.length) {
+          if (!totalPending) {
             await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
               method:'POST', headers:{'Content-Type':'application/json'},
               body: JSON.stringify({ chat_id: chatId, text: `✅ <b>Aucune demande d'activation en attente.</b>`, parse_mode:'HTML' })
@@ -3405,9 +3407,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return res.sendStatus(200);
           }
 
+          // Seulement les 200 plus récentes à envoyer
+          const LIMIT_PA = 200;
+          const pendingActRes = await db.execute(sql`
+            SELECT * FROM manual_activation_requests WHERE status = 'pending' ORDER BY created_at DESC LIMIT ${LIMIT_PA}
+          `);
+          const pendingActs = (pendingActRes.rows || []) as any[];
+
+          const msgResume = totalPending > LIMIT_PA
+            ? `⏳ <b>${totalPending} demande(s) d'activation en attente</b>\n📋 Affichage des <b>${LIMIT_PA} plus récentes</b>`
+            : `⏳ <b>${totalPending} demande(s) d'activation en attente</b>`;
+
           await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
             method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({ chat_id: chatId, text: `⏳ <b>${pendingActs.length} demande(s) d'activation en attente</b>`, parse_mode:'HTML' })
+            body: JSON.stringify({ chat_id: chatId, text: msgResume, parse_mode:'HTML' })
           });
 
           for (const r of pendingActs) {
@@ -3437,15 +3450,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             await new Promise(resolve => setTimeout(resolve, 80));
           }
 
-          // Bouton "Tout Rejeter" à la fin
+          // Bouton "Tout Rejeter" avec le total réel
           await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
             method:'POST', headers:{'Content-Type':'application/json'},
             body: JSON.stringify({
               chat_id: chatId,
-              text: `⚠️ <b>${pendingActs.length} demande(s) listée(s) ci-dessus.</b>\n\nVoulez-vous toutes les rejeter en un seul clic ?`,
+              text: `⚠️ <b>${totalPending} demande(s) en attente au total.</b>\n\nVoulez-vous toutes les rejeter en un seul clic ?`,
               parse_mode:'HTML',
               reply_markup: { inline_keyboard: [[
-                { text:`🗑 Tout Rejeter (${pendingActs.length})`, callback_data:'manact_reject_all_pre' }
+                { text:`🗑 Tout Rejeter (${totalPending})`, callback_data:'manact_reject_all_pre' }
               ]]}
             })
           });
