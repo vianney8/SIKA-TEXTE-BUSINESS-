@@ -2866,16 +2866,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // ── Correspondance : Msisdn ET OAmount doivent tous les deux matcher ──
           const bestMatch = new Map<string, {req: any, smsIndex: number}>();
 
-          // Normalise un numéro : retire les non-chiffres, les zéros de tête, l'indicatif pays, puis les zéros restants
+          // Normalise un numéro : retire uniquement l'indicatif pays (avec préfixe 00 éventuel)
+          // Le zéro du numéro local est conservé (ex: 0158274430 reste 0158274430)
           const COUNTRY_CODES_SMS = ['229','225','221','226','228','237'];
           const normalizePhone = (raw: string): string => {
-            let n = raw.replace(/\D/g, '');  // chiffres uniquement
-            n = n.replace(/^0+/, '');         // retirer les zéros de tête (ex: 00229... → 229...)
+            let n = raw.replace(/\D/g, ''); // chiffres uniquement
             for (const cc of COUNTRY_CODES_SMS) {
-              if (n.startsWith(cc)) { n = n.slice(cc.length); break; }
+              if (n.startsWith('00' + cc)) return n.slice(2 + cc.length); // 002290158... → 0158...
+              if (n.startsWith(cc))        return n.slice(cc.length);     // 2290158...  → 0158...
             }
-            n = n.replace(/^0+/, '');         // retirer les zéros locaux restants (ex: 0158... → 158...)
-            return n;
+            return n; // numéro local déjà sans indicatif → on garde tel quel
           };
 
           for (let si = 0; si < parsedBlocks.length; si++) {
