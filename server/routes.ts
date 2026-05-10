@@ -2470,9 +2470,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         body: JSON.stringify({ chat_id: adminChatId, text: msgText, parse_mode: 'HTML', reply_markup: keyboard })
       });
 
-      res.json({ success: true, requestId: savedReq.id });
+      res.json({ success: true, requestId: savedReq.id, createdAt: savedReq.createdAt });
     } catch (err: any) {
       console.error('[MANUAL-SUBMIT] Error:', err);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  // Get current user's latest manual activation request status
+  app.get('/api/activation/my-pending-request', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const [request] = await db.select()
+        .from(manualActivationRequests)
+        .where(eq(manualActivationRequests.userId, userId))
+        .orderBy(desc(manualActivationRequests.createdAt))
+        .limit(1);
+      if (!request) return res.json({ found: false });
+      return res.json({
+        found: true,
+        id: request.id,
+        status: request.status,
+        createdAt: request.createdAt,
+        adminNote: request.adminNote,
+      });
+    } catch (err) {
+      console.error('[MY-PENDING-REQUEST]', err);
       res.status(500).json({ message: 'Erreur serveur' });
     }
   });
