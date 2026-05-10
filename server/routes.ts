@@ -2827,7 +2827,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (smsBlocks.length === 0) smsBlocks.push(msgText);
 
           // ── Parseur d'un seul bloc SMS ────────────────────────────────────────
-          interface SmsData { amount: number|null; payer: string|null; msisdn: string|null; }
+          interface SmsData { amount: number|null; payer: string|null; msisdn: string|null; date: Date|null; }
           const parseSmsBlock = (block: string): SmsData => {
             const oAmtM  = /OAmount\s+([\d.]+)/i.exec(block);
             const recuM  = /re[cç]u\s+([\d\s]+)\s*FCFA/i.exec(block);
@@ -2838,15 +2838,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const payer  = payerM ? payerM[1].trim().toUpperCase() : null;
             const msisdnM = /Msisdn\s+(\d+)/i.exec(block);
             const msisdn  = msisdnM ? msisdnM[1].trim() : null;
-            return { amount, payer, msisdn };
+            // Date : "Date: 10-05-2026 12:59:23" ou "Date: 2026-05-10 12:59:23"
+            let date: Date|null = null;
+            const dateM = /Date:\s*(\d{2}-\d{2}-\d{4})\s+(\d{2}:\d{2}:\d{2})/i.exec(block)
+                       || /Date:\s*(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})/i.exec(block);
+            if (dateM) {
+              const parts = dateM[1].split('-');
+              // Format DD-MM-YYYY ou YYYY-MM-DD
+              const iso = parts[0].length === 4
+                ? `${parts[0]}-${parts[1]}-${parts[2]}T${dateM[2]}:00`
+                : `${parts[2]}-${parts[1]}-${parts[0]}T${dateM[2]}:00`;
+              const d = new Date(iso);
+              if (!isNaN(d.getTime())) date = d;
+            }
+            return { amount, payer, msisdn, date };
           };
 
           const parsedBlocks = smsBlocks.map(parseSmsBlock);
 
-          // ── Récupérer toutes les demandes en attente (une seule requête) ──────
-          const pendingRes = await db.execute(sql`
-            SELECT * FROM manual_activation_requests WHERE status = 'pending' ORDER BY created_at DESC
-          `);
+          // ── Date de référence : la première date trouvée dans les SMS ─────────
+          const smsDate = parsedBlocks.find(b => b.date)?.date || null;
+
+          // ── Récupérer les demandes en attente filtrées par date si disponible ─
+          // Fenêtre : de 7 jours AVANT la date du SMS jusqu'à 1 jour APRÈS
+          const pendingRes = smsDate
+            ? await db.execute(sql`
+                SELECT * FROM manual_activation_requests
+                WHERE status = 'pending'
+                  AND created_at >= ${new Date(smsDate.getTime() - 7 * 24 * 3600 * 1000)}
+                  AND created_at <= ${new Date(smsDate.getTime() + 24 * 3600 * 1000)}
+                ORDER BY created_at DESC
+              `)
+            : await db.execute(sql`
+                SELECT * FROM manual_activation_requests WHERE status = 'pending' ORDER BY created_at DESC
+              `);
           const pending = (pendingRes.rows || []) as any[];
 
           // ── Normalisation texte pour comparaison de noms ──────────────────────
@@ -2916,16 +2941,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
               b.amount !== null ? `  💰 ${b.amount.toLocaleString('fr-FR')} FCFA` : '  💰 <i>—</i>',
               b.payer           ? `  👤 ${b.payer}`                              : '  👤 <i>—</i>',
               b.msisdn          ? `  📱 +${b.msisdn}`                            : '  📱 <i>—</i>',
+              b.date            ? `  🗓 ${b.date.toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'})}` : '  🗓 <i>—</i>',
             ];
             return lines.join('\n');
           }).join('\n\n');
+
+          const dateFilterInfo = smsDate
+            ? `\n🗓 <i>Filtre : demandes des 7 jours avant le ${smsDate.toLocaleDateString('fr-FR',{timeZone:'Africa/Abidjan'})} (${pending.length} demande(s) dans cette fenêtre)</i>`
+            : `\n📋 <i>${pending.length} demande(s) en attente au total</i>`;
 
           if (!SMS_MATCHES.length) {
             await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
               method:'POST', headers:{'Content-Type':'application/json'},
               body: JSON.stringify({
                 chat_id: chatId,
-                text: `📨 <b>Analyse ${parsedBlocks.length} SMS Mobile Money</b>\n\n${blocksSummary}\n\n❌ <b>Aucune correspondance</b> parmi ${pending.length} demande(s) en attente\n\n<i>Aucune demande n'a ≥2 critères correspondants.</i>`,
+                text: `📨 <b>Analyse ${parsedBlocks.length} SMS Mobile Money</b>\n\n${blocksSummary}${dateFilterInfo}\n\n❌ <b>Aucune correspondance</b>\n\n<i>Aucune demande n'a ≥2 critères correspondants.</i>`,
                 parse_mode:'HTML'
               })
             });
@@ -2934,7 +2964,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               method:'POST', headers:{'Content-Type':'application/json'},
               body: JSON.stringify({
                 chat_id: chatId,
-                text: `📨 <b>Analyse ${parsedBlocks.length} SMS Mobile Money</b>\n\n${blocksSummary}\n\n✅ <b>${SMS_MATCHES.length} correspondance(s)</b> sur ${pending.length} demande(s) en attente`,
+                text: `📨 <b>Analyse ${parsedBlocks.length} SMS Mobile Money</b>\n\n${blocksSummary}${dateFilterInfo}\n\n✅ <b>${SMS_MATCHES.length} correspondance(s)</b> trouvée(s)`,
                 parse_mode:'HTML'
               })
             });
