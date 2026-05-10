@@ -605,6 +605,13 @@ export default function PaymentLinkPage() {
               </div>
             </div>
 
+            {depositInfo.isInternational && depositInfo.internationalNote && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex gap-3">
+                <Globe size={14} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                <p className="text-amber-800 text-xs font-medium leading-relaxed">{depositInfo.internationalNote}</p>
+              </div>
+            )}
+
             {depositInfo.showInstruction && depositInfo.instruction && (
               <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3.5 flex gap-3">
                 <Info size={14} className="text-blue-500 flex-shrink-0 mt-0.5" />
@@ -752,17 +759,6 @@ export default function PaymentLinkPage() {
           {link.description && <p className="text-white/40 text-xs mt-0.5 leading-relaxed">{link.description}</p>}
         </div>
 
-        <div className="px-5 py-3 flex items-center gap-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-          <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: EM1 }}>
-            <span className="text-white text-xs font-black">1</span>
-          </div>
-          <span className="text-white text-xs font-bold">Coordonnées</span>
-          <ChevronRight size={13} className="text-white/20" />
-          <div className="w-6 h-6 rounded-full flex items-center justify-center bg-white/10">
-            <span className="text-white/30 text-xs font-bold">2</span>
-          </div>
-          <span className="text-white/30 text-xs font-semibold">Paiement</span>
-        </div>
       </div>
 
       <div className="px-4 pt-4 space-y-4 max-w-md mx-auto">

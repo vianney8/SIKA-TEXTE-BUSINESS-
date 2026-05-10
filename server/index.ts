@@ -71,6 +71,7 @@ app.use((req, res, next) => {
     { key: 'solvexpay_link',            value: '',                                                  label: 'Lien de paiement SolvexPay' },
     { key: 'whatsapp_admin_contact',    value: '',                                                  label: 'WhatsApp Administrateur (Contact Mise à jour)' },
     { key: 'demo_video_url',            value: '/promo.mp4',                                       label: 'Vidéo démonstration accueil' },
+    { key: 'international_deposit_note', value: 'Assurez-vous d\'utiliser les frais corrects pour un virement international.', label: 'Note dépôt international (page paiement)' },
   ];
   try {
     for (const s of defaults) {

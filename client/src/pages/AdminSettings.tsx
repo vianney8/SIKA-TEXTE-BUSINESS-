@@ -719,6 +719,24 @@ export default function AdminSettings() {
               );
             })}
 
+            {/* Note dépôt international */}
+            <div className="space-y-2 p-4 border rounded-lg border-amber-200 bg-amber-50">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-amber-600">🌍</span>
+                <Label className="font-semibold text-sm text-amber-800">Note dépôt international</Label>
+              </div>
+              <p className="text-xs text-amber-700 mb-2">
+                Ce message s'affiche automatiquement pour les pays hors Côte d'Ivoire à l'étape de dépôt.
+              </p>
+              <textarea
+                value={settings.international_deposit_note ?? "Assurez-vous d'utiliser les frais corrects pour un virement international."}
+                onChange={(e) => handleInputChange('international_deposit_note', e.target.value)}
+                placeholder="Assurez-vous d'utiliser les frais corrects pour un virement international."
+                rows={2}
+                className="w-full border border-amber-200 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+              />
+            </div>
+
             {/* SolvexPay */}
             <div className="space-y-3 p-4 border rounded-lg border-primary/30 bg-primary/5">
               <div className="flex items-center justify-between">

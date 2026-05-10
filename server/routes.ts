@@ -5629,6 +5629,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const alertText = settings.find((s: any) => s.key === `${countryLower}_${opLower}_alert_text`)?.value || '';
       // isInternational : transfert international requis si pays différent de CI
       const isInternational = country.toUpperCase() !== 'CI';
+      const internationalNote = settings.find((s: any) => s.key === 'international_deposit_note')?.value || '';
       res.json({
         enabled: globalEnabled && (isManualMode || (link.manualMode || false)),
         depositNumber,
@@ -5637,6 +5638,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         showInstruction,
         alertText,
         isInternational,
+        internationalNote,
       });
     } catch (err) {
       console.error('[PAYMENT-LINKS] Manual deposit info error:', err);
