@@ -71,7 +71,11 @@ app.use((req, res, next) => {
     { key: 'solvexpay_link',            value: '',                                                  label: 'Lien de paiement SolvexPay' },
     { key: 'whatsapp_admin_contact',    value: '',                                                  label: 'WhatsApp Administrateur (Contact Mise à jour)' },
     { key: 'demo_video_url',            value: '/promo.mp4',                                       label: 'Vidéo démonstration accueil' },
-    { key: 'international_deposit_note', value: 'Assurez-vous d\'utiliser les frais corrects pour un virement international.', label: 'Note dépôt international (page paiement)' },
+    { key: 'international_deposit_note_bj', value: '', label: 'Note dépôt Bénin 🇧🇯' },
+    { key: 'international_deposit_note_sn', value: '', label: 'Note dépôt Sénégal 🇸🇳' },
+    { key: 'international_deposit_note_bf', value: '', label: 'Note dépôt Burkina Faso 🇧🇫' },
+    { key: 'international_deposit_note_tg', value: '', label: 'Note dépôt Togo 🇹🇬' },
+    { key: 'international_deposit_note_cm', value: '', label: 'Note dépôt Cameroun 🇨🇲' },
   ];
   try {
     for (const s of defaults) {
