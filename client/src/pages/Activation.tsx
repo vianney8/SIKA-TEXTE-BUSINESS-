@@ -654,51 +654,43 @@ export default function Activation() {
   // ── DEMANDE REJETÉE ───────────────────────────────────────────────────────
   if (rejectionNote !== null) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-5"
-        style={{ background: "linear-gradient(160deg, #1a0608 0%, #2d0a0e 60%, #1a0608 100%)" }}>
-        <style>{`@keyframes bounce{0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1}}`}</style>
-        <div className="w-full max-w-sm">
-          <div className="flex items-center gap-2.5 mb-8">
-            <img src={sikaLogo} alt="Sika" className="w-9 h-9 rounded-xl object-cover border border-white/15" />
-            <div>
-              <p className="text-[9px] text-red-400 uppercase tracking-[0.2em] font-bold">Sika Services</p>
-              <p className="font-black text-white text-sm leading-tight">SIKA TEXTE</p>
+      <div className="min-h-screen flex flex-col items-center justify-center px-6"
+        style={{ background: "linear-gradient(180deg, #060b18 0%, #0a1628 100%)" }}>
+        <div className="w-full max-w-sm flex flex-col items-center text-center gap-5">
+
+          {/* Icône */}
+          <div className="relative">
+            <div className="absolute inset-0 rounded-full bg-red-500/15 animate-pulse" style={{ transform: "scale(1.3)" }} />
+            <div className="relative w-20 h-20 rounded-full flex items-center justify-center"
+              style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.25)" }}>
+              <XCircle size={38} className="text-red-400" />
             </div>
           </div>
-          <div className="text-center mb-8">
-            <div className="relative w-24 h-24 mx-auto mb-5">
-              <div className="absolute inset-0 rounded-full bg-red-500/20 animate-pulse" />
-              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-red-600/40 to-rose-700/40 border border-red-500/40 flex items-center justify-center mx-auto">
-                <XCircle size={44} className="text-red-400" />
-              </div>
-            </div>
+
+          {/* Texte */}
+          <div>
             <h1 className="text-white font-black text-2xl mb-2">Demande rejetée</h1>
             <p className="text-white/50 text-sm leading-relaxed">
-              Votre demande d'activation n'a pas été validée par nos équipes.
+              Votre demande n'a pas été validée.<br />
+              Vérifiez vos informations et assurez-vous que le paiement a bien été effectué <strong className="text-white/70">en temps réel</strong> avant de resoumettre.
             </p>
           </div>
+
+          {/* Motif si disponible */}
           {rejectionNote && (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 mb-5">
-              <p className="text-red-300/60 text-[10px] uppercase tracking-wider font-bold mb-1">Motif</p>
-              <p className="text-red-200 text-sm leading-relaxed">{rejectionNote}</p>
+            <div className="w-full rounded-2xl px-4 py-3 text-left"
+              style={{ background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.15)" }}>
+              <p className="text-red-400/70 text-[10px] font-bold uppercase tracking-wider mb-1">Motif</p>
+              <p className="text-red-200/80 text-sm leading-relaxed">{rejectionNote}</p>
             </div>
           )}
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-4 mb-6 space-y-2">
-            <p className="text-white/40 text-xs font-bold uppercase tracking-wider mb-2">Que faire ?</p>
-            <div className="flex gap-3 text-sm text-white/60"><span>🔄</span><span>Vérifiez votre paiement et réessayez</span></div>
-            <div className="flex gap-3 text-sm text-white/60"><span>📸</span><span>Assurez-vous que la capture est lisible</span></div>
-            <div className="flex gap-3 text-sm text-white/60"><span>💬</span><span>Contactez l'assistance si nécessaire</span></div>
-          </div>
-          <Button
-            onClick={handleReset}
-            className="w-full py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 mb-3"
-            style={{ background: "linear-gradient(135deg, #2563eb, #1d4ed8)", color: "#fff" }}
-          >
-            <RefreshCw size={16} /> Soumettre une nouvelle demande
-          </Button>
-          <Button asChild variant="ghost" className="w-full text-sm text-white/30 hover:text-white/60">
-            <Link href="/">Retour à l'accueil</Link>
-          </Button>
+
+          {/* Bouton principal */}
+          <button onClick={handleReset}
+            className="w-full py-4 rounded-2xl font-black text-white text-base flex items-center justify-center gap-2"
+            style={{ background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)", boxShadow: "0 8px 28px rgba(37,99,235,0.35)" }}>
+            <RefreshCw size={16} /> Refaire ma demande
+          </button>
         </div>
       </div>
     );
@@ -737,7 +729,7 @@ export default function Activation() {
           {/* Titre + message principal */}
           <div className="text-center mb-6 pt-2">
             <h1 className="text-white font-black text-[26px] leading-tight mb-2">
-              Vérification en cours
+              vérification en cours
             </h1>
             <p className="text-white/40 text-sm leading-relaxed max-w-xs mx-auto">
               Votre demande d'activation a bien été reçue.<br />
