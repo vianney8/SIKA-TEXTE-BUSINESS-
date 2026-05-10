@@ -59,4 +59,4 @@ PRIVATE_OBJECT_DIR = "/FairInfantileAddons"
 PUBLIC_OBJECT_SEARCH_PATHS = "/FairInfantileAddons"
 
 [objectStorage]
-defaultBucketID = "replit-objstore-8ec8422d-72f4-48ba-b6e4-98b8904293d6"
+defaultBucketID = "replit-objstore-d0c044df-3867-4653-a124-e11e4807ac09"
