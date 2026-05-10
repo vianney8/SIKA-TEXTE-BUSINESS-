@@ -384,47 +384,6 @@ export default function AdminSettings() {
               Activez ou désactivez les passerelles de paiement disponibles pour l'activation des comptes utilisateurs.
             </p>
 
-            {/* CI Payment Link Redirect */}
-            <div className="space-y-3 p-4 border rounded-lg border-orange-200 bg-orange-50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-orange-400 to-orange-600 flex items-center justify-center text-white font-bold text-sm">
-                    🇨🇮
-                  </div>
-                  <div>
-                    <p className="font-medium">Redirection CI — Liens de paiement</p>
-                    <p className="text-sm text-muted-foreground">
-                      {settings.ci_payment_link_redirect !== 'false' ? '✓ Activé — utilisateurs CI redirigés vers le lien externe' : '✗ Désactivé — SolvexPay traite le paiement'}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleInputChange('ci_payment_link_redirect', settings.ci_payment_link_redirect === 'false' ? 'true' : 'false')}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    settings.ci_payment_link_redirect !== 'false'
-                      ? 'bg-orange-500 hover:bg-orange-600 text-white'
-                      : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
-                  }`}
-                >
-                  {settings.ci_payment_link_redirect !== 'false' ? 'Activé' : 'Désactivé'}
-                </button>
-              </div>
-              <div>
-                <Label htmlFor="ci_payment_link_url" className="text-sm">URL de redirection</Label>
-                <Input
-                  id="ci_payment_link_url"
-                  value={settings.ci_payment_link_url || 'https://clp.ci/ETPXwo'}
-                  onChange={(e) => handleInputChange('ci_payment_link_url', e.target.value)}
-                  placeholder="https://clp.ci/ETPXwo"
-                  className="mt-1"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Quand activé : les utilisateurs CI qui paient via un lien de paiement sont redirigés directement vers cette URL. Aucune notification Telegram.
-                </p>
-              </div>
-            </div>
-
             {/* Dépôt Manuel — Liens de paiement */}
             <div className="space-y-3 p-4 border-2 rounded-xl border-violet-200 bg-violet-50">
               <div className="flex items-center justify-between">
@@ -538,34 +497,6 @@ export default function AdminSettings() {
                         />
                       </div>
 
-                      <div>
-                        <Label className="text-xs text-gray-600">Titre affiché (libellé)</Label>
-                        <Input
-                          value={settings[`ci_${op}_deposit_label`] ?? (op === 'wave' ? 'Numéro WAVE CI' : `Numéro de dépôt ${label}`)}
-                          onChange={(e) => handleInputChange(`ci_${op}_deposit_label`, e.target.value)}
-                          className="mt-1 text-sm"
-                        />
-                      </div>
-
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <Label className="text-xs text-gray-600">Instruction personnalisée</Label>
-                          <button
-                            type="button"
-                            onClick={() => handleInputChange(`ci_${op}_show_instruction`, settings[`ci_${op}_show_instruction`] === 'true' ? 'false' : 'true')}
-                            className={`text-[10px] px-2 py-0.5 rounded font-semibold transition-colors ${settings[`ci_${op}_show_instruction`] === 'true' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}
-                          >
-                            {settings[`ci_${op}_show_instruction`] === 'true' ? '✓ Afficher' : 'Masqué'}
-                          </button>
-                        </div>
-                        <textarea
-                          value={settings[`ci_${op}_instruction`] || ''}
-                          onChange={(e) => handleInputChange(`ci_${op}_instruction`, e.target.value)}
-                          placeholder="Instruction affichée à l'utilisateur..."
-                          rows={2}
-                          className="w-full border border-input rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-                        />
-                      </div>
                     </div>
                   ))}
                 </div>
