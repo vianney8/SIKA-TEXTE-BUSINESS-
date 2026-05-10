@@ -2823,42 +2823,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.sendStatus(200);
         }
 
-        // ── Parsing SMS Mobile Money en masse (OAmount / Payer / Msisdn) ──────
-        // Déclenché quand le message contient au moins "Msisdn" + ("OAmount" ou "Payer")
-        const isMobileMoneySms = /Msisdn\s+\d/i.test(msgText) && (/OAmount\s+[\d.]+/i.test(msgText) || /Payer\s+[A-Z]/i.test(msgText));
+        // ── Parsing SMS Mobile Money (Msisdn + OAmount uniquement) ──────────────
+        // Déclenché quand le message contient "Msisdn" suivi d'un chiffre
+        const isMobileMoneySms = /Msisdn\s+\d/i.test(msgText) && /OAmount\s+[\d.]+/i.test(msgText);
         if (isMobileMoneySms) {
-          // ── Découper le message en blocs SMS individuels ──────────────────────
-          // Chaque bloc commence par "Vous avez recu" ou contient OAmount+Msisdn
+          // ── Découper en blocs SMS individuels ────────────────────────────────
           const smsBlocks: string[] = [];
           const byRecu = msgText.split(/(?=Vous\s+avez\s+re[cç]u\s)/i);
           if (byRecu.length > 1) {
             byRecu.forEach(b => { if (/Msisdn\s+\d/i.test(b)) smsBlocks.push(b.trim()); });
           }
-          // Fallback : séparation par ligne vide
           if (smsBlocks.length === 0) {
             msgText.split(/\n\s*\n/).forEach(b => { if (/Msisdn\s+\d/i.test(b)) smsBlocks.push(b.trim()); });
           }
-          // Dernier recours : message entier = un seul bloc
           if (smsBlocks.length === 0) smsBlocks.push(msgText);
 
-          // ── Parseur d'un seul bloc SMS ────────────────────────────────────────
-          interface SmsData { amount: number|null; payer: string|null; msisdn: string|null; }
+          // ── Parseur : extrait uniquement Msisdn et OAmount ───────────────────
+          interface SmsData { amount: number|null; msisdn: string|null; }
           const parseSmsBlock = (block: string): SmsData => {
             const oAmtM  = /OAmount\s+([\d.]+)/i.exec(block);
-            const recuM  = /re[cç]u\s+([\d\s]+)\s*FCFA/i.exec(block);
-            const amount = oAmtM
-              ? Math.round(parseFloat(oAmtM[1]))
-              : (recuM ? parseInt(recuM[1].replace(/\s/g,'')) : null);
-            const payerM = /Payer\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s\-']+?)(?=\s+(?:Msisdn|Gender|Nlty|OCountry|OCurrency)|\s*$)/i.exec(block);
-            const payer  = payerM ? payerM[1].trim().toUpperCase() : null;
+            const amount = oAmtM ? Math.round(parseFloat(oAmtM[1])) : null;
             const msisdnM = /Msisdn\s+(\d+)/i.exec(block);
             const msisdn  = msisdnM ? msisdnM[1].trim() : null;
-            return { amount, payer, msisdn };
+            return { amount, msisdn };
           };
 
           const parsedBlocks = smsBlocks.map(parseSmsBlock);
 
-          // ── Récupérer toutes les demandes en attente (activation + liens paiement) ──
+          // ── Demandes en attente (activation + liens paiement) ─────────────────
           const pendingRes = await db.execute(sql`
             SELECT id, 'activation' AS src, user_id, payment_phone AS phone, payer_name, full_name AS customer_name,
                    amount, transaction_id, screenshot_url, country, operator, email, referral_code, NULL AS link_id, NULL AS link_label, created_at
@@ -2871,73 +2863,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
           `);
           const pending = (pendingRes.rows || []) as any[];
 
-          // ── Normalisation texte pour comparaison de noms ──────────────────────
-          const normStr = (s: string) => (s || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z0-9\s]/g,'').replace(/\s+/g,' ').trim();
-
-          // ── Scoring : tester chaque demande contre TOUS les blocs SMS ─────────
-          // On garde le meilleur score obtenu pour chaque demande
-          const bestMatch = new Map<string, {req: any, score: number, reasons: string[], smsIndex: number}>();
+          // ── Correspondance : Msisdn ET OAmount doivent tous les deux matcher ──
+          const bestMatch = new Map<string, {req: any, smsIndex: number}>();
 
           for (let si = 0; si < parsedBlocks.length; si++) {
-            const { amount: parsedAmount, payer: parsedPayer, msisdn: parsedMsisdn } = parsedBlocks[si];
+            const { amount: parsedAmount, msisdn: parsedMsisdn } = parsedBlocks[si];
+            if (!parsedAmount || !parsedMsisdn) continue;
 
             for (const req of pending) {
-              let score = 0;
-              const reasons: string[] = [];
+              // Vérif Msisdn (8 derniers chiffres)
+              const msisdnDigits = parsedMsisdn.replace(/\D/g,'');
+              const reqDigits    = (req.phone || '').replace(/\D/g,'');
+              const msisdnMatch  = msisdnDigits.slice(-8) === reqDigits.slice(-8) && msisdnDigits.slice(-8) !== '';
 
-              // Critère 1 — Montant (tolérance ±5%)
-              if (parsedAmount !== null) {
-                const reqAmt = Number(req.amount);
-                if (reqAmt > 0 && Math.abs(reqAmt - parsedAmount) <= Math.max(parsedAmount * 0.05, 10)) {
-                  score++;
-                  reasons.push(`💰 ${reqAmt.toLocaleString('fr-FR')} FCFA`);
-                }
-              }
+              // Vérif montant (exacte)
+              const reqAmt = Number(req.amount);
+              const amountMatch = reqAmt === parsedAmount;
 
-              // Critère 2 — Nom du payeur (≥1 mot de 3+ lettres en commun)
-              if (parsedPayer) {
-                const normSms = normStr(parsedPayer);
-                const normReq = normStr(req.payer_name || req.customer_name || '');
-                const smsWords = normSms.split(' ').filter((w: string) => w.length >= 3);
-                const reqWords = normReq.split(' ').filter((w: string) => w.length >= 3);
-                const matchedWords = smsWords.filter((w: string) => reqWords.includes(w));
-                if (matchedWords.length >= 1) {
-                  score++;
-                  reasons.push(`👤 "${matchedWords.join(' ')}"`);
-                }
-              }
-
-              // Critère 3 — MSISDN (8 derniers chiffres)
-              if (parsedMsisdn) {
-                const msisdnDigits = parsedMsisdn.replace(/\D/g,'');
-                const reqDigits    = (req.phone || '').replace(/\D/g,'');
-                const last8Sms = msisdnDigits.slice(-8);
-                const last8Req = reqDigits.slice(-8);
-                if (last8Sms && last8Req && last8Sms === last8Req) {
-                  score++;
-                  reasons.push(`📱 ${req.phone}`);
-                }
-              }
-
-              if (score >= 2) {
-                const existing = bestMatch.get(req.id);
-                if (!existing || score > existing.score) {
-                  bestMatch.set(req.id, { req, score, reasons, smsIndex: si });
-                }
+              if (msisdnMatch && amountMatch && !bestMatch.has(req.id)) {
+                bestMatch.set(req.id, { req, smsIndex: si });
               }
             }
           }
 
-          // ── Trier par score décroissant, puis par date ────────────────────────
-          const SMS_MATCHES = Array.from(bestMatch.values()).sort((a, b) => b.score - a.score);
+          const SMS_MATCHES = Array.from(bestMatch.values());
 
           // ── Résumé des blocs parsés ───────────────────────────────────────────
           const blocksSummary = parsedBlocks.map((b, i) => {
             const lines = [
               `<b>SMS ${i + 1}</b>`,
               b.amount !== null ? `  💰 ${b.amount.toLocaleString('fr-FR')} FCFA` : '  💰 <i>—</i>',
-              b.payer           ? `  👤 ${b.payer}`                              : '  👤 <i>—</i>',
-              b.msisdn          ? `  📱 +${b.msisdn}`                            : '  📱 <i>—</i>',
+              b.msisdn          ? `  📱 +${b.msisdn}`                             : '  📱 <i>—</i>',
             ];
             return lines.join('\n');
           }).join('\n\n');
@@ -2947,7 +2903,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               method:'POST', headers:{'Content-Type':'application/json'},
               body: JSON.stringify({
                 chat_id: chatId,
-                text: `📨 <b>Analyse ${parsedBlocks.length} SMS Mobile Money</b>\n\n${blocksSummary}\n\n❌ <b>Aucune correspondance</b> parmi ${pending.length} demande(s) en attente\n\n<i>Aucune demande n'a ≥2 critères correspondants.</i>`,
+                text: `📨 <b>Analyse ${parsedBlocks.length} SMS Mobile Money</b>\n\n${blocksSummary}\n\n❌ <b>Aucune correspondance</b> parmi ${pending.length} demande(s) en attente\n\n<i>Aucune demande ne correspond exactement au Msisdn et au montant.</i>`,
                 parse_mode:'HTML'
               })
             });
@@ -2964,15 +2920,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const COUNTRY_FLAGS_SMS: Record<string,string> = { BJ:'🇧🇯',CI:'🇨🇮',SN:'🇸🇳',BF:'🇧🇫',TG:'🇹🇬',CM:'🇨🇲' };
             const OPERATORS_SMS: Record<string,string> = { mtn:'MTN',moov:'Moov',orange:'Orange',wave:'Wave',tmoney:'T-Money',free:'Free',airtel:'Airtel' };
 
-            for (const { req: r, score, reasons, smsIndex } of SMS_MATCHES) {
+            for (const { req: r, smsIndex } of SMS_MATCHES) {
               const date = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'}) : '—';
               const flag  = COUNTRY_FLAGS_SMS[r.country] || '🌍';
-              const stars = score >= 3 ? '🟢 3/3' : '🟡 2/3';
               const isLink = r.src === 'link';
               const cardText = isLink
-                ? `🔗 <b>${stars} — SMS ${smsIndex + 1} — LIEN PAIEMENT</b>\n` +
-                  `${flag} ${OPERATORS_SMS[r.operator]||r.operator||'—'} | <b>${r.link_label||r.link_id||'—'}</b>\n` +
-                  `🎯 ${reasons.join(' | ')}\n\n` +
+                ? `🔗 <b>✅ SMS ${smsIndex + 1} — LIEN PAIEMENT</b>\n` +
+                  `${flag} ${OPERATORS_SMS[r.operator]||r.operator||'—'} | <b>${r.link_label||r.link_id||'—'}</b>\n\n` +
                   `📊 ⏳ En attente\n` +
                   `👤 Client : <b>${r.customer_name||'N/A'}</b>\n` +
                   `📱 <code>${r.phone||'—'}</code>\n` +
@@ -2980,8 +2934,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   `📧 ${r.email||'N/A'}\n` +
                   `🔖 ID tx : <code>${r.transaction_id||'—'}</code>\n` +
                   `🕒 ${date}`
-                : `${flag} <b>${stars} — SMS ${smsIndex + 1} — ACTIVATION — ${OPERATORS_SMS[r.operator]||r.operator||'—'}</b>\n` +
-                  `🎯 ${reasons.join(' | ')}\n\n` +
+                : `${flag} <b>✅ SMS ${smsIndex + 1} — ACTIVATION — ${OPERATORS_SMS[r.operator]||r.operator||'—'}</b>\n\n` +
                   `📊 ⏳ En attente\n` +
                   `👤 Payeur SIM : <b>${r.payer_name||r.customer_name||'N/A'}</b>\n` +
                   `📱 <code>${r.phone||'—'}</code>\n` +
