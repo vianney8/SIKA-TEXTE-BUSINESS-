@@ -131,16 +131,16 @@ function MaintenanceBadge() {
   );
 }
 
-function CountdownCircle({ createdAt }: { createdAt: string }) {
+function CountdownHero({ createdAt }: { createdAt: string }) {
   const [remaining, setRemaining] = useState(0);
   const [progress, setProgress] = useState(1);
+  const TOTAL = 24 * 60 * 60 * 1000;
   useEffect(() => {
-    const deadline = new Date(createdAt).getTime() + 24 * 60 * 60 * 1000;
+    const deadline = new Date(createdAt).getTime() + TOTAL;
     const update = () => {
-      const now = Date.now();
-      const diff = Math.max(0, deadline - now);
+      const diff = Math.max(0, deadline - Date.now());
       setRemaining(diff);
-      setProgress(diff / (24 * 60 * 60 * 1000));
+      setProgress(diff / TOTAL);
     };
     update();
     const iv = setInterval(update, 1000);
@@ -149,39 +149,80 @@ function CountdownCircle({ createdAt }: { createdAt: string }) {
   const h = Math.floor(remaining / 3600000);
   const m = Math.floor((remaining % 3600000) / 60000);
   const s = Math.floor((remaining % 60000) / 1000);
-  const R = 52;
-  const C = 2 * Math.PI * R;
-  const offset = C * (1 - Math.min(1, Math.max(0, progress)));
   const expired = remaining === 0;
+  const pct = Math.round((1 - progress) * 100);
+  const urgency = progress < 0.25;
+
   return (
-    <div className="relative flex items-center justify-center w-36 h-36">
-      <svg width="144" height="144" className="-rotate-90 absolute inset-0">
-        <circle cx="72" cy="72" r={R} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="8" />
-        <circle cx="72" cy="72" r={R} fill="none"
-          stroke={expired ? "#ef4444" : "url(#timerGrad)"}
-          strokeWidth="8" strokeLinecap="round"
-          strokeDasharray={C} strokeDashoffset={offset}
-          style={{ transition: "stroke-dashoffset 1s linear" }}
-        />
-        <defs>
-          <linearGradient id="timerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#60a5fa" />
-            <stop offset="100%" stopColor="#a78bfa" />
-          </linearGradient>
-        </defs>
-      </svg>
-      <div className="absolute flex flex-col items-center">
-        {expired ? (
-          <span className="text-red-400 text-xs font-bold">Expiré</span>
-        ) : (
-          <>
-            <span className="text-white font-black text-xl font-mono tracking-tight leading-none">
-              {String(h).padStart(2, "0")}:{String(m).padStart(2, "0")}:{String(s).padStart(2, "0")}
-            </span>
-            <span className="text-white/35 text-[10px] mt-1 font-semibold uppercase tracking-wider">restant</span>
-          </>
-        )}
+    <div className="w-full flex flex-col items-center">
+      {/* Grand affichage numérique */}
+      <div className="relative mb-4">
+        {/* Halo extérieur pulsant */}
+        <div className="absolute inset-0 rounded-full animate-pulse"
+          style={{ background: urgency ? "rgba(239,68,68,0.12)" : "rgba(96,165,250,0.1)", transform: "scale(1.4)" }} />
+
+        {/* Anneau SVG */}
+        <div className="relative w-48 h-48">
+          <svg width="192" height="192" className="-rotate-90 absolute inset-0">
+            {/* Piste de fond */}
+            <circle cx="96" cy="96" r="80" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="10" />
+            {/* Anneau de progression */}
+            <circle cx="96" cy="96" r="80" fill="none"
+              stroke={expired ? "#ef4444" : urgency ? "url(#urgGrad)" : "url(#timerGrad)"}
+              strokeWidth="10" strokeLinecap="round"
+              strokeDasharray={2 * Math.PI * 80}
+              strokeDashoffset={2 * Math.PI * 80 * (1 - Math.min(1, Math.max(0, progress)))}
+              style={{ transition: "stroke-dashoffset 1s linear, stroke 0.5s ease" }}
+            />
+            <defs>
+              <linearGradient id="timerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#60a5fa" />
+                <stop offset="100%" stopColor="#a78bfa" />
+              </linearGradient>
+              <linearGradient id="urgGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#f97316" />
+                <stop offset="100%" stopColor="#ef4444" />
+              </linearGradient>
+            </defs>
+          </svg>
+
+          {/* Centre : heure numérique */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            {expired ? (
+              <span className="text-red-400 font-black text-sm">Expiré</span>
+            ) : (
+              <>
+                <span className={`font-black text-2xl font-mono tracking-widest leading-none ${urgency ? "text-orange-300" : "text-white"}`}>
+                  {String(h).padStart(2, "0")}:{String(m).padStart(2, "0")}:{String(s).padStart(2, "0")}
+                </span>
+                <span className="text-white/30 text-[10px] font-bold uppercase tracking-widest mt-1.5">restant</span>
+              </>
+            )}
+          </div>
+        </div>
       </div>
+
+      {/* Barre de progression linéaire */}
+      <div className="w-full max-w-xs mb-2">
+        <div className="flex justify-between text-[10px] font-bold mb-1.5">
+          <span className="text-white/30 uppercase tracking-wider">Progression</span>
+          <span className={urgency ? "text-orange-400" : "text-blue-400"}>{pct}% écoulé</span>
+        </div>
+        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+          <div className="h-full rounded-full transition-all duration-1000"
+            style={{
+              width: `${pct}%`,
+              background: urgency
+                ? "linear-gradient(90deg, #f97316, #ef4444)"
+                : "linear-gradient(90deg, #3b82f6, #a78bfa)"
+            }} />
+        </div>
+      </div>
+
+      {/* Délai maximum */}
+      <p className="text-white/25 text-[10px] font-semibold uppercase tracking-widest">
+        Délai maximum · 24 heures
+      </p>
     </div>
   );
 }
@@ -667,113 +708,165 @@ export default function Activation() {
   if (manualSubmitted) {
     return (
       <div className="min-h-screen flex flex-col"
-        style={{ background: "linear-gradient(160deg, #060c1a 0%, #0d1530 60%, #060c1a 100%)" }}>
-        <style>{`@keyframes bounce{0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1}}`}</style>
+        style={{ background: "linear-gradient(180deg, #05091a 0%, #080f24 50%, #05091a 100%)" }}>
+        <style>{`
+          @keyframes bounce{0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1}}
+          @keyframes shimmer{0%{opacity:0.4}50%{opacity:1}100%{opacity:0.4}}
+          @keyframes floatUp{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+        `}</style>
 
-        {/* Barre du haut */}
-        <div className="px-5 pt-6 pb-4 flex items-center justify-between flex-shrink-0">
+        {/* ── En-tête ── */}
+        <div className="px-5 pt-7 pb-4 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2.5">
-            <img src={sikaLogo} alt="Sika" className="w-9 h-9 rounded-xl object-cover border border-white/15" />
+            <img src={sikaLogo} alt="Sika" className="w-9 h-9 rounded-xl object-cover" style={{ border: "1px solid rgba(255,255,255,0.12)" }} />
             <div>
-              <p className="text-[9px] text-blue-400 uppercase tracking-[0.2em] font-bold">Sika Services</p>
+              <p className="text-[9px] text-blue-400/80 uppercase tracking-[0.2em] font-bold">Sika Services</p>
               <p className="font-black text-white text-sm leading-tight">SIKA TEXTE</p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 bg-amber-500/15 border border-amber-400/30 rounded-full px-3 py-1.5">
+          <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
+            style={{ background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.25)" }}>
             <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
             <span className="text-amber-300 text-[11px] font-bold">En vérification</span>
           </div>
         </div>
 
-        {/* Contenu principal */}
-        <div className="flex-1 flex flex-col items-center px-5 py-4 overflow-y-auto">
+        {/* ── Contenu scrollable ── */}
+        <div className="flex-1 overflow-y-auto px-5 pb-8">
 
-          {/* Icône centrale animée */}
-          <div className="relative mb-5 flex-shrink-0">
-            <div className="absolute inset-0 rounded-full bg-blue-500/15 animate-ping" style={{ animationDuration: "2.5s" }} />
-            <div className="relative w-20 h-20 rounded-full border border-blue-400/30 bg-blue-500/10 flex items-center justify-center">
-              <ShieldCheck size={36} className="text-blue-300" />
-            </div>
+          {/* Titre + message principal */}
+          <div className="text-center mb-6 pt-2">
+            <h1 className="text-white font-black text-[26px] leading-tight mb-2">
+              Vérification en cours
+            </h1>
+            <p className="text-white/40 text-sm leading-relaxed max-w-xs mx-auto">
+              Votre demande d'activation a bien été reçue.<br />
+              <span className="text-white/60 font-semibold">Nos équipes sont pleinement mobilisées</span> pour la traiter dans les meilleurs délais.
+            </p>
           </div>
 
-          <h1 className="text-white font-black text-2xl text-center mb-1 flex-shrink-0">Vérification en cours</h1>
-          <p className="text-white/45 text-sm text-center mb-5 max-w-xs flex-shrink-0">
-            Votre demande a bien été reçue et est en cours d'examen par nos agents.
-          </p>
-
-          {/* Compte à rebours */}
-          {pendingCreatedAt && (
-            <div className="flex flex-col items-center mb-5 flex-shrink-0">
-              <p className="text-white/25 text-[10px] uppercase tracking-widest font-bold mb-3">Délai maximum de traitement</p>
-              <CountdownCircle createdAt={pendingCreatedAt} />
+          {/* ── Compte à rebours héro ── */}
+          {pendingCreatedAt ? (
+            <div className="flex flex-col items-center mb-6">
+              <CountdownHero createdAt={pendingCreatedAt} />
+            </div>
+          ) : (
+            <div className="flex flex-col items-center mb-6">
+              <div className="w-20 h-20 rounded-full flex items-center justify-center mb-3"
+                style={{ background: "rgba(96,165,250,0.1)", border: "1px solid rgba(96,165,250,0.2)" }}>
+                <Clock size={32} className="text-blue-300" />
+              </div>
+              <p className="text-white/30 text-xs font-semibold">Délai maximum : 24 heures</p>
             </div>
           )}
 
-          {/* Badge équipes mobilisées */}
-          <div className="w-full max-w-sm bg-white/5 border border-white/10 rounded-2xl px-4 py-3 flex items-center gap-3 mb-4 flex-shrink-0">
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 flex items-center justify-center flex-shrink-0">
-              <span className="text-lg">👥</span>
+          {/* ── Bandeau "Équipes mobilisées" ── */}
+          <div className="rounded-2xl px-4 py-4 mb-4 flex items-center gap-4"
+            style={{ background: "rgba(16,185,129,0.07)", border: "1px solid rgba(16,185,129,0.18)" }}>
+            <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0"
+              style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.2)" }}>
+              <span className="text-xl" style={{ animation: "floatUp 3s ease-in-out infinite" }}>👥</span>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-white text-sm font-bold leading-tight">Équipes mobilisées</p>
-              <p className="text-white/35 text-xs">Nos agents vérifient votre paiement</p>
+            <div className="flex-1">
+              <p className="text-emerald-300 font-black text-sm leading-tight">Équipes mobilisées</p>
+              <p className="text-white/40 text-xs mt-0.5">Nos agents traitent votre dossier activement</p>
             </div>
-            <div className="flex gap-1 flex-shrink-0">
-              {[0, 1, 2].map(i => (
-                <div key={i} className="w-1.5 h-1.5 rounded-full bg-emerald-400"
-                  style={{ animation: `bounce 1.2s ${i * 0.3}s infinite ease-in-out` }} />
+            <div className="flex gap-1.5 flex-shrink-0">
+              {[0,1,2].map(i => (
+                <div key={i} className="w-2 h-2 rounded-full bg-emerald-400"
+                  style={{ animation: `bounce 1.4s ${i*0.25}s infinite ease-in-out` }} />
               ))}
             </div>
           </div>
 
-          {/* Étapes de vérification */}
-          <div className="w-full max-w-sm space-y-2 mb-6 flex-shrink-0">
+          {/* ── Message "patientez activement" ── */}
+          <div className="rounded-2xl px-4 py-4 mb-4"
+            style={{ background: "rgba(99,102,241,0.07)", border: "1px solid rgba(99,102,241,0.18)" }}>
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
+                style={{ background: "rgba(99,102,241,0.15)" }}>
+                <span className="text-base">💡</span>
+              </div>
+              <div>
+                <p className="text-indigo-300 font-bold text-sm mb-1">En attendant, que faire ?</p>
+                <ul className="space-y-1.5">
+                  {[
+                    "Gardez votre téléphone à portée — vous serez notifié",
+                    "Ne soumettez pas une autre demande pour le même paiement",
+                    "Vérifiez que votre SMS de confirmation est bien reçu",
+                  ].map((txt, i) => (
+                    <li key={i} className="flex items-start gap-2 text-white/45 text-xs leading-snug">
+                      <span className="text-indigo-400 flex-shrink-0 mt-0.5">→</span>
+                      {txt}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Pipeline de statuts ── */}
+          <div className="rounded-2xl overflow-hidden mb-5"
+            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="px-4 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+              <p className="text-white/30 text-[10px] font-bold uppercase tracking-widest">Avancement du dossier</p>
+            </div>
             {[
-              { icon: "✅", label: "Demande envoyée avec succès", state: "done" },
-              { icon: "🔍", label: "Vérification du paiement en cours", state: "active" },
-              { icon: "🚀", label: "Activation du compte", state: "pending" },
+              { emoji: "✅", label: "Demande reçue",                sub: "Votre dossier est enregistré",          state: "done"    },
+              { emoji: "🔍", label: "Vérification du paiement",    sub: "Nos agents contrôlent la transaction",   state: "active"  },
+              { emoji: "⚡", label: "Activation du compte",         sub: "Votre accès sera déverrouillé",          state: "waiting" },
             ].map((row, i) => (
-              <div key={i} className={`flex items-center gap-3 px-4 py-2.5 rounded-xl ${
-                row.state === "done" ? "bg-emerald-500/8 border border-emerald-400/20"
-                : row.state === "active" ? "bg-blue-500/10 border border-blue-400/25"
-                : "bg-white/3 border border-white/6"
-              }`}>
-                <span className="text-base flex-shrink-0">{row.icon}</span>
-                <p className={`text-sm font-semibold ${
-                  row.state === "done" ? "text-emerald-300"
-                  : row.state === "active" ? "text-blue-300"
-                  : "text-white/25"
-                }`}>{row.label}</p>
+              <div key={i} className="px-4 py-3 flex items-center gap-3"
+                style={{ borderBottom: i < 2 ? "1px solid rgba(255,255,255,0.04)" : undefined }}>
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-base ${
+                  row.state === "done"    ? "bg-emerald-500/15 border border-emerald-400/25" :
+                  row.state === "active"  ? "bg-blue-500/15 border border-blue-400/25" :
+                  "bg-white/5 border border-white/8"
+                }`}>
+                  {row.emoji}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-bold leading-tight ${
+                    row.state === "done"   ? "text-emerald-300" :
+                    row.state === "active" ? "text-blue-300"    : "text-white/25"
+                  }`}>{row.label}</p>
+                  <p className="text-white/25 text-xs mt-0.5">{row.sub}</p>
+                </div>
                 {row.state === "active" && (
-                  <Loader2 size={12} className="text-blue-400 animate-spin ml-auto flex-shrink-0" />
+                  <Loader2 size={14} className="text-blue-400 animate-spin flex-shrink-0" />
+                )}
+                {row.state === "done" && (
+                  <CheckCircle size={14} className="text-emerald-400 flex-shrink-0" />
                 )}
               </div>
             ))}
           </div>
 
-          {/* Boutons */}
-          <div className="w-full max-w-sm space-y-3 flex-shrink-0">
-            <Button
-              onClick={checkPendingStatus}
-              disabled={statusChecking}
-              className="w-full py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 border border-white/15"
-              style={{ background: "rgba(255,255,255,0.07)", color: "#fff" }}
-            >
+          {/* ── Boutons ── */}
+          <div className="space-y-3">
+            <button onClick={checkPendingStatus} disabled={statusChecking}
+              className="w-full py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+              style={{
+                background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
+                boxShadow: "0 6px 24px rgba(37,99,235,0.3)"
+              }}>
               {statusChecking
-                ? <><Loader2 size={14} className="animate-spin" /> Vérification…</>
-                : <><RefreshCw size={14} /> Actualiser le statut</>
+                ? <><Loader2 size={15} className="animate-spin" /> Vérification en cours…</>
+                : <><RefreshCw size={15} /> Actualiser mon statut</>
               }
-            </Button>
-            <Button asChild variant="ghost" className="w-full text-sm text-white/30 hover:text-white/60">
-              <Link href="/">Retour à l'accueil</Link>
-            </Button>
+            </button>
+            <Link href="/">
+              <button className="w-full py-3 rounded-2xl text-sm font-semibold text-white/30 hover:text-white/60 transition-colors">
+                Retour à l'accueil
+              </button>
+            </Link>
           </div>
         </div>
 
-        {/* Pied de page */}
-        <div className="px-5 pb-6 text-center flex-shrink-0">
-          <p className="text-white/18 text-[10px] flex items-center justify-center gap-1.5">
-            <ShieldCheck size={9} /> Vérification sécurisée · Mise à jour automatique toutes les 30 s
+        {/* ── Pied de page fixe ── */}
+        <div className="px-5 pb-5 pt-2 text-center flex-shrink-0">
+          <p className="text-white/15 text-[10px] flex items-center justify-center gap-1.5">
+            <ShieldCheck size={8} /> Traitement sécurisé · Actualisation automatique toutes les 30 s
           </p>
         </div>
       </div>
