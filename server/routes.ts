@@ -2866,15 +2866,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // ── Correspondance : Msisdn ET OAmount doivent tous les deux matcher ──
           const bestMatch = new Map<string, {req: any, smsIndex: number}>();
 
+          // Normalise un numéro en retirant le + et les indicatifs pays connus
+          const COUNTRY_CODES_SMS = ['229','225','221','226','228','237'];
+          const normalizePhone = (raw: string): string => {
+            let n = raw.replace(/\D/g, '');
+            for (const cc of COUNTRY_CODES_SMS) {
+              if (n.startsWith(cc)) { n = n.slice(cc.length); break; }
+            }
+            // Retirer le zéro de tête si présent (ex: 058274430 → 58274430)
+            n = n.replace(/^0+/, '');
+            return n;
+          };
+
           for (let si = 0; si < parsedBlocks.length; si++) {
             const { amount: parsedAmount, msisdn: parsedMsisdn } = parsedBlocks[si];
             if (!parsedAmount || !parsedMsisdn) continue;
 
+            const normSms = normalizePhone(parsedMsisdn);
+
             for (const req of pending) {
-              // Vérif Msisdn (8 derniers chiffres)
-              const msisdnDigits = parsedMsisdn.replace(/\D/g,'');
-              const reqDigits    = (req.phone || '').replace(/\D/g,'');
-              const msisdnMatch  = msisdnDigits.slice(-8) === reqDigits.slice(-8) && msisdnDigits.slice(-8) !== '';
+              // Vérif Msisdn — compare les numéros sans indicatif pays
+              const normReq = normalizePhone(req.phone || '');
+              const msisdnMatch = normSms.length >= 6 && normReq.length >= 6 && normSms === normReq;
 
               // Vérif montant (exacte)
               const reqAmt = Number(req.amount);
