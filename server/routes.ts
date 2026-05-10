@@ -43,6 +43,16 @@ import connectPg from "connect-pg-simple";
 import { randomBytes, createHmac } from "crypto";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 
+// Déduplication des clics Telegram : évite le traitement multiple du même clic
+const processedCallbackIds = new Set<string>();
+function isCallbackAlreadyProcessed(id: string): boolean {
+  if (processedCallbackIds.has(id)) return true;
+  processedCallbackIds.add(id);
+  // Nettoyage automatique après 90 secondes
+  setTimeout(() => processedCallbackIds.delete(id), 90_000);
+  return false;
+}
+
 // Session setup
 function setupSessions(app: Express) {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
@@ -3555,6 +3565,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.sendStatus(200);
         }
 
+        // Anti double-clic : ignorer si déjà traité
+        if (isCallbackAlreadyProcessed(callbackQuery.id)) {
+          console.log('[TELEGRAM] Duplicate callback ignored:', callbackQuery.id);
+          return res.sendStatus(200);
+        }
+
+        // Répondre IMMÉDIATEMENT à Telegram pour supprimer le spinner et bloquer les re-clics
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/answerCallbackQuery`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ callback_query_id: callbackQuery.id, text: '⏳' })
+        }).catch(() => {});
+
         let answerText = '';
         let callbackError: any = null;
         try {
@@ -4488,14 +4511,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } catch (cbErr: any) {
           callbackError = cbErr;
           console.error('[TELEGRAM] Callback handler error:', cbErr?.message || cbErr);
-          if (!answerText) answerText = '❌ Erreur interne';
-        } finally {
-          // Always answer the callback query — required by Telegram, prevents spinner
-          await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/answerCallbackQuery`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ callback_query_id: callbackQuery.id, text: answerText })
-          }).catch((e: any) => console.error('[TELEGRAM] answerCallbackQuery failed:', e?.message));
         }
       }
 
