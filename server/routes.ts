@@ -3497,6 +3497,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.sendStatus(200);
         }
 
+        // ── Paiements par lien en attente ─────────────────────────────────────
+        const isPendingLinkCmd = /payement[s]?\s+par\s+lien[s]?\s+en\s+attente|lien[s]?\s+en\s+attente|en\s+attente.*lien|paiement[s]?\s+lien[s]?\s+en\s+attente/i.test(msgText);
+        if (isPendingLinkCmd) {
+          const totalRes2 = await db.execute(sql`SELECT COUNT(*) as total FROM link_manual_requests WHERE status = 'pending'`);
+          const totalPendingLinks = Number((totalRes2.rows[0] as any)?.total || 0);
+
+          const COUNTRY_FLAGS_LK: Record<string,string> = { BJ:'🇧🇯',CI:'🇨🇮',SN:'🇸🇳',BF:'🇧🇫',TG:'🇹🇬',CM:'🇨🇲' };
+          const OPERATORS_LK: Record<string,string> = { mtn:'MTN',moov:'Moov',orange:'Orange',wave:'Wave',tmoney:'T-Money',free:'Free',airtel:'Airtel' };
+
+          if (!totalPendingLinks) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, text: `✅ <b>Aucun paiement par lien en attente.</b>`, parse_mode:'HTML' })
+            });
+            return res.sendStatus(200);
+          }
+
+          const LIMIT_LK = 50;
+          const pendingLinksRes = await db.execute(sql`
+            SELECT * FROM link_manual_requests WHERE status = 'pending' ORDER BY created_at DESC LIMIT ${LIMIT_LK}
+          `);
+          const pendingLinks = (pendingLinksRes.rows || []) as any[];
+
+          const msgResumeLk = totalPendingLinks > LIMIT_LK
+            ? `🔗 <b>${totalPendingLinks} paiement(s) par lien en attente</b>\n📋 Affichage des <b>${LIMIT_LK} plus récents</b>`
+            : `🔗 <b>${totalPendingLinks} paiement(s) par lien en attente</b>`;
+
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({
+              chat_id: chatId,
+              text: msgResumeLk,
+              parse_mode:'HTML',
+              reply_markup: { inline_keyboard: [[
+                { text:`🗑 Tout Rejeter (${totalPendingLinks})`, callback_data:'lnkrej_all_pre' }
+              ]]}
+            })
+          });
+
+          for (const r of pendingLinks) {
+            const date = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'}) : '—';
+            const flag = COUNTRY_FLAGS_LK[r.country] || '🌍';
+            const opLabel = OPERATORS_LK[r.operator] || r.operator || '—';
+            const cardText =
+              `${flag} <b>LIEN — ${r.link_label || r.link_id || '—'}</b>\n` +
+              `📊 ⏳ En attente\n` +
+              `👤 <b>${r.customer_name || 'N/A'}</b>\n` +
+              `📱 <code>${r.phone || '—'}</code>\n` +
+              `💳 ${opLabel}\n` +
+              `💰 ${Number(r.amount||0).toLocaleString('fr-FR')} ${r.currency||'FCFA'}\n` +
+              `📧 ${r.customer_email || 'N/A'}\n` +
+              `🔖 ID tx : <code>${r.transaction_id || '—'}</code>\n` +
+              `🕒 ${date}`;
+            const buttons = { inline_keyboard: [[
+              { text:'✅ Approuver', callback_data:`lnkma_pre_${r.id}` },
+              { text:'❌ Rejeter',   callback_data:`lnkrej_pre_${r.id}` },
+            ]]};
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', reply_markup: buttons })
+            });
+            if (r.screenshot_url) { try { await sendShot(chatId, r.screenshot_url); } catch(_){} }
+            await new Promise(resolve => setTimeout(resolve, 80));
+          }
+
+          return res.sendStatus(200);
+        }
+
         // ── Fallback : message non reconnu → aide complète ────────────────────
         const helpText =
           `🤖 <b>Bot SIKA TEXTE — commandes disponibles</b>\n\n` +
@@ -3506,6 +3574,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           `• <code>+229XXXXXXXX pay lien</code> → paiements lien manuels\n` +
           `• <code>+229XXXXXXXX pcs</code> → achats de code PCS\n` +
           `• <code>+229XXXXXXXX act pcs</code> → activations par code PCS\n\n` +
+          `📋 <b>Listes en attente :</b>\n` +
+          `• <code>demandes d'activation en attente</code> → 50 dernières activations manuelles\n` +
+          `• <code>Payement par lien en attente</code> → 50 derniers paiements lien\n\n` +
           `🔖 <b>Par ID de transaction :</b>\n` +
           `• <code>tx ABC123</code> ou <code>id ABC123</code> → toutes les transactions (lien manuel, activation, SolvexPay)\n\n` +
           `👤 <b>Par nom du payeur :</b>\n` +
@@ -4036,18 +4107,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // ── Tout rejeter : pré-confirmation ──────────────────────────────────
         } else if (data === 'manact_reject_all_pre') {
           answerText = '⚠️ Confirmer ?';
-          await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-            method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({
-              chat_id: chatId,
-              text: `⚠️ <b>Confirmer le rejet de TOUTES les demandes en attente ?</b>\n\nCette action est irréversible.`,
-              parse_mode:'HTML',
-              reply_markup: { inline_keyboard: [[
-                { text:'🗑 Oui, tout rejeter', callback_data:'manact_reject_all_ok' },
-                { text:'◀ Annuler',            callback_data:'manact_reject_all_no' },
-              ]]}
-            })
-          });
+          if (chatId && messageId) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({
+                chat_id: chatId,
+                message_id: messageId,
+                text: `⚠️ <b>Confirmer le rejet de TOUTES les demandes d'activation en attente ?</b>\n\nCette action est irréversible.`,
+                parse_mode:'HTML',
+                reply_markup: { inline_keyboard: [[
+                  { text:'🗑 Oui, tout rejeter', callback_data:'manact_reject_all_ok' },
+                  { text:'◀ Annuler',            callback_data:'manact_reject_all_no' },
+                ]]}
+              })
+            });
+          }
 
         // ── Tout rejeter : exécution ──────────────────────────────────────────
         } else if (data === 'manact_reject_all_ok') {
@@ -4078,6 +4152,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // ── Tout rejeter : annulé ─────────────────────────────────────────────
         } else if (data === 'manact_reject_all_no') {
+          answerText = 'Annulé.';
+          if (chatId && messageId) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup:{ inline_keyboard:[] } })
+            });
+          }
+
+        // ── Tout rejeter liens de paiement : pré-confirmation ────────────────
+        } else if (data === 'lnkrej_all_pre') {
+          answerText = '⚠️ Confirmer ?';
+          if (chatId && messageId) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({
+                chat_id: chatId,
+                message_id: messageId,
+                text: `⚠️ <b>Confirmer le rejet de TOUTES les demandes de paiement par lien en attente ?</b>\n\nCette action est irréversible.`,
+                parse_mode:'HTML',
+                reply_markup: { inline_keyboard: [[
+                  { text:'🗑 Oui, tout rejeter', callback_data:'lnkrej_all_ok' },
+                  { text:'◀ Annuler',            callback_data:'lnkrej_all_no' },
+                ]]}
+              })
+            });
+          }
+
+        // ── Tout rejeter liens de paiement : exécution ───────────────────────
+        } else if (data === 'lnkrej_all_ok') {
+          try {
+            const countRes = await db.execute(sql`SELECT COUNT(*) as n FROM link_manual_requests WHERE status = 'pending'`);
+            const total = Number((countRes.rows[0] as any)?.n || 0);
+            if (total === 0) {
+              answerText = 'Aucune demande en attente.';
+            } else {
+              await db.execute(sql`UPDATE link_manual_requests SET status = 'rejected', updated_at = NOW() WHERE status = 'pending'`);
+              answerText = `✅ ${total} demande(s) rejetée(s)`;
+              if (chatId && messageId) {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+                  method:'POST', headers:{'Content-Type':'application/json'},
+                  body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup:{ inline_keyboard:[] } })
+                });
+              }
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  text: `🗑 <b>${total} demande(s) de paiement par lien rejetée(s).</b>\n\nTous les statuts ont été mis à jour.`,
+                  parse_mode:'HTML'
+                })
+              });
+            }
+          } catch(e:any) { answerText='❌ Erreur'; console.error('[LNKREJ-ALL]',e); }
+
+        // ── Tout rejeter liens de paiement : annulé ──────────────────────────
+        } else if (data === 'lnkrej_all_no') {
           answerText = 'Annulé.';
           if (chatId && messageId) {
             await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
