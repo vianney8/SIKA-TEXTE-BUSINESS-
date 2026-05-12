@@ -4280,17 +4280,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
             else {
               answerText = '⚠️ Confirmer approbation ?';
               if (chatId && messageId) {
-                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
+                const confirmMarkup = { inline_keyboard:[[
+                  { text:'✅ Oui, valider', callback_data:`lnkma_ok_${reqId}` },
+                  { text:'◀ Annuler', callback_data:`lnkma_no_${reqId}` }
+                ]]};
+                const confirmText = `✅ <b>Confirmer approbation ?</b>\n\n🔗 Lien : ${r.linkLabel||r.linkId}\n👤 ${r.customerName||'N/A'}\n📱 <code>${r.phone||'—'}</code>\n🔖 ID tx : <code>${r.transactionId||'—'}</code>\n💰 ${Number(r.amount).toLocaleString('fr-FR')} ${r.currency||'FCFA'}\n\nCela va <b>valider ce paiement</b>.`;
+                // Essayer editMessageText (message texte), sinon editMessageCaption (message photo)
+                const editTextRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
                   method:'POST', headers:{'Content-Type':'application/json'},
-                  body: JSON.stringify({ chat_id: chatId, message_id: messageId,
-                    text: `✅ <b>Confirmer approbation ?</b>\n\n🔗 Lien : ${r.linkLabel||r.linkId}\n👤 ${r.customerName||'N/A'}\n📱 <code>${r.phone||'—'}</code>\n🔖 ID tx : <code>${r.transactionId||'—'}</code>\n💰 ${Number(r.amount).toLocaleString('fr-FR')} ${r.currency||'FCFA'}\n\nCela va <b>valider ce paiement</b>.`,
-                    parse_mode:'HTML',
-                    reply_markup:{ inline_keyboard:[[
-                      { text:'✅ Oui, valider', callback_data:`lnkma_ok_${reqId}` },
-                      { text:'◀ Annuler', callback_data:`lnkma_no_${reqId}` }
-                    ]]}
-                  })
+                  body: JSON.stringify({ chat_id: chatId, message_id: messageId, text: confirmText, parse_mode:'HTML', reply_markup: confirmMarkup })
                 });
+                const editTextJson = await editTextRes.json() as any;
+                if (!editTextJson.ok) {
+                  // Le message a une photo → utiliser editMessageCaption + editMessageReplyMarkup
+                  await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageCaption`, {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({ chat_id: chatId, message_id: messageId, caption: confirmText, parse_mode:'HTML', reply_markup: confirmMarkup })
+                  }).catch(() => {});
+                }
               }
             }
           } catch(e) { answerText='❌ Erreur'; console.error('[LNKMA-PRE]',e); }
