@@ -2571,7 +2571,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               chat_id: chatId,
-              text: '✅ <b>Bot SIKA TEXTE configuré avec succès !</b>\n\nVous recevrez désormais les demandes d\'activation CI.\n\n💡 <b>Recherches disponibles :</b>\n• <code>+229XXXXXXXX</code> → demandes d\'activation CI\n• <code>+229XXXXXXXX pcs</code> → achats de code PCS\n• <code>+229XXXXXXXX act pcs</code> → activations PCS\n• <code>+229XXXXXXXX paie act</code> → activations manuelles\n• <code>+229XXXXXXXX pay lien</code> → paiements lien manuels\n• <code>tx ABC123</code> → recherche par ID de transaction\n• <code>nom Kouassi Jean</code> → recherche par nom du payeur\n\n📨 <b>Vérification SMS Mobile Money :</b>\nCollez directement un SMS de confirmation Mobile Money (contenant OAmount, Payer et Msisdn) — le système extrait automatiquement le montant, le nom et le numéro, puis affiche toutes les demandes en attente correspondantes (≥2 critères sur 3).',
+              text: '✅ <b>Bot SIKA TEXTE configuré avec succès !</b>\n\n💡 <b>Commandes disponibles :</b>\n\n📱 <b>Par numéro :</b>\n• <code>+229XXXXXXXX</code> → activations CI\n• <code>+229XXXXXXXX paie act</code> → activations manuelles\n• <code>+229XXXXXXXX pay lien</code> → paiements lien\n• <code>+229XXXXXXXX pcs</code> → achats PCS\n• <code>+229XXXXXXXX act pcs</code> → activations PCS\n\n📧 <b>Par email :</b>\n• <code>client@email.com</code> → codes PCS liés (avec bouton changer statut)\n\n📋 <b>Listes en attente :</b>\n• <code>demandes d\'activation en attente</code>\n• <code>Payement par lien en attente</code>\n\n🔖 <b>Par transaction :</b>\n• <code>tx ABC123</code> → recherche par ID\n\n👤 <b>Par nom :</b>\n• <code>nom Kouassi Jean</code> → recherche par nom\n\n📨 <b>SMS Mobile Money :</b> collez un SMS directement pour vérification automatique.',
               parse_mode: 'HTML'
             })
           });
@@ -3565,6 +3565,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.sendStatus(200);
         }
 
+        // ── Recherche par email → codes PCS liés ─────────────────────────────
+        const isEmailSearch = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(msgText.trim());
+        if (isEmailSearch) {
+          const emailQuery = msgText.trim().toLowerCase();
+          // Codes PCS rattachés au compte utilisateur
+          await sendUserPcsCodesListToTelegram(String(chatId), emailQuery, TELEGRAM_TOKEN);
+          // Codes PCS dans link_manual_requests non rattachés à un compte
+          const lmrCodesRes = await db.execute(sql`
+            SELECT lmr.pcs_code, lmr.status as req_status, lmr.link_label, lmr.link_id,
+                   lmr.customer_name, lmr.created_at
+            FROM link_manual_requests lmr
+            WHERE LOWER(lmr.customer_email) = ${emailQuery}
+              AND lmr.pcs_code IS NOT NULL
+              AND lmr.pcs_code != ''
+              AND NOT EXISTS (
+                SELECT 1 FROM pcs_codes pc
+                JOIN users u ON u.id = pc.user_id
+                WHERE LOWER(u.email) = ${emailQuery}
+                  AND pc.code = lmr.pcs_code
+              )
+            ORDER BY lmr.created_at DESC
+            LIMIT 20
+          `);
+          const lmrCodes = (lmrCodesRes.rows || []) as any[];
+          if (lmrCodes.length > 0) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({
+                chat_id: chatId,
+                text: `📦 <b>Codes PCS non rattachés (liens paiement)</b> — <code>${emailQuery}</code>\n${lmrCodes.length} code(s) additionnel(s)`,
+                parse_mode:'HTML'
+              })
+            });
+            for (const row of lmrCodes) {
+              const createdAt = row.created_at ? new Date(row.created_at).toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'}) : '—';
+              const cardText =
+                `💳 <b>Code PCS (lien)</b>\n` +
+                `🔑 <code>${row.pcs_code}</code>\n` +
+                `🔗 Lien : ${row.link_label || row.link_id || '—'}\n` +
+                `👤 ${row.customer_name || '—'}\n` +
+                `🕒 ${createdAt}`;
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML' })
+              }).catch(() => {});
+              await new Promise(r => setTimeout(r, 60));
+            }
+          }
+          return res.sendStatus(200);
+        }
+
         // ── Fallback : message non reconnu → aide complète ────────────────────
         const helpText =
           `🤖 <b>Bot SIKA TEXTE — commandes disponibles</b>\n\n` +
@@ -3574,6 +3625,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           `• <code>+229XXXXXXXX pay lien</code> → paiements lien manuels\n` +
           `• <code>+229XXXXXXXX pcs</code> → achats de code PCS\n` +
           `• <code>+229XXXXXXXX act pcs</code> → activations par code PCS\n\n` +
+          `📧 <b>Par adresse email :</b>\n` +
+          `• <code>client@email.com</code> → tous les codes PCS liés à cet email (avec bouton changer statut)\n\n` +
           `📋 <b>Listes en attente :</b>\n` +
           `• <code>demandes d'activation en attente</code> → 50 dernières activations manuelles\n` +
           `• <code>Payement par lien en attente</code> → 50 derniers paiements lien\n\n` +
@@ -3581,6 +3634,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           `• <code>tx ABC123</code> ou <code>id ABC123</code> → toutes les transactions (lien manuel, activation, SolvexPay)\n\n` +
           `👤 <b>Par nom du payeur :</b>\n` +
           `• <code>nom Kouassi Jean</code> ou <code>name Kouassi</code> → activations manuelles, paiements lien, SolvexPay, activations CI\n\n` +
+          `📨 <b>Vérification SMS :</b> collez un SMS Mobile Money directement.\n\n` +
           `💡 <i>Astuce :</i> les recherches par téléphone comparent aussi les 8 derniers chiffres, et les recherches par nom/ID acceptent un fragment.`;
         await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
           method:'POST', headers:{'Content-Type':'application/json'},
