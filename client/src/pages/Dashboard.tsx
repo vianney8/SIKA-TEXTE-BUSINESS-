@@ -35,7 +35,14 @@ export default function Dashboard() {
   const [position, setPosition] = useState({ x: window.innerWidth - 80, y: window.innerHeight - 180 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [showWhatsAppNotif, setShowWhatsAppNotif] = useState(true);
+  const [showWhatsAppNotif, setShowWhatsAppNotif] = useState(() => {
+    try { return localStorage.getItem('wa_notif_dismissed') !== '1'; } catch { return true; }
+  });
+
+  const dismissWhatsApp = () => {
+    try { localStorage.setItem('wa_notif_dismissed', '1'); } catch {}
+    setShowWhatsAppNotif(false);
+  };
 
   const { data: balance } = useQuery({ queryKey: ["/api/user/balance"] });
 
@@ -163,7 +170,7 @@ export default function Dashboard() {
                 href={whatsappGroup || 'https://whatsapp.com/channel'}
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={() => setShowWhatsAppNotif(false)}
+                onClick={dismissWhatsApp}
                 className="w-full py-3.5 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 shadow-md active:scale-[0.97] transition-all"
                 style={{ background: "linear-gradient(135deg, #25d366, #128c7e)" }}
               >
@@ -171,7 +178,7 @@ export default function Dashboard() {
                 Rejoindre la chaîne
               </a>
               <button
-                onClick={() => setShowWhatsAppNotif(false)}
+                onClick={dismissWhatsApp}
                 className="w-full py-3 rounded-2xl font-bold text-sm text-gray-500 border border-gray-200 bg-gray-50 active:bg-gray-100 transition-all"
               >
                 D'accord

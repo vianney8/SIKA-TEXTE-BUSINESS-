@@ -255,9 +255,9 @@ export default function SpayNetwork() {
 
   useEffect(() => {
     const iv = setInterval(() => {
-      packetsRef.current += Math.floor(Math.random() * 50 + 10);
+      packetsRef.current += Math.floor(Math.random() * 300 + 80);
       setPackets(packetsRef.current);
-    }, 300);
+    }, 2000);
     return () => clearInterval(iv);
   }, []);
 
@@ -570,7 +570,7 @@ export default function SpayNetwork() {
                 style={{ background: `${item.color}08`, borderColor: `${item.color}25` }}>
                 <span style={{ color: item.color }}>{item.icon}</span>
                 <span className="text-slate-700 text-[10px] font-semibold flex-1 truncate">{item.label}</span>
-                <PulseRing color={item.color} size={1.5} />
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: item.color }} />
               </div>
             ))}
           </div>
@@ -642,7 +642,7 @@ export default function SpayNetwork() {
                 style={{ background: `${f.color}08`, borderColor: `${f.color}25` }}>
                 <span style={{ color: f.color }}>{f.icon}</span>
                 <span className="text-slate-700 text-[10px] font-semibold flex-1 truncate">{f.label}</span>
-                <PulseRing color={f.color} size={1.5} />
+                <CheckCircle size={11} style={{ color: f.color, flexShrink: 0 }} />
               </div>
             ))}
           </div>

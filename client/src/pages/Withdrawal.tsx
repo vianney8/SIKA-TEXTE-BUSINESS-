@@ -4,7 +4,7 @@ import {
   CreditCard, AlertTriangle, Shield, Banknote,
   MessageCircle, Edit3, CheckCircle,
   ArrowDownCircle, Send, ChevronRight, KeyRound, Eye, EyeOff, Lock,
-  Wallet, ShieldCheck, Smartphone, ChevronRight as ArrowRight
+  Wallet, ShieldCheck, Smartphone, ArrowRight
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { useQuery, useMutation } from "@tanstack/react-query";
