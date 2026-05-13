@@ -3896,22 +3896,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const newStatus = c.status === 'actif' ? 'inactif' : 'actif';
               answerText = `⚠️ Confirmer ${c.status} → ${newStatus}`;
               if (chatId && messageId) {
-                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    chat_id: chatId,
-                    message_id: messageId,
-                    text: `🔄 <b>Changement de statut</b>\n\n🔑 Code : <code>${c.code}</code>\n📊 Actuel : <b>${c.status === 'actif' ? '🟢 Actif' : '🔴 Inactif'}</b>\n➡ Nouveau : <b>${newStatus === 'actif' ? '🟢 Actif' : '🔴 Inactif'}</b>\n\nConfirmer ?`,
-                    parse_mode: 'HTML',
-                    reply_markup: {
-                      inline_keyboard: [[
-                        { text: `✅ Oui, passer à ${newStatus}`, callback_data: `pcstog_ok_${codeId}` },
-                        { text: '◀ Annuler', callback_data: `pcstog_no_${codeId}` }
-                      ]]
-                    }
-                  })
-                });
+                const _ptText = `🔄 <b>Changement de statut</b>\n\n🔑 Code : <code>${c.code}</code>\n📊 Actuel : <b>${c.status === 'actif' ? '🟢 Actif' : '🔴 Inactif'}</b>\n➡ Nouveau : <b>${newStatus === 'actif' ? '🟢 Actif' : '🔴 Inactif'}</b>\n\nConfirmer ?`;
+                const _ptMarkup = { inline_keyboard: [[{ text: `✅ Oui, passer à ${newStatus}`, callback_data: `pcstog_ok_${codeId}` }, { text: '◀ Annuler', callback_data: `pcstog_no_${codeId}` }]] };
+                const _ptJson = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ chat_id: chatId, message_id: messageId, text: _ptText, parse_mode: 'HTML', reply_markup: _ptMarkup })
+                }).then(r => r.json()) as any;
+                if (!_ptJson.ok) {
+                  await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageCaption`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chat_id: chatId, message_id: messageId, caption: _ptText, parse_mode: 'HTML', reply_markup: _ptMarkup })
+                  }).catch(() => {});
+                }
               }
             }
           } catch (err) {
@@ -4152,19 +4148,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else if (data === 'manact_reject_all_pre') {
           answerText = '⚠️ Confirmer ?';
           if (chatId && messageId) {
-            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
+            const _raText = `⚠️ <b>Confirmer le rejet de TOUTES les demandes d'activation en attente ?</b>\n\nCette action est irréversible.`;
+            const _raMarkup = { inline_keyboard: [[{ text:'🗑 Oui, tout rejeter', callback_data:'manact_reject_all_ok' }, { text:'◀ Annuler', callback_data:'manact_reject_all_no' }]] };
+            const _raJson = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
               method:'POST', headers:{'Content-Type':'application/json'},
-              body: JSON.stringify({
-                chat_id: chatId,
-                message_id: messageId,
-                text: `⚠️ <b>Confirmer le rejet de TOUTES les demandes d'activation en attente ?</b>\n\nCette action est irréversible.`,
-                parse_mode:'HTML',
-                reply_markup: { inline_keyboard: [[
-                  { text:'🗑 Oui, tout rejeter', callback_data:'manact_reject_all_ok' },
-                  { text:'◀ Annuler',            callback_data:'manact_reject_all_no' },
-                ]]}
-              })
-            });
+              body: JSON.stringify({ chat_id: chatId, message_id: messageId, text: _raText, parse_mode:'HTML', reply_markup: _raMarkup })
+            }).then(r => r.json()) as any;
+            if (!_raJson.ok) {
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageCaption`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ chat_id: chatId, message_id: messageId, caption: _raText, parse_mode:'HTML', reply_markup: _raMarkup })
+              }).catch(()=>{});
+            }
           }
 
         // ── Tout rejeter : exécution ──────────────────────────────────────────
@@ -4175,7 +4170,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (total === 0) {
               answerText = 'Aucune demande en attente.';
             } else {
-              await db.execute(sql`UPDATE manual_activation_requests SET status = 'rejected', updated_at = NOW() WHERE status = 'pending'`);
+              await db.execute(sql`UPDATE manual_activation_requests SET status = 'rejected' WHERE status = 'pending'`);
               answerText = `✅ ${total} demande(s) rejetée(s)`;
               if (chatId && messageId) {
                 await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
