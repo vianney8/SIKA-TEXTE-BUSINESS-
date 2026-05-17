@@ -20,8 +20,8 @@ interface UserPcsCode { id: number; code: string; status: string; createdAt: str
 /* ── Micro-components ───────────────────────────────────── */
 function PulseRing({ color = "#10b981", size = 3 }: { color?: string; size?: number }) {
   return (
-    <span className="relative flex" style={{ width: size * 4, height: size * 4 }}>
-      <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60" style={{ background: color }} />
+    <span className="relative flex overflow-hidden rounded-full" style={{ width: size * 4, height: size * 4 }}>
+      <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-50" style={{ background: color }} />
       <span className="relative inline-flex rounded-full" style={{ width: size * 4, height: size * 4, background: color }} />
     </span>
   );
@@ -35,7 +35,7 @@ function MoneyFlowDiagram() {
   useEffect(() => {
     const iv = setInterval(() => {
       setStep(s => (s + 1) % 4);
-    }, 1200);
+    }, 2500);
     return () => clearInterval(iv);
   }, []);
 
@@ -247,9 +247,9 @@ export default function SpayNetwork() {
       v += (Math.random() - 0.5) * 4;
       v = Math.max(12, Math.min(48, v));
       setServerLoad(Math.round(v));
-      animRef.current = window.setTimeout(tick, 1200 + Math.random() * 800);
+      animRef.current = window.setTimeout(tick, 3000 + Math.random() * 2000);
     };
-    animRef.current = window.setTimeout(tick, 1200);
+    animRef.current = window.setTimeout(tick, 3000);
     return () => clearTimeout(animRef.current);
   }, []);
 
@@ -257,7 +257,7 @@ export default function SpayNetwork() {
     const iv = setInterval(() => {
       packetsRef.current += Math.floor(Math.random() * 300 + 80);
       setPackets(packetsRef.current);
-    }, 2000);
+    }, 5000);
     return () => clearInterval(iv);
   }, []);
 
@@ -313,11 +313,7 @@ export default function SpayNetwork() {
 
       {/* ── HERO HEADER — gradient indigo (même style que les autres pages) ── */}
       <div className="relative overflow-hidden"
-        style={{ background: "linear-gradient(135deg, #312e81 0%, #4338ca 50%, #4f46e5 100%)" }}>
-        <div className="absolute inset-0 opacity-[0.06]"
-          style={{ backgroundImage: "radial-gradient(#a5b4fc 1px, transparent 1px)", backgroundSize: "22px 22px" }} />
-        <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full blur-3xl opacity-20"
-          style={{ background: "radial-gradient(circle, #818cf8, transparent)" }} />
+        style={{ background: "linear-gradient(135deg, #312e81 0%, #4338ca 50%, #4f46e5 100%)", transform: "translateZ(0)", willChange: "transform" }}>
 
         <div className="relative flex items-center gap-3 px-4 pt-5 pb-4">
           <Link href="/">
@@ -357,14 +353,12 @@ export default function SpayNetwork() {
 
       {/* ── FLOW DIAGRAM — garde son fond sombre car c'est une zone graphique animée ── */}
       <div className="mx-4 mt-4 rounded-[20px] overflow-hidden relative shadow-lg shadow-indigo-200/40"
-        style={{ background: "linear-gradient(135deg, #312e81 0%, #3730a3 50%, #4338ca 100%)" }}>
-        <div className="absolute inset-0 opacity-[0.05]"
-          style={{ backgroundImage: "radial-gradient(#a5b4fc 1px, transparent 1px)", backgroundSize: "18px 18px" }} />
+        style={{ background: "linear-gradient(135deg, #312e81 0%, #3730a3 50%, #4338ca 100%)", transform: "translateZ(0)" }}>
         <div className="relative px-5 pt-4 pb-1 flex items-center gap-2">
           <div className="flex gap-1">
             {[0,1,2].map(i => (
-              <div key={i} className="h-1.5 rounded-full animate-pulse"
-                style={{ width: i === 2 ? 20 : i === 1 ? 14 : 8, background: "#a5b4fc", animationDelay: `${i * 0.2}s` }} />
+              <div key={i} className="h-1.5 rounded-full"
+                style={{ width: i === 2 ? 20 : i === 1 ? 14 : 8, background: "#a5b4fc" }} />
             ))}
           </div>
           <p className="text-white font-black text-sm">FLUX DE PAIEMENT EN DIRECT</p>
@@ -372,7 +366,7 @@ export default function SpayNetwork() {
         <MoneyFlowDiagram />
         <div className="relative border-t border-white/10 px-5 py-2 bg-white/5">
           <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-indigo-300 animate-pulse flex-shrink-0" />
+            <div className="w-1.5 h-1.5 rounded-full bg-indigo-300 flex-shrink-0" />
             <p className="text-indigo-200/40 text-[9px] font-mono truncate">
               PKT#{packets.toString().padStart(8, '0')} · TLS/1.3 · AES-256-GCM
             </p>
@@ -590,7 +584,7 @@ export default function SpayNetwork() {
                   <p className="text-slate-400 text-[8px] font-mono uppercase">Latence</p>
                   <p className="font-black text-sm" style={{ color: pingColor }}>{ping ? `${ping} ms` : "..."}</p>
                 </div>
-                <RefreshCw size={11} className="text-slate-300 animate-spin ml-auto" style={{ animationDuration: "3s" }} />
+                <RefreshCw size={11} className="text-slate-300 ml-auto" />
               </div>
               <div className="rounded-xl p-3 border border-slate-100 bg-slate-50">
                 <div className="flex items-center justify-between mb-1.5">
