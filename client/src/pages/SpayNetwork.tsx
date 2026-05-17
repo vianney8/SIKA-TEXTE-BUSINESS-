@@ -27,22 +27,33 @@ function PulseRing({ color = "#10b981", size = 3 }: { color?: string; size?: num
   );
 }
 
+/* ── CSS statique pour les animations du diagramme (hors composant pour éviter le glitch) ── */
+const FLOW_STYLE = `
+  @keyframes travelRight {
+    0%   { transform: translateY(-50%) translateX(0%);   opacity: 0; }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { transform: translateY(-50%) translateX(var(--track-width, 200px)); opacity: 0; }
+  }
+  @keyframes slowspin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+`;
+
 /* ── Animated Flow Diagram ──────────────────────────────── */
 function MoneyFlowDiagram() {
   const [step, setStep] = useState(0);
   const [particle, setParticle] = useState<number | null>(null);
+  const trackRef = useRef<(HTMLDivElement | null)[]>([]);
 
   useEffect(() => {
     const iv = setInterval(() => {
       setStep(s => (s + 1) % 4);
-    }, 1200);
+    }, 1400);
     return () => clearInterval(iv);
   }, []);
 
   useEffect(() => {
-    // Animate particle on each step change
     setParticle(step);
-    const t = setTimeout(() => setParticle(null), 1100);
+    const t = setTimeout(() => setParticle(null), 1200);
     return () => clearTimeout(t);
   }, [step]);
 
@@ -50,52 +61,52 @@ function MoneyFlowDiagram() {
     {
       id: 0, label: "Retrait",  sub: "Demande", color: "#dc2626",
       grad: "from-red-600 to-rose-500",
-      icon: <Wallet size={22} className="text-white" />,
+      icon: <Wallet size={20} className="text-white" />,
     },
     {
       id: 1, label: "SPAY",     sub: "Traitement", color: "#4f46e5",
       grad: "from-indigo-600 to-violet-600",
-      icon: <Shield size={22} className="text-white" />,
+      icon: <Shield size={20} className="text-white" />,
     },
     {
       id: 2, label: "PCS",      sub: "Validation", color: "#7c3aed",
       grad: "from-violet-600 to-purple-500",
-      icon: <KeyRound size={22} className="text-white" />,
+      icon: <KeyRound size={20} className="text-white" />,
     },
     {
-      id: 3, label: "Mobile Money", sub: "Réception", color: "#16a34a",
+      id: 3, label: "Mobile\nMoney", sub: "Réception", color: "#16a34a",
       grad: "from-green-600 to-emerald-500",
-      icon: <Smartphone size={22} className="text-white" />,
+      icon: <Smartphone size={20} className="text-white" />,
     },
   ];
 
   return (
-    <div className="px-5 py-6">
+    <div className="px-4 py-5">
       {/* Flow nodes + arrows */}
-      <div className="flex items-center justify-between relative">
+      <div className="flex items-start justify-between gap-1">
         {nodes.map((node, i) => {
           const isActive = step === node.id;
           const isPast   = step > node.id;
           return (
             <div key={node.id} className="flex items-center flex-1 last:flex-none">
               {/* Node */}
-              <div className="flex flex-col items-center gap-1.5">
-                <div className={`relative w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 bg-gradient-to-br ${node.grad} ${
+              <div className="flex flex-col items-center gap-1" style={{ minWidth: 44 }}>
+                <div className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-500 bg-gradient-to-br ${node.grad} ${
                   isActive ? "scale-110 shadow-lg" : isPast ? "opacity-90" : "opacity-40"
                 }`}
-                  style={isActive ? { boxShadow: `0 0 20px ${node.color}55` } : {}}>
+                  style={isActive ? { boxShadow: `0 0 16px ${node.color}55` } : {}}>
                   {node.icon}
                   {isActive && (
-                    <span className="absolute inset-0 rounded-2xl animate-ping opacity-30"
+                    <span className="absolute inset-0 rounded-xl animate-ping opacity-25"
                       style={{ background: `radial-gradient(circle, ${node.color}, transparent)` }} />
                   )}
                   {isPast && (
                     <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
-                      <CheckCircle size={10} className="text-white" strokeWidth={3} />
+                      <CheckCircle size={9} className="text-white" strokeWidth={3} />
                     </div>
                   )}
                 </div>
-                <p className={`text-[10px] font-bold text-center leading-tight transition-all duration-300 ${isActive ? "text-white" : isPast ? "text-white/70" : "text-white/30"}`}>
+                <p className={`text-[9px] font-bold text-center leading-tight transition-all duration-300 whitespace-pre-line ${isActive ? "text-white" : isPast ? "text-white/70" : "text-white/30"}`}>
                   {node.label}
                 </p>
                 <p className={`text-[8px] font-mono text-center transition-all duration-300 ${isActive ? "text-white/60" : "text-white/20"}`}>
@@ -105,7 +116,11 @@ function MoneyFlowDiagram() {
 
               {/* Arrow between nodes */}
               {i < nodes.length - 1 && (
-                <div className="flex-1 mx-1 relative h-1 flex items-center">
+                <div
+                  ref={el => { trackRef.current[i] = el; }}
+                  className="flex-1 mx-1 relative h-4 flex items-center"
+                  style={{ marginTop: -12 }}
+                >
                   {/* Base track */}
                   <div className="w-full h-0.5 rounded-full bg-white/15" />
                   {/* Progress fill */}
@@ -114,16 +129,21 @@ function MoneyFlowDiagram() {
                       width: step > i ? "100%" : step === i ? "50%" : "0%",
                       background: `linear-gradient(90deg, ${nodes[i].color}, ${nodes[i+1].color})`,
                     }} />
-                  {/* Traveling particle */}
+                  {/* Traveling particle — uses transform instead of left for smooth GPU animation */}
                   {particle === i + 1 && (
-                    <div className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full shadow-lg"
+                    <div
+                      className="absolute w-2 h-2 rounded-full"
                       style={{
+                        top: "50%",
+                        left: 0,
                         background: nodes[i].color,
-                        animation: "travelRight 1.1s ease-in-out",
+                        animation: "travelRight 1.2s ease-in-out forwards",
                         boxShadow: `0 0 6px ${nodes[i].color}`,
-                      }} />
+                        "--track-width": `${trackRef.current[i]?.offsetWidth ?? 60}px`,
+                      } as React.CSSProperties}
+                    />
                   )}
-                  <ArrowRight size={10} className="absolute right-0 top-1/2 -translate-y-1/2 text-white/20" />
+                  <ArrowRight size={9} className="absolute right-0 top-1/2 -translate-y-1/2 text-white/20" />
                 </div>
               )}
             </div>
@@ -132,21 +152,12 @@ function MoneyFlowDiagram() {
       </div>
 
       {/* Active step description */}
-      <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-center">
+      <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-center">
         {step === 0 && <p className="text-white/70 text-xs">Votre demande de retrait est initiée et chiffrée</p>}
         {step === 1 && <p className="text-white/70 text-xs">Le réseau SPAY réceptionne et authentifie la transaction</p>}
         {step === 2 && <p className="text-white/70 text-xs">PCS Secure Pay valide et autorise le transfert</p>}
         {step === 3 && <p className="text-white/70 text-xs font-semibold text-green-300">✅ Fonds crédités sur votre Mobile Money</p>}
       </div>
-
-      <style>{`
-        @keyframes travelRight {
-          0%   { left: 0%;   opacity: 0; }
-          10%  { opacity: 1; }
-          90%  { opacity: 1; }
-          100% { left: 100%; opacity: 0; }
-        }
-      `}</style>
     </div>
   );
 }
@@ -203,7 +214,6 @@ function AccessDenied({ paymentInfo }: { paymentInfo?: { activationAmount?: stri
           </Link>
         </div>
       </div>
-      <style>{`@keyframes slowspin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
@@ -668,9 +678,7 @@ export default function SpayNetwork() {
 
       </div>
 
-      <style>{`
-        @keyframes slowspin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      `}</style>
+      <style>{FLOW_STYLE}</style>
     </div>
   );
 }
