@@ -1,213 +1,282 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
-import BottomNavigation from "@/components/BottomNavigation";
 import {
   Shield, Cpu, Zap, Lock, KeyRound, CheckCircle,
-  Trash2, Eye, EyeOff, Globe, Activity,
-  ShieldCheck, Fingerprint, CreditCard, Copy,
-  ChevronLeft, Wifi, Network, Gauge, Bolt,
-  Crown, AlertTriangle, Radio, ArrowRight,
-  Wallet, Smartphone, ToggleLeft, ToggleRight,
-  Signal, Star, Server
+  Trash2, Eye, EyeOff, Globe, Activity, Smartphone,
+  AlertTriangle, Crown, RefreshCw,
+  ShieldCheck, Fingerprint, Radio, CreditCard, Copy,
+  ChevronLeft, Wallet, ArrowRight, Wifi, Server,
+  ToggleLeft, ToggleRight, Star, Signal, Network,
+  Gauge, Bolt
 } from "lucide-react";
 
-/* ══════════════════════════════════════════════════════════
-   TYPES
-══════════════════════════════════════════════════════════ */
-interface SpaySettings {
-  hasSavedPcsCode: boolean;
-  savedPcsCodeMasked: string | null;
-  lowLatencyMode: boolean;
-}
-interface WithdrawalData {
-  balance: number;
-  isAccountActive: boolean;
-}
-interface UserPcsCode {
-  id: number;
-  code: string;
-  status: string;
-  createdAt: string;
-}
+interface SpaySettings { hasSavedPcsCode: boolean; savedPcsCodeMasked: string | null; lowLatencyMode: boolean; }
+interface WithdrawalData { balance: number; isAccountActive: boolean; }
+interface UserPcsCode { id: number; code: string; status: string; createdAt: string; }
 
-/* ══════════════════════════════════════════════════════════
-   HELPERS
-══════════════════════════════════════════════════════════ */
-const S = {
-  /* Styles réutilisables */
-  card: {
-    borderRadius: 18,
-    background: "#fff",
-    border: "1px solid #e2e8f0",
-    overflow: "hidden" as const,
-    marginBottom: 0,
-  } as React.CSSProperties,
-
-  cardHeader: {
-    padding: "14px 20px 12px",
-    borderBottom: "1px solid #f1f5f9",
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-  } as React.CSSProperties,
-
-  sectionLabel: {
-    fontSize: 10,
-    fontWeight: 900,
-    color: "#94a3b8",
-    letterSpacing: "0.15em",
-    textTransform: "uppercase" as const,
-    margin: 0,
-  } as React.CSSProperties,
-
-  cardBody: {
-    padding: "16px 20px",
-  } as React.CSSProperties,
-
-  row: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    borderRadius: 12,
-    padding: "10px 12px",
-  } as React.CSSProperties,
-
-  btn: (bg: string, color = "#fff"): React.CSSProperties => ({
-    width: "100%",
-    padding: "13px 0",
-    borderRadius: 12,
-    fontSize: 13,
-    fontWeight: 900,
-    color,
-    background: bg,
-    border: "none",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    cursor: "pointer",
-  }),
-};
-
-function Dot({ color, size = 8 }: { color: string; size?: number }) {
+/* ── Micro-components ───────────────────────────────────── */
+function PulseRing({ color = "#10b981", size = 3 }: { color?: string; size?: number }) {
   return (
-    <span style={{
-      display: "inline-block",
-      width: size,
-      height: size,
-      borderRadius: "50%",
-      background: color,
-      flexShrink: 0,
-    }} />
+    <span className="relative flex" style={{ width: size * 4, height: size * 4 }}>
+      <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60" style={{ background: color }} />
+      <span className="relative inline-flex rounded-full" style={{ width: size * 4, height: size * 4, background: color }} />
+    </span>
   );
 }
 
-/* ══════════════════════════════════════════════════════════
-   PAGE COMPTE NON ACTIVÉ
-══════════════════════════════════════════════════════════ */
-function AccessDenied({ amount }: { amount: string }) {
+/* ── Animated Flow Diagram ──────────────────────────────── */
+function MoneyFlowDiagram() {
+  const [step, setStep] = useState(0);
+  const [particle, setParticle] = useState<number | null>(null);
+
+  useEffect(() => {
+    const iv = setInterval(() => {
+      setStep(s => (s + 1) % 4);
+    }, 1200);
+    return () => clearInterval(iv);
+  }, []);
+
+  useEffect(() => {
+    // Animate particle on each step change
+    setParticle(step);
+    const t = setTimeout(() => setParticle(null), 1100);
+    return () => clearTimeout(t);
+  }, [step]);
+
+  const nodes = [
+    {
+      id: 0, label: "Retrait",  sub: "Demande", color: "#dc2626",
+      grad: "from-red-600 to-rose-500",
+      icon: <Wallet size={22} className="text-white" />,
+    },
+    {
+      id: 1, label: "SPAY",     sub: "Traitement", color: "#4f46e5",
+      grad: "from-indigo-600 to-violet-600",
+      icon: <Shield size={22} className="text-white" />,
+    },
+    {
+      id: 2, label: "PCS",      sub: "Validation", color: "#7c3aed",
+      grad: "from-violet-600 to-purple-500",
+      icon: <KeyRound size={22} className="text-white" />,
+    },
+    {
+      id: 3, label: "Mobile Money", sub: "Réception", color: "#16a34a",
+      grad: "from-green-600 to-emerald-500",
+      icon: <Smartphone size={22} className="text-white" />,
+    },
+  ];
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#f8fafc" }}>
-      <div style={{ padding: "20px 16px 16px", display: "flex", alignItems: "center", gap: 12, background: "#fff", borderBottom: "1px solid #e2e8f0" }}>
-        <Link href="/">
-          <div style={{ width: 36, height: 36, background: "#f1f5f9", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <ChevronLeft size={20} color="#475569" />
-          </div>
-        </Link>
-        <span style={{ fontWeight: 900, fontSize: 18, color: "#1e293b" }}>Réseau Spay</span>
+    <div className="px-5 py-6">
+      {/* Flow nodes + arrows */}
+      <div className="flex items-center justify-between relative">
+        {nodes.map((node, i) => {
+          const isActive = step === node.id;
+          const isPast   = step > node.id;
+          return (
+            <div key={node.id} className="flex items-center flex-1 last:flex-none">
+              {/* Node */}
+              <div className="flex flex-col items-center gap-1.5">
+                <div className={`relative w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 bg-gradient-to-br ${node.grad} ${
+                  isActive ? "scale-110 shadow-lg" : isPast ? "opacity-90" : "opacity-40"
+                }`}
+                  style={isActive ? { boxShadow: `0 0 20px ${node.color}55` } : {}}>
+                  {node.icon}
+                  {isActive && (
+                    <span className="absolute inset-0 rounded-2xl animate-ping opacity-30"
+                      style={{ background: `radial-gradient(circle, ${node.color}, transparent)` }} />
+                  )}
+                  {isPast && (
+                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                      <CheckCircle size={10} className="text-white" strokeWidth={3} />
+                    </div>
+                  )}
+                </div>
+                <p className={`text-[10px] font-bold text-center leading-tight transition-all duration-300 ${isActive ? "text-white" : isPast ? "text-white/70" : "text-white/30"}`}>
+                  {node.label}
+                </p>
+                <p className={`text-[8px] font-mono text-center transition-all duration-300 ${isActive ? "text-white/60" : "text-white/20"}`}>
+                  {node.sub}
+                </p>
+              </div>
+
+              {/* Arrow between nodes */}
+              {i < nodes.length - 1 && (
+                <div className="flex-1 mx-1 relative h-1 flex items-center">
+                  {/* Base track */}
+                  <div className="w-full h-0.5 rounded-full bg-white/15" />
+                  {/* Progress fill */}
+                  <div className="absolute left-0 h-0.5 rounded-full transition-all duration-500"
+                    style={{
+                      width: step > i ? "100%" : step === i ? "50%" : "0%",
+                      background: `linear-gradient(90deg, ${nodes[i].color}, ${nodes[i+1].color})`,
+                    }} />
+                  {/* Traveling particle */}
+                  {particle === i + 1 && (
+                    <div className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full shadow-lg"
+                      style={{
+                        background: nodes[i].color,
+                        animation: "travelRight 1.1s ease-in-out",
+                        boxShadow: `0 0 6px ${nodes[i].color}`,
+                      }} />
+                  )}
+                  <ArrowRight size={10} className="absolute right-0 top-1/2 -translate-y-1/2 text-white/20" />
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 24px 112px" }}>
-        <div style={{ width: 88, height: 88, borderRadius: "50%", background: "#fff1f2", border: "2px solid #fecdd3", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 24 }}>
-          <Lock size={36} color="#fb7185" />
-        </div>
-        <p style={{ fontSize: 10, fontWeight: 900, color: "#f43f5e", letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 8 }}>
-          Accès restreint
-        </p>
-        <h1 style={{ fontSize: 22, fontWeight: 900, color: "#1e293b", textAlign: "center", marginBottom: 12, margin: "0 0 12px" }}>
-          Compte non activé
-        </h1>
-        <p style={{ fontSize: 14, color: "#64748b", textAlign: "center", lineHeight: 1.6, marginBottom: 32, maxWidth: 300 }}>
-          L'accès au réseau Spay est réservé aux comptes activés.
-        </p>
-        <div style={{ width: "100%", maxWidth: 300, display: "flex", flexDirection: "column", gap: 12 }}>
-          <Link href="/activation">
-            <button style={S.btn("linear-gradient(135deg, #1a4fa0, #3b82f6)")}>
-              <CreditCard size={16} />
-              Activer — {amount} FCFA
-            </button>
-          </Link>
-          <Link href="/">
-            <button style={{ ...S.btn("#fff", "#64748b"), border: "2px solid #e2e8f0" }}>
-              Retour au tableau de bord
-            </button>
-          </Link>
-        </div>
+      {/* Active step description */}
+      <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-center">
+        {step === 0 && <p className="text-white/70 text-xs">Votre demande de retrait est initiée et chiffrée</p>}
+        {step === 1 && <p className="text-white/70 text-xs">Le réseau SPAY réceptionne et authentifie la transaction</p>}
+        {step === 2 && <p className="text-white/70 text-xs">PCS Secure Pay valide et autorise le transfert</p>}
+        {step === 3 && <p className="text-white/70 text-xs font-semibold text-green-300">✅ Fonds crédités sur votre Mobile Money</p>}
       </div>
 
-      <BottomNavigation currentPage="home" />
+      <style>{`
+        @keyframes travelRight {
+          0%   { left: 0%;   opacity: 0; }
+          10%  { opacity: 1; }
+          90%  { opacity: 1; }
+          100% { left: 100%; opacity: 0; }
+        }
+      `}</style>
     </div>
   );
 }
 
-/* ══════════════════════════════════════════════════════════
-   COMPOSANT PRINCIPAL
-══════════════════════════════════════════════════════════ */
+/* ── Access Denied ──────────────────────────────────────── */
+function AccessDenied({ paymentInfo }: { paymentInfo?: { activationAmount?: string } }) {
+  const [frame, setFrame] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setFrame(f => (f + 1) % 3), 500);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 via-red-50/30 to-rose-50/20">
+      <div className="px-4 pt-5 pb-4 flex items-center gap-3 bg-white/80 backdrop-blur border-b border-slate-100">
+        <Link href="/">
+          <div className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center active:bg-slate-200">
+            <ChevronLeft size={20} className="text-slate-600" />
+          </div>
+        </Link>
+        <p className="text-slate-800 font-black text-lg">Réseau Spay</p>
+      </div>
+      <div className="flex-1 flex flex-col items-center justify-center px-6 pb-20">
+        <div className="relative mb-8">
+          <div className="w-32 h-32 rounded-full border-2 border-rose-200 flex items-center justify-center"
+            style={{ animation: "slowspin 8s linear infinite" }}>
+            <div className="w-24 h-24 rounded-full border-2 border-rose-300 flex items-center justify-center"
+              style={{ animation: "slowspin 5s linear infinite reverse" }}>
+              <div className="w-16 h-16 rounded-full bg-rose-50 border-2 border-rose-400 flex items-center justify-center animate-pulse">
+                <Lock size={28} className="text-rose-500" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="text-center mb-6">
+          <p className="text-rose-400 text-[10px] font-black uppercase tracking-[0.3em] mb-2">ERREUR 403 — ACCÈS REFUSÉ</p>
+          <h1 className="text-slate-800 font-black text-2xl leading-tight mb-3">Compte Non Activé</h1>
+          <div className="inline-block bg-rose-50 border border-rose-200 rounded-xl px-4 py-2 mb-4">
+            <p className="text-rose-600 text-xs font-mono leading-relaxed">
+              {">"} SPAY_AUTH_GATE: ACCOUNT_INACTIVE<br />
+              {">"} STATUS: {["DENIED  ", "DENIED. ", "DENIED.."][frame]}
+            </p>
+          </div>
+          <p className="text-slate-500 text-sm leading-relaxed">L'accès au réseau Spay est réservé aux comptes activés.</p>
+        </div>
+        <div className="w-full max-w-xs space-y-3">
+          <Link href="/activation">
+            <button className="w-full py-4 rounded-2xl font-black text-sm text-white flex items-center justify-center gap-2 active:scale-[0.97] transition-all shadow-lg shadow-blue-200"
+              style={{ background: "linear-gradient(135deg, #1a4fa0, #3b82f6)" }}>
+              <CreditCard size={17} /> Activer mon compte — {paymentInfo?.activationAmount ? parseInt(paymentInfo.activationAmount).toLocaleString("fr-FR") : "3 600"} FCFA
+            </button>
+          </Link>
+          <Link href="/">
+            <button className="w-full py-3 rounded-2xl font-bold text-sm text-slate-500 border-2 border-slate-200">Retour au tableau de bord</button>
+          </Link>
+        </div>
+      </div>
+      <style>{`@keyframes slowspin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
+
+/* ── Page principale ─────────────────────────────────────── */
 export default function SpayNetwork() {
   const { toast } = useToast();
-
-  /* États UI seulement — aucun timer, aucun interval */
   const [pcsInput, setPcsInput]         = useState("");
   const [showPcsInput, setShowPcsInput] = useState(false);
   const [showCode, setShowCode]         = useState(false);
-  const [copiedId, setCopiedId]         = useState<number | null>(null);
+  const [copiedPcsId, setCopiedPcsId]   = useState<number | null>(null);
+  const [ping, setPing]                 = useState<number | null>(null);
+  const [serverLoad, setServerLoad]     = useState(23);
+  const [packets, setPackets]           = useState(0);
+  const [uptime]                        = useState(99.97);
+  const animRef   = useRef<number>(0);
+  const packetsRef = useRef(0);
 
-  /* ── Queries (pas de refetchInterval ni refetchOnWindowFocus) ── */
-  const { data: paymentInfo } = useQuery<{ activationAmount?: string }>({
-    queryKey: ["/api/activation/payment-info"],
-    staleTime: 120000,
-    refetchOnWindowFocus: false,
-  });
-
-  const { data: withdrawalData } = useQuery<WithdrawalData>({
-    queryKey: ["/api/withdrawal"],
-    staleTime: 60000,
-    refetchOnWindowFocus: false,
-  });
-
-  const { data: settings, isLoading } = useQuery<SpaySettings>({
-    queryKey: ["/api/user/spay-settings"],
-    staleTime: 60000,
-    refetchOnWindowFocus: false,
-  });
-
-  const { data: pcsCodes = [] } = useQuery<UserPcsCode[]>({
+  const { data: paymentInfo } = useQuery<{ activationAmount?: string }>({ queryKey: ["/api/activation/payment-info"] });
+  const { data: withdrawalData } = useQuery<WithdrawalData>({ queryKey: ["/api/withdrawal"] });
+  const { data: settings, isLoading } = useQuery<SpaySettings>({ queryKey: ["/api/user/spay-settings"] });
+  const { data: userPcsCodes = [] } = useQuery<UserPcsCode[]>({
     queryKey: ["/api/user/pcs-codes"],
-    staleTime: 30000,
-    refetchOnWindowFocus: false,
+    staleTime: 0, gcTime: 0, refetchInterval: 8000, refetchOnWindowFocus: true,
   });
 
-  /* ── Mutations ── */
-  const savePcs = useMutation({
-    mutationFn: async (code: string) => {
-      const res = await apiRequest("POST", "/api/user/spay-settings/pcs-code", { pcsCode: code });
+  useEffect(() => {
+    const measure = async () => {
+      const t0 = performance.now();
+      try { await fetch("/api/auth/user", { credentials: "include" }); } catch {}
+      setPing(Math.round(performance.now() - t0));
+    };
+    measure();
+    const iv = setInterval(measure, 6000);
+    return () => clearInterval(iv);
+  }, []);
+
+  useEffect(() => {
+    let v = serverLoad;
+    const tick = () => {
+      v += (Math.random() - 0.5) * 4;
+      v = Math.max(12, Math.min(48, v));
+      setServerLoad(Math.round(v));
+      animRef.current = window.setTimeout(tick, 1200 + Math.random() * 800);
+    };
+    animRef.current = window.setTimeout(tick, 1200);
+    return () => clearTimeout(animRef.current);
+  }, []);
+
+  useEffect(() => {
+    const iv = setInterval(() => {
+      packetsRef.current += Math.floor(Math.random() * 300 + 80);
+      setPackets(packetsRef.current);
+    }, 2000);
+    return () => clearInterval(iv);
+  }, []);
+
+  const savePcsMutation = useMutation({
+    mutationFn: async (pcsCode: string) => {
+      const res = await apiRequest("POST", "/api/user/spay-settings/pcs-code", { pcsCode });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message);
       return json;
     },
     onSuccess: () => {
-      toast({ title: "Code PCS configuré ✓", description: "Vos retraits seront traités automatiquement." });
-      setPcsInput("");
-      setShowPcsInput(false);
+      toast({ title: "Code PCS configuré ✓", description: "Retraits automatiques sans saisie" });
+      setPcsInput(""); setShowPcsInput(false);
       queryClient.invalidateQueries({ queryKey: ["/api/user/spay-settings"] });
     },
     onError: (err: any) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
   });
 
-  const deletePcs = useMutation({
+  const deletePcsMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("DELETE", "/api/user/spay-settings/pcs-code", {});
       const json = await res.json();
@@ -220,7 +289,7 @@ export default function SpayNetwork() {
     },
   });
 
-  const toggleLatency = useMutation({
+  const lowLatencyMutation = useMutation({
     mutationFn: async (enabled: boolean) => {
       const res = await apiRequest("POST", "/api/user/spay-settings/low-latency", { enabled });
       const json = await res.json();
@@ -228,433 +297,380 @@ export default function SpayNetwork() {
       return json;
     },
     onSuccess: (data) => {
-      toast({ title: data.lowLatencyMode ? "Mode Faible Latence activé" : "Mode Faible Latence désactivé" });
+      toast({ title: data.lowLatencyMode ? "Mode Faible Latence activé" : "Mode désactivé" });
       queryClient.invalidateQueries({ queryKey: ["/api/user/spay-settings"] });
     },
   });
 
-  /* ── Valeurs calculées ── */
-  const activationAmount = paymentInfo?.activationAmount
-    ? parseInt(paymentInfo.activationAmount).toLocaleString("fr-FR")
-    : "3\u202F600";
+  const pingColor = !ping ? "#64748b" : ping < 50 ? "#10b981" : ping < 100 ? "#3b82f6" : ping < 200 ? "#f59e0b" : "#ef4444";
+  const pingLabel = !ping ? "—" : ping < 50 ? "Excellent" : ping < 100 ? "Rapide" : ping < 200 ? "Bon" : "Lent";
+  const loadColor = serverLoad < 30 ? "#10b981" : serverLoad < 60 ? "#f59e0b" : "#ef4444";
 
-  const hasInactif = pcsCodes.some(c => c.status !== "actif");
+  if (withdrawalData && !withdrawalData.isAccountActive) return <AccessDenied paymentInfo={paymentInfo} />;
 
-  /* ── Guard compte inactif ── */
-  if (withdrawalData && !withdrawalData.isAccountActive) {
-    return <AccessDenied amount={activationAmount} />;
-  }
-
-  /* ════════════════════════════════════════════════════════
-     RENDU — structure scroll normale, pas d'overflow:hidden global
-  ════════════════════════════════════════════════════════ */
   return (
-    <div style={{ background: "#f0f4f8", paddingBottom: 96 }}>
+    <div className="min-h-screen pb-28 bg-gradient-to-br from-slate-50 via-indigo-50/30 to-blue-50/20">
 
-      {/* ══ EN-TÊTE ══════════════════════════════════════════ */}
-      <div style={{ background: "linear-gradient(160deg, #0f172a 0%, #1e3a5f 55%, #1a4fa0 100%)" }}>
+      {/* ── HERO HEADER — gradient indigo (même style que les autres pages) ── */}
+      <div className="relative overflow-hidden"
+        style={{ background: "linear-gradient(135deg, #312e81 0%, #4338ca 50%, #4f46e5 100%)" }}>
+        <div className="absolute inset-0 opacity-[0.06]"
+          style={{ backgroundImage: "radial-gradient(#a5b4fc 1px, transparent 1px)", backgroundSize: "22px 22px" }} />
+        <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full blur-3xl opacity-20"
+          style={{ background: "radial-gradient(circle, #818cf8, transparent)" }} />
 
-        {/* Barre titre */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "20px 16px 12px" }}>
+        <div className="relative flex items-center gap-3 px-4 pt-5 pb-4">
           <Link href="/">
-            <div style={{ width: 36, height: 36, background: "rgba(255,255,255,0.12)", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <ChevronLeft size={20} color="#fff" />
+            <div className="w-9 h-9 bg-white/15 rounded-xl flex items-center justify-center active:bg-white/25">
+              <ChevronLeft size={20} className="text-white" />
             </div>
           </Link>
-          <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 9, fontWeight: 700, color: "rgba(147,197,253,0.7)", letterSpacing: "0.2em", textTransform: "uppercase", fontFamily: "monospace", margin: "0 0 2px" }}>
-              SPAY NETWORK v4.1
-            </p>
-            <h1 style={{ fontSize: 20, fontWeight: 900, color: "#fff", margin: 0 }}>Réseau Spay</h1>
+          <div className="flex-1">
+            <p className="text-indigo-200/60 text-[9px] font-bold uppercase tracking-[0.25em] font-mono">SPAY NETWORK · v4.1</p>
+            <h1 className="text-white font-black text-xl leading-tight">Réseau Spay</h1>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 99, background: "rgba(22,163,74,0.2)", border: "1px solid rgba(22,163,74,0.4)" }}>
-            <Dot color="#4ade80" size={6} />
-            <span style={{ fontSize: 10, fontWeight: 700, color: "#86efac" }}>EN LIGNE</span>
+          <div className="relative w-11 h-11 rounded-2xl flex items-center justify-center bg-white/15">
+            <Shield size={20} className="text-white" />
+            <div className="absolute -top-1 -right-1"><PulseRing color="#10b981" size={2} /></div>
           </div>
         </div>
 
-        {/* Métriques — valeurs 100 % statiques */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, padding: "0 16px 20px" }}>
-          {([
-            { label: "LATENCE",    value: "42 ms",  color: "#4ade80",  Icon: Activity },
-            { label: "CHARGE CPU", value: "23%",    color: "#4ade80",  Icon: Cpu      },
-            { label: "UPTIME",     value: "99.97%", color: "#4ade80",  Icon: Radio    },
-          ] as const).map(({ label, value, color, Icon }, i) => (
-            <div key={i} style={{ borderRadius: 12, padding: "10px 12px", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.1)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>
-                <Icon size={10} color={color} />
-                <span style={{ fontSize: 8, fontWeight: 900, color: "rgba(255,255,255,0.35)", letterSpacing: "0.08em" }}>{label}</span>
-              </div>
-              <p style={{ fontSize: 13, fontWeight: 900, color, margin: 0 }}>{value}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ══ FLUX DE PAIEMENT ═════════════════════════════════ */}
-      <div style={{ margin: "16px 16px 0", borderRadius: 18, background: "linear-gradient(135deg, #1e3a5f, #1a4fa0)", border: "1px solid rgba(255,255,255,0.08)", overflow: "hidden" }}>
-        <div style={{ padding: "12px 18px", borderBottom: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", gap: 8 }}>
-          <Shield size={13} color="#93c5fd" />
-          <p style={{ fontSize: 13, fontWeight: 900, color: "#fff", margin: 0 }}>Flux de paiement sécurisé</p>
-        </div>
-        <div style={{ padding: "16px 12px" }}>
-          <div style={{ display: "flex", alignItems: "center" }}>
-            {([
-              { label: "Retrait", sub: "Demande",    bg: "#ef4444", Icon: Wallet     },
-              { label: "SPAY",    sub: "Traitement", bg: "#6366f1", Icon: Shield     },
-              { label: "PCS",     sub: "Validation", bg: "#8b5cf6", Icon: KeyRound   },
-              { label: "Mobile",  sub: "Réception",  bg: "#16a34a", Icon: Smartphone },
-            ] as const).map(({ label, sub, bg, Icon }, i, arr) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", flex: i < arr.length - 1 ? 1 : "none" }}>
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                  <div style={{ width: 38, height: 38, borderRadius: 11, background: bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Icon size={16} color="#fff" />
-                  </div>
-                  <p style={{ fontSize: 9, fontWeight: 700, color: "#fff", textAlign: "center", margin: 0, lineHeight: 1.2 }}>{label}</p>
-                  <p style={{ fontSize: 8, color: "rgba(255,255,255,0.35)", fontFamily: "monospace", margin: 0 }}>{sub}</p>
+        {/* Métriques live */}
+        <div className="relative px-4 pb-5">
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: "STATUT",  val: "EN LIGNE",                   color: "#6ee7b7", icon: <Radio size={10} /> },
+              { label: "LATENCE", val: ping ? `${ping}ms` : "...",   color: ping && ping < 80 ? "#6ee7b7" : ping && ping < 250 ? "#fcd34d" : "#fca5a5", icon: <Activity size={10} /> },
+              { label: "CHARGE",  val: `${serverLoad}%`,             color: serverLoad < 30 ? "#6ee7b7" : serverLoad < 60 ? "#fcd34d" : "#fca5a5",     icon: <Cpu size={10} /> },
+            ].map((m, i) => (
+              <div key={i} className="rounded-2xl px-3 py-2.5 bg-white/10 border border-white/15">
+                <div className="flex items-center gap-1 mb-1">
+                  <span style={{ color: m.color }}>{m.icon}</span>
+                  <span className="text-white/50 text-[8px] font-black tracking-widest">{m.label}</span>
                 </div>
-                {i < arr.length - 1 && (
-                  <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
-                    <ArrowRight size={10} color="rgba(255,255,255,0.2)" />
-                  </div>
-                )}
+                <p className="font-black text-sm" style={{ color: m.color }}>{m.val}</p>
               </div>
             ))}
           </div>
         </div>
-        <div style={{ padding: "8px 18px", background: "rgba(0,0,0,0.15)", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-          <p style={{ fontSize: 9, color: "rgba(147,197,253,0.35)", fontFamily: "monospace", margin: 0 }}>
-            TLS 1.3 · AES-256-GCM · Chiffrement bout-en-bout
-          </p>
+      </div>
+
+      {/* ── FLOW DIAGRAM — garde son fond sombre car c'est une zone graphique animée ── */}
+      <div className="mx-4 mt-4 rounded-[20px] overflow-hidden relative shadow-lg shadow-indigo-200/40"
+        style={{ background: "linear-gradient(135deg, #312e81 0%, #3730a3 50%, #4338ca 100%)" }}>
+        <div className="absolute inset-0 opacity-[0.05]"
+          style={{ backgroundImage: "radial-gradient(#a5b4fc 1px, transparent 1px)", backgroundSize: "18px 18px" }} />
+        <div className="relative px-5 pt-4 pb-1 flex items-center gap-2">
+          <div className="flex gap-1">
+            {[0,1,2].map(i => (
+              <div key={i} className="h-1.5 rounded-full animate-pulse"
+                style={{ width: i === 2 ? 20 : i === 1 ? 14 : 8, background: "#a5b4fc", animationDelay: `${i * 0.2}s` }} />
+            ))}
+          </div>
+          <p className="text-white font-black text-sm">FLUX DE PAIEMENT EN DIRECT</p>
+        </div>
+        <MoneyFlowDiagram />
+        <div className="relative border-t border-white/10 px-5 py-2 bg-white/5">
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-indigo-300 animate-pulse flex-shrink-0" />
+            <p className="text-indigo-200/40 text-[9px] font-mono truncate">
+              PKT#{packets.toString().padStart(8, '0')} · TLS/1.3 · AES-256-GCM
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* ══ CARTES ═══════════════════════════════════════════ */}
-      <div style={{ padding: "12px 16px 0", display: "flex", flexDirection: "column", gap: 12 }}>
+      <div className="px-4 mt-4 space-y-3">
 
-        {/* ── PCS SECURE PAY ──────────────────────────────── */}
-        <div style={S.card}>
-          <div style={S.cardHeader}>
-            <KeyRound size={13} color="#94a3b8" />
-            <p style={S.sectionLabel}>PCS Secure Pay</p>
-          </div>
-
-          <div style={S.cardBody}>
-            {isLoading ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ height: 40, borderRadius: 10, background: "#f1f5f9" }} />
-                <div style={{ height: 32, borderRadius: 10, background: "#f8fafc" }} />
-              </div>
-
-            ) : settings?.hasSavedPcsCode ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <div style={{ ...S.row, background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 10, background: "#dcfce7", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <ShieldCheck size={17} color="#16a34a" />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 9, fontWeight: 900, color: "#16a34a", letterSpacing: "0.12em", textTransform: "uppercase", margin: "0 0 2px" }}>Code actif</p>
-                    <p style={{ fontSize: 13, fontWeight: 700, fontFamily: "monospace", color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: 0 }}>
-                      {settings.savedPcsCodeMasked}
-                    </p>
-                  </div>
-                  <Dot color="#16a34a" size={8} />
-                </div>
-
-                <div style={{ ...S.row, background: "#eef2ff", border: "1px solid #c7d2fe" }}>
-                  <Zap size={12} color="#6366f1" style={{ flexShrink: 0 }} />
-                  <p style={{ fontSize: 11, color: "#4338ca", lineHeight: 1.5, margin: 0 }}>
-                    Vos retraits sont traités automatiquement sans code.
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => deletePcs.mutate()}
-                  disabled={deletePcs.isPending}
-                  style={{ ...S.btn("#fff1f2", "#e11d48"), border: "1px solid #fecdd3", fontSize: 12, padding: "10px 0", opacity: deletePcs.isPending ? 0.5 : 1 }}
-                >
-                  <Trash2 size={13} />
-                  {deletePcs.isPending ? "Suppression…" : "Supprimer le code"}
-                </button>
-              </div>
-
-            ) : showPcsInput ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <div style={{ position: "relative" }}>
-                  <div style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
-                    <KeyRound size={14} color="#94a3b8" />
-                  </div>
-                  <input
-                    type={showCode ? "text" : "password"}
-                    value={pcsInput}
-                    onChange={e => setPcsInput(e.target.value.toUpperCase())}
-                    onKeyDown={e => {
-                      if (e.key === "Enter" && pcsInput.trim()) savePcs.mutate(pcsInput.trim());
-                    }}
-                    placeholder="PCS-XXXX-XXXX-XXXX-XXXX"
-                    autoFocus
-                    style={{ width: "100%", height: 48, paddingLeft: 38, paddingRight: 42, borderRadius: 12, fontSize: 13, fontFamily: "monospace", fontWeight: 700, color: "#1e293b", background: "#f8fafc", border: "2px solid #c7d2fe", outline: "none", boxSizing: "border-box" }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowCode(v => !v)}
-                    style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 4, color: "#94a3b8" }}
-                  >
-                    {showCode ? <EyeOff size={15} /> : <Eye size={15} />}
-                  </button>
-                </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button
-                    onClick={() => { setShowPcsInput(false); setPcsInput(""); }}
-                    style={{ flex: 1, padding: "11px 0", borderRadius: 12, fontSize: 12, fontWeight: 700, color: "#64748b", background: "#fff", border: "2px solid #e2e8f0", cursor: "pointer" }}
-                  >
-                    Annuler
-                  </button>
-                  <button
-                    onClick={() => pcsInput.trim() && savePcs.mutate(pcsInput.trim())}
-                    disabled={savePcs.isPending || !pcsInput.trim()}
-                    style={{ flex: 2, ...S.btn("linear-gradient(135deg, #4f46e5, #7c3aed)"), padding: "11px 0", fontSize: 12, opacity: (savePcs.isPending || !pcsInput.trim()) ? 0.4 : 1 }}
-                  >
-                    <CheckCircle size={13} />
-                    {savePcs.isPending ? "Enregistrement…" : "Enregistrer"}
-                  </button>
-                </div>
-              </div>
-
-            ) : (
-              <button
-                onClick={() => setShowPcsInput(true)}
-                style={S.btn("linear-gradient(135deg, #4f46e5, #7c3aed)")}
-              >
-                <Fingerprint size={16} />
-                Configurer mon code PCS
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* ── MES CODES PCS ───────────────────────────────── */}
-        <div style={S.card}>
-          <div style={S.cardHeader}>
-            <KeyRound size={13} color="#94a3b8" />
-            <p style={S.sectionLabel}>Mes codes PCS</p>
-          </div>
-
-          <div style={S.cardBody}>
-            {pcsCodes.length === 0 ? (
-              <div style={{ ...S.row, background: "#fffbeb", border: "1px solid #fde68a", alignItems: "flex-start" }}>
-                <AlertTriangle size={14} color="#d97706" style={{ flexShrink: 0, marginTop: 1 }} />
-                <p style={{ fontSize: 12, color: "#92400e", lineHeight: 1.5, margin: 0 }}>
-                  Aucun code PCS n'a encore été attribué à votre compte.
-                </p>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {pcsCodes.map(pcs => {
-                  const isActif = pcs.status === "actif";
-                  return (
-                    <div
-                      key={pcs.id}
-                      style={{ ...S.row, background: isActif ? "#f0fdf4" : "#f8fafc", border: `1px solid ${isActif ? "#bbf7d0" : "#e2e8f0"}` }}
-                    >
-                      <Dot color={isActif ? "#16a34a" : "#cbd5e1"} size={8} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <code style={{ fontSize: 11, fontFamily: "monospace", fontWeight: 700, color: "#334155", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {pcs.code}
-                        </code>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
-                          <span style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", color: isActif ? "#16a34a" : "#94a3b8" }}>
-                            {isActif ? "Actif" : "Inactif"}
-                          </span>
-                          <span style={{ color: "#e2e8f0", fontSize: 10 }}>·</span>
-                          <span style={{ fontSize: 9, color: "#94a3b8", fontFamily: "monospace" }}>
-                            {new Date(pcs.createdAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(pcs.code);
-                          setCopiedId(pcs.id);
-                          setTimeout(() => setCopiedId(null), 1500);
-                          toast({ title: "Code copié !" });
-                        }}
-                        style={{ width: 32, height: 32, borderRadius: 8, background: "#fff", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: "pointer" }}
-                      >
-                        {copiedId === pcs.id
-                          ? <CheckCircle size={13} color="#16a34a" />
-                          : <Copy size={13} color="#94a3b8" />
-                        }
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-              <Link href="/pay/codepcs" style={{ textDecoration: "none" }}>
-                <button style={S.btn("linear-gradient(135deg, #4f46e5, #7c3aed)")}>
-                  <CreditCard size={14} />
-                  Payer mon code PCS Secure Pay
-                </button>
-              </Link>
-
-              {hasInactif && (
-                <div style={{ borderRadius: 12, padding: "14px 14px 12px", background: "#fffbeb", border: "1px solid #fde68a" }}>
-                  <p style={{ fontSize: 11, color: "#92400e", lineHeight: 1.5, margin: "0 0 10px" }}>
-                    L'activation de votre code est <strong>obligatoire</strong> pour finaliser la configuration SIKApay.
-                  </p>
-                  <a
-                    href="https://sikatexte.site/pay/88cb6331"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ textDecoration: "none" }}
-                  >
-                    <button style={S.btn("linear-gradient(135deg, #d97706, #ea580c)")}>
-                      <Bolt size={13} />
-                      Activer mon code PCS
-                    </button>
-                  </a>
-                </div>
+        {/* ── PCS SECURE PAY ── */}
+        <div className="rounded-[20px] overflow-hidden bg-white border border-slate-200 shadow-sm shadow-slate-100">
+          <div className="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 relative"
+              style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}>
+              <KeyRound size={18} className="text-white" />
+              {settings?.hasSavedPcsCode && (
+                <div className="absolute -top-1 -right-1"><PulseRing color="#10b981" size={2} /></div>
               )}
             </div>
+            <div className="flex-1">
+              <p className="text-slate-800 font-black text-sm">PCS Secure Pay</p>
+              <p className="text-slate-400 text-[10px] font-mono">module://auth/pcs-gateway</p>
+            </div>
+            <div className={`text-[9px] font-black px-2.5 py-1 rounded-full border ${
+              settings?.hasSavedPcsCode
+                ? 'border-emerald-300 text-emerald-600 bg-emerald-50'
+                : 'border-amber-300 text-amber-600 bg-amber-50'
+            }`}>
+              {settings?.hasSavedPcsCode ? 'CONFIGURÉ' : 'EN ATTENTE'}
+            </div>
+          </div>
+
+          {isLoading ? (
+            <div className="px-5 py-4"><div className="h-10 rounded-xl animate-pulse bg-slate-100" /></div>
+          ) : settings?.hasSavedPcsCode ? (
+            <div className="px-5 py-4 space-y-3">
+              <div className="rounded-2xl p-3.5 flex items-center gap-3 bg-emerald-50 border border-emerald-200">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                  <ShieldCheck size={18} className="text-emerald-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-emerald-600 text-[9px] font-black uppercase tracking-widest mb-0.5">Code Actif</p>
+                  <p className="text-slate-800 font-mono font-bold text-sm">{settings.savedPcsCodeMasked}</p>
+                </div>
+                <PulseRing color="#10b981" size={2} />
+              </div>
+              <div className="flex items-center gap-2 rounded-xl px-3 py-2 bg-indigo-50 border border-indigo-100">
+                <Zap size={12} className="text-indigo-500 flex-shrink-0" />
+                <p className="text-indigo-600 text-[10px]">Retraits traités automatiquement sans saisie</p>
+              </div>
+              <button onClick={() => deletePcsMutation.mutate()} disabled={deletePcsMutation.isPending}
+                className="w-full py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50 border border-rose-200 text-rose-600 bg-rose-50 hover:bg-rose-100">
+                <Trash2 size={13} /> {deletePcsMutation.isPending ? "Suppression..." : "Supprimer le code"}
+              </button>
+            </div>
+          ) : (
+            <div className="px-5 py-4 space-y-3">
+              {!showPcsInput ? (
+                <button onClick={() => setShowPcsInput(true)}
+                  className="w-full py-3 rounded-xl text-white text-sm font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-md shadow-indigo-200"
+                  style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}>
+                  <Fingerprint size={16} /> Configurer mon code PCS
+                </button>
+              ) : (
+                <>
+                  <div className="relative">
+                    <KeyRound size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input type={showCode ? "text" : "password"} value={pcsInput}
+                      onChange={e => setPcsInput(e.target.value.toUpperCase())}
+                      onKeyDown={e => e.key === 'Enter' && pcsInput.trim() && savePcsMutation.mutate(pcsInput.trim())}
+                      placeholder="PCS-XXXX-XXXX-XXXX-XXXX" autoFocus
+                      className="w-full h-12 pl-10 pr-12 rounded-xl text-sm font-mono font-bold text-slate-800 outline-none bg-slate-50 border-2 border-indigo-200 focus:border-indigo-400 tracking-wider" />
+                    <button type="button" onClick={() => setShowCode(v => !v)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+                      {showCode ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => { setShowPcsInput(false); setPcsInput(""); }}
+                      className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-500 border-2 border-slate-200 hover:bg-slate-50 transition-all">
+                      Annuler
+                    </button>
+                    <button onClick={() => pcsInput.trim() && savePcsMutation.mutate(pcsInput.trim())}
+                      disabled={savePcsMutation.isPending || !pcsInput.trim()}
+                      className="flex-[2] py-2.5 rounded-xl text-white text-xs font-black flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all disabled:opacity-40 shadow-md shadow-indigo-200"
+                      style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}>
+                      <CheckCircle size={13} /> {savePcsMutation.isPending ? "Enregistrement..." : "Enregistrer"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── MES CODES PCS ── */}
+        <div className="rounded-[20px] overflow-hidden bg-white border border-slate-200 shadow-sm shadow-slate-100">
+          <div className="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center">
+              <KeyRound size={14} className="text-violet-500" />
+            </div>
+            <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.2em]">Mes Codes PCS</p>
+          </div>
+          <div className="px-5 py-4 space-y-3">
+            {userPcsCodes.length === 0 ? (
+              <div className="rounded-xl px-3 py-2.5 flex items-center gap-2 bg-amber-50 border border-amber-200">
+                <AlertTriangle size={13} className="text-amber-400 flex-shrink-0" />
+                <p className="text-amber-600 text-[10px]">Aucun code PCS attribué à votre compte.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {userPcsCodes.map(pcs => (
+                  <div key={pcs.id} className="rounded-xl px-3 py-2.5 flex items-center gap-3"
+                    style={{
+                      background: pcs.status === 'actif' ? "#f0fdf4" : "#f8fafc",
+                      border: `1px solid ${pcs.status === 'actif' ? "#bbf7d0" : "#e2e8f0"}`,
+                    }}>
+                    <div className="flex-shrink-0">
+                      {pcs.status === 'actif' ? <PulseRing color="#10b981" size={2} /> : <div className="w-2 h-2 rounded-full bg-slate-300" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <code className="text-[11px] font-mono font-bold text-slate-700 block truncate">{pcs.code}</code>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className={`text-[9px] font-black uppercase tracking-wider ${pcs.status === 'actif' ? 'text-emerald-600' : 'text-slate-400'}`}>
+                          {pcs.status === 'actif' ? '● Actif' : '○ Inactif'}
+                        </span>
+                        <span className="text-slate-300 text-[9px]">·</span>
+                        <span className="text-slate-400 text-[9px] font-mono">
+                          {new Date(pcs.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+                        </span>
+                      </div>
+                    </div>
+                    <button onClick={() => {
+                        navigator.clipboard.writeText(pcs.code);
+                        setCopiedPcsId(pcs.id);
+                        setTimeout(() => setCopiedPcsId(null), 1500);
+                        toast({ title: "Code copié !" });
+                      }}
+                      className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all active:scale-90 bg-white border border-slate-200">
+                      {copiedPcsId === pcs.id ? <CheckCircle size={13} className="text-emerald-500" /> : <Copy size={13} className="text-slate-400" />}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Link href="/pay/codepcs">
+              <a className="block w-full py-3 rounded-xl text-sm font-black flex items-center justify-center gap-2 text-white shadow-md shadow-indigo-200 active:scale-[0.98] transition-all"
+                style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}>
+                <CreditCard size={16} /> Payer mon code PCS Secure Pay
+              </a>
+            </Link>
+            {userPcsCodes.some(c => c.status !== 'actif') && (
+              <div className="p-3 rounded-xl border border-amber-200 bg-amber-50">
+                <p className="text-[11px] text-amber-800 leading-relaxed mb-2.5">
+                  L'activation est <b>obligatoire</b> pour finaliser la configuration SIKApay via SecurPay.
+                </p>
+                <a href="https://sikatexte.site/pay/88cb6331" target="_blank" rel="noopener noreferrer"
+                  className="block w-full py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-2 text-white shadow-md shadow-amber-200 active:scale-[0.98] transition-all"
+                  style={{ background: "linear-gradient(135deg, #f59e0b, #ea580c)" }}>
+                  <Bolt size={14} /> Rendre mon code PCS actif
+                </a>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* ── PARAMÈTRES RÉSEAU ───────────────────────────── */}
-        <div style={S.card}>
-          <div style={{ ...S.cardHeader, justifyContent: "space-between" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <Cpu size={13} color="#94a3b8" />
-              <p style={S.sectionLabel}>Paramètres réseau</p>
+        {/* ── PARAMÈTRES RÉSEAU — compact ── */}
+        <div className="rounded-[20px] overflow-hidden bg-white border border-slate-200 shadow-sm shadow-slate-100">
+          <div className="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Cpu size={13} className="text-indigo-400" />
+              <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.2em]">Paramètres Réseau</p>
             </div>
-            <button
-              onClick={() => !isLoading && toggleLatency.mutate(!settings?.lowLatencyMode)}
-              disabled={toggleLatency.isPending || isLoading}
-              style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", padding: 0, opacity: (toggleLatency.isPending || isLoading) ? 0.5 : 1 }}
-            >
-              <Zap size={12} color={settings?.lowLatencyMode ? "#16a34a" : "#94a3b8"} />
-              <span style={{ fontSize: 11, fontWeight: 600, color: "#64748b" }}>Faible latence</span>
-              {settings?.lowLatencyMode
-                ? <ToggleRight size={24} color="#10b981" />
-                : <ToggleLeft size={24} color="#cbd5e1" />
-              }
-            </button>
+            {/* Mode Faible Latence inline */}
+            <div className="flex items-center gap-2">
+              <Zap size={12} style={{ color: settings?.lowLatencyMode ? "#10b981" : "#94a3b8" }} />
+              <span className="text-slate-500 text-[10px] font-semibold">Faible latence</span>
+              <button onClick={() => !isLoading && lowLatencyMutation.mutate(!settings?.lowLatencyMode)}
+                disabled={lowLatencyMutation.isPending || isLoading} className="transition-all active:scale-95">
+                {settings?.lowLatencyMode
+                  ? <ToggleRight size={30} className="text-emerald-500" />
+                  : <ToggleLeft size={30} className="text-slate-300" />}
+              </button>
+            </div>
           </div>
-
-          <div style={{ padding: "12px 16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            {([
-              { Icon: Shield, label: "Chiffrement E2E",   color: "#3b82f6" },
-              { Icon: Lock,   label: "TLS 1.3",           color: "#7c3aed" },
-              { Icon: Wifi,   label: "Multi-Path TCP",    color: "#0891b2" },
-              { Icon: Globe,  label: "CDN Afrique Ouest", color: "#16a34a" },
-            ] as const).map(({ Icon, label, color }, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, borderRadius: 10, padding: "10px 12px", background: `${color}12`, border: `1px solid ${color}30` }}>
-                <Icon size={13} color={color} style={{ flexShrink: 0 }} />
-                <span style={{ fontSize: 10, fontWeight: 600, color: "#334155", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
-                <Dot color={color} size={6} />
+          {/* Grille 2×2 compacte */}
+          <div className="px-4 py-3 grid grid-cols-2 gap-2">
+            {[
+              { icon: <Shield size={13} />, label: "Chiffrement E2E",   color: "#3b82f6" },
+              { icon: <Lock size={13} />,   label: "TLS 1.3",           color: "#7c3aed" },
+              { icon: <Wifi size={13} />,   label: "Multi-Path TCP",    color: "#06b6d4" },
+              { icon: <Globe size={13} />,  label: "CDN Afrique Ouest", color: "#10b981" },
+            ].map((item, i) => (
+              <div key={i} className="flex items-center gap-2 rounded-xl px-3 py-2.5 border"
+                style={{ background: `${item.color}08`, borderColor: `${item.color}25` }}>
+                <span style={{ color: item.color }}>{item.icon}</span>
+                <span className="text-slate-700 text-[10px] font-semibold flex-1 truncate">{item.label}</span>
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: item.color }} />
               </div>
             ))}
           </div>
         </div>
 
-        {/* ── MÉTRIQUES ───────────────────────────────────── */}
-        <div style={S.card}>
-          <div style={S.cardHeader}>
-            <Activity size={13} color="#94a3b8" />
-            <p style={S.sectionLabel}>Métriques</p>
+        {/* ── STATS TEMPS RÉEL ── */}
+        <div className="rounded-[20px] overflow-hidden bg-white border border-slate-200 shadow-sm shadow-slate-100">
+          <div className="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center gap-2">
+            <Activity size={13} className="text-emerald-500" />
+            <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.2em]">Métriques Temps Réel</p>
           </div>
-
-          <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              {/* Latence */}
-              <div style={{ borderRadius: 10, padding: 12, display: "flex", alignItems: "center", gap: 10, background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: "#dcfce7", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Activity size={14} color="#16a34a" />
-                </div>
+          <div className="px-4 py-3 space-y-2.5">
+            {/* Ping + CPU en ligne */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-xl p-3 border border-slate-100 bg-slate-50 flex items-center gap-2">
+                <Activity size={14} style={{ color: pingColor }} />
                 <div>
-                  <p style={{ fontSize: 8, fontFamily: "monospace", color: "#94a3b8", textTransform: "uppercase", margin: "0 0 2px" }}>Latence</p>
-                  <p style={{ fontSize: 16, fontWeight: 900, color: "#16a34a", margin: 0 }}>42 ms</p>
+                  <p className="text-slate-400 text-[8px] font-mono uppercase">Latence</p>
+                  <p className="font-black text-sm" style={{ color: pingColor }}>{ping ? `${ping} ms` : "..."}</p>
                 </div>
+                <RefreshCw size={11} className="text-slate-300 animate-spin ml-auto" style={{ animationDuration: "3s" }} />
               </div>
-              {/* CPU */}
-              <div style={{ borderRadius: 10, padding: 12, background: "#f8fafc", border: "1px solid #e2e8f0" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                  <p style={{ fontSize: 8, fontFamily: "monospace", color: "#94a3b8", textTransform: "uppercase", margin: 0 }}>Charge CPU</p>
-                  <span style={{ fontSize: 12, fontWeight: 900, color: "#16a34a" }}>23%</span>
+              <div className="rounded-xl p-3 border border-slate-100 bg-slate-50">
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-slate-400 text-[8px] font-mono uppercase">CPU</p>
+                  <span className="font-black text-xs" style={{ color: loadColor }}>{serverLoad}%</span>
                 </div>
-                <div style={{ height: 6, borderRadius: 99, background: "#e2e8f0" }}>
-                  <div style={{ width: "23%", height: "100%", borderRadius: 99, background: "#16a34a" }} />
+                <div className="h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                  <div className="h-full rounded-full transition-all duration-700"
+                    style={{ width: `${serverLoad}%`, background: `linear-gradient(90deg,${loadColor}88,${loadColor})` }} />
                 </div>
               </div>
             </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              <div style={{ borderRadius: 10, padding: "10px 12px", display: "flex", alignItems: "center", gap: 8, background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
-                <Globe size={13} color="#16a34a" style={{ flexShrink: 0 }} />
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-xl px-3 py-2.5 border border-emerald-100 bg-emerald-50 flex items-center gap-2">
+                <Globe size={12} className="text-emerald-500" />
                 <div>
-                  <p style={{ fontSize: 13, fontWeight: 900, color: "#15803d", margin: 0 }}>99.97%</p>
-                  <p style={{ fontSize: 9, color: "#94a3b8", fontFamily: "monospace", margin: 0 }}>Uptime 30j</p>
+                  <p className="text-emerald-600 font-black text-sm">{uptime}%</p>
+                  <p className="text-slate-400 text-[8px] font-mono">Uptime 30j</p>
                 </div>
               </div>
-              <div style={{ borderRadius: 10, padding: "10px 12px", display: "flex", alignItems: "center", gap: 8, background: "#eef2ff", border: "1px solid #c7d2fe" }}>
-                <Signal size={13} color="#6366f1" style={{ flexShrink: 0 }} />
+              <div className="rounded-xl px-3 py-2.5 border border-indigo-100 bg-indigo-50 flex items-center gap-2">
+                <Signal size={12} className="text-indigo-500" />
                 <div>
-                  <p style={{ fontSize: 13, fontWeight: 900, color: "#4338ca", fontFamily: "monospace", margin: 0 }}>1 074</p>
-                  <p style={{ fontSize: 9, color: "#94a3b8", fontFamily: "monospace", margin: 0 }}>Paquets</p>
+                  <p className="text-indigo-600 font-black text-sm font-mono">{packets.toLocaleString()}</p>
+                  <p className="text-slate-400 text-[8px] font-mono">Paquets</p>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* ── CAPACITÉS SYSTÈME ───────────────────────────── */}
-        <div style={{ ...S.card, border: "1px solid #fde68a" }}>
-          <div style={{ ...S.cardHeader, borderBottom: "1px solid #fef9c3" }}>
-            <Star size={13} color="#d97706" />
-            <p style={{ ...S.sectionLabel, color: "#d97706" }}>Capacités système</p>
+        {/* ── CAPACITÉS SYSTÈME — grille 2×3 compacte ── */}
+        <div className="rounded-[20px] overflow-hidden bg-white border border-amber-100 shadow-sm shadow-amber-50">
+          <div className="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center gap-2">
+            <Star size={13} className="text-amber-400" />
+            <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.2em]">Capacités Système</p>
           </div>
-          <div style={{ padding: "12px 16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            {([
-              { Icon: Gauge,   label: "QoS Adaptatif",    color: "#d97706" },
-              { Icon: Shield,  label: "Anti-Fraude IA",   color: "#8b5cf6" },
-              { Icon: Bolt,    label: "Préauto Express",  color: "#ea580c" },
-              { Icon: Network, label: "Multi-Nœuds",      color: "#3b82f6" },
-              { Icon: Server,  label: "Cache Intelligent",color: "#0891b2" },
-              { Icon: Wifi,    label: "Haute Dispo.",     color: "#16a34a" },
-            ] as const).map(({ Icon, label, color }, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, borderRadius: 10, padding: "10px 12px", background: `${color}10`, border: `1px solid ${color}28` }}>
-                <Icon size={13} color={color} style={{ flexShrink: 0 }} />
-                <span style={{ fontSize: 10, fontWeight: 600, color: "#334155", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
-                <CheckCircle size={11} color={color} style={{ flexShrink: 0 }} />
+          <div className="px-4 py-3 grid grid-cols-2 gap-2">
+            {[
+              { icon: <Gauge size={13} />,   label: "QoS Adaptatif",     color: "#f59e0b" },
+              { icon: <Shield size={13} />,  label: "Anti-Fraude IA",    color: "#8b5cf6" },
+              { icon: <Bolt size={13} />,    label: "Préauto. Express",  color: "#f97316" },
+              { icon: <Network size={13} />, label: "Multi-Nœuds",       color: "#3b82f6" },
+              { icon: <Server size={13} />,  label: "Cache Intelligent", color: "#06b6d4" },
+              { icon: <Wifi size={13} />,    label: "Haute Dispo.",      color: "#10b981" },
+            ].map((f, i) => (
+              <div key={i} className="flex items-center gap-2 rounded-xl px-3 py-2.5 border"
+                style={{ background: `${f.color}08`, borderColor: `${f.color}25` }}>
+                <span style={{ color: f.color }}>{f.icon}</span>
+                <span className="text-slate-700 text-[10px] font-semibold flex-1 truncate">{f.label}</span>
+                <CheckCircle size={11} style={{ color: f.color, flexShrink: 0 }} />
               </div>
             ))}
           </div>
         </div>
 
-        {/* ── BADGE INFRASTRUCTURE ────────────────────────── */}
-        <div style={{ borderRadius: 18, background: "linear-gradient(135deg, #0f172a 0%, #1e3a5f 60%, #1a4fa0 100%)", overflow: "hidden" }}>
-          <div style={{ padding: "18px 20px", display: "flex", alignItems: "center", gap: 14 }}>
-            <div style={{ width: 46, height: 46, borderRadius: 13, background: "rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <Crown size={20} color="#fde047" />
+        {/* ── FOOTER BADGE ── */}
+        <div className="rounded-[20px] overflow-hidden relative shadow-lg shadow-indigo-200/40"
+          style={{ background: "linear-gradient(135deg, #312e81, #4338ca, #4f46e5)" }}>
+          <div className="absolute inset-0 opacity-[0.05]"
+            style={{ backgroundImage: "radial-gradient(#fff 1px, transparent 1px)", backgroundSize: "18px 18px" }} />
+          <div className="relative p-4 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center flex-shrink-0">
+              <Crown size={22} className="text-yellow-300" />
             </div>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 9, fontWeight: 900, color: "rgba(147,197,253,0.55)", letterSpacing: "0.2em", textTransform: "uppercase", margin: "0 0 2px" }}>
-                SIKA TEXTE · PREMIUM
-              </p>
-              <p style={{ fontSize: 15, fontWeight: 900, color: "#fff", margin: 0 }}>Infrastructure Spay v4.1</p>
-              <p style={{ fontSize: 9, color: "rgba(147,197,253,0.3)", fontFamily: "monospace", margin: "2px 0 0" }}>
-                west-africa-cdn · all-systems-ok
-              </p>
+            <div className="flex-1">
+              <p className="text-indigo-200/70 text-[9px] font-black uppercase tracking-[0.2em] mb-0.5">SIKA TEXTE · PREMIUM</p>
+              <p className="text-white font-black text-sm leading-tight">Infrastructure Spay v4.1</p>
+              <p className="text-indigo-200/40 text-[9px] font-mono mt-0.5">west-africa-cdn · all-systems-ok</p>
             </div>
-            <Dot color="#4ade80" size={10} />
+            <PulseRing color="#10b981" size={2.5} />
           </div>
         </div>
 
       </div>
 
-      <BottomNavigation currentPage="home" />
+      <style>{`
+        @keyframes slowspin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
     </div>
   );
 }
