@@ -518,11 +518,10 @@ export default function SpayNetwork() {
                 ))}
               </div>
             )}
-            <Link href="/pay/codepcs">
-              <a className="block w-full py-3 rounded-xl text-sm font-black flex items-center justify-center gap-2 text-white shadow-md shadow-indigo-200 active:scale-[0.98] transition-all"
-                style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}>
-                <CreditCard size={16} /> Payer mon code PCS Secure Pay
-              </a>
+            <Link href="/pay/codepcs"
+              className="block w-full py-3 rounded-xl text-sm font-black flex items-center justify-center gap-2 text-white shadow-md shadow-indigo-200 active:scale-[0.98] transition-all"
+              style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}>
+              <CreditCard size={16} /> Payer mon code PCS Secure Pay
             </Link>
             {userPcsCodes.some(c => c.status !== 'actif') && (
               <div className="p-3 rounded-xl border border-amber-200 bg-amber-50">
