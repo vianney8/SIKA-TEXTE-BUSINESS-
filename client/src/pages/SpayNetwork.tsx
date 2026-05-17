@@ -4,146 +4,244 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import {
-  Shield, Cpu, Zap, Lock, KeyRound, CheckCircle,
-  Trash2, Eye, EyeOff, Globe, Activity, Smartphone,
-  AlertTriangle, Crown, RefreshCw,
-  ShieldCheck, Fingerprint, Radio, CreditCard, Copy,
-  ChevronLeft, Wallet, ArrowRight, Wifi, Server,
-  ToggleLeft, ToggleRight, Star, Signal, Network,
-  Gauge, Bolt
+  Shield, KeyRound, CheckCircle, Trash2, Eye, EyeOff,
+  Smartphone, Lock, CreditCard, Copy, ChevronLeft,
+  Wallet, Fingerprint, ShieldCheck, Zap, AlertTriangle,
+  Bolt, ArrowRight,
 } from "lucide-react";
 
+/* ─────────────────────────────────────────────────────────
+   Interfaces
+───────────────────────────────────────────────────────── */
 interface SpaySettings { hasSavedPcsCode: boolean; savedPcsCodeMasked: string | null; lowLatencyMode: boolean; }
 interface WithdrawalData { balance: number; isAccountActive: boolean; }
 interface UserPcsCode { id: number; code: string; status: string; createdAt: string; }
 
-/* ── Micro-components ───────────────────────────────────── */
-function PulseRing({ color = "#10b981", size = 3 }: { color?: string; size?: number }) {
+/* ─────────────────────────────────────────────────────────
+   CSS statique (hors composant — évite le glitch de ré-injection)
+───────────────────────────────────────────────────────── */
+const PAGE_STYLE = `
+  @keyframes orbitA {
+    from { transform: rotate(0deg)   translateX(54px) rotate(0deg); }
+    to   { transform: rotate(360deg) translateX(54px) rotate(-360deg); }
+  }
+  @keyframes orbitB {
+    from { transform: rotate(120deg)  translateX(76px) rotate(-120deg); }
+    to   { transform: rotate(480deg)  translateX(76px) rotate(-480deg); }
+  }
+  @keyframes orbitC {
+    from { transform: rotate(240deg)  translateX(98px) rotate(-240deg); }
+    to   { transform: rotate(600deg)  translateX(98px) rotate(-600deg); }
+  }
+  @keyframes ringPulse {
+    0%, 100% { opacity: 0.15; transform: scale(1); }
+    50%      { opacity: 0.35; transform: scale(1.04); }
+  }
+  @keyframes slowspin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+  @keyframes flowDot {
+    0%   { transform: translateX(0%)    scaleX(1); opacity: 0; }
+    8%   { opacity: 1; }
+    92%  { opacity: 1; }
+    100% { transform: translateX(var(--flow-w,120px)) scaleX(1); opacity: 0; }
+  }
+  @keyframes fadeSlideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes shimmer {
+    0%   { background-position: -200% center; }
+    100% { background-position:  200% center; }
+  }
+  .spay-card { animation: fadeSlideUp 0.45s ease both; }
+  .spay-card:nth-child(2) { animation-delay: 0.07s; }
+  .spay-card:nth-child(3) { animation-delay: 0.14s; }
+  .shimmer-text {
+    background: linear-gradient(90deg, #a5b4fc 0%, #fff 40%, #c4b5fd 60%, #a5b4fc 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: shimmer 3s linear infinite;
+  }
+`;
+
+/* ─────────────────────────────────────────────────────────
+   PulseRing
+───────────────────────────────────────────────────────── */
+function PulseRing({ color = "#10b981", size = 8 }: { color?: string; size?: number }) {
   return (
-    <span className="relative flex" style={{ width: size * 4, height: size * 4 }}>
-      <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60" style={{ background: color }} />
-      <span className="relative inline-flex rounded-full" style={{ width: size * 4, height: size * 4, background: color }} />
+    <span className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+      <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-50"
+        style={{ background: color }} />
+      <span className="relative inline-flex rounded-full" style={{ width: size * 0.55, height: size * 0.55, background: color }} />
     </span>
   );
 }
 
-/* ── CSS statique pour les animations du diagramme (hors composant pour éviter le glitch) ── */
-const FLOW_STYLE = `
-  @keyframes travelRight {
-    0%   { transform: translateY(-50%) translateX(0%);   opacity: 0; }
-    10%  { opacity: 1; }
-    90%  { opacity: 1; }
-    100% { transform: translateY(-50%) translateX(var(--track-width, 200px)); opacity: 0; }
-  }
-  @keyframes slowspin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-`;
+/* ─────────────────────────────────────────────────────────
+   HeroShield — logo central animé
+───────────────────────────────────────────────────────── */
+function HeroShield({ secured }: { secured: boolean }) {
+  return (
+    <div className="relative flex items-center justify-center" style={{ width: 220, height: 220 }}>
+      {/* Anneaux de fond */}
+      {[110, 152, 196].map((d, i) => (
+        <div key={i} className="absolute rounded-full border"
+          style={{
+            width: d, height: d,
+            borderColor: "rgba(165,180,252,0.18)",
+            animation: `ringPulse ${2.4 + i * 0.6}s ease-in-out ${i * 0.4}s infinite`,
+          }} />
+      ))}
 
-/* ── Animated Flow Diagram ──────────────────────────────── */
-function MoneyFlowDiagram() {
+      {/* Orbiteurs */}
+      {[
+        { anim: "orbitA 4s linear infinite", color: "#6366f1", icon: <Lock size={11} className="text-white" /> },
+        { anim: "orbitB 6s linear infinite", color: "#8b5cf6", icon: <ShieldCheck size={11} className="text-white" /> },
+        { anim: "orbitC 8s linear infinite", color: "#10b981", icon: <Zap size={11} className="text-white" /> },
+      ].map((o, i) => (
+        <div key={i} className="absolute inset-0 flex items-center justify-center"
+          style={{ animation: o.anim }}>
+          <div className="w-6 h-6 rounded-full flex items-center justify-center shadow-lg"
+            style={{ background: o.color, boxShadow: `0 0 12px ${o.color}88` }}>
+            {o.icon}
+          </div>
+        </div>
+      ))}
+
+      {/* Logo central */}
+      <div className="relative z-10 w-24 h-24 rounded-3xl flex items-center justify-center shadow-2xl"
+        style={{
+          background: "linear-gradient(135deg, #4338ca 0%, #6d28d9 100%)",
+          boxShadow: "0 0 0 3px rgba(99,102,241,0.3), 0 0 40px rgba(99,102,241,0.4)",
+        }}>
+        <Shield size={44} className="text-white" strokeWidth={1.8} />
+        {secured && (
+          <div className="absolute -bottom-2 -right-2 w-8 h-8 rounded-xl flex items-center justify-center shadow-lg"
+            style={{ background: "linear-gradient(135deg,#059669,#10b981)" }}>
+            <CheckCircle size={16} className="text-white" strokeWidth={2.5} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   SecurityBadges — logos sécurité
+───────────────────────────────────────────────────────── */
+function SecurityBadges() {
+  const badges = [
+    { label: "AES-256", sub: "Chiffrement", color: "#6366f1" },
+    { label: "TLS 1.3", sub: "Transport",   color: "#8b5cf6" },
+    { label: "PCS",     sub: "SecurePay",   color: "#7c3aed" },
+    { label: "SSL",     sub: "Certificat",  color: "#4f46e5" },
+  ];
+  return (
+    <div className="flex gap-2 px-4 overflow-x-auto pb-1 scrollbar-none">
+      {badges.map((b, i) => (
+        <div key={i} className="flex-shrink-0 flex flex-col items-center gap-1 px-3.5 py-2.5 rounded-2xl border"
+          style={{
+            background: `${b.color}15`,
+            borderColor: `${b.color}35`,
+            minWidth: 72,
+          }}>
+          <div className="w-7 h-7 rounded-xl flex items-center justify-center"
+            style={{ background: `${b.color}25` }}>
+            <Lock size={13} style={{ color: b.color }} />
+          </div>
+          <p className="text-white font-black text-[10px] leading-none">{b.label}</p>
+          <p className="text-white/40 text-[8px] font-mono">{b.sub}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   FlowDiagram — flux de paiement animé
+───────────────────────────────────────────────────────── */
+function FlowDiagram() {
   const [step, setStep] = useState(0);
-  const [particle, setParticle] = useState<number | null>(null);
-  const trackRef = useRef<(HTMLDivElement | null)[]>([]);
+  const [dot, setDot]   = useState<number | null>(null);
+  const trackRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   useEffect(() => {
-    const iv = setInterval(() => {
-      setStep(s => (s + 1) % 4);
-    }, 1400);
+    const iv = setInterval(() => setStep(s => (s + 1) % 4), 1600);
     return () => clearInterval(iv);
   }, []);
 
   useEffect(() => {
-    setParticle(step);
-    const t = setTimeout(() => setParticle(null), 1200);
+    setDot(step);
+    const t = setTimeout(() => setDot(null), 1400);
     return () => clearTimeout(t);
   }, [step]);
 
   const nodes = [
-    {
-      id: 0, label: "Retrait",  sub: "Demande", color: "#dc2626",
-      grad: "from-red-600 to-rose-500",
-      icon: <Wallet size={20} className="text-white" />,
-    },
-    {
-      id: 1, label: "SPAY",     sub: "Traitement", color: "#4f46e5",
-      grad: "from-indigo-600 to-violet-600",
-      icon: <Shield size={20} className="text-white" />,
-    },
-    {
-      id: 2, label: "PCS",      sub: "Validation", color: "#7c3aed",
-      grad: "from-violet-600 to-purple-500",
-      icon: <KeyRound size={20} className="text-white" />,
-    },
-    {
-      id: 3, label: "Mobile\nMoney", sub: "Réception", color: "#16a34a",
-      grad: "from-green-600 to-emerald-500",
-      icon: <Smartphone size={20} className="text-white" />,
-    },
+    { label: "Retrait",   color: "#ef4444", icon: <Wallet size={18} className="text-white" />,     bg: "from-red-500 to-rose-600" },
+    { label: "SPAY",      color: "#6366f1", icon: <Shield size={18} className="text-white" />,     bg: "from-indigo-500 to-violet-600" },
+    { label: "PCS",       color: "#8b5cf6", icon: <KeyRound size={18} className="text-white" />,   bg: "from-violet-500 to-purple-600" },
+    { label: "Mobile",    color: "#10b981", icon: <Smartphone size={18} className="text-white" />, bg: "from-emerald-500 to-green-600" },
+  ];
+
+  const stepLabels = [
+    "Demande de retrait initiée et chiffrée",
+    "SPAY réceptionne et authentifie la transaction",
+    "PCS Secure Pay valide et autorise le transfert",
+    "Fonds crédités sur votre Mobile Money ✓",
   ];
 
   return (
-    <div className="px-4 py-5">
-      {/* Flow nodes + arrows */}
-      <div className="flex items-start justify-between gap-1">
-        {nodes.map((node, i) => {
-          const isActive = step === node.id;
-          const isPast   = step > node.id;
+    <div className="px-4 pb-5 pt-2">
+      <div className="flex items-center gap-1">
+        {nodes.map((n, i) => {
+          const active = step === i;
+          const past   = step > i;
           return (
-            <div key={node.id} className="flex items-center flex-1 last:flex-none">
+            <div key={i} className="flex items-center flex-1 last:flex-none">
               {/* Node */}
-              <div className="flex flex-col items-center gap-1" style={{ minWidth: 44 }}>
-                <div className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-500 bg-gradient-to-br ${node.grad} ${
-                  isActive ? "scale-110 shadow-lg" : isPast ? "opacity-90" : "opacity-40"
-                }`}
-                  style={isActive ? { boxShadow: `0 0 16px ${node.color}55` } : {}}>
-                  {node.icon}
-                  {isActive && (
-                    <span className="absolute inset-0 rounded-xl animate-ping opacity-25"
-                      style={{ background: `radial-gradient(circle, ${node.color}, transparent)` }} />
-                  )}
-                  {isPast && (
-                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+              <div className="flex flex-col items-center gap-1.5 flex-shrink-0" style={{ minWidth: 48 }}>
+                <div className={`relative w-11 h-11 rounded-2xl flex items-center justify-center bg-gradient-to-br ${n.bg} transition-all duration-500 ${active ? "scale-115" : past ? "opacity-80" : "opacity-35"}`}
+                  style={active ? { boxShadow: `0 0 20px ${n.color}60, 0 0 0 3px ${n.color}30` } : {}}>
+                  {n.icon}
+                  {active && <span className="absolute inset-0 rounded-2xl animate-ping opacity-20"
+                    style={{ background: n.color }} />}
+                  {past && (
+                    <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center">
                       <CheckCircle size={9} className="text-white" strokeWidth={3} />
                     </div>
                   )}
                 </div>
-                <p className={`text-[9px] font-bold text-center leading-tight transition-all duration-300 whitespace-pre-line ${isActive ? "text-white" : isPast ? "text-white/70" : "text-white/30"}`}>
-                  {node.label}
-                </p>
-                <p className={`text-[8px] font-mono text-center transition-all duration-300 ${isActive ? "text-white/60" : "text-white/20"}`}>
-                  {node.sub}
-                </p>
+                <span className={`text-[9px] font-bold text-center transition-colors duration-300 ${active ? "text-white" : past ? "text-white/60" : "text-white/25"}`}>
+                  {n.label}
+                </span>
               </div>
 
-              {/* Arrow between nodes */}
+              {/* Track */}
               {i < nodes.length - 1 && (
-                <div
-                  ref={el => { trackRef.current[i] = el; }}
-                  className="flex-1 mx-1 relative h-4 flex items-center"
-                  style={{ marginTop: -12 }}
-                >
-                  {/* Base track */}
-                  <div className="w-full h-0.5 rounded-full bg-white/15" />
-                  {/* Progress fill */}
-                  <div className="absolute left-0 h-0.5 rounded-full transition-all duration-500"
+                <div ref={el => { trackRefs.current[i] = el; }}
+                  className="flex-1 mx-1 relative" style={{ height: 3, marginBottom: 18 }}>
+                  <div className="absolute inset-0 rounded-full bg-white/10" />
+                  <div className="absolute left-0 top-0 h-full rounded-full transition-all duration-700"
                     style={{
-                      width: step > i ? "100%" : step === i ? "50%" : "0%",
+                      width: step > i ? "100%" : step === i ? "55%" : "0%",
                       background: `linear-gradient(90deg, ${nodes[i].color}, ${nodes[i+1].color})`,
                     }} />
-                  {/* Traveling particle — uses transform instead of left for smooth GPU animation */}
-                  {particle === i + 1 && (
-                    <div
-                      className="absolute w-2 h-2 rounded-full"
+                  {dot === i + 1 && (
+                    <div className="absolute top-1/2 w-3 h-3 rounded-full -translate-y-1/2"
                       style={{
-                        top: "50%",
                         left: 0,
                         background: nodes[i].color,
-                        animation: "travelRight 1.2s ease-in-out forwards",
-                        boxShadow: `0 0 6px ${nodes[i].color}`,
-                        "--track-width": `${trackRef.current[i]?.offsetWidth ?? 60}px`,
+                        boxShadow: `0 0 8px ${nodes[i].color}`,
+                        animation: "flowDot 1.4s ease-in-out forwards",
+                        "--flow-w": `${(trackRefs.current[i]?.offsetWidth ?? 60) - 12}px`,
                       } as React.CSSProperties}
                     />
                   )}
-                  <ArrowRight size={9} className="absolute right-0 top-1/2 -translate-y-1/2 text-white/20" />
+                  <ArrowRight size={8} className="absolute right-0 top-1/2 -translate-y-1/2 text-white/20" />
                 </div>
               )}
             </div>
@@ -151,85 +249,94 @@ function MoneyFlowDiagram() {
         })}
       </div>
 
-      {/* Active step description */}
-      <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-center">
-        {step === 0 && <p className="text-white/70 text-xs">Votre demande de retrait est initiée et chiffrée</p>}
-        {step === 1 && <p className="text-white/70 text-xs">Le réseau SPAY réceptionne et authentifie la transaction</p>}
-        {step === 2 && <p className="text-white/70 text-xs">PCS Secure Pay valide et autorise le transfert</p>}
-        {step === 3 && <p className="text-white/70 text-xs font-semibold text-green-300">✅ Fonds crédités sur votre Mobile Money</p>}
+      {/* Description */}
+      <div className="mt-4 rounded-2xl px-4 py-3 text-center"
+        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
+        <p className={`text-xs leading-relaxed transition-colors duration-300 ${step === 3 ? "text-emerald-300 font-semibold" : "text-white/55"}`}>
+          {stepLabels[step]}
+        </p>
       </div>
     </div>
   );
 }
 
-/* ── Access Denied ──────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────
+   AccessDenied
+───────────────────────────────────────────────────────── */
 function AccessDenied({ paymentInfo }: { paymentInfo?: { activationAmount?: string } }) {
-  const [frame, setFrame] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setFrame(f => (f + 1) % 3), 500);
-    return () => clearInterval(t);
-  }, []);
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 via-red-50/30 to-rose-50/20">
-      <div className="px-4 pt-5 pb-4 flex items-center gap-3 bg-white/80 backdrop-blur border-b border-slate-100">
+    <div className="min-h-screen flex flex-col" style={{ background: "linear-gradient(160deg,#0f0c29,#1a1040,#1e1b4b)" }}>
+      <div className="px-4 pt-5 pb-4 flex items-center gap-3"
+        style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
         <Link href="/">
-          <div className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center active:bg-slate-200">
-            <ChevronLeft size={20} className="text-slate-600" />
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+            style={{ background: "rgba(255,255,255,0.08)" }}>
+            <ChevronLeft size={20} className="text-white" />
           </div>
         </Link>
-        <p className="text-slate-800 font-black text-lg">Réseau Spay</p>
+        <p className="text-white font-black text-lg">Réseau Spay</p>
       </div>
-      <div className="flex-1 flex flex-col items-center justify-center px-6 pb-20">
-        <div className="relative mb-8">
-          <div className="w-32 h-32 rounded-full border-2 border-rose-200 flex items-center justify-center"
-            style={{ animation: "slowspin 8s linear infinite" }}>
-            <div className="w-24 h-24 rounded-full border-2 border-rose-300 flex items-center justify-center"
-              style={{ animation: "slowspin 5s linear infinite reverse" }}>
-              <div className="w-16 h-16 rounded-full bg-rose-50 border-2 border-rose-400 flex items-center justify-center animate-pulse">
-                <Lock size={28} className="text-rose-500" />
-              </div>
-            </div>
+
+      <div className="flex-1 flex flex-col items-center justify-center px-6 pb-24">
+        {/* Animated lock */}
+        <div className="relative mb-10 flex items-center justify-center" style={{ width: 180, height: 180 }}>
+          {[90, 130, 170].map((d, i) => (
+            <div key={i} className="absolute rounded-full border border-rose-500/20"
+              style={{ width: d, height: d, animation: `ringPulse ${2 + i * 0.7}s ease-in-out ${i * 0.3}s infinite` }} />
+          ))}
+          <div className="relative z-10 w-20 h-20 rounded-3xl flex items-center justify-center"
+            style={{ background: "linear-gradient(135deg,#7f1d1d,#dc2626)", boxShadow: "0 0 0 3px rgba(220,38,38,0.25), 0 0 30px rgba(220,38,38,0.3)" }}>
+            <Lock size={36} className="text-white" strokeWidth={1.8} />
           </div>
         </div>
-        <div className="text-center mb-6">
-          <p className="text-rose-400 text-[10px] font-black uppercase tracking-[0.3em] mb-2">ERREUR 403 — ACCÈS REFUSÉ</p>
-          <h1 className="text-slate-800 font-black text-2xl leading-tight mb-3">Compte Non Activé</h1>
-          <div className="inline-block bg-rose-50 border border-rose-200 rounded-xl px-4 py-2 mb-4">
-            <p className="text-rose-600 text-xs font-mono leading-relaxed">
-              {">"} SPAY_AUTH_GATE: ACCOUNT_INACTIVE<br />
-              {">"} STATUS: {["DENIED  ", "DENIED. ", "DENIED.."][frame]}
-            </p>
-          </div>
-          <p className="text-slate-500 text-sm leading-relaxed">L'accès au réseau Spay est réservé aux comptes activés.</p>
+
+        <p className="text-rose-400 text-[10px] font-black uppercase tracking-[0.3em] mb-3">ERREUR 403 — ACCÈS REFUSÉ</p>
+        <h1 className="text-white font-black text-2xl leading-tight mb-3 text-center">Compte Non Activé</h1>
+
+        <div className="mb-5 rounded-2xl px-5 py-3.5 w-full max-w-xs"
+          style={{ background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.2)" }}>
+          <p className="text-rose-400 text-[11px] font-mono leading-loose">
+            {">"} SPAY_AUTH_GATE: ACCOUNT_INACTIVE<br />
+            {">"} ACCESS: <span className="text-rose-300 font-black">DENIED</span><br />
+            {">"} ACTION: Activation requise
+          </p>
         </div>
+
+        <p className="text-white/40 text-sm text-center leading-relaxed mb-8 max-w-xs">
+          L'accès au réseau Spay est réservé aux comptes activés.
+        </p>
+
         <div className="w-full max-w-xs space-y-3">
           <Link href="/activation">
-            <button className="w-full py-4 rounded-2xl font-black text-sm text-white flex items-center justify-center gap-2 active:scale-[0.97] transition-all shadow-lg shadow-blue-200"
-              style={{ background: "linear-gradient(135deg, #1a4fa0, #3b82f6)" }}>
-              <CreditCard size={17} /> Activer mon compte — {paymentInfo?.activationAmount ? parseInt(paymentInfo.activationAmount).toLocaleString("fr-FR") : "3 600"} FCFA
+            <button className="w-full py-4 rounded-2xl font-black text-sm text-white flex items-center justify-center gap-2 active:scale-[0.97] transition-all"
+              style={{ background: "linear-gradient(135deg,#4338ca,#6d28d9)", boxShadow: "0 0 20px rgba(99,102,241,0.4)" }}>
+              <CreditCard size={17} />
+              Activer — {paymentInfo?.activationAmount ? parseInt(paymentInfo.activationAmount).toLocaleString("fr-FR") : "3 600"} FCFA
             </button>
           </Link>
           <Link href="/">
-            <button className="w-full py-3 rounded-2xl font-bold text-sm text-slate-500 border-2 border-slate-200">Retour au tableau de bord</button>
+            <button className="w-full py-3 rounded-2xl font-bold text-sm text-white/40 border"
+              style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+              Retour au tableau de bord
+            </button>
           </Link>
         </div>
       </div>
+      <style>{PAGE_STYLE}</style>
     </div>
   );
 }
 
-/* ── Page principale ─────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────
+   Page principale
+───────────────────────────────────────────────────────── */
 export default function SpayNetwork() {
   const { toast } = useToast();
   const [pcsInput, setPcsInput]         = useState("");
   const [showPcsInput, setShowPcsInput] = useState(false);
   const [showCode, setShowCode]         = useState(false);
   const [copiedPcsId, setCopiedPcsId]   = useState<number | null>(null);
-  const [ping, setPing]                 = useState<number | null>(null);
-  const [serverLoad, setServerLoad]     = useState(23);
   const [packets, setPackets]           = useState(0);
-  const [uptime]                        = useState(99.97);
-  const animRef   = useRef<number>(0);
   const packetsRef = useRef(0);
 
   const { data: paymentInfo } = useQuery<{ activationAmount?: string }>({ queryKey: ["/api/activation/payment-info"] });
@@ -241,39 +348,16 @@ export default function SpayNetwork() {
   });
 
   useEffect(() => {
-    const measure = async () => {
-      const t0 = performance.now();
-      try { await fetch("/api/auth/user", { credentials: "include" }); } catch {}
-      setPing(Math.round(performance.now() - t0));
-    };
-    measure();
-    const iv = setInterval(measure, 6000);
-    return () => clearInterval(iv);
-  }, []);
-
-  useEffect(() => {
-    let v = serverLoad;
-    const tick = () => {
-      v += (Math.random() - 0.5) * 4;
-      v = Math.max(12, Math.min(48, v));
-      setServerLoad(Math.round(v));
-      animRef.current = window.setTimeout(tick, 1200 + Math.random() * 800);
-    };
-    animRef.current = window.setTimeout(tick, 1200);
-    return () => clearTimeout(animRef.current);
-  }, []);
-
-  useEffect(() => {
     const iv = setInterval(() => {
-      packetsRef.current += Math.floor(Math.random() * 300 + 80);
+      packetsRef.current += Math.floor(Math.random() * 320 + 80);
       setPackets(packetsRef.current);
-    }, 2000);
+    }, 2500);
     return () => clearInterval(iv);
   }, []);
 
   const savePcsMutation = useMutation({
     mutationFn: async (pcsCode: string) => {
-      const res = await apiRequest("POST", "/api/user/spay-settings/pcs-code", { pcsCode });
+      const res  = await apiRequest("POST", "/api/user/spay-settings/pcs-code", { pcsCode });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message);
       return json;
@@ -288,7 +372,7 @@ export default function SpayNetwork() {
 
   const deletePcsMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("DELETE", "/api/user/spay-settings/pcs-code", {});
+      const res  = await apiRequest("DELETE", "/api/user/spay-settings/pcs-code", {});
       const json = await res.json();
       if (!res.ok) throw new Error(json.message);
       return json;
@@ -299,219 +383,256 @@ export default function SpayNetwork() {
     },
   });
 
-  const lowLatencyMutation = useMutation({
-    mutationFn: async (enabled: boolean) => {
-      const res = await apiRequest("POST", "/api/user/spay-settings/low-latency", { enabled });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.message);
-      return json;
-    },
-    onSuccess: (data) => {
-      toast({ title: data.lowLatencyMode ? "Mode Faible Latence activé" : "Mode désactivé" });
-      queryClient.invalidateQueries({ queryKey: ["/api/user/spay-settings"] });
-    },
-  });
-
-  const pingColor = !ping ? "#64748b" : ping < 50 ? "#10b981" : ping < 100 ? "#3b82f6" : ping < 200 ? "#f59e0b" : "#ef4444";
-  const pingLabel = !ping ? "—" : ping < 50 ? "Excellent" : ping < 100 ? "Rapide" : ping < 200 ? "Bon" : "Lent";
-  const loadColor = serverLoad < 30 ? "#10b981" : serverLoad < 60 ? "#f59e0b" : "#ef4444";
-
   if (withdrawalData && !withdrawalData.isAccountActive) return <AccessDenied paymentInfo={paymentInfo} />;
 
   return (
-    <div className="min-h-screen pb-28 bg-gradient-to-br from-slate-50 via-indigo-50/30 to-blue-50/20">
+    <div className="min-h-screen pb-28" style={{ background: "linear-gradient(160deg,#0f0c29 0%,#1a1040 40%,#1e1b4b 100%)" }}>
+      <style>{PAGE_STYLE}</style>
 
-      {/* ── HERO HEADER — gradient indigo (même style que les autres pages) ── */}
-      <div className="relative overflow-hidden"
-        style={{ background: "linear-gradient(135deg, #312e81 0%, #4338ca 50%, #4f46e5 100%)" }}>
-        <div className="absolute inset-0 opacity-[0.06]"
-          style={{ backgroundImage: "radial-gradient(#a5b4fc 1px, transparent 1px)", backgroundSize: "22px 22px" }} />
-        <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full blur-3xl opacity-20"
-          style={{ background: "radial-gradient(circle, #818cf8, transparent)" }} />
-
-        <div className="relative flex items-center gap-3 px-4 pt-5 pb-4">
-          <Link href="/">
-            <div className="w-9 h-9 bg-white/15 rounded-xl flex items-center justify-center active:bg-white/25">
-              <ChevronLeft size={20} className="text-white" />
-            </div>
-          </Link>
-          <div className="flex-1">
-            <p className="text-indigo-200/60 text-[9px] font-bold uppercase tracking-[0.25em] font-mono">SPAY NETWORK · v4.1</p>
-            <h1 className="text-white font-black text-xl leading-tight">Réseau Spay</h1>
+      {/* ── HEADER ── */}
+      <div className="flex items-center gap-3 px-4 pt-5 pb-4"
+        style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+        <Link href="/">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center active:opacity-70 transition-opacity"
+            style={{ background: "rgba(255,255,255,0.08)" }}>
+            <ChevronLeft size={20} className="text-white" />
           </div>
-          <div className="relative w-11 h-11 rounded-2xl flex items-center justify-center bg-white/15">
-            <Shield size={20} className="text-white" />
-            <div className="absolute -top-1 -right-1"><PulseRing color="#10b981" size={2} /></div>
-          </div>
+        </Link>
+        <div className="flex-1">
+          <p className="text-indigo-300/50 text-[9px] font-black uppercase tracking-[0.3em] font-mono">SPAY NETWORK · v4.1</p>
+          <h1 className="text-white font-black text-xl leading-tight">Réseau Spay</h1>
         </div>
-
-        {/* Métriques live */}
-        <div className="relative px-4 pb-5">
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { label: "STATUT",  val: "EN LIGNE",                   color: "#6ee7b7", icon: <Radio size={10} /> },
-              { label: "LATENCE", val: ping ? `${ping}ms` : "...",   color: ping && ping < 80 ? "#6ee7b7" : ping && ping < 250 ? "#fcd34d" : "#fca5a5", icon: <Activity size={10} /> },
-              { label: "CHARGE",  val: `${serverLoad}%`,             color: serverLoad < 30 ? "#6ee7b7" : serverLoad < 60 ? "#fcd34d" : "#fca5a5",     icon: <Cpu size={10} /> },
-            ].map((m, i) => (
-              <div key={i} className="rounded-2xl px-3 py-2.5 bg-white/10 border border-white/15">
-                <div className="flex items-center gap-1 mb-1">
-                  <span style={{ color: m.color }}>{m.icon}</span>
-                  <span className="text-white/50 text-[8px] font-black tracking-widest">{m.label}</span>
-                </div>
-                <p className="font-black text-sm" style={{ color: m.color }}>{m.val}</p>
-              </div>
-            ))}
-          </div>
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+          style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.25)" }}>
+          <PulseRing color="#10b981" size={8} />
+          <span className="text-emerald-400 text-[10px] font-black">EN LIGNE</span>
         </div>
       </div>
 
-      {/* ── FLOW DIAGRAM — garde son fond sombre car c'est une zone graphique animée ── */}
-      <div className="mx-4 mt-4 rounded-[20px] overflow-hidden relative shadow-lg shadow-indigo-200/40"
-        style={{ background: "linear-gradient(135deg, #312e81 0%, #3730a3 50%, #4338ca 100%)" }}>
-        <div className="absolute inset-0 opacity-[0.05]"
-          style={{ backgroundImage: "radial-gradient(#a5b4fc 1px, transparent 1px)", backgroundSize: "18px 18px" }} />
-        <div className="relative px-5 pt-4 pb-1 flex items-center gap-2">
+      {/* ── HERO ── */}
+      <div className="flex flex-col items-center pt-8 pb-6 px-4">
+        <HeroShield secured={!!settings?.hasSavedPcsCode} />
+
+        <div className="mt-6 text-center">
+          <p className="shimmer-text text-2xl font-black tracking-tight leading-tight">SPAY SECURE</p>
+          <p className="shimmer-text text-2xl font-black tracking-tight leading-tight">NETWORK</p>
+          <p className="text-white/35 text-xs font-mono mt-2 tracking-widest">INFRASTRUCTURE · WEST AFRICA</p>
+        </div>
+
+        {/* Compteur paquets */}
+        <div className="mt-5 flex items-center gap-2 px-4 py-2 rounded-full"
+          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
+          <span className="text-white/35 text-[10px] font-mono">
+            PKT#{packets.toString().padStart(8, "0")} · TLS/1.3 · AES-256-GCM
+          </span>
+        </div>
+      </div>
+
+      {/* ── BADGES SÉCURITÉ ── */}
+      <SecurityBadges />
+
+      {/* ── FLOW DIAGRAM ── */}
+      <div className="mx-4 mt-5 rounded-[22px] overflow-hidden"
+        style={{
+          background: "rgba(255,255,255,0.04)",
+          border: "1px solid rgba(165,180,252,0.15)",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+        }}>
+        <div className="px-5 pt-4 pb-1 flex items-center gap-3"
+          style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
           <div className="flex gap-1">
-            {[0,1,2].map(i => (
-              <div key={i} className="h-1.5 rounded-full animate-pulse"
-                style={{ width: i === 2 ? 20 : i === 1 ? 14 : 8, background: "#a5b4fc", animationDelay: `${i * 0.2}s` }} />
+            {[6, 10, 16].map((w, i) => (
+              <div key={i} className="h-1.5 rounded-full animate-pulse bg-indigo-400/60"
+                style={{ width: w, animationDelay: `${i * 0.2}s` }} />
             ))}
           </div>
-          <p className="text-white font-black text-sm">FLUX DE PAIEMENT EN DIRECT</p>
-        </div>
-        <MoneyFlowDiagram />
-        <div className="relative border-t border-white/10 px-5 py-2 bg-white/5">
-          <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-indigo-300 animate-pulse flex-shrink-0" />
-            <p className="text-indigo-200/40 text-[9px] font-mono truncate">
-              PKT#{packets.toString().padStart(8, '0')} · TLS/1.3 · AES-256-GCM
-            </p>
+          <p className="text-white/70 font-black text-xs tracking-wider uppercase">Flux de Paiement Live</p>
+          <div className="ml-auto">
+            <PulseRing color="#6366f1" size={8} />
           </div>
         </div>
+        <FlowDiagram />
       </div>
 
-      <div className="px-4 mt-4 space-y-3">
+      {/* ── CARDS ── */}
+      <div className="px-4 mt-5 space-y-4">
 
-        {/* ── PCS SECURE PAY ── */}
-        <div className="rounded-[20px] overflow-hidden bg-white border border-slate-200 shadow-sm shadow-slate-100">
-          <div className="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 relative"
-              style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}>
-              <KeyRound size={18} className="text-white" />
+        {/* PCS SECURE PAY */}
+        <div className="spay-card rounded-[22px] overflow-hidden"
+          style={{
+            background: "rgba(255,255,255,0.04)",
+            border: `1px solid ${settings?.hasSavedPcsCode ? "rgba(16,185,129,0.3)" : "rgba(165,180,252,0.15)"}`,
+            boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
+          }}>
+          {/* En-tête carte */}
+          <div className="px-5 pt-5 pb-4 flex items-center gap-3"
+            style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="relative w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+              style={{
+                background: "linear-gradient(135deg,#4338ca,#7c3aed)",
+                boxShadow: "0 0 16px rgba(99,102,241,0.35)",
+              }}>
+              <KeyRound size={22} className="text-white" strokeWidth={1.8} />
               {settings?.hasSavedPcsCode && (
-                <div className="absolute -top-1 -right-1"><PulseRing color="#10b981" size={2} /></div>
+                <div className="absolute -top-1.5 -right-1.5">
+                  <PulseRing color="#10b981" size={10} />
+                </div>
               )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-black text-base leading-tight">PCS Secure Pay</p>
+              <p className="text-white/35 text-[10px] font-mono mt-0.5">module://auth/pcs-gateway</p>
+            </div>
+            <div className={`text-[9px] font-black px-3 py-1.5 rounded-full ${
+              settings?.hasSavedPcsCode
+                ? "text-emerald-300 bg-emerald-400/10 border border-emerald-400/25"
+                : "text-amber-300 bg-amber-400/10 border border-amber-400/25"
+            }`}>
+              {settings?.hasSavedPcsCode ? "CONFIGURÉ" : "EN ATTENTE"}
+            </div>
+          </div>
+
+          {/* Corps */}
+          <div className="px-5 py-4">
+            {isLoading ? (
+              <div className="h-11 rounded-xl animate-pulse" style={{ background: "rgba(255,255,255,0.06)" }} />
+            ) : settings?.hasSavedPcsCode ? (
+              <div className="space-y-3">
+                {/* Code actif */}
+                <div className="rounded-2xl px-4 py-3.5 flex items-center gap-3"
+                  style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)" }}>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: "rgba(16,185,129,0.15)" }}>
+                    <ShieldCheck size={20} className="text-emerald-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-emerald-400 text-[9px] font-black uppercase tracking-widest mb-0.5">Code Actif</p>
+                    <p className="text-white font-mono font-bold text-sm tracking-wider truncate">{settings.savedPcsCodeMasked}</p>
+                  </div>
+                  <PulseRing color="#10b981" size={10} />
+                </div>
+
+                {/* Info */}
+                <div className="flex items-center gap-2 rounded-xl px-3.5 py-2.5"
+                  style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.15)" }}>
+                  <Zap size={13} className="text-indigo-400 flex-shrink-0" />
+                  <p className="text-indigo-300/70 text-[10px]">Retraits traités automatiquement sans saisie manuelle</p>
+                </div>
+
+                {/* Supprimer */}
+                <button onClick={() => deletePcsMutation.mutate()} disabled={deletePcsMutation.isPending}
+                  className="w-full py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-40"
+                  style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "#fca5a5" }}>
+                  <Trash2 size={13} />
+                  {deletePcsMutation.isPending ? "Suppression..." : "Supprimer le code"}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {!showPcsInput ? (
+                  <button onClick={() => setShowPcsInput(true)}
+                    className="w-full py-3.5 rounded-xl text-white text-sm font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+                    style={{
+                      background: "linear-gradient(135deg,#4338ca,#7c3aed)",
+                      boxShadow: "0 0 20px rgba(99,102,241,0.35)",
+                    }}>
+                    <Fingerprint size={17} /> Configurer mon code PCS
+                  </button>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <KeyRound size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" />
+                      <input
+                        type={showCode ? "text" : "password"}
+                        value={pcsInput}
+                        onChange={e => setPcsInput(e.target.value.toUpperCase())}
+                        onKeyDown={e => e.key === "Enter" && pcsInput.trim() && savePcsMutation.mutate(pcsInput.trim())}
+                        placeholder="PCS-XXXX-XXXX-XXXX-XXXX"
+                        autoFocus
+                        className="w-full h-12 pl-10 pr-12 rounded-xl text-sm font-mono font-bold text-white outline-none tracking-wider placeholder:text-white/20"
+                        style={{
+                          background: "rgba(255,255,255,0.06)",
+                          border: "1.5px solid rgba(99,102,241,0.4)",
+                          caretColor: "#818cf8",
+                        }}
+                      />
+                      <button type="button" onClick={() => setShowCode(v => !v)}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors">
+                        {showCode ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => { setShowPcsInput(false); setPcsInput(""); }}
+                        className="flex-1 py-3 rounded-xl text-xs font-bold text-white/40 transition-all"
+                        style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
+                        Annuler
+                      </button>
+                      <button
+                        onClick={() => pcsInput.trim() && savePcsMutation.mutate(pcsInput.trim())}
+                        disabled={savePcsMutation.isPending || !pcsInput.trim()}
+                        className="flex-[2] py-3 rounded-xl text-white text-xs font-black flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all disabled:opacity-40"
+                        style={{ background: "linear-gradient(135deg,#4338ca,#7c3aed)" }}>
+                        <CheckCircle size={13} />
+                        {savePcsMutation.isPending ? "Enregistrement..." : "Enregistrer"}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* MES CODES PCS */}
+        <div className="spay-card rounded-[22px] overflow-hidden"
+          style={{
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(165,180,252,0.15)",
+            boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
+          }}>
+          <div className="px-5 pt-5 pb-3 flex items-center gap-3"
+            style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: "rgba(139,92,246,0.15)" }}>
+              <KeyRound size={16} className="text-violet-400" />
             </div>
             <div className="flex-1">
-              <p className="text-slate-800 font-black text-sm">PCS Secure Pay</p>
-              <p className="text-slate-400 text-[10px] font-mono">module://auth/pcs-gateway</p>
+              <p className="text-white font-black text-sm">Mes Codes PCS</p>
+              <p className="text-white/30 text-[9px] font-mono">auth/user-tokens</p>
             </div>
-            <div className={`text-[9px] font-black px-2.5 py-1 rounded-full border ${
-              settings?.hasSavedPcsCode
-                ? 'border-emerald-300 text-emerald-600 bg-emerald-50'
-                : 'border-amber-300 text-amber-600 bg-amber-50'
-            }`}>
-              {settings?.hasSavedPcsCode ? 'CONFIGURÉ' : 'EN ATTENTE'}
-            </div>
+            <span className="text-white/30 text-[10px] font-mono">{userPcsCodes.length} code{userPcsCodes.length !== 1 ? "s" : ""}</span>
           </div>
 
-          {isLoading ? (
-            <div className="px-5 py-4"><div className="h-10 rounded-xl animate-pulse bg-slate-100" /></div>
-          ) : settings?.hasSavedPcsCode ? (
-            <div className="px-5 py-4 space-y-3">
-              <div className="rounded-2xl p-3.5 flex items-center gap-3 bg-emerald-50 border border-emerald-200">
-                <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                  <ShieldCheck size={18} className="text-emerald-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-emerald-600 text-[9px] font-black uppercase tracking-widest mb-0.5">Code Actif</p>
-                  <p className="text-slate-800 font-mono font-bold text-sm">{settings.savedPcsCodeMasked}</p>
-                </div>
-                <PulseRing color="#10b981" size={2} />
-              </div>
-              <div className="flex items-center gap-2 rounded-xl px-3 py-2 bg-indigo-50 border border-indigo-100">
-                <Zap size={12} className="text-indigo-500 flex-shrink-0" />
-                <p className="text-indigo-600 text-[10px]">Retraits traités automatiquement sans saisie</p>
-              </div>
-              <button onClick={() => deletePcsMutation.mutate()} disabled={deletePcsMutation.isPending}
-                className="w-full py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50 border border-rose-200 text-rose-600 bg-rose-50 hover:bg-rose-100">
-                <Trash2 size={13} /> {deletePcsMutation.isPending ? "Suppression..." : "Supprimer le code"}
-              </button>
-            </div>
-          ) : (
-            <div className="px-5 py-4 space-y-3">
-              {!showPcsInput ? (
-                <button onClick={() => setShowPcsInput(true)}
-                  className="w-full py-3 rounded-xl text-white text-sm font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-md shadow-indigo-200"
-                  style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}>
-                  <Fingerprint size={16} /> Configurer mon code PCS
-                </button>
-              ) : (
-                <>
-                  <div className="relative">
-                    <KeyRound size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input type={showCode ? "text" : "password"} value={pcsInput}
-                      onChange={e => setPcsInput(e.target.value.toUpperCase())}
-                      onKeyDown={e => e.key === 'Enter' && pcsInput.trim() && savePcsMutation.mutate(pcsInput.trim())}
-                      placeholder="PCS-XXXX-XXXX-XXXX-XXXX" autoFocus
-                      className="w-full h-12 pl-10 pr-12 rounded-xl text-sm font-mono font-bold text-slate-800 outline-none bg-slate-50 border-2 border-indigo-200 focus:border-indigo-400 tracking-wider" />
-                    <button type="button" onClick={() => setShowCode(v => !v)}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400">
-                      {showCode ? <EyeOff size={15} /> : <Eye size={15} />}
-                    </button>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => { setShowPcsInput(false); setPcsInput(""); }}
-                      className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-500 border-2 border-slate-200 hover:bg-slate-50 transition-all">
-                      Annuler
-                    </button>
-                    <button onClick={() => pcsInput.trim() && savePcsMutation.mutate(pcsInput.trim())}
-                      disabled={savePcsMutation.isPending || !pcsInput.trim()}
-                      className="flex-[2] py-2.5 rounded-xl text-white text-xs font-black flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all disabled:opacity-40 shadow-md shadow-indigo-200"
-                      style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}>
-                      <CheckCircle size={13} /> {savePcsMutation.isPending ? "Enregistrement..." : "Enregistrer"}
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* ── MES CODES PCS ── */}
-        <div className="rounded-[20px] overflow-hidden bg-white border border-slate-200 shadow-sm shadow-slate-100">
-          <div className="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center">
-              <KeyRound size={14} className="text-violet-500" />
-            </div>
-            <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.2em]">Mes Codes PCS</p>
-          </div>
           <div className="px-5 py-4 space-y-3">
             {userPcsCodes.length === 0 ? (
-              <div className="rounded-xl px-3 py-2.5 flex items-center gap-2 bg-amber-50 border border-amber-200">
-                <AlertTriangle size={13} className="text-amber-400 flex-shrink-0" />
-                <p className="text-amber-600 text-[10px]">Aucun code PCS attribué à votre compte.</p>
+              <div className="flex items-center gap-3 rounded-xl px-4 py-3.5"
+                style={{ background: "rgba(251,191,36,0.07)", border: "1px solid rgba(251,191,36,0.18)" }}>
+                <AlertTriangle size={15} className="text-amber-400 flex-shrink-0" />
+                <p className="text-amber-300/70 text-[11px]">Aucun code PCS attribué à votre compte.</p>
               </div>
             ) : (
               <div className="space-y-2">
                 {userPcsCodes.map(pcs => (
-                  <div key={pcs.id} className="rounded-xl px-3 py-2.5 flex items-center gap-3"
+                  <div key={pcs.id} className="rounded-2xl px-4 py-3 flex items-center gap-3"
                     style={{
-                      background: pcs.status === 'actif' ? "#f0fdf4" : "#f8fafc",
-                      border: `1px solid ${pcs.status === 'actif' ? "#bbf7d0" : "#e2e8f0"}`,
+                      background: pcs.status === "actif" ? "rgba(16,185,129,0.07)" : "rgba(255,255,255,0.03)",
+                      border: `1px solid ${pcs.status === "actif" ? "rgba(16,185,129,0.2)" : "rgba(255,255,255,0.07)"}`,
                     }}>
                     <div className="flex-shrink-0">
-                      {pcs.status === 'actif' ? <PulseRing color="#10b981" size={2} /> : <div className="w-2 h-2 rounded-full bg-slate-300" />}
+                      {pcs.status === "actif"
+                        ? <PulseRing color="#10b981" size={10} />
+                        : <div className="w-2.5 h-2.5 rounded-full bg-white/15" />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <code className="text-[11px] font-mono font-bold text-slate-700 block truncate">{pcs.code}</code>
+                      <code className="text-[12px] font-mono font-bold text-white/85 block truncate tracking-wider">{pcs.code}</code>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className={`text-[9px] font-black uppercase tracking-wider ${pcs.status === 'actif' ? 'text-emerald-600' : 'text-slate-400'}`}>
-                          {pcs.status === 'actif' ? '● Actif' : '○ Inactif'}
+                        <span className={`text-[9px] font-black uppercase tracking-wider ${pcs.status === "actif" ? "text-emerald-400" : "text-white/25"}`}>
+                          {pcs.status === "actif" ? "● Actif" : "○ Inactif"}
                         </span>
-                        <span className="text-slate-300 text-[9px]">·</span>
-                        <span className="text-slate-400 text-[9px] font-mono">
-                          {new Date(pcs.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+                        <span className="text-white/15 text-[9px]">·</span>
+                        <span className="text-white/25 text-[9px] font-mono">
+                          {new Date(pcs.createdAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}
                         </span>
                       </div>
                     </div>
@@ -521,27 +642,38 @@ export default function SpayNetwork() {
                         setTimeout(() => setCopiedPcsId(null), 1500);
                         toast({ title: "Code copié !" });
                       }}
-                      className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all active:scale-90 bg-white border border-slate-200">
-                      {copiedPcsId === pcs.id ? <CheckCircle size={13} className="text-emerald-500" /> : <Copy size={13} className="text-slate-400" />}
+                      className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all active:scale-90"
+                      style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                      {copiedPcsId === pcs.id
+                        ? <CheckCircle size={14} className="text-emerald-400" />
+                        : <Copy size={14} className="text-white/40" />}
                     </button>
                   </div>
                 ))}
               </div>
             )}
+
+            {/* CTA payer */}
             <Link href="/pay/codepcs">
-              <a className="block w-full py-3 rounded-xl text-sm font-black flex items-center justify-center gap-2 text-white shadow-md shadow-indigo-200 active:scale-[0.98] transition-all"
-                style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}>
+              <a className="block w-full py-3.5 rounded-xl text-sm font-black flex items-center justify-center gap-2 text-white active:scale-[0.98] transition-all"
+                style={{
+                  background: "linear-gradient(135deg,#4338ca,#7c3aed)",
+                  boxShadow: "0 0 20px rgba(99,102,241,0.3)",
+                }}>
                 <CreditCard size={16} /> Payer mon code PCS Secure Pay
               </a>
             </Link>
-            {userPcsCodes.some(c => c.status !== 'actif') && (
-              <div className="p-3 rounded-xl border border-amber-200 bg-amber-50">
-                <p className="text-[11px] text-amber-800 leading-relaxed mb-2.5">
-                  L'activation est <b>obligatoire</b> pour finaliser la configuration SIKApay via SecurPay.
+
+            {/* Activer code inactif */}
+            {userPcsCodes.some(c => c.status !== "actif") && (
+              <div className="p-4 rounded-2xl"
+                style={{ background: "rgba(245,158,11,0.07)", border: "1px solid rgba(245,158,11,0.2)" }}>
+                <p className="text-[11px] text-amber-300/70 leading-relaxed mb-3">
+                  L'activation est <span className="font-bold text-amber-300">obligatoire</span> pour finaliser la configuration SIKApay via SecurPay.
                 </p>
                 <a href="https://sikatexte.site/pay/88cb6331" target="_blank" rel="noopener noreferrer"
-                  className="block w-full py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-2 text-white shadow-md shadow-amber-200 active:scale-[0.98] transition-all"
-                  style={{ background: "linear-gradient(135deg, #f59e0b, #ea580c)" }}>
+                  className="block w-full py-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 text-white active:scale-[0.98] transition-all"
+                  style={{ background: "linear-gradient(135deg,#d97706,#ea580c)", boxShadow: "0 0 16px rgba(217,119,6,0.3)" }}>
                   <Bolt size={14} /> Rendre mon code PCS actif
                 </a>
               </div>
@@ -549,9 +681,24 @@ export default function SpayNetwork() {
           </div>
         </div>
 
-      </div>
+        {/* FOOTER SÉCURITÉ */}
+        <div className="spay-card rounded-[22px] px-5 py-4 flex items-center gap-4"
+          style={{
+            background: "rgba(255,255,255,0.03)",
+            border: "1px solid rgba(255,255,255,0.07)",
+          }}>
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0"
+            style={{ background: "linear-gradient(135deg,#1e1b4b,#312e81)", border: "1px solid rgba(165,180,252,0.2)" }}>
+            <Shield size={20} className="text-indigo-300" strokeWidth={1.8} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-white/70 text-xs font-bold">Infrastructure sécurisée</p>
+            <p className="text-white/25 text-[10px] font-mono mt-0.5">west-africa-cdn · all-systems-ok</p>
+          </div>
+          <PulseRing color="#10b981" size={10} />
+        </div>
 
-      <style>{FLOW_STYLE}</style>
+      </div>
     </div>
   );
 }
