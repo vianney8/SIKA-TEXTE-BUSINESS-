@@ -113,7 +113,7 @@ export default function Assistance() {
       const code = err?.message || "";
       let text: string;
       if (code === "quota_exceeded") {
-        text = "Je suis très sollicitée en ce moment 😊 Patientez quelques secondes, puis renvoyez votre message.";
+        text = "Je rencontre une petite difficulté technique (elle est en cours de résolution) 🙏 Réessayez dans quelques instants.";
       } else if (code === "Service IA temporairement indisponible") {
         text = "Mon service est momentanément indisponible. Réessayez dans quelques instants 🙏";
       } else if (!navigator.onLine) {

@@ -69,7 +69,7 @@ export default function AiChatBot() {
       const code = err?.message || "";
       let text: string;
       if (code === "quota_exceeded") {
-        text = "Je suis très sollicitée en ce moment 😊 Patientez quelques secondes, puis renvoyez votre message.";
+        text = "Je rencontre une petite difficulté technique (elle est en cours de résolution) 🙏 Réessayez dans quelques instants.";
       } else if (!navigator.onLine) {
         text = "Vous semblez hors ligne. Vérifiez votre connexion internet et réessayez.";
       } else {
