@@ -14,18 +14,6 @@ export default function Contact() {
 
   const SUPPORT_OPTIONS = [
     {
-      id: "online-group",
-      icon: <Users className="w-6 h-6 text-white" />,
-      gradient: "linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)",
-      badge: "En ligne",
-      badgeColor: "#a855f7",
-      title: "Groupe en ligne",
-      description: "Rejoignez la communauté SIKA TEXTE et discutez en temps réel avec tous les membres de la plateforme.",
-      action: "Rejoindre le groupe",
-      href: "/community-group",
-      external: false,
-    },
-    {
       id: "lylya",
       icon: <Bot className="w-6 h-6 text-white" />,
       gradient: "linear-gradient(135deg, #1a237e 0%, #1565c0 100%)",
