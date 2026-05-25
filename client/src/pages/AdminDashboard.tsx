@@ -1370,13 +1370,11 @@ export default function AdminDashboard() {
               <Users className="w-4 w-4 mr-2" />
               Cartes ID
             </Button>
-            <Button
-              onClick={() => setOnlineUsersModal(true)}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
-              data-testid="button-online-users"
-            >
-              <Users className="w-4 h-4 mr-2" />
-              👥 Connectés
+            <Button asChild className="bg-emerald-600 hover:bg-emerald-700 text-white" data-testid="button-online-users">
+              <a href="/admin/connected-users">
+                <Users className="w-4 h-4 mr-2" />
+                👥 Connectés
+              </a>
             </Button>
             <button
               onClick={() => {

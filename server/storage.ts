@@ -1574,18 +1574,23 @@ export class DatabaseStorage implements IStorage {
     return result as (User & { referralsCount: number; autoWithdrawalMode?: string })[];
   }
 
-  async getOnlineUsers(): Promise<(User & { lastActivity: Date })[]> {
-    // Get active sessions (expire_at > now)
+  async updateLastSeen(userId: string): Promise<void> {
+    await db.execute(sql`UPDATE users SET last_seen = NOW() WHERE id = ${userId}`);
+  }
+
+  async getOnlineUsers(): Promise<(User & { lastActivity: Date; country?: string; isActive?: boolean })[]> {
+    // Utilisateurs actifs dans les 3 dernières minutes (heartbeat réel)
     const result = await db.execute(sql`
-      SELECT DISTINCT u.id, u.phone, u.email, u.full_name, u.balance, u.referral_code, u.role, 
-             MAX(s.expire) as last_activity
+      SELECT u.id, u.phone, u.email, u.full_name, u.balance, u.referral_code, u.role,
+             u.country, u.last_seen as last_activity,
+             a.is_active
       FROM users u
-      INNER JOIN sessions s ON s.sess::jsonb->>'userId' = u.id
-      WHERE s.expire > NOW()
-      GROUP BY u.id, u.phone, u.email, u.full_name, u.balance, u.referral_code, u.role
-      ORDER BY MAX(s.expire) DESC
+      LEFT JOIN account_status a ON a.user_id = u.id
+      WHERE u.last_seen > NOW() - INTERVAL '3 minutes'
+        AND u.role = 'user'
+      ORDER BY u.last_seen DESC
     `);
-    
+
     return (result.rows || []).map((row: any) => ({
       id: row.id,
       phone: row.phone,
@@ -1594,8 +1599,10 @@ export class DatabaseStorage implements IStorage {
       balance: row.balance,
       referralCode: row.referral_code,
       role: row.role,
+      country: row.country,
+      isActive: row.is_active,
       lastActivity: row.last_activity,
-    })) as (User & { lastActivity: Date })[];
+    })) as (User & { lastActivity: Date; country?: string; isActive?: boolean })[];
   }
 
   async updateUserPassword(userId: string, hashedPassword: string): Promise<void> {

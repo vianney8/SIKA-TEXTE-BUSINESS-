@@ -124,6 +124,14 @@ app.use((req, res, next) => {
     log('users.auto_withdrawal_mode column skipped: ' + (err as Error).message);
   }
 
+  // Add last_seen to users table (présence temps réel)
+  try {
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen timestamptz`);
+    log('users.last_seen column ready');
+  } catch (err) {
+    log('users.last_seen column skipped: ' + (err as Error).message);
+  }
+
   // Create pcs_codes table if not exists
   try {
     await db.execute(sql`

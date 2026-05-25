@@ -1743,11 +1743,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Utilisateurs connectés actuellement
+  // Heartbeat — présence utilisateur temps réel (toutes les 30s depuis le frontend)
+  app.post('/api/heartbeat', requireAuth, async (req: any, res) => {
+    try {
+      await storage.updateLastSeen(req.session.userId);
+      res.json({ ok: true });
+    } catch {
+      res.json({ ok: false });
+    }
+  });
+
+  // Utilisateurs connectés actuellement (admin)
   app.get('/api/admin/users/online', requireAdmin, async (req: any, res) => {
     try {
       const onlineUsers = await storage.getOnlineUsers();
-      res.json(onlineUsers);
+      const now = Date.now();
+      const veryActive = onlineUsers.filter((u: any) => now - new Date(u.lastActivity).getTime() < 60_000).length;
+      res.json({ users: onlineUsers, veryActive, total: onlineUsers.length });
     } catch (error) {
       console.error('Error fetching online users:', error);
       res.status(500).json({ message: 'Erreur lors de la récupération des utilisateurs en ligne' });
