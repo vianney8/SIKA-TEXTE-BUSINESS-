@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle, XCircle, Settings, MessageCircle, MessageSquare, MessageSquareOff, RefreshCw, Link2, Plus, Copy, ToggleLeft, ToggleRight, ExternalLink, History, ChevronLeft, ChevronRight, Mail, Bot, Bell, BellOff, Send, LayoutDashboard } from "lucide-react";
+import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle, XCircle, Settings, MessageCircle, MessageSquare, MessageSquareOff, RefreshCw, Link2, Plus, Copy, ToggleLeft, ToggleRight, ExternalLink, History, ChevronLeft, ChevronRight, Mail, Bot, Bell, BellOff, Send, LayoutDashboard, Wifi } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 
@@ -1288,116 +1288,107 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-gradient-to-b from-primary to-blue-600 p-4">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <div className="text-center flex-1">
-            <h1 className="text-3xl font-bold text-white mb-2">Tableau de Bord Administrateur</h1>
-            <p className="text-blue-100">SIKA TEXTE BUSINESS - Administration</p>
+        <div className="mb-6">
+          {/* Top bar: title + logout */}
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-2xl font-bold text-white leading-tight">Tableau de Bord</h1>
+              <p className="text-blue-200/70 text-sm">SIKA TEXTE BUSINESS · Administration</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button asChild className="bg-white/15 hover:bg-white/25 text-white border border-white/20 font-medium text-sm" data-testid="button-admin-my-account">
+                <a href="/dashboard">
+                  <LayoutDashboard className="h-3.5 w-3.5 mr-1.5" />
+                  Mon compte
+                </a>
+              </Button>
+              <button
+                onClick={() => {
+                  fetch('/api/auth/logout', { method: 'POST' })
+                    .then(() => window.location.href = '/simple-login')
+                    .catch(() => window.location.href = '/simple-login');
+                }}
+                className="bg-red-500/80 hover:bg-red-500 text-white px-3 py-2 rounded-lg transition-colors text-sm font-medium"
+                data-testid="button-logout"
+              >
+                Déconnexion
+              </button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Button asChild className="bg-white text-blue-900 hover:bg-blue-50 font-bold border border-white/30" data-testid="button-admin-my-account">
-              <a href="/dashboard">
-                <LayoutDashboard className="h-4 w-4 mr-2" />
-                Compte Admin
-              </a>
-            </Button>
-            <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white">
-              <a href="/admin/pcs-send">
-                <Mail className="h-4 w-4 mr-2" />
-                Codes PCS
-              </a>
-            </Button>
-            <Button asChild variant="secondary">
-              <a href="/admin/settings" data-testid="button-admin-settings">
-                <Settings className="h-4 w-4 mr-2" />
-                Paramètres
-              </a>
-            </Button>
-            <Button asChild className="bg-orange-500 hover:bg-orange-600 text-white relative">
-              <a href="/admin/ci-update">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                MàJ +225
-                {ciPendingUsers.length > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
-                    {ciPendingUsers.length}
-                  </span>
-                )}
-              </a>
-            </Button>
-            <Button asChild className="bg-red-600 hover:bg-red-700 text-white relative">
-              <a href="/admin/withdrawals">
-                <TrendingDown className="h-4 w-4 mr-2" />
-                Retraits
-                {pendingWithdrawals.length > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-yellow-400 text-black text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
-                    {pendingWithdrawals.length}
-                  </span>
-                )}
-              </a>
-            </Button>
-            <Button asChild className="bg-emerald-600 hover:bg-emerald-700 text-white relative">
-              <a href="/admin/messages" data-testid="button-admin-messages">
-                <MessageCircle className="h-4 w-4 mr-2" />
-                Messages
-                {totalUnreadMessages > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
-                    {totalUnreadMessages}
-                  </span>
-                )}
-              </a>
-            </Button>
-            <Button
+
+          {/* Nav actions */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+            {/* Codes PCS */}
+            <a href="/admin/pcs-send"
+              className="flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-xl bg-blue-600/80 hover:bg-blue-600 text-white transition-colors text-center">
+              <Mail className="h-4 w-4" />
+              <span className="text-xs font-semibold leading-none">Codes PCS</span>
+            </a>
+
+            {/* Paramètres */}
+            <a href="/admin/settings" data-testid="button-admin-settings"
+              className="flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-600/80 hover:bg-slate-600 text-white transition-colors text-center">
+              <Settings className="h-4 w-4" />
+              <span className="text-xs font-semibold leading-none">Paramètres</span>
+            </a>
+
+            {/* MàJ +225 */}
+            <a href="/admin/ci-update" className="relative flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-xl bg-orange-500/80 hover:bg-orange-500 text-white transition-colors text-center">
+              <RefreshCw className="h-4 w-4" />
+              <span className="text-xs font-semibold leading-none">MàJ +225</span>
+              {ciPendingUsers.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none">
+                  {ciPendingUsers.length}
+                </span>
+              )}
+            </a>
+
+            {/* Retraits */}
+            <a href="/admin/withdrawals" className="relative flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-xl bg-red-600/80 hover:bg-red-600 text-white transition-colors text-center">
+              <TrendingDown className="h-4 w-4" />
+              <span className="text-xs font-semibold leading-none">Retraits</span>
+              {pendingWithdrawals.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-yellow-400 text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none">
+                  {pendingWithdrawals.length}
+                </span>
+              )}
+            </a>
+
+            {/* Messages */}
+            <a href="/admin/messages" data-testid="button-admin-messages"
+              className="relative flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-xl bg-emerald-600/80 hover:bg-emerald-600 text-white transition-colors text-center">
+              <MessageCircle className="h-4 w-4" />
+              <span className="text-xs font-semibold leading-none">Messages</span>
+              {totalUnreadMessages > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none">
+                  {totalUnreadMessages}
+                </span>
+              )}
+            </a>
+
+            {/* Cartes ID */}
+            <button onClick={() => setIdentityModal(true)}
+              className="flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-xl bg-green-600/80 hover:bg-green-600 text-white transition-colors w-full">
+              <Users className="h-4 w-4" />
+              <span className="text-xs font-semibold leading-none">Cartes ID</span>
+            </button>
+
+            {/* Connectés */}
+            <a href="/admin/connected-users" data-testid="button-online-users"
+              className="flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-xl bg-teal-600/80 hover:bg-teal-600 text-white transition-colors text-center">
+              <Wifi className="h-4 w-4" />
+              <span className="text-xs font-semibold leading-none">Connectés</span>
+            </a>
+
+            {/* Chat toggle */}
+            <button
               onClick={() => toggleChatMutation.mutate()}
               disabled={toggleChatMutation.isPending}
-              className={`${isChatEnabled ? 'bg-orange-500 hover:bg-orange-600' : 'bg-green-500 hover:bg-green-600'} text-white`}
               data-testid="button-toggle-chat"
+              className={`flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-xl text-white transition-colors ${isChatEnabled ? 'bg-orange-500/80 hover:bg-orange-500' : 'bg-green-500/80 hover:bg-green-500'}`}
             >
-              {isChatEnabled ? (
-                <>
-                  <MessageSquareOff className="h-4 w-4 mr-2" />
-                  Désactiver Chat
-                </>
-              ) : (
-                <>
-                  <MessageCircle className="h-4 w-4 mr-2" />
-                  Activer Chat
-                </>
-              )}
-            </Button>
-            <Button
-              onClick={() => setIdentityModal(true)}
-              className="bg-green-600 hover:bg-green-700 text-white"
-            >
-              <Users className="w-4 w-4 mr-2" />
-              Cartes ID
-            </Button>
-            <Button asChild className="bg-emerald-600 hover:bg-emerald-700 text-white" data-testid="button-online-users">
-              <a href="/admin/connected-users">
-                <Users className="w-4 h-4 mr-2" />
-                👥 Connectés
-              </a>
-            </Button>
-            <Button asChild className="bg-purple-700 hover:bg-purple-800 text-white" data-testid="button-ai-chat">
-              <a href="/admin/ai-chat">
-                <MessageSquare className="w-4 h-4 mr-2" />
-                🤖 Lylya IA
-              </a>
-            </Button>
-            <Button asChild className="bg-indigo-700 hover:bg-indigo-800 text-white" data-testid="button-admin-group">
-              <a href="/admin/group">
-                <Users className="w-4 h-4 mr-2" />
-                💬 Groupe
-              </a>
-            </Button>
-            <button
-              onClick={() => {
-                fetch('/api/auth/logout', { method: 'POST' })
-                  .then(() => window.location.href = '/simple-login')
-                  .catch(() => window.location.href = '/simple-login');
-              }}
-              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors"
-              data-testid="button-logout"
-            >
-              Déconnexion
+              {isChatEnabled ? <MessageSquareOff className="h-4 w-4" /> : <MessageCircle className="h-4 w-4" />}
+              <span className="text-xs font-semibold leading-none">{isChatEnabled ? "Chat ON" : "Chat OFF"}</span>
             </button>
           </div>
         </div>

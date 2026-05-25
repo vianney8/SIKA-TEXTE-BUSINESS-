@@ -5,17 +5,6 @@ interface Props {
   message: string;
 }
 
-const EMOJIS = ["💰", "🏆", "💎", "🚀", "⭐", "🎯", "🎮", "🔥"];
-
-function shuffle<T>(arr: T[]): T[] {
-  return [...arr].sort(() => Math.random() - 0.5);
-}
-
-function buildCards() {
-  const pairs = [...EMOJIS, ...EMOJIS];
-  return shuffle(pairs).map((emoji, i) => ({ id: i, emoji, flipped: false, matched: false }));
-}
-
 function useCountdown(endTime: string) {
   const calc = useCallback(() => {
     if (!endTime) return null;
@@ -35,92 +24,8 @@ function useCountdown(endTime: string) {
   return time;
 }
 
-function MemoryGame() {
-  const [cards, setCards] = useState(buildCards);
-  const [picked, setPicked] = useState<number[]>([]);
-  const [locked, setLocked] = useState(false);
-  const [moves, setMoves] = useState(0);
-  const [won, setWon] = useState(false);
-
-  const flip = (id: number) => {
-    if (locked) return;
-    const card = cards.find(c => c.id === id);
-    if (!card || card.flipped || card.matched) return;
-
-    const next = cards.map(c => c.id === id ? { ...c, flipped: true } : c);
-    setCards(next);
-    const newPicked = [...picked, id];
-
-    if (newPicked.length === 2) {
-      setLocked(true);
-      setMoves(m => m + 1);
-      const [a, b] = newPicked.map(pid => next.find(c => c.id === pid)!);
-      if (a.emoji === b.emoji) {
-        const matched = next.map(c => newPicked.includes(c.id) ? { ...c, matched: true } : c);
-        setCards(matched);
-        setPicked([]);
-        setLocked(false);
-        if (matched.every(c => c.matched)) setWon(true);
-      } else {
-        setTimeout(() => {
-          setCards(prev => prev.map(c => newPicked.includes(c.id) ? { ...c, flipped: false } : c));
-          setPicked([]);
-          setLocked(false);
-        }, 900);
-      }
-    } else {
-      setPicked(newPicked);
-    }
-  };
-
-  const reset = () => {
-    setCards(buildCards());
-    setPicked([]);
-    setLocked(false);
-    setMoves(0);
-    setWon(false);
-  };
-
-  return (
-    <div className="flex flex-col items-center gap-3">
-      <div className="flex items-center gap-4 text-sm text-white/70">
-        <span>Coups : <strong className="text-white">{moves}</strong></span>
-        {won && <span className="text-yellow-300 font-bold animate-bounce">🎉 Bravo !</span>}
-      </div>
-      <div className="grid grid-cols-4 gap-2">
-        {cards.map(card => (
-          <button
-            key={card.id}
-            onClick={() => flip(card.id)}
-            data-testid={`card-memory-${card.id}`}
-            className={`
-              w-14 h-14 rounded-xl text-2xl font-bold transition-all duration-300 select-none
-              ${card.flipped || card.matched
-                ? "bg-white/20 border-2 border-white/40 scale-105"
-                : "bg-white/10 border-2 border-white/20 hover:bg-white/15 active:scale-95"}
-              ${card.matched ? "opacity-60" : ""}
-            `}
-          >
-            {card.flipped || card.matched ? card.emoji : "?"}
-          </button>
-        ))}
-      </div>
-      {won && (
-        <button
-          onClick={reset}
-          data-testid="button-reset-game"
-          className="mt-2 px-5 py-2 bg-yellow-400 text-yellow-900 font-bold rounded-xl hover:bg-yellow-300 transition-colors"
-        >
-          Rejouer 🔄
-        </button>
-      )}
-    </div>
-  );
-}
-
 export default function MaintenancePage({ endTime, message }: Props) {
   const time = useCountdown(endTime);
-  const [showGame, setShowGame] = useState(false);
 
   const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -166,7 +71,6 @@ export default function MaintenancePage({ endTime, message }: Props) {
             >
               <span className="text-4xl">🔧</span>
             </div>
-            {/* Spinning ring */}
             <div
               className="absolute -inset-2 rounded-[28px] border-2 border-blue-400/40"
               style={{ animation: "spin 6s linear infinite" }}
@@ -239,28 +143,6 @@ export default function MaintenancePage({ endTime, message }: Props) {
             className="h-full rounded-full bg-gradient-to-r from-blue-400 to-purple-400"
             style={{ animation: "progress-bar 3s ease-in-out infinite alternate", width: "60%" }}
           />
-        </div>
-
-        {/* Game section */}
-        <div className="w-full">
-          <button
-            onClick={() => setShowGame(g => !g)}
-            data-testid="button-toggle-game"
-            className="w-full py-3 rounded-2xl font-semibold text-sm transition-all duration-300 border border-white/20 text-white/80 hover:bg-white/10 active:scale-95"
-            style={{ background: "rgba(255,255,255,0.06)" }}
-          >
-            {showGame ? "🙈 Masquer le jeu" : "🎮 Jouer en attendant"}
-          </button>
-
-          {showGame && (
-            <div
-              className="mt-4 p-4 rounded-2xl border border-white/15"
-              style={{ background: "rgba(255,255,255,0.04)" }}
-            >
-              <p className="text-center text-white/60 text-xs mb-4 uppercase tracking-widest">Jeu de mémoire</p>
-              <MemoryGame />
-            </div>
-          )}
         </div>
 
         {/* Footer */}
