@@ -3616,6 +3616,149 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.sendStatus(200);
         }
 
+        // ── Recherche par pays ────────────────────────────────────────────────
+        // Exemples : "Demande de paiement au Togo", "activation Bénin", "Sénégal", etc.
+        const COUNTRY_MAP_CS: Record<string, string> = {
+          'togo': 'TG',
+          'bénin': 'BJ', 'benin': 'BJ',
+          "côte d'ivoire": 'CI', "cote d'ivoire": 'CI', 'côte ivoire': 'CI',
+          'cote ivoire': 'CI', 'ivory coast': 'CI', 'ivoirien': 'CI', 'ivoirienne': 'CI',
+          'sénégal': 'SN', 'senegal': 'SN',
+          'burkina faso': 'BF', 'burkina': 'BF',
+          'cameroun': 'CM', 'cameroon': 'CM',
+          'mali': 'ML',
+        };
+        const COUNTRY_FLAGS_CS: Record<string, string> = { BJ:'🇧🇯', CI:'🇨🇮', SN:'🇸🇳', BF:'🇧🇫', TG:'🇹🇬', CM:'🇨🇲', ML:'🇲🇱' };
+        const COUNTRY_NAMES_CS: Record<string, string> = { BJ:'Bénin', CI:"Côte d'Ivoire", SN:'Sénégal', BF:'Burkina Faso', TG:'Togo', CM:'Cameroun', ML:'Mali' };
+        const OPERATORS_CS: Record<string, string> = { mtn:'MTN', moov:'Moov', orange:'Orange', wave:'Wave', tmoney:'T-Money', free:'Free', airtel:'Airtel' };
+        const STATUS_CS: Record<string, string> = { pending:'⏳ En attente', approved:'✅ Approuvé', rejected:'❌ Rejeté', completed:'✅ Complété', failed:'❌ Échoué' };
+
+        const msgLowerCS = msgText.toLowerCase();
+        let detectedCountryCode: string | null = null;
+        // Tester les mots-clés les plus longs en premier (ex: "côte d'ivoire" avant "ivoire")
+        const sortedCountryKeywords = Object.entries(COUNTRY_MAP_CS).sort((a, b) => b[0].length - a[0].length);
+        for (const [keyword, code] of sortedCountryKeywords) {
+          if (msgLowerCS.includes(keyword)) {
+            detectedCountryCode = code;
+            break;
+          }
+        }
+
+        if (detectedCountryCode) {
+          const code = detectedCountryCode;
+          const flag = COUNTRY_FLAGS_CS[code] || '🌍';
+          const countryName = COUNTRY_NAMES_CS[code] || code;
+
+          const wantsActivation = /activ/i.test(msgText) && !/lien|link/i.test(msgText);
+          const wantsLien = /lien|link/i.test(msgText) && !wantsActivation;
+          const wantsBoth = !wantsActivation && !wantsLien;
+
+          const activRows: any[] = [];
+          if (wantsActivation || wantsBoth) {
+            const r = await db.execute(sql`
+              SELECT * FROM manual_activation_requests
+              WHERE country = ${code}
+              ORDER BY created_at DESC LIMIT 30
+            `);
+            activRows.push(...(r.rows || []));
+          }
+
+          const linkRows: any[] = [];
+          if (wantsLien || wantsBoth) {
+            const r = await db.execute(sql`
+              SELECT * FROM link_manual_requests
+              WHERE country = ${code}
+              ORDER BY created_at DESC LIMIT 30
+            `);
+            linkRows.push(...(r.rows || []));
+          }
+
+          const total = activRows.length + linkRows.length;
+
+          if (total === 0) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                text: `${flag} <b>Recherche par pays : ${countryName}</b>\n\nAucune demande de paiement trouvée pour ce pays.`,
+                parse_mode: 'HTML'
+              })
+            });
+            return res.sendStatus(200);
+          }
+
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              text: `${flag} <b>Demandes de paiement — ${countryName}</b>\n${total} résultat(s) trouvé(s)` +
+                (wantsBoth ? `\n\n• 🆔 Activations manuelles : ${activRows.length}\n• 🏦 Paiements lien : ${linkRows.length}` : ''),
+              parse_mode: 'HTML'
+            })
+          });
+
+          for (const r of activRows) {
+            const date = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' }) : '—';
+            const cardText =
+              `🆔 <b>ACTIVATION MANUELLE</b> ${flag}\n` +
+              `📊 ${STATUS_CS[r.status] || r.status}\n` +
+              `👤 Payeur (SIM) : ${r.payer_name || r.full_name || 'N/A'}\n` +
+              `🪪 Compte : ${r.full_name || 'N/A'}\n` +
+              `📧 ${r.email || 'N/A'}\n` +
+              `📋 Sika : <code>${r.referral_code || 'N/A'}</code>\n` +
+              `📱 <code>${r.payment_phone || '—'}</code>\n` +
+              `💳 ${OPERATORS_CS[r.operator] || r.operator || '—'}\n` +
+              `💰 ${Number(r.amount).toLocaleString('fr-FR')} FCFA\n` +
+              `🔖 ID tx : <code>${r.transaction_id || '—'}</code>\n` +
+              `🖼 Capture : ${r.screenshot_url ? '📎 envoyée ci-dessous' : '❌ aucune'}\n` +
+              `🕒 ${date}`;
+            const actButtons = { inline_keyboard: [
+              ...(r.status === 'pending' ? [[
+                { text: '✅ Approuver', callback_data: `manact_app_pre_${r.id}` },
+                { text: '❌ Rejeter',   callback_data: `manact_rej_pre_${r.id}` },
+              ]] : []),
+              [{ text: '🔒 Bloquer le compte', callback_data: `blkuser_pre_${r.user_id}` }]
+            ]};
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode: 'HTML', reply_markup: actButtons })
+            });
+            await sendShot(chatId, r.screenshot_url);
+            await new Promise(resolve => setTimeout(resolve, 60));
+          }
+
+          for (const r of linkRows) {
+            const date = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' }) : '—';
+            const cardText =
+              `🏦 <b>PAIEMENT LIEN</b> ${flag}\n` +
+              `💳 <b>${r.link_label || r.link_id || '—'}</b>\n` +
+              `📊 ${STATUS_CS[r.status] || r.status}\n` +
+              `👤 ${r.customer_name || 'N/A'}\n` +
+              `📧 ${r.customer_email || 'N/A'}\n` +
+              `📱 <code>${r.phone || '—'}</code>\n` +
+              `💳 ${OPERATORS_CS[r.operator] || r.operator || '—'}\n` +
+              `💰 ${Number(r.amount).toLocaleString('fr-FR')} ${r.currency || 'FCFA'}\n` +
+              `🔖 ID tx : <code>${r.transaction_id || '—'}</code>\n` +
+              `🖼 Capture : ${r.screenshot_url ? '📎 envoyée ci-dessous' : '❌ aucune'}\n` +
+              `🕒 ${date}`;
+            const lnkButtons = { inline_keyboard: [
+              ...(r.status === 'pending' ? [[
+                { text: '✅ Approuver', callback_data: `lnkma_pre_${r.id}` },
+                { text: '❌ Rejeter',   callback_data: `lnkrej_pre_${r.id}` },
+              ]] : []),
+              [{ text: '🔒 Bloquer', callback_data: `blklnkr_pre_${r.id}` }]
+            ]};
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode: 'HTML', reply_markup: lnkButtons })
+            });
+            await sendShot(chatId, r.screenshot_url);
+            await new Promise(resolve => setTimeout(resolve, 60));
+          }
+
+          return res.sendStatus(200);
+        }
+
         // ── Fallback : message non reconnu → aide complète ────────────────────
         const helpText =
           `🤖 <b>Bot SIKA TEXTE — commandes disponibles</b>\n\n` +
@@ -3634,6 +3777,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           `• <code>tx ABC123</code> ou <code>id ABC123</code> → toutes les transactions (lien manuel, activation, SolvexPay)\n\n` +
           `👤 <b>Par nom du payeur :</b>\n` +
           `• <code>nom Kouassi Jean</code> ou <code>name Kouassi</code> → activations manuelles, paiements lien, SolvexPay, activations CI\n\n` +
+          `🌍 <b>Par pays :</b>\n` +
+          `• <code>Togo</code> ou <code>Demande de paiement au Togo</code> → toutes les demandes du Togo\n` +
+          `• Pays supportés : Bénin 🇧🇯, Côte d'Ivoire 🇨🇮, Sénégal 🇸🇳, Burkina Faso 🇧🇫, Togo 🇹🇬, Cameroun 🇨🇲, Mali 🇲🇱\n` +
+          `• Ajoutez <code>activation</code> ou <code>lien</code> pour filtrer le type\n\n` +
           `📨 <b>Vérification SMS :</b> collez un SMS Mobile Money directement.\n\n` +
           `💡 <i>Astuce :</i> les recherches par téléphone comparent aussi les 8 derniers chiffres, et les recherches par nom/ID acceptent un fragment.`;
         await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
