@@ -7021,10 +7021,26 @@ TRAVAIL / CORRECTION DE TEXTES :
 - Page "Travail" : corriger des phrases pour gagner des FCFA
 - Revenus supplémentaires en plus des autres activités
 
-CODES PCS :
-- Page "SPay Network" : gestion des codes PCS Secure Pay
-- Les codes PCS sont générés après paiement via liens de paiement
-- Utilisés pour des paiements sécurisés
+RÉSEAU SPAY / SPay Network (page "/spay-network") :
+- Page réservée aux comptes ACTIVÉS uniquement (sinon message "Accès Refusé — Compte Non Activé")
+- Infrastructure sécurisée : chiffrement AES-256, TLS 1.3, certificat SSL — traitement sécurisé des retraits en Afrique de l'Ouest
+- Flux de paiement : Retrait → SPAY (authentification) → PCS Secure Pay (validation) → Mobile Money (crédit)
+
+MODULE PCS SECURE PAY :
+- Un code PCS (format : PCS-XXXX-XXXX-XXXX-XXXX) permet les retraits automatiques sans saisie manuelle à chaque fois
+- Procédure pour configurer : aller dans "Réseau Spay" → cliquer "Configurer mon code PCS" → saisir le code → "Enregistrer"
+- Une fois configuré, les retraits sont traités automatiquement
+- Pour supprimer le code : bouton "Supprimer le code" dans la même section
+- Statut du code PCS : CONFIGURÉ (vert) ou EN ATTENTE (orange)
+
+MES CODES PCS (section de la même page) :
+- Liste de tous les codes PCS attribués au compte de l'utilisateur
+- Chaque code a un statut : Actif (vert) ou Inactif (gris)
+- Bouton copier pour chaque code
+- Pour obtenir un nouveau code PCS : cliquer "Payer mon code PCS Secure Pay" → lien de paiement
+- Si un code est inactif : il faut l'activer via le lien de paiement dédié (https://sikatexte.site/pay/88cb6331)
+- L'activation du code PCS est OBLIGATOIRE pour finaliser la configuration SIKApay via SecurPay
+- Si l'utilisateur n'a aucun code PCS : message "Aucun code PCS attribué à votre compte" → doit en acheter un
 
 MISE À JOUR CI (+225) :
 - Obligatoire pour les utilisateurs de Côte d'Ivoire
