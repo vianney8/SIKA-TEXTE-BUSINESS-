@@ -1,656 +1,376 @@
 import { useState, useRef, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { MessageCircle, Headphones, Download, Send, Loader2, Image, X, User, Sparkles, Pencil, Check, Shield, Clock, ChevronDown, CheckCheck } from "lucide-react";
-import PageHeader from "@/components/PageHeader";
-import { Link } from "wouter";
-import { FaTelegram, FaWhatsapp } from "react-icons/fa";
-import { useAppSetting } from "@/hooks/useAppSettings";
+import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { formatDistanceToNow } from "date-fns";
-import { fr } from "date-fns/locale";
+import { useAuth } from "@/hooks/useAuth";
+import { useAppSetting } from "@/hooks/useAppSettings";
+import PageHeader from "@/components/PageHeader";
+import {
+  Send, Bot, Trash2, Loader2, Sparkles, ChevronDown,
+  Download, Shield, Zap, MessageSquare, HelpCircle,
+  CreditCard, Users, ArrowUpDown, Wallet, Star
+} from "lucide-react";
+import { FaTelegram } from "react-icons/fa";
 
-interface SupportMessage {
-  id: string;
-  userId: string;
-  message: string;
-  imageUrl?: string;
-  senderType: 'user' | 'admin';
-  isRead: boolean;
-  createdAt: string;
+interface Message {
+  role: "user" | "assistant";
+  text: string;
+  timestamp: Date;
 }
 
-function renderMessageWithLinks(text: string, isUserMessage: boolean): JSX.Element {
-  if (!text) return <></>;
-  
-  const urlRegex = /(https?:\/\/[^\s]+)/g;
-  const parts = text.split(urlRegex);
-  
-  return (
-    <>
-      {parts.map((part, index) => {
-        if (urlRegex.test(part)) {
-          urlRegex.lastIndex = 0;
-          return (
-            <a
-              key={index}
-              href={part}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`underline break-all ${isUserMessage ? 'text-blue-100 hover:text-white' : 'text-blue-600 hover:text-blue-800 dark:text-blue-400'}`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {part}
-            </a>
-          );
-        }
-        return <span key={index}>{part}</span>;
-      })}
-    </>
-  );
+const SUGGESTIONS = [
+  { icon: Wallet, text: "Quel est mon solde ?" },
+  { icon: Shield, text: "Mon compte est-il activé ?" },
+  { icon: ArrowUpDown, text: "Comment faire un retrait ?" },
+  { icon: Users, text: "Comment parrainer quelqu'un ?" },
+  { icon: CreditCard, text: "Comment recharger mon compte ?" },
+  { icon: Zap, text: "Comment faire un transfert ?" },
+  { icon: Star, text: "Comment gagner des bonus ?" },
+  { icon: HelpCircle, text: "J'ai un problème avec mon compte" },
+];
+
+function formatText(text: string) {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.*?)\*/g, "<em>$1</em>")
+    .replace(/\n/g, "<br/>");
+}
+
+function formatTime(d: Date) {
+  return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 }
 
 export default function Assistance() {
-  const { data: telegramSupport } = useAppSetting('telegram_supervisor');
-  const { data: chatEnabledData } = useAppSetting('chat_enabled');
-  const isChatEnabled = chatEnabledData !== 'false';
-  const [newMessage, setNewMessage] = useState("");
-  const [showChat, setShowChat] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [editingText, setEditingText] = useState("");
-  const [viewingImage, setViewingImage] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const queryClient = useQueryClient();
+  const { isAuthenticated } = useAuth();
+  const { data: telegramSupport } = useAppSetting("telegram_supervisor");
+  const { data: instagramEnabledData } = useAppSetting("instagram_supervisor_enabled");
+  const { data: instagramHandle } = useAppSetting("instagram_supervisor");
 
-  const { data: messages = [], isLoading: messagesLoading } = useQuery<SupportMessage[]>({
-    queryKey: ['/api/support/messages'],
-    refetchInterval: showChat ? 3000 : false,
-    enabled: showChat,
-  });
-
-  const sendMessageMutation = useMutation({
-    mutationFn: async ({ message, imageUrl }: { message: string; imageUrl?: string }) => {
-      return apiRequest('POST', '/api/support/messages', { message, imageUrl });
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      role: "assistant",
+      text: "Bonjour ! 👋 Je suis **l'Assistant Officiel de SPay / SIKA TEXTE BUSINESS**.\n\nJe connais entièrement la plateforme : activations, dépôts, retraits, transferts, parrainage, bonus, PCS et bien plus encore.\n\nComment puis-je vous aider aujourd'hui ?",
+      timestamp: new Date(),
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/support/messages'] });
-      setNewMessage("");
-      setSelectedImage(null);
-    }
-  });
-
-  const editMessageMutation = useMutation({
-    mutationFn: async ({ messageId, message }: { messageId: string; message: string }) => {
-      return apiRequest('PATCH', `/api/support/messages/${messageId}`, { message });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/support/messages'] });
-      setEditingMessageId(null);
-      setEditingText("");
-    }
-  });
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  ]);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [showSuggestions, setShowSuggestions] = useState(true);
 
   useEffect(() => {
-    if (showChat) {
-      scrollToBottom();
-    }
-  }, [messages, showChat]);
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
-  const handleTelegramContact = () => {
-    window.open(telegramSupport || 'https://t.me/servicepay_support', '_blank', 'noopener,noreferrer');
+  const chatMutation = useMutation({
+    mutationFn: async (msg: string) => {
+      const history = messages.slice(-12).map((m) => ({ role: m.role, text: m.text }));
+      const res = await apiRequest("POST", "/api/ai-chat", { message: msg, history });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      const reply = data.reply || "Désolé, je n'ai pas pu répondre. Réessayez.";
+      setMessages((prev) => [...prev, { role: "assistant", text: reply, timestamp: new Date() }]);
+    },
+    onError: () => {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          text: "❌ Une erreur s'est produite. Vérifiez votre connexion et réessayez.",
+          timestamp: new Date(),
+        },
+      ]);
+    },
+  });
+
+  const sendMessage = (text?: string) => {
+    const msg = (text || input).trim();
+    if (!msg || chatMutation.isPending) return;
+    setInput("");
+    setShowSuggestions(false);
+    setMessages((prev) => [...prev, { role: "user", text: msg, timestamp: new Date() }]);
+    chatMutation.mutate(msg);
   };
 
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newMessage.trim() || selectedImage) {
-      sendMessageMutation.mutate({ message: newMessage.trim(), imageUrl: selectedImage || undefined });
-    }
+  const clearHistory = () => {
+    setMessages([
+      {
+        role: "assistant",
+        text: "Conversation réinitialisée. 😊 Comment puis-je vous aider ?",
+        timestamp: new Date(),
+      },
+    ]);
+    setShowSuggestions(true);
   };
 
-  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      alert('Veuillez sélectionner une image');
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      alert('L\'image ne doit pas dépasser 5 Mo');
-      return;
-    }
-
-    setIsUploading(true);
-    try {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setSelectedImage(reader.result as string);
-        setIsUploading(false);
-      };
-      reader.onerror = () => {
-        alert('Erreur lors du chargement de l\'image');
-        setIsUploading(false);
-      };
-      reader.readAsDataURL(file);
-    } catch (error) {
-      console.error('Error processing image:', error);
-      setIsUploading(false);
-    }
-  };
-
-  const handleStartEdit = (msg: SupportMessage) => {
-    setEditingMessageId(msg.id);
-    setEditingText(msg.message);
-  };
-
-  const handleSaveEdit = () => {
-    if (editingMessageId && editingText.trim()) {
-      editMessageMutation.mutate({ messageId: editingMessageId, message: editingText.trim() });
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
     }
   };
 
-  const handleCancelEdit = () => {
-    setEditingMessageId(null);
-    setEditingText("");
-  };
-
-  const handlePaste = async (e: React.ClipboardEvent) => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
-
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf('image') !== -1) {
-        e.preventDefault();
-        const file = items[i].getAsFile();
-        if (file) {
-          if (file.size > 5 * 1024 * 1024) {
-            alert('L\'image ne doit pas dépasser 5 Mo');
-            return;
-          }
-          setIsUploading(true);
-          const reader = new FileReader();
-          reader.onload = () => {
-            setSelectedImage(reader.result as string);
-            setIsUploading(false);
-          };
-          reader.onerror = () => {
-            alert('Erreur lors du chargement de l\'image');
-            setIsUploading(false);
-          };
-          reader.readAsDataURL(file);
-        }
-        break;
-      }
-    }
-  };
-
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <p className="text-gray-500">Connexion requise pour accéder à l'assistance.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
-      <PageHeader title="Centre d'Assistance" backHref="/" />
+    <div className="min-h-screen flex flex-col" style={{ background: "linear-gradient(160deg, #f0f4ff 0%, #f8f9ff 40%, #fdf4ff 100%)" }}>
+      <PageHeader title="Assistant IA" backHref="/" />
 
-      <div className="px-4 py-6 space-y-6 max-w-lg mx-auto">
-        {/* Hero Section */}
-        <div className="text-center py-6">
-          <div className="relative inline-block mb-4">
-            <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-500/30 rotate-3">
-              <Headphones className="w-10 h-10 text-white" />
-            </div>
-            <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-4 border-white dark:border-slate-900 flex items-center justify-center">
-              <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-            </div>
-          </div>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">Comment pouvons-nous vous aider ?</h2>
-          <p className="text-slate-600 dark:text-slate-400 text-sm max-w-xs mx-auto">
-            Notre équipe d'experts est disponible 24h/24 pour répondre à toutes vos questions.
-          </p>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-white dark:bg-slate-800/50 rounded-2xl p-4 text-center shadow-sm border border-slate-100 dark:border-slate-700">
-            <Clock className="w-6 h-6 text-blue-500 mx-auto mb-2" />
-            <p className="text-lg font-bold text-slate-800 dark:text-white">24/7</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Disponible</p>
-          </div>
-          <div className="bg-white dark:bg-slate-800/50 rounded-2xl p-4 text-center shadow-sm border border-slate-100 dark:border-slate-700">
-            <MessageCircle className="w-6 h-6 text-green-500 mx-auto mb-2" />
-            <p className="text-lg font-bold text-slate-800 dark:text-white">&lt;5min</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Réponse</p>
-          </div>
-          <div className="bg-white dark:bg-slate-800/50 rounded-2xl p-4 text-center shadow-sm border border-slate-100 dark:border-slate-700">
-            <Shield className="w-6 h-6 text-purple-500 mx-auto mb-2" />
-            <p className="text-lg font-bold text-slate-800 dark:text-white">100%</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Sécurisé</p>
-          </div>
-        </div>
-
-        {/* Contact Options */}
-        <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
-            Canaux de Contact
-          </h3>
-          
-          {/* Chat En Ligne - Primary */}
-          {isChatEnabled ? (
-            <button
-              onClick={() => setShowChat(true)}
-              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl p-4 flex items-center gap-4 shadow-lg shadow-blue-500/25 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
-              data-testid="button-open-chat"
-            >
-              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                <MessageCircle className="w-6 h-6" />
-              </div>
-              <div className="flex-1 text-left">
-                <h4 className="font-semibold">Chat En Ligne</h4>
-                <p className="text-sm text-blue-100">Discutez avec notre équipe en temps réel</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-                <span className="text-xs bg-white/20 px-2 py-1 rounded-full">En ligne</span>
-              </div>
-            </button>
-          ) : (
+      {/* Hero animé */}
+      <div className="relative overflow-hidden px-4 pt-4 pb-6">
+        <div className="relative z-10 text-center">
+          {/* Avatar IA animé */}
+          <div className="relative inline-block mb-3">
             <div
-              className="w-full bg-gradient-to-r from-slate-400 to-slate-500 text-white rounded-2xl p-4 flex items-center gap-4 shadow-lg opacity-80 cursor-not-allowed"
-              data-testid="chat-disabled"
+              className="w-20 h-20 rounded-2xl flex items-center justify-center shadow-2xl"
+              style={{
+                background: "linear-gradient(135deg, #1a237e 0%, #283593 40%, #1565c0 100%)",
+                animation: "pulseGlow 3s ease-in-out infinite",
+              }}
             >
-              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                <MessageCircle className="w-6 h-6" />
-              </div>
-              <div className="flex-1 text-left">
-                <h4 className="font-semibold">Chat En Ligne</h4>
-                <p className="text-sm text-slate-200">Indisponible en raison du nombre élevé de messages</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 bg-red-400 rounded-full"></span>
-                <span className="text-xs bg-white/20 px-2 py-1 rounded-full">Hors ligne</span>
-              </div>
+              <Bot className="w-10 h-10 text-white" />
             </div>
-          )}
+            {/* Badge en ligne */}
+            <div className="absolute -bottom-1 -right-1 flex items-center gap-1 bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg">
+              <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+              En ligne
+            </div>
+          </div>
 
-          {/* Telegram */}
-          <button
-            onClick={handleTelegramContact}
-            className="w-full bg-gradient-to-r from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white rounded-2xl p-4 flex items-center gap-4 shadow-lg shadow-blue-500/25 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
-            data-testid="button-telegram-contact"
-          >
-            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-              <FaTelegram className="w-6 h-6" />
-            </div>
-            <div className="flex-1 text-left">
-              <h4 className="font-semibold">Telegram</h4>
-              <p className="text-sm text-blue-100">Contacter le support</p>
-            </div>
-            <ChevronDown className="w-5 h-5 rotate-[-90deg]" />
-          </button>
-        </div>
+          <h1 className="text-xl font-bold text-slate-800 mb-1">Assistant Officiel SPay / SIKA</h1>
+          <p className="text-sm text-slate-500 max-w-xs mx-auto">
+            Intelligent • Disponible 24h/24 • Répond en quelques secondes
+          </p>
 
-        {/* Download Telegram Card */}
-        <div className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-950/50 dark:to-cyan-950/50 rounded-2xl p-5 border border-blue-100 dark:border-blue-900">
-          <div className="flex items-start gap-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Download className="w-6 h-6 text-white" />
-            </div>
-            <div className="flex-1">
-              <h4 className="font-semibold text-slate-800 dark:text-white mb-1">Pas encore Telegram ?</h4>
-              <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-                Téléchargez l'app gratuitement pour nous contacter facilement.
-              </p>
-              <Button 
-                onClick={() => window.open('https://play.google.com/store/apps/details?id=org.telegram.messenger', '_blank', 'noopener,noreferrer')}
-                size="sm"
-                className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl"
-                data-testid="button-download-telegram"
+          {/* Badges de fonctionnalités */}
+          <div className="flex flex-wrap justify-center gap-2 mt-3">
+            {["Activations", "Retraits", "Dépôts", "Parrainage", "PCS", "Bonus"].map((feat) => (
+              <span
+                key={feat}
+                className="text-xs px-2.5 py-1 rounded-full font-medium text-blue-700 border border-blue-200"
+                style={{ background: "rgba(59, 130, 246, 0.08)" }}
               >
-                <Download className="w-4 h-4 mr-2" />
-                Télécharger
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Support Hours Card */}
-        <div className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 shadow-sm border border-slate-100 dark:border-slate-700">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/50 rounded-xl flex items-center justify-center">
-              <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <h4 className="font-semibold text-slate-800 dark:text-white">Horaires d'Assistance</h4>
-          </div>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between items-center">
-              <span className="text-slate-600 dark:text-slate-400">Lundi - Dimanche</span>
-              <span className="font-medium text-green-600 dark:text-green-400">24h/24</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-slate-600 dark:text-slate-400">Temps de réponse moyen</span>
-              <span className="font-medium text-slate-800 dark:text-white">~5 minutes</span>
-            </div>
+                {feat}
+              </span>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Chat Overlay */}
-      {showChat && (
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 animate-in fade-in duration-200"
-          onClick={() => setShowChat(false)}
-        />
-      )}
-
-      {/* Floating Chat Window */}
-      <div 
-        className={`fixed bottom-0 left-0 right-0 z-50 transition-all duration-300 ease-out ${
-          showChat ? 'translate-y-0' : 'translate-y-full pointer-events-none'
-        }`}
-      >
-        <div className="max-w-lg mx-auto">
-          {/* Chat Header */}
-          <div 
-            className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white px-4 py-4 flex items-center justify-between rounded-t-3xl cursor-pointer shadow-2xl"
-            onClick={() => setShowChat(false)}
-            data-testid="chat-header-toggle"
+      {/* Zone de chat principale */}
+      <div className="flex-1 flex flex-col max-w-lg mx-auto w-full px-3 pb-6 gap-3" style={{ minHeight: 0 }}>
+        {/* Boîte de messages */}
+        <div
+          className="flex-1 rounded-3xl shadow-xl overflow-hidden flex flex-col border border-white/80"
+          style={{
+            background: "white",
+            minHeight: "400px",
+            maxHeight: "calc(100vh - 420px)",
+          }}
+        >
+          {/* En-tête chat */}
+          <div
+            className="flex items-center justify-between px-4 py-3 flex-shrink-0"
+            style={{ background: "linear-gradient(135deg, #1a237e 0%, #283593 40%, #1565c0 100%)" }}
           >
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center ring-2 ring-white/30">
-                  <Sparkles className="w-6 h-6" />
-                </div>
-                <span className="absolute bottom-0 right-0 w-4 h-4 bg-green-400 border-2 border-indigo-600 rounded-full"></span>
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
+                <Sparkles className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h3 className="font-bold">Support SIKA TEXTE</h3>
-                <p className="text-xs text-blue-100 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
-                  En ligne • Répond rapidement
-                </p>
+                <p className="text-white font-semibold text-sm">Conversation avec l'IA</p>
+                <p className="text-blue-200 text-xs">Réponse instantanée</p>
               </div>
             </div>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="text-white hover:bg-white/20 h-10 w-10 rounded-full"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowChat(false);
-              }}
+            <button
+              onClick={clearHistory}
+              className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/25 flex items-center justify-center transition-colors"
+              title="Nouvelle conversation"
+              data-testid="button-clear-chat"
             >
-              <X className="w-5 h-5" />
-            </Button>
+              <Trash2 className="w-4 h-4 text-white/80" />
+            </button>
           </div>
 
-          {/* Chat Content */}
-          <div className="bg-white dark:bg-slate-900 shadow-2xl">
-            {/* Security Notice */}
-            <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border-b border-amber-200 dark:border-amber-800 px-4 py-2.5">
-              <p className="text-xs text-amber-700 dark:text-amber-300 text-center flex items-center justify-center gap-2">
-                <Shield className="w-3.5 h-3.5" />
-                Conversation sécurisée et confidentielle
-              </p>
-            </div>
-
-            {/* Messages Area */}
-            <div 
-              className="h-[50vh] overflow-y-auto p-4 space-y-4 bg-gradient-to-b from-slate-50 to-white dark:from-slate-900 dark:to-slate-800"
-              data-testid="chat-messages"
-            >
-              {messagesLoading ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-3" />
-                    <p className="text-sm text-slate-500">Chargement des messages...</p>
-                  </div>
-                </div>
-              ) : messages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center px-4">
-                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/50 dark:to-indigo-900/50 flex items-center justify-center mb-4 rotate-3">
-                    <MessageCircle className="w-10 h-10 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <h3 className="font-bold text-lg text-slate-800 dark:text-white mb-2">Bienvenue ! 👋</h3>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 max-w-xs">
-                    Notre équipe est là pour vous aider. Posez votre question et nous vous répondrons rapidement.
-                  </p>
-                </div>
-              ) : (
-                messages.map((msg, index) => {
-                  const isUser = msg.senderType === 'user';
-                  const showAvatar = index === 0 || messages[index - 1]?.senderType !== msg.senderType;
-                  const isEditing = editingMessageId === msg.id;
-                  
-                  return (
-                    <div
-                      key={msg.id}
-                      className={`flex items-end gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
-                      data-testid={`message-${msg.id}`}
-                    >
-                      {showAvatar ? (
-                        <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center shadow-md ${
-                          isUser 
-                            ? 'bg-gradient-to-br from-blue-500 to-indigo-600' 
-                            : 'bg-gradient-to-br from-emerald-500 to-teal-600'
-                        }`}>
-                          {isUser ? (
-                            <User className="w-4 h-4 text-white" />
-                          ) : (
-                            <Sparkles className="w-4 h-4 text-white" />
-                          )}
-                        </div>
-                      ) : (
-                        <div className="w-8" />
-                      )}
-                      
-                      <div className={`max-w-[75%] ${isUser ? 'items-end' : 'items-start'}`}>
-                        <div
-                          className={`rounded-2xl px-4 py-3 shadow-sm relative group ${
-                            isUser
-                              ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-br-md'
-                              : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-100 dark:border-slate-700 rounded-bl-md'
-                          }`}
-                        >
-                          {isUser && !isEditing && (
-                            <div className="absolute -top-9 right-0 hidden group-hover:flex items-center gap-1 bg-white dark:bg-slate-700 rounded-xl shadow-lg px-2 py-1 border border-slate-100 dark:border-slate-600">
-                              <button
-                                onClick={() => handleStartEdit(msg)}
-                                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg text-slate-600 dark:text-slate-300 transition-colors"
-                                data-testid={`button-edit-${msg.id}`}
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          )}
-                          
-                          {msg.imageUrl && (
-                            <div 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setViewingImage(msg.imageUrl!);
-                              }}
-                              className="block mb-2 cursor-pointer"
-                            >
-                              <img 
-                                src={msg.imageUrl} 
-                                alt="Image partagée" 
-                                className="max-w-full rounded-xl hover:opacity-90 transition-opacity"
-                                style={{ maxHeight: '200px' }}
-                              />
-                            </div>
-                          )}
-                          
-                          {isEditing ? (
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="text"
-                                value={editingText}
-                                onChange={(e) => setEditingText(e.target.value)}
-                                className="flex-1 bg-white/20 rounded-lg px-3 py-1.5 text-sm text-white placeholder-white/70 border border-white/30 focus:outline-none focus:border-white/50"
-                                autoFocus
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') handleSaveEdit();
-                                  if (e.key === 'Escape') handleCancelEdit();
-                                }}
-                              />
-                              <button
-                                onClick={handleSaveEdit}
-                                disabled={editMessageMutation.isPending}
-                                className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
-                              >
-                                {editMessageMutation.isPending ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                  <Check className="w-4 h-4" />
-                                )}
-                              </button>
-                              <button
-                                onClick={handleCancelEdit}
-                                className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ) : msg.message ? (
-                            <p className="text-sm whitespace-pre-wrap leading-relaxed">
-                              {renderMessageWithLinks(msg.message, isUser)}
-                            </p>
-                          ) : null}
-                        </div>
-                        <div className={`flex items-center gap-1 mt-1.5 px-1 ${isUser ? 'justify-end' : 'justify-start'}`}>
-                          <p className="text-[10px] text-slate-400">
-                            {formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true, locale: fr })}
-                          </p>
-                          {isUser && (
-                            <CheckCheck className={`w-3.5 h-3.5 ${msg.isRead ? 'text-blue-500' : 'text-slate-400'}`} />
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Selected Image Preview */}
-            {selectedImage && (
-              <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
-                <div className="relative inline-block">
-                  <img 
-                    src={selectedImage} 
-                    alt="Image sélectionnée" 
-                    className="h-20 rounded-xl shadow-md"
-                  />
-                  <button
-                    onClick={() => setSelectedImage(null)}
-                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 hover:bg-red-600 shadow-lg transition-all hover:scale-110"
-                    data-testid="button-remove-image"
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4" style={{ background: "linear-gradient(180deg, #f8faff 0%, #ffffff 100%)" }}>
+            {messages.map((msg, i) => (
+              <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} gap-2.5`}>
+                {msg.role === "assistant" && (
+                  <div
+                    className="w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center mt-0.5 shadow-md"
+                    style={{ background: "linear-gradient(135deg, #1a237e, #1565c0)" }}
                   >
-                    <X className="w-3 h-3" />
-                  </button>
+                    <Bot className="w-4 h-4 text-white" />
+                  </div>
+                )}
+                <div className={`max-w-[80%] flex flex-col gap-1 ${msg.role === "user" ? "items-end" : "items-start"}`}>
+                  <div
+                    className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm ${
+                      msg.role === "user"
+                        ? "text-white rounded-tr-sm"
+                        : "bg-white text-gray-800 rounded-tl-sm border border-slate-100"
+                    }`}
+                    style={
+                      msg.role === "user"
+                        ? { background: "linear-gradient(135deg, #1565c0, #1a237e)" }
+                        : {}
+                    }
+                    dangerouslySetInnerHTML={{ __html: formatText(msg.text) }}
+                  />
+                  <span className="text-[10px] text-gray-400 px-1">{formatTime(msg.timestamp)}</span>
+                </div>
+                {msg.role === "user" && (
+                  <div
+                    className="w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center mt-0.5 shadow-md"
+                    style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
+                  >
+                    <span className="text-white text-xs font-bold">Moi</span>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* Loader */}
+            {chatMutation.isPending && (
+              <div className="flex justify-start gap-2.5">
+                <div
+                  className="w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center shadow-md"
+                  style={{ background: "linear-gradient(135deg, #1a237e, #1565c0)" }}
+                >
+                  <Bot className="w-4 h-4 text-white" />
+                </div>
+                <div className="bg-white border border-slate-100 shadow-sm px-5 py-3.5 rounded-2xl rounded-tl-sm flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full animate-bounce" style={{ background: "#1565c0", animationDelay: "0ms" }} />
+                  <span className="w-2 h-2 rounded-full animate-bounce" style={{ background: "#283593", animationDelay: "150ms" }} />
+                  <span className="w-2 h-2 rounded-full animate-bounce" style={{ background: "#1a237e", animationDelay: "300ms" }} />
                 </div>
               </div>
             )}
 
-            {/* Message Input */}
-            <form 
-              onSubmit={handleSendMessage} 
-              className="p-4 border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center gap-3"
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleImageSelect}
-                className="hidden"
-                data-testid="input-file-image"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading || sendMessageMutation.isPending}
-                className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 h-11 w-11 rounded-xl flex-shrink-0 transition-colors"
-                data-testid="button-attach-image"
-              >
-                {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Image className="w-5 h-5" />}
-              </Button>
-              <Input
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onPaste={handlePaste}
-                placeholder="Écrivez votre message..."
-                className="flex-1 rounded-xl border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 focus:bg-white dark:focus:bg-slate-700 transition-colors h-11"
-                disabled={sendMessageMutation.isPending}
-                data-testid="input-chat-message"
-              />
-              <Button
-                type="submit"
-                size="icon"
-                disabled={(!newMessage.trim() && !selectedImage) || sendMessageMutation.isPending}
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 h-11 w-11 rounded-xl flex-shrink-0 shadow-lg shadow-blue-500/30 transition-all hover:scale-105 active:scale-95"
-                data-testid="button-send-message"
-              >
-                {sendMessageMutation.isPending ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Send className="w-5 h-5" />
-                )}
-              </Button>
-            </form>
+            <div ref={bottomRef} />
           </div>
+
+          {/* Zone de saisie */}
+          <div className="border-t border-slate-100 px-3 py-3 bg-white flex items-end gap-2 flex-shrink-0">
+            <textarea
+              ref={inputRef}
+              data-testid="input-ai-chat-message"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Posez votre question…"
+              disabled={chatMutation.isPending}
+              rows={1}
+              className="flex-1 resize-none bg-slate-50 rounded-2xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-60 transition-all border border-slate-200 max-h-28 overflow-auto"
+              style={{ minHeight: "42px" }}
+            />
+            <button
+              data-testid="button-ai-chat-send"
+              onClick={() => sendMessage()}
+              disabled={!input.trim() || chatMutation.isPending}
+              className="w-11 h-11 rounded-2xl flex items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105 active:scale-95 flex-shrink-0 shadow-lg"
+              style={{ background: "linear-gradient(135deg, #1565c0, #1a237e)" }}
+            >
+              {chatMutation.isPending ? (
+                <Loader2 className="w-5 h-5 text-white animate-spin" />
+              ) : (
+                <Send className="w-5 h-5 text-white" />
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Suggestions rapides */}
+        {showSuggestions && (
+          <div className="rounded-3xl border border-white/80 shadow-lg p-4 bg-white/90">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 px-1">
+              Questions fréquentes
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {SUGGESTIONS.map(({ icon: Icon, text }) => (
+                <button
+                  key={text}
+                  onClick={() => sendMessage(text)}
+                  disabled={chatMutation.isPending}
+                  data-testid={`button-suggestion-${text.slice(0, 10)}`}
+                  className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-left text-xs font-medium text-blue-700 border border-blue-100 hover:bg-blue-50 hover:border-blue-300 transition-all disabled:opacity-50 active:scale-95 group"
+                  style={{ background: "rgba(59, 130, 246, 0.04)" }}
+                >
+                  <Icon className="w-3.5 h-3.5 text-blue-500 flex-shrink-0 group-hover:scale-110 transition-transform" />
+                  <span className="leading-tight">{text}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Carte Telegram */}
+        <div
+          className="rounded-3xl p-4 border border-blue-100 shadow-md"
+          style={{ background: "linear-gradient(135deg, #e8f0fe 0%, #e3f2fd 100%)" }}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md"
+              style={{ background: "linear-gradient(135deg, #0088cc, #00a8e8)" }}>
+              <FaTelegram className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-slate-800 text-sm">Support humain Telegram</p>
+              <p className="text-xs text-slate-500">Pour les cas urgents ou complexes</p>
+            </div>
+            <button
+              onClick={() => window.open(telegramSupport || "https://t.me/SIKAcustomer_service", "_blank", "noopener,noreferrer")}
+              data-testid="button-telegram-contact"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-white text-xs font-semibold shadow-md transition-all hover:scale-105 active:scale-95 flex-shrink-0"
+              style={{ background: "linear-gradient(135deg, #0088cc, #00a8e8)" }}
+            >
+              Contacter
+              <ChevronDown className="w-3.5 h-3.5 -rotate-90" />
+            </button>
+          </div>
+        </div>
+
+        {/* Carte Télécharger Telegram */}
+        <div className="rounded-3xl bg-white border border-slate-100 shadow-md p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: "linear-gradient(135deg, #e0f2fe, #bae6fd)" }}>
+            <Download className="w-5 h-5 text-blue-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-slate-800 text-sm">Pas encore Telegram ?</p>
+            <p className="text-xs text-slate-500">Téléchargez gratuitement</p>
+          </div>
+          <button
+            onClick={() => window.open("https://play.google.com/store/apps/details?id=org.telegram.messenger", "_blank", "noopener,noreferrer")}
+            data-testid="button-download-telegram"
+            className="text-xs px-3 py-2 rounded-xl font-semibold text-blue-700 border border-blue-200 hover:bg-blue-50 transition-colors flex-shrink-0"
+          >
+            Installer
+          </button>
+        </div>
+
+        {/* Note de bas de page */}
+        <div className="text-center pb-2">
+          <p className="text-xs text-slate-400 flex items-center justify-center gap-1.5">
+            <Shield className="w-3.5 h-3.5" />
+            Conversation sécurisée • Données personnelles protégées
+          </p>
         </div>
       </div>
 
-      {/* Floating Chat Button (when chat is closed and enabled) */}
-      {!showChat && isChatEnabled && (
-        <button
-          onClick={() => setShowChat(true)}
-          className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full shadow-2xl shadow-blue-500/40 flex items-center justify-center text-white hover:scale-110 transition-transform z-50 group"
-          data-testid="floating-chat-button"
-        >
-          <MessageCircle className="w-7 h-7" />
-          {messages.filter(m => m.senderType === 'admin' && !m.isRead).length > 0 && (
-            <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full text-xs font-bold flex items-center justify-center border-2 border-white animate-bounce">
-              {messages.filter(m => m.senderType === 'admin' && !m.isRead).length}
-            </span>
-          )}
-          <span className="absolute bottom-full right-0 mb-2 px-3 py-1.5 bg-slate-800 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-            Besoin d'aide ?
-          </span>
-        </button>
-      )}
-
-      {/* Image Lightbox */}
-      {viewingImage && (
-        <div 
-          className="fixed inset-0 bg-black/95 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200"
-          onClick={() => setViewingImage(null)}
-          data-testid="image-lightbox"
-        >
-          <button
-            onClick={() => setViewingImage(null)}
-            className="absolute top-4 right-4 text-white hover:text-gray-300 p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors backdrop-blur-sm"
-            data-testid="button-close-lightbox"
-          >
-            <X className="w-6 h-6" />
-          </button>
-          <img 
-            src={viewingImage} 
-            alt="Image en grand" 
-            className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
+      <style>{`
+        @keyframes pulseGlow {
+          0%, 100% { box-shadow: 0 0 20px rgba(21, 101, 192, 0.4), 0 8px 32px rgba(26, 35, 126, 0.3); }
+          50% { box-shadow: 0 0 35px rgba(21, 101, 192, 0.7), 0 8px 40px rgba(26, 35, 126, 0.5); }
+        }
+      `}</style>
     </div>
   );
 }
