@@ -6977,42 +6977,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         recentTransactions: recentTxSummary || 'Aucune transaction récente',
       }, liveSettings);
 
-      const GEMINI_API_KEY = process.env.AI_INTEGRATIONS_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
-      const GEMINI_BASE_URL = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
-      console.log('[AI-CHAT] Key source:', process.env.AI_INTEGRATIONS_GEMINI_API_KEY ? 'Replit' : (process.env.GEMINI_API_KEY ? 'User' : 'NONE'));
-
-      if (!GEMINI_API_KEY) {
+      const GROQ_API_KEY = process.env.GROQ_API_KEY;
+      if (!GROQ_API_KEY) {
         return res.status(503).json({ error: 'Service IA temporairement indisponible' });
       }
 
-      // Construire le contenu du chat avec l'historique
-      const contents: any[] = [];
+      // Construire l'historique au format OpenAI-compatible (Groq)
+      const chatMessages: any[] = [{ role: 'system', content: systemPrompt }];
       if (Array.isArray(history)) {
         for (const h of history.slice(-10)) {
           if (h.role && h.text) {
-            contents.push({ role: h.role === 'assistant' ? 'model' : 'user', parts: [{ text: h.text }] });
+            chatMessages.push({ role: h.role === 'assistant' ? 'assistant' : 'user', content: h.text });
           }
         }
       }
-      contents.push({ role: 'user', parts: [{ text: message }] });
+      chatMessages.push({ role: 'user', content: message });
 
-      const { GoogleGenAI } = await import('@google/genai');
-      const aiConfig: any = { apiKey: GEMINI_API_KEY };
-      if (GEMINI_BASE_URL) {
-        aiConfig.httpOptions = { apiVersion: '', baseUrl: GEMINI_BASE_URL };
-      }
-      const ai = new GoogleGenAI(aiConfig);
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
-        contents,
-        config: {
-          systemInstruction: systemPrompt,
-          maxOutputTokens: 8192,
-        },
+      const { default: OpenAI } = await import('openai');
+      const groq = new OpenAI({
+        apiKey: GROQ_API_KEY,
+        baseURL: 'https://api.groq.com/openai/v1',
       });
 
-      const reply = response.text || 'Désolé, je n\'ai pas pu générer une réponse. Réessayez.';
+      const completion = await groq.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages: chatMessages,
+        max_tokens: 1024,
+      });
+
+      const reply = completion.choices[0]?.message?.content || 'Désolé, je n\'ai pas pu générer une réponse. Réessayez.';
       res.json({ reply });
     } catch (err: any) {
       console.error('[AI-CHAT] Error:', err);
