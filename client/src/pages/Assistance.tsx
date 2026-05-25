@@ -4,10 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppSetting } from "@/hooks/useAppSettings";
 import {
-  Send, Loader2, ChevronLeft, RotateCcw,
-  Wallet, Shield, ArrowDownToLine, Users,
-  Zap, Star, CreditCard, ShieldCheck, Download,
-  MessageCircle,
+  Send, Loader2, ChevronLeft, RotateCcw, Download, MessageCircle,
 } from "lucide-react";
 import { FaTelegram } from "react-icons/fa";
 import { Link } from "wouter";
@@ -19,16 +16,6 @@ interface Message {
   showContact?: boolean;
 }
 
-const SUGGESTIONS = [
-  { icon: Wallet,          label: "Mon solde",       text: "Quel est mon solde actuel ?" },
-  { icon: Shield,          label: "Activation",      text: "Comment activer mon compte ?" },
-  { icon: ArrowDownToLine, label: "Retrait",         text: "Comment faire un retrait ?" },
-  { icon: Users,           label: "Parrainage",      text: "Comment parrainer quelqu'un ?" },
-  { icon: Zap,             label: "Transfert",       text: "Comment faire un transfert ?" },
-  { icon: Star,            label: "Bonus",           text: "Comment gagner des bonus ?" },
-  { icon: CreditCard,      label: "Code PCS",        text: "Comment configurer mon code PCS ?" },
-  { icon: ShieldCheck,     label: "Compte activé ?", text: "Mon compte est-il activé ?" },
-];
 
 const CONTACT_KEYWORDS = [
   "contacter", "superviseur", "support", "humain", "agent", "téléconseil",
@@ -54,7 +41,7 @@ function formatTime(d: Date) {
 
 const WELCOME: Message = {
   role: "assistant",
-  text: "Bonjour 👋 , je me nomme Lylya. Je suis le Superviseur IA officiel de SIKA TEXTE.\nComment puis-je vous aider ?",
+  text: "**Bonjour 👋 , je me nomme Lylya. Je suis le Superviseur IA officiel de SIKA TEXTE.\nComment puis-je vous aider ?**",
   timestamp: new Date(),
 };
 
@@ -249,20 +236,6 @@ export default function Assistance() {
           {/* Suggestions */}
           {showSugg && messages.length === 1 && (
             <div className="pt-2 space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                {SUGGESTIONS.map(({ icon: Icon, label, text }) => (
-                  <button
-                    key={label}
-                    onClick={() => send(text)}
-                    disabled={chatMutation.isPending}
-                    data-testid={`button-suggestion-${label}`}
-                    className="flex items-center gap-2.5 px-3.5 py-3 rounded-xl text-left text-xs font-medium bg-white border border-slate-200 text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-colors active:scale-95 disabled:opacity-40"
-                  >
-                    <Icon className="w-4 h-4 flex-shrink-0 text-blue-500" />
-                    <span className="leading-tight">{label}</span>
-                  </button>
-                ))}
-              </div>
 
               {/* Telegram */}
               <button
