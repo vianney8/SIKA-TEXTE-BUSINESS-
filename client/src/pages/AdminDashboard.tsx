@@ -1382,6 +1382,12 @@ export default function AdminDashboard() {
                 🤖 Lylya IA
               </a>
             </Button>
+            <Button asChild className="bg-indigo-700 hover:bg-indigo-800 text-white" data-testid="button-admin-group">
+              <a href="/admin/group">
+                <Users className="w-4 h-4 mr-2" />
+                💬 Groupe
+              </a>
+            </Button>
             <button
               onClick={() => {
                 fetch('/api/auth/logout', { method: 'POST' })

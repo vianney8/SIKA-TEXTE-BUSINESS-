@@ -164,6 +164,53 @@ app.use((req, res, next) => {
     log('ai_chat_messages table skipped: ' + (err as Error).message);
   }
 
+  // Create group_messages table
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS group_messages (
+        id serial PRIMARY KEY,
+        user_id varchar NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        content text NOT NULL,
+        type varchar NOT NULL DEFAULT 'text',
+        reply_to_id integer REFERENCES group_messages(id) ON DELETE SET NULL,
+        is_deleted boolean DEFAULT false,
+        is_pinned boolean DEFAULT false,
+        created_at timestamp DEFAULT now()
+      )
+    `);
+    log('group_messages table ready');
+  } catch (err) {
+    log('group_messages table skipped: ' + (err as Error).message);
+  }
+
+  // Create group_reactions table
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS group_reactions (
+        message_id integer NOT NULL REFERENCES group_messages(id) ON DELETE CASCADE,
+        user_id varchar NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        emoji varchar NOT NULL,
+        PRIMARY KEY (message_id, user_id)
+      )
+    `);
+    log('group_reactions table ready');
+  } catch (err) {
+    log('group_reactions table skipped: ' + (err as Error).message);
+  }
+
+  // Create group_blocked_users table
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS group_blocked_users (
+        user_id varchar PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        blocked_at timestamp DEFAULT now()
+      )
+    `);
+    log('group_blocked_users table ready');
+  } catch (err) {
+    log('group_blocked_users table skipped: ' + (err as Error).message);
+  }
+
   // Create platform_notifications table if not exists
   try {
     await db.execute(sql`

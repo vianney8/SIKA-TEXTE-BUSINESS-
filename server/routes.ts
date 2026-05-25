@@ -7123,6 +7123,251 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ═══════════════════════════════════════════════════════════
+  // GROUPE EN LIGNE — routes utilisateur + admin
+  // ═══════════════════════════════════════════════════════════
+
+  // Paramètres du groupe + compte en ligne
+  app.get('/api/group/settings', requireAuth, async (_req: any, res) => {
+    try {
+      const [closedRow, onlineRow, pinnedRows] = await Promise.all([
+        db.execute(sql`SELECT value FROM app_settings WHERE key = 'group_closed'`),
+        db.execute(sql`SELECT COUNT(*) AS cnt FROM users WHERE last_seen > NOW() - INTERVAL '3 minutes'`),
+        db.execute(sql`
+          SELECT m.id, m.content, m.type, m.created_at,
+                 u.full_name, u.id AS user_id
+          FROM group_messages m
+          JOIN users u ON u.id = m.user_id
+          WHERE m.is_pinned = true AND m.is_deleted = false
+          ORDER BY m.created_at DESC LIMIT 5
+        `),
+      ]);
+      const closedVal = ((closedRow as any).rows ?? (closedRow as any) ?? [])[0]?.value;
+      const onlineCnt = Number(((onlineRow as any).rows ?? (onlineRow as any) ?? [])[0]?.cnt ?? 0);
+      const pinned = (pinnedRows as any).rows ?? (pinnedRows as any) ?? [];
+      res.json({ isClosed: closedVal === 'true', onlineCount: onlineCnt, pinnedMessages: pinned });
+    } catch (e) {
+      res.json({ isClosed: false, onlineCount: 0, pinnedMessages: [] });
+    }
+  });
+
+  // Charger les messages (50 derniers, ou après un ID donné pour polling)
+  app.get('/api/group/messages', requireAuth, async (req: any, res) => {
+    try {
+      const afterId = req.query.after ? Number(req.query.after) : null;
+      const rows = await db.execute(sql`
+        SELECT
+          m.id, m.content, m.type, m.is_deleted, m.is_pinned, m.created_at,
+          m.reply_to_id,
+          u.id AS user_id, u.full_name, u.country,
+          -- Reply context
+          rm.content AS reply_content, ru.full_name AS reply_author,
+          -- Reactions JSON
+          (
+            SELECT json_agg(json_build_object('emoji', r.emoji, 'userId', r.user_id))
+            FROM group_reactions r WHERE r.message_id = m.id
+          ) AS reactions
+        FROM group_messages m
+        JOIN users u ON u.id = m.user_id
+        LEFT JOIN group_messages rm ON rm.id = m.reply_to_id
+        LEFT JOIN users ru ON ru.id = rm.user_id
+        WHERE ${afterId ? sql`m.id > ${afterId}` : sql`m.id > (SELECT COALESCE(MAX(id),0) - 100 FROM group_messages)`}
+        ORDER BY m.id ASC
+        LIMIT 100
+      `);
+      res.json((rows as any).rows ?? (rows as any) ?? []);
+    } catch (e) {
+      console.error('[GROUP MESSAGES]', e);
+      res.json([]);
+    }
+  });
+
+  // Envoyer un message
+  app.post('/api/group/messages', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { content, type = 'text', replyToId } = req.body;
+      if (!content || typeof content !== 'string' || content.trim().length === 0) {
+        return res.status(400).json({ message: 'Contenu requis' });
+      }
+      // Vérifier si groupe fermé
+      const closedRow = await db.execute(sql`SELECT value FROM app_settings WHERE key = 'group_closed'`);
+      const closedVal = ((closedRow as any).rows ?? closedRow as any ?? [])[0]?.value;
+      if (closedVal === 'true') return res.status(403).json({ message: 'group_closed' });
+      // Vérifier si utilisateur bloqué
+      const blockedRow = await db.execute(sql`SELECT user_id FROM group_blocked_users WHERE user_id = ${userId}`);
+      if (((blockedRow as any).rows ?? blockedRow as any ?? []).length > 0) {
+        return res.status(403).json({ message: 'user_blocked' });
+      }
+      const result = await db.execute(sql`
+        INSERT INTO group_messages (user_id, content, type, reply_to_id)
+        VALUES (${userId}, ${content.trim()}, ${type}, ${replyToId ?? null})
+        RETURNING id
+      `);
+      const msgId = ((result as any).rows ?? result as any ?? [])[0]?.id;
+      res.json({ id: msgId });
+    } catch (e) {
+      console.error('[GROUP SEND]', e);
+      res.status(500).json({ message: 'Erreur envoi message' });
+    }
+  });
+
+  // Supprimer son propre message
+  app.delete('/api/group/messages/:id', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const msgId = Number(req.params.id);
+      await db.execute(sql`
+        UPDATE group_messages SET is_deleted = true, content = '🗑️ Message supprimé'
+        WHERE id = ${msgId} AND user_id = ${userId}
+      `);
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ message: 'Erreur suppression' });
+    }
+  });
+
+  // Réagir à un message (toggle)
+  app.post('/api/group/messages/:id/react', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const msgId = Number(req.params.id);
+      const { emoji } = req.body;
+      if (!emoji) return res.status(400).json({ message: 'Emoji requis' });
+      // Toggle: si existe → supprimer, sinon → insérer (remplacer réaction existante)
+      const existing = await db.execute(sql`
+        SELECT emoji FROM group_reactions WHERE message_id = ${msgId} AND user_id = ${userId}
+      `);
+      const existRows = (existing as any).rows ?? existing as any ?? [];
+      if (existRows.length > 0 && existRows[0].emoji === emoji) {
+        await db.execute(sql`DELETE FROM group_reactions WHERE message_id = ${msgId} AND user_id = ${userId}`);
+      } else {
+        await db.execute(sql`
+          INSERT INTO group_reactions (message_id, user_id, emoji) VALUES (${msgId}, ${userId}, ${emoji})
+          ON CONFLICT (message_id, user_id) DO UPDATE SET emoji = ${emoji}
+        `);
+      }
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ message: 'Erreur réaction' });
+    }
+  });
+
+  // ADMIN — Ouvrir/Fermer le groupe
+  app.put('/api/admin/group/toggle-closed', requireAdmin, async (_req: any, res) => {
+    try {
+      const current = await db.execute(sql`SELECT value FROM app_settings WHERE key = 'group_closed'`);
+      const currentVal = ((current as any).rows ?? current as any ?? [])[0]?.value;
+      const newVal = currentVal === 'true' ? 'false' : 'true';
+      await db.execute(sql`
+        INSERT INTO app_settings (key, value) VALUES ('group_closed', ${newVal})
+        ON CONFLICT (key) DO UPDATE SET value = ${newVal}
+      `);
+      res.json({ isClosed: newVal === 'true' });
+    } catch (e) {
+      res.status(500).json({ message: 'Erreur' });
+    }
+  });
+
+  // ADMIN — Supprimer n'importe quel message
+  app.delete('/api/admin/group/messages/:id', requireAdmin, async (req: any, res) => {
+    try {
+      const msgId = Number(req.params.id);
+      await db.execute(sql`
+        UPDATE group_messages SET is_deleted = true, content = '🗑️ Message supprimé par l\'administrateur'
+        WHERE id = ${msgId}
+      `);
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ message: 'Erreur' });
+    }
+  });
+
+  // ADMIN — Épingler/Désépingler un message
+  app.put('/api/admin/group/messages/:id/pin', requireAdmin, async (req: any, res) => {
+    try {
+      const msgId = Number(req.params.id);
+      const row = await db.execute(sql`SELECT is_pinned FROM group_messages WHERE id = ${msgId}`);
+      const isPinned = ((row as any).rows ?? row as any ?? [])[0]?.is_pinned;
+      await db.execute(sql`UPDATE group_messages SET is_pinned = ${!isPinned} WHERE id = ${msgId}`);
+      res.json({ isPinned: !isPinned });
+    } catch (e) {
+      res.status(500).json({ message: 'Erreur' });
+    }
+  });
+
+  // ADMIN — Bloquer un utilisateur
+  app.post('/api/admin/group/block/:userId', requireAdmin, async (req: any, res) => {
+    try {
+      await db.execute(sql`
+        INSERT INTO group_blocked_users (user_id) VALUES (${req.params.userId})
+        ON CONFLICT DO NOTHING
+      `);
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ message: 'Erreur' });
+    }
+  });
+
+  // ADMIN — Débloquer un utilisateur
+  app.delete('/api/admin/group/block/:userId', requireAdmin, async (req: any, res) => {
+    try {
+      await db.execute(sql`DELETE FROM group_blocked_users WHERE user_id = ${req.params.userId}`);
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ message: 'Erreur' });
+    }
+  });
+
+  // ADMIN — Liste des utilisateurs bloqués
+  app.get('/api/admin/group/blocked', requireAdmin, async (_req: any, res) => {
+    try {
+      const rows = await db.execute(sql`
+        SELECT b.user_id, b.blocked_at, u.full_name, u.phone
+        FROM group_blocked_users b
+        JOIN users u ON u.id = b.user_id
+        ORDER BY b.blocked_at DESC
+      `);
+      res.json((rows as any).rows ?? rows ?? []);
+    } catch (e) {
+      res.json([]);
+    }
+  });
+
+  // ADMIN — Statistiques du groupe
+  app.get('/api/admin/group/stats', requireAdmin, async (_req: any, res) => {
+    try {
+      const [msgCount, userCount, blockedCount, recentRows] = await Promise.all([
+        db.execute(sql`SELECT COUNT(*) AS cnt FROM group_messages WHERE is_deleted = false`),
+        db.execute(sql`SELECT COUNT(DISTINCT user_id) AS cnt FROM group_messages`),
+        db.execute(sql`SELECT COUNT(*) AS cnt FROM group_blocked_users`),
+        db.execute(sql`
+          SELECT m.id, m.content, m.type, m.is_deleted, m.is_pinned, m.created_at,
+                 m.reply_to_id, u.id AS user_id, u.full_name, u.country,
+                 rm.content AS reply_content, ru.full_name AS reply_author,
+                 (SELECT json_agg(json_build_object('emoji', r.emoji, 'userId', r.user_id))
+                  FROM group_reactions r WHERE r.message_id = m.id) AS reactions
+          FROM group_messages m
+          JOIN users u ON u.id = m.user_id
+          LEFT JOIN group_messages rm ON rm.id = m.reply_to_id
+          LEFT JOIN users ru ON ru.id = rm.user_id
+          WHERE m.is_deleted = false
+          ORDER BY m.id DESC LIMIT 50
+        `),
+      ]);
+      const recent = ((recentRows as any).rows ?? recentRows as any ?? []).reverse();
+      res.json({
+        totalMessages: Number(((msgCount as any).rows ?? msgCount as any ?? [])[0]?.cnt ?? 0),
+        totalUsers: Number(((userCount as any).rows ?? userCount as any ?? [])[0]?.cnt ?? 0),
+        blockedUsers: Number(((blockedCount as any).rows ?? blockedCount as any ?? [])[0]?.cnt ?? 0),
+        recentMessages: recent,
+      });
+    } catch (e) {
+      console.error('[GROUP STATS]', e);
+      res.status(500).json({ message: 'Erreur stats groupe' });
+    }
+  });
+
   // Initialiser les paramètres par défaut
   storage.initializeDefaultSettings().catch(console.error);
 

@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAppSetting } from "@/hooks/useAppSettings";
 import { FaTelegram, FaWhatsapp } from "react-icons/fa";
 import { Link } from "wouter";
-import { Zap, ChevronRight, Sparkles, Download, Smartphone, Server, HeadphonesIcon } from "lucide-react";
+import { Zap, ChevronRight, Sparkles, Download, Smartphone, Server, HeadphonesIcon, Users } from "lucide-react";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -321,6 +321,26 @@ export default function Dashboard() {
                 <ChevronRight size={14} className="text-gray-400" />
               </div>
             </a>
+
+            {/* Groupe en ligne */}
+            <Link href="/community-group">
+              <a className="flex items-center gap-3 px-4 py-3.5 active:bg-gray-50 transition-colors border-b border-gray-50">
+                <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm"
+                  style={{ background: "linear-gradient(135deg, #7c3aed, #a855f7)" }}>
+                  <Users size={18} className="text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-gray-800 font-semibold text-sm">Groupe en ligne</p>
+                  <p className="text-gray-400 text-xs">Discuter avec tous les membres</p>
+                </div>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-pulse" />
+                  <div className="w-7 h-7 rounded-xl bg-gray-50 flex items-center justify-center">
+                    <ChevronRight size={14} className="text-gray-400" />
+                  </div>
+                </div>
+              </a>
+            </Link>
 
             {/* Service Client */}
             <Link href="/assistance">

@@ -43,6 +43,8 @@ import SpayNetwork from "@/pages/SpayNetwork";
 import Contact from "@/pages/Contact";
 import AdminConnectedUsers from "@/pages/AdminConnectedUsers";
 import AdminAIChat from "@/pages/AdminAIChat";
+import CommunityGroup from "@/pages/CommunityGroup";
+import AdminGroup from "@/pages/AdminGroup";
 
 // Wrapper component to handle authenticated user redirects for register page
 function RegisterWithRedirect() {
@@ -205,6 +207,8 @@ function Router() {
           <Route path="/contact" component={Contact} />
           <Route path="/admin/connected-users" component={AdminConnectedUsers} />
           <Route path="/admin/ai-chat" component={AdminAIChat} />
+          <Route path="/community-group" component={CommunityGroup} />
+          <Route path="/admin/group" component={AdminGroup} />
           {/* Allow authenticated users to access login page (redirects to dashboard) */}
           <Route path="/simple-login" component={SimpleLoginWithRedirect} />
           {/* Allow authenticated users to access register page for referral links */}
