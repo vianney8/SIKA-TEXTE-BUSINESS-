@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle, XCircle, Settings, MessageCircle, MessageSquareOff, RefreshCw, Link2, Plus, Copy, ToggleLeft, ToggleRight, ExternalLink, History, ChevronLeft, ChevronRight, Mail, Bot, Bell, BellOff, Send } from "lucide-react";
+import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle, XCircle, Settings, MessageCircle, MessageSquareOff, RefreshCw, Link2, Plus, Copy, ToggleLeft, ToggleRight, ExternalLink, History, ChevronLeft, ChevronRight, Mail, Bot, Bell, BellOff, Send, LayoutDashboard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 
@@ -1294,6 +1294,12 @@ export default function AdminDashboard() {
             <p className="text-blue-100">SIKA TEXTE BUSINESS - Administration</p>
           </div>
           <div className="flex gap-2">
+            <Button asChild className="bg-white text-blue-900 hover:bg-blue-50 font-bold border border-white/30" data-testid="button-admin-my-account">
+              <a href="/dashboard">
+                <LayoutDashboard className="h-4 w-4 mr-2" />
+                Compte Admin
+              </a>
+            </Button>
             <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white">
               <a href="/admin/pcs-send">
                 <Mail className="h-4 w-4 mr-2" />
