@@ -6978,7 +6978,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }));
 
       // Construire le prompt depuis le fichier de connaissance (mis à jour automatiquement)
-      const systemPrompt = buildSystemPrompt({
+      let systemPrompt = buildSystemPrompt({
         fullName: (user as any).fullName || (user as any).firstName || 'Utilisateur',
         email: (user as any).email || 'Non renseigné',
         phone: (user as any).phone || 'Non renseigné',
@@ -6988,6 +6988,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         referralCode: (user as any).referralCode || 'Non disponible',
         recentTransactions: recentTxSummary || 'Aucune transaction récente',
       }, liveSettings);
+
+      // Injecter la base de connaissances secondaire (entrées actives de l'admin)
+      try {
+        const knowledgeRows = await db.execute(sql`
+          SELECT title, content FROM ai_knowledge_base WHERE is_active = true ORDER BY id ASC
+        `);
+        const knowledgeEntries = ((knowledgeRows as any).rows ?? knowledgeRows ?? []) as any[];
+        if (knowledgeEntries.length > 0) {
+          const knowledgeBlock = knowledgeEntries.map((e: any) =>
+            `### ${e.title}\n${e.content}`
+          ).join('\n\n');
+          systemPrompt += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nINFORMATIONS SUPPLÉMENTAIRES (BASE DE CONNAISSANCES ADMIN)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${knowledgeBlock}`;
+        }
+      } catch (_) { /* Ignorer les erreurs de lecture knowledge base */ }
 
       const GROQ_API_KEY = process.env.GROQ_API_KEY;
       if (!GROQ_API_KEY) {
@@ -7120,6 +7134,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (e) {
       console.error('[ADMIN AI-CHAT QUESTIONS]', e);
       res.status(500).json({ message: 'Erreur récupération questions' });
+    }
+  });
+
+  // ── ADMIN — Base de connaissances Lylya IA ────────────────────────────────
+  app.get('/api/admin/ai-knowledge', requireAdmin, async (_req: any, res) => {
+    try {
+      const rows = await db.execute(sql`
+        SELECT id, title, content, is_active, created_at FROM ai_knowledge_base ORDER BY id ASC
+      `);
+      res.json((rows as any).rows ?? rows ?? []);
+    } catch (e) {
+      res.status(500).json({ message: 'Erreur lecture base de connaissances' });
+    }
+  });
+
+  app.post('/api/admin/ai-knowledge', requireAdmin, async (req: any, res) => {
+    try {
+      const { title, content } = req.body;
+      if (!title?.trim() || !content?.trim()) return res.status(400).json({ message: 'Titre et contenu requis' });
+      const rows = await db.execute(sql`
+        INSERT INTO ai_knowledge_base (title, content) VALUES (${title.trim()}, ${content.trim()}) RETURNING *
+      `);
+      res.json(((rows as any).rows ?? rows ?? [])[0]);
+    } catch (e) {
+      res.status(500).json({ message: 'Erreur création entrée' });
+    }
+  });
+
+  app.patch('/api/admin/ai-knowledge/:id', requireAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { title, content } = req.body;
+      if (!title?.trim() || !content?.trim()) return res.status(400).json({ message: 'Titre et contenu requis' });
+      await db.execute(sql`
+        UPDATE ai_knowledge_base SET title = ${title.trim()}, content = ${content.trim()} WHERE id = ${Number(id)}
+      `);
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ message: 'Erreur mise à jour' });
+    }
+  });
+
+  app.patch('/api/admin/ai-knowledge/:id/toggle', requireAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      await db.execute(sql`
+        UPDATE ai_knowledge_base SET is_active = NOT is_active WHERE id = ${Number(id)}
+      `);
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ message: 'Erreur toggle' });
+    }
+  });
+
+  app.delete('/api/admin/ai-knowledge/:id', requireAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      await db.execute(sql`DELETE FROM ai_knowledge_base WHERE id = ${Number(id)}`);
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ message: 'Erreur suppression' });
     }
   });
 

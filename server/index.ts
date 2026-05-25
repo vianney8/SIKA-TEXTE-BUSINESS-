@@ -222,6 +222,22 @@ app.use((req, res, next) => {
     log('group_blocked_users table skipped: ' + (err as Error).message);
   }
 
+  // Create ai_knowledge_base table if not exists
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ai_knowledge_base (
+        id serial PRIMARY KEY,
+        title varchar NOT NULL,
+        content text NOT NULL,
+        is_active boolean NOT NULL DEFAULT true,
+        created_at timestamp DEFAULT now()
+      )
+    `);
+    log('ai_knowledge_base table ready');
+  } catch (err) {
+    log('ai_knowledge_base table skipped: ' + (err as Error).message);
+  }
+
   // Create platform_notifications table if not exists
   try {
     await db.execute(sql`
