@@ -6977,6 +6977,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         recentTransactions: recentTxSummary || 'Aucune transaction récente',
       }, liveSettings);
 
+      const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+      if (!GEMINI_API_KEY) {
+        return res.status(503).json({ error: 'Service IA temporairement indisponible' });
+      }
+
       // Construire le contenu du chat avec l'historique
       const contents: any[] = [];
       if (Array.isArray(history)) {
@@ -6988,18 +6993,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       contents.push({ role: 'user', parts: [{ text: message }] });
 
-      // Utiliser le client Replit AI Integrations (crédits Replit, sans quota Google)
       const { GoogleGenAI } = await import('@google/genai');
-      const ai = new GoogleGenAI({
-        apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
-        httpOptions: {
-          apiVersion: '',
-          baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
-        },
-      });
+      const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-2.0-flash',
         contents,
         config: {
           systemInstruction: systemPrompt,
