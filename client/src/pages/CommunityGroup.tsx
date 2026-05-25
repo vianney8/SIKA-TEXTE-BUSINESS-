@@ -3,443 +3,518 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "wouter";
 import {
-  ChevronLeft, Send, Image, Smile, Search, X, Pin, Reply,
-  Trash2, Users, Lock, Mic, MoreVertical
+  ChevronLeft, Send, ImageIcon, Smile, Search, X, Pin,
+  Reply, Trash2, Users, Lock, MoreVertical
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
-const COUNTRY_FLAGS: Record<string, string> = {
-  BJ: "🇧🇯", CI: "🇨🇮", SN: "🇸🇳", BF: "🇧🇫", TG: "🇹🇬", CM: "🇨🇲", ML: "🇲🇱",
+/* ─── Constants ────────────────────────────────────────────── */
+const FLAGS: Record<string, string> = {
+  BJ:"🇧🇯", CI:"🇨🇮", SN:"🇸🇳", BF:"🇧🇫", TG:"🇹🇬", CM:"🇨🇲", ML:"🇲🇱",
 };
-const QUICK_EMOJIS = ["👍","❤️","😂","😮","😢","🙏","🔥","💯","✅","👏","🎉","💪"];
-const EMOJI_PICKER_LIST = [
+const QUICK_EMOJI = ["👍","❤️","😂","😮","😢","🙏","🔥","💯","✅","👏","🎉","💪"];
+const EMOJI_GRID  = [
   "😀","😂","🥲","😍","🤩","😎","🥳","😴","🤔","😱","😡","🥺",
   "👍","👎","❤️","🔥","💯","✅","🎉","🙏","💪","👏","🫡","😅",
   "🤣","😇","🥰","😘","🤗","😜","🧐","🤯","😤","🤭","🫶","💥",
   "⭐","✨","🚀","💰","💸","🏆","🎯","🎁","📱","💬","📣","🔔",
 ];
 
-interface GroupMessage {
-  id: number;
-  content: string;
-  type: string;
-  is_deleted: boolean;
-  is_pinned: boolean;
-  created_at: string;
-  reply_to_id: number | null;
-  user_id: string;
-  full_name: string;
-  country: string;
-  reply_content: string | null;
-  reply_author: string | null;
+/* ─── Types ─────────────────────────────────────────────────── */
+interface Msg {
+  id: number; content: string; type: string;
+  is_deleted: boolean; is_pinned: boolean; created_at: string;
+  reply_to_id: number | null; user_id: string;
+  full_name: string; country: string;
+  reply_content: string | null; reply_author: string | null;
   reactions: Array<{ emoji: string; userId: string }> | null;
 }
-
-interface GroupSettings {
-  isClosed: boolean;
-  onlineCount: number;
-  pinnedMessages: Array<{ id: number; content: string; full_name: string }>;
+interface Settings {
+  isClosed: boolean; onlineCount: number;
+  pinnedMessages: Array<{ id:number; content:string; full_name:string }>;
 }
 
-function formatTime(ts: string) {
-  return new Date(ts).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+/* ─── Helpers ───────────────────────────────────────────────── */
+function fmt(ts: string) {
+  return new Date(ts).toLocaleTimeString("fr-FR", { hour:"2-digit", minute:"2-digit" });
 }
-
-function getInitial(name: string) {
-  return (name || "?").charAt(0).toUpperCase();
-}
-
-function avatarGradient(userId: string) {
-  const colors = [
-    "linear-gradient(135deg,#1d4ed8,#7c3aed)",
-    "linear-gradient(135deg,#059669,#0891b2)",
-    "linear-gradient(135deg,#dc2626,#db2777)",
-    "linear-gradient(135deg,#d97706,#15803d)",
-    "linear-gradient(135deg,#7c3aed,#db2777)",
-    "linear-gradient(135deg,#0284c7,#059669)",
+function initial(n: string) { return (n||"?").charAt(0).toUpperCase(); }
+function avatarBg(uid: string) {
+  const palette = [
+    "#1d4ed8","#7c3aed","#059669","#dc2626","#d97706","#0284c7","#db2777",
   ];
-  let hash = 0;
-  for (const c of userId) hash = (hash * 31 + c.charCodeAt(0)) & 0xffffffff;
-  return colors[Math.abs(hash) % colors.length];
+  let h = 0;
+  for (const c of uid) h = (h * 31 + c.charCodeAt(0)) & 0xffffffff;
+  return palette[Math.abs(h) % palette.length];
+}
+function groupReact(r: Msg["reactions"]) {
+  if (!r || !r.length) return [];
+  const m: Record<string, string[]> = {};
+  for (const x of r) { if (!m[x.emoji]) m[x.emoji]=[]; m[x.emoji].push(x.userId); }
+  return Object.entries(m).map(([emoji, users]) => ({ emoji, count: users.length, users }));
 }
 
-function groupReactions(reactions: Array<{ emoji: string; userId: string }> | null) {
-  if (!reactions || reactions.length === 0) return [];
-  const map: Record<string, string[]> = {};
-  for (const r of reactions) {
-    if (!map[r.emoji]) map[r.emoji] = [];
-    map[r.emoji].push(r.userId);
-  }
-  return Object.entries(map).map(([emoji, users]) => ({ emoji, count: users.length, users }));
-}
-
+/* ═══════════════════════════════════════════════════════════
+   MAIN COMPONENT
+   ═══════════════════════════════════════════════════════════ */
 export default function CommunityGroup() {
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const scrollRef   = useRef<HTMLDivElement>(null);
+  const fileRef     = useRef<HTMLInputElement>(null);
+  const inputRef    = useRef<HTMLTextAreaElement>(null);
 
-  const [text, setText] = useState("");
-  const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
-  const [showEmoji, setShowEmoji] = useState(false);
+  const [text,       setText]       = useState("");
+  const [replyTo,    setReplyTo]    = useState<Msg | null>(null);
+  const [showEmoji,  setShowEmoji]  = useState(false);
   const [showSearch, setShowSearch] = useState(false);
-  const [searchQ, setSearchQ] = useState("");
+  const [searchQ,    setSearchQ]    = useState("");
   const [showPinned, setShowPinned] = useState(false);
-  const [msgMenu, setMsgMenu] = useState<number | null>(null);
-  const [emojiFor, setEmojiFor] = useState<number | null>(null);
-  const [lastId, setLastId] = useState<number>(0);
-  const [allMessages, setAllMessages] = useState<GroupMessage[]>([]);
-  const [autoScroll, setAutoScroll] = useState(true);
-  const isAdmin = (user as any)?.role === "admin" || (user as any)?.isAdmin;
-  const myId = (user as any)?.id;
+  const [menuId,     setMenuId]     = useState<number | null>(null);
+  const [emojiFor,   setEmojiFor]   = useState<number | null>(null);
+  const [msgs,       setMsgs]       = useState<Msg[]>([]);
+  const [lastId,     setLastId]     = useState(0);
+  const [atBottom,   setAtBottom]   = useState(true);
 
-  // Settings (poll every 10s)
-  const { data: settings } = useQuery<GroupSettings>({
+  const me      = (user as any)?.id  ?? "";
+  const isAdmin = !!(user as any)?.isAdmin || (user as any)?.role === "admin";
+
+  /* Settings */
+  const { data: settings } = useQuery<Settings>({
     queryKey: ["/api/group/settings"],
     refetchInterval: 10_000,
   });
+  const isClosed = settings?.isClosed ?? false;
 
-  // Initial messages load
-  const { data: initialMessages } = useQuery<GroupMessage[]>({
+  /* Initial load */
+  const { data: initMsgs } = useQuery<Msg[]>({
     queryKey: ["/api/group/messages"],
     staleTime: 0,
   });
-
   useEffect(() => {
-    if (initialMessages && allMessages.length === 0) {
-      setAllMessages(initialMessages);
-      if (initialMessages.length > 0) setLastId(initialMessages[initialMessages.length - 1].id);
+    if (initMsgs && msgs.length === 0) {
+      setMsgs(initMsgs);
+      if (initMsgs.length) setLastId(initMsgs[initMsgs.length - 1].id);
     }
-  }, [initialMessages]);
+  }, [initMsgs]);
 
-  // Poll new messages every 3s
-  const pollMessages = useCallback(async () => {
-    if (lastId === 0 && allMessages.length === 0) return;
+  /* Polling (3 s) */
+  const poll = useCallback(async () => {
     try {
-      const after = lastId > 0 ? lastId : 0;
-      const res = await fetch(`/api/group/messages?after=${after}`, { credentials: "include" });
-      if (!res.ok) return;
-      const newMsgs: GroupMessage[] = await res.json();
-      if (newMsgs.length > 0) {
-        setAllMessages((prev) => {
-          const existing = new Set(prev.map((m) => m.id));
-          const fresh = newMsgs.filter((m) => !existing.has(m.id));
-          if (fresh.length === 0) return prev;
-          return [...prev, ...fresh];
-        });
-        setLastId(newMsgs[newMsgs.length - 1].id);
-      }
-    } catch (_) {}
-  }, [lastId, allMessages.length]);
+      const r = await fetch(`/api/group/messages?after=${lastId}`, { credentials:"include" });
+      if (!r.ok) return;
+      const fresh: Msg[] = await r.json();
+      if (!fresh.length) return;
+      setMsgs(prev => {
+        const have = new Set(prev.map(m => m.id));
+        const add  = fresh.filter(m => !have.has(m.id));
+        return add.length ? [...prev, ...add] : prev;
+      });
+      setLastId(fresh[fresh.length - 1].id);
+    } catch(_) {}
+  }, [lastId]);
 
   useEffect(() => {
-    const id = setInterval(pollMessages, 3000);
+    const id = setInterval(poll, 3000);
     return () => clearInterval(id);
-  }, [pollMessages]);
+  }, [poll]);
 
-  // Auto scroll
+  /* Auto-scroll */
   useEffect(() => {
-    if (autoScroll) messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [allMessages, autoScroll]);
+    if (atBottom) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior:"smooth" });
+  }, [msgs, atBottom]);
 
-  // Send message mutation
+  /* ── Mutations ── */
   const sendMut = useMutation({
-    mutationFn: (data: { content: string; type?: string; replyToId?: number }) =>
-      apiRequest("POST", "/api/group/messages", data),
+    mutationFn: (d: { content:string; type?:string; replyToId?:number }) =>
+      apiRequest("POST", "/api/group/messages", d),
     onSuccess: async () => {
-      setText("");
-      setReplyTo(null);
-      setShowEmoji(false);
-      setAutoScroll(true);
-      await pollMessages();
-      qc.invalidateQueries({ queryKey: ["/api/group/messages"] });
+      setText(""); setReplyTo(null); setShowEmoji(false); setAtBottom(true);
+      await poll();
     },
-    onError: (err: any) => {
-      const msg = err?.message || "";
-      if (msg.includes("group_closed")) toast({ title: "Groupe fermé", description: "L'administrateur a fermé le groupe.", variant: "destructive" });
-      else if (msg.includes("user_blocked")) toast({ title: "Accès restreint", description: "Vous êtes bloqué dans ce groupe.", variant: "destructive" });
-      else toast({ title: "Erreur", description: "Impossible d'envoyer le message.", variant: "destructive" });
+    onError: (e: any) => {
+      const m = e?.message ?? "";
+      if (m.includes("group_closed"))  toast({ title:"Groupe fermé", variant:"destructive" });
+      else if (m.includes("user_blocked")) toast({ title:"Vous êtes bloqué", variant:"destructive" });
+      else toast({ title:"Erreur d'envoi", variant:"destructive" });
     },
   });
 
-  const deleteMut = useMutation({
+  const delMut = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/group/messages/${id}`),
-    onSuccess: () => {
-      setAllMessages((prev) => prev.map((m) => m.id === msgMenu ? { ...m, is_deleted: true, content: "🗑️ Message supprimé" } : m));
-      setMsgMenu(null);
-    },
+    onSuccess: (_,id) => { patchDel(id,"🗑️ Message supprimé"); setMenuId(null); },
   });
-
-  const adminDeleteMut = useMutation({
+  const adminDelMut = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/admin/group/messages/${id}`),
-    onSuccess: (_, id) => {
-      setAllMessages((prev) => prev.map((m) => m.id === id ? { ...m, is_deleted: true, content: "🗑️ Message supprimé par l'administrateur" } : m));
-      setMsgMenu(null);
-    },
+    onSuccess: (_,id) => { patchDel(id,"🗑️ Message supprimé par l'administrateur"); setMenuId(null); },
   });
-
   const pinMut = useMutation({
     mutationFn: (id: number) => apiRequest("PUT", `/api/admin/group/messages/${id}/pin`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/group/settings"] }); setMsgMenu(null); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey:["/api/group/settings"] }); setMenuId(null); },
   });
-
   const blockMut = useMutation({
-    mutationFn: (userId: string) => apiRequest("POST", `/api/admin/group/block/${userId}`),
-    onSuccess: () => { setMsgMenu(null); toast({ title: "Utilisateur bloqué" }); },
+    mutationFn: (uid: string) => apiRequest("POST", `/api/admin/group/block/${uid}`),
+    onSuccess: () => { setMenuId(null); toast({ title:"Utilisateur bloqué" }); },
   });
-
   const reactMut = useMutation({
-    mutationFn: ({ id, emoji }: { id: number; emoji: string }) =>
+    mutationFn: ({ id, emoji }: { id:number; emoji:string }) =>
       apiRequest("POST", `/api/group/messages/${id}/react`, { emoji }),
-    onSuccess: async () => { await pollMessages(); },
+    onSuccess: poll,
   });
 
-  function handleSend() {
-    const trimmed = text.trim();
-    if (!trimmed || sendMut.isPending) return;
-    sendMut.mutate({ content: trimmed, type: "text", replyToId: replyTo?.id });
+  function patchDel(id: number, txt: string) {
+    setMsgs(p => p.map(m => m.id===id ? { ...m, is_deleted:true, content:txt } : m));
   }
 
-  function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 5_000_000) { toast({ title: "Image trop grande", description: "Max 5 Mo.", variant: "destructive" }); return; }
-    const reader = new FileReader();
-    reader.onload = () => {
-      sendMut.mutate({ content: reader.result as string, type: "image", replyToId: replyTo?.id });
-    };
-    reader.readAsDataURL(file);
+  function send() {
+    const t = text.trim();
+    if (!t || sendMut.isPending) return;
+    sendMut.mutate({ content:t, type:"text", replyToId: replyTo?.id });
+  }
+
+  function onKey(e: React.KeyboardEvent) {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  }
+
+  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]; if (!f) return;
+    if (f.size > 5_000_000) { toast({ title:"Max 5 Mo", variant:"destructive" }); return; }
+    const fr = new FileReader();
+    fr.onload = () => sendMut.mutate({ content: fr.result as string, type:"image", replyToId: replyTo?.id });
+    fr.readAsDataURL(f);
     e.target.value = "";
   }
 
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
-  }
-
   const displayed = searchQ
-    ? allMessages.filter((m) => m.content.toLowerCase().includes(searchQ.toLowerCase()) && !m.is_deleted)
-    : allMessages;
+    ? msgs.filter(m => !m.is_deleted && m.content.toLowerCase().includes(searchQ.toLowerCase()))
+    : msgs;
 
-  const isClosed = settings?.isClosed ?? false;
-
+  /* ══════════════════════════════════════════════════════════
+     RENDER  — layout: position fixed fills true viewport
+     ══════════════════════════════════════════════════════════ */
   return (
-    <div className="flex flex-col h-screen" style={{ background: "#0e1621" }}>
-
-      {/* ── HEADER ── */}
-      <header className="flex items-center gap-3 px-3 py-3 flex-shrink-0 border-b border-white/5"
-        style={{ background: "#17212b" }}>
+    <div
+      style={{
+        position:"fixed", inset:0,
+        display:"flex", flexDirection:"column",
+        background:"#0e1621",
+        fontFamily:"inherit",
+      }}
+    >
+      {/* ── HEADER ────────────────────────────────────── */}
+      <header style={{
+        flexShrink:0, display:"flex", alignItems:"center", gap:12,
+        padding:"12px 12px 10px", borderBottom:"1px solid rgba(255,255,255,0.07)",
+        background:"linear-gradient(135deg,#1a237e 0%,#1565c0 100%)",
+      }}>
         <Link href="/">
-          <button className="w-8 h-8 rounded-xl flex items-center justify-center text-white/70 hover:bg-white/10 active:scale-95 transition">
-            <ChevronLeft className="w-5 h-5" />
+          <button style={{
+            width:36, height:36, borderRadius:12, background:"rgba(255,255,255,0.15)",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            border:"none", cursor:"pointer", flexShrink:0,
+          }}>
+            <ChevronLeft style={{ width:20, height:20, color:"#fff" }} />
           </button>
         </Link>
 
-        {/* Avatar groupe */}
-        <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white font-black text-sm"
-          style={{ background: "linear-gradient(135deg,#1a237e,#1565c0)" }}>
-          ST
+        {/* Groupe avatar */}
+        <div style={{
+          width:40, height:40, borderRadius:"50%", flexShrink:0,
+          background:"rgba(255,255,255,0.2)",
+          display:"flex", alignItems:"center", justifyContent:"center",
+          fontWeight:900, color:"#fff", fontSize:14,
+        }}>ST</div>
+
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ color:"#fff", fontWeight:800, fontSize:15 }}>SIKA TEXTE — Groupe</span>
+            {isClosed && (
+              <span style={{
+                background:"rgba(239,68,68,0.25)", color:"#fca5a5",
+                fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:99,
+              }}>FERMÉ</span>
+            )}
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:2 }}>
+            <span style={{ width:7, height:7, borderRadius:"50%", background:"#4ade80", display:"inline-block" }} />
+            <span style={{ color:"#86efac", fontSize:11 }}>{settings?.onlineCount ?? 0} en ligne</span>
+          </div>
         </div>
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-white font-bold text-sm">SIKA TEXTE — Groupe</span>
-            {isClosed && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(239,68,68,0.2)", color: "#ef4444" }}>FERMÉ</span>}
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
-            <span className="text-green-400 text-[11px]">{settings?.onlineCount ?? 0} en ligne</span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1">
-          {settings?.pinnedMessages && settings.pinnedMessages.length > 0 && (
-            <button onClick={() => setShowPinned(!showPinned)}
-              className="w-8 h-8 rounded-xl flex items-center justify-center text-white/60 hover:bg-white/10 transition active:scale-95">
-              <Pin className="w-4 h-4" />
-            </button>
-          )}
-          <button onClick={() => { setShowSearch(!showSearch); setSearchQ(""); }}
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-white/60 hover:bg-white/10 transition active:scale-95">
-            <Search className="w-4 h-4" />
+        {/* Action buttons */}
+        {settings?.pinnedMessages?.length > 0 && (
+          <button onClick={() => setShowPinned(v=>!v)} style={{
+            width:32, height:32, borderRadius:10, background:"rgba(255,255,255,0.15)",
+            border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
+          }}>
+            <Pin style={{ width:16, height:16, color:"#fde68a" }} />
           </button>
-        </div>
+        )}
+        <button onClick={() => { setShowSearch(v=>!v); setSearchQ(""); }} style={{
+          width:32, height:32, borderRadius:10, background:"rgba(255,255,255,0.15)",
+          border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
+        }}>
+          <Search style={{ width:16, height:16, color:"#fff" }} />
+        </button>
       </header>
 
-      {/* ── SEARCH BAR ── */}
+      {/* ── SEARCH BAR ───────────────────────────────── */}
       {showSearch && (
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-white/5 flex-shrink-0" style={{ background: "#17212b" }}>
-          <Search className="w-4 h-4 text-white/40 flex-shrink-0" />
-          <input
-            autoFocus
-            value={searchQ}
-            onChange={(e) => setSearchQ(e.target.value)}
-            placeholder="Rechercher dans les messages…"
-            className="flex-1 bg-transparent text-white text-sm outline-none placeholder-white/30"
-          />
-          {searchQ && <button onClick={() => setSearchQ("")}><X className="w-4 h-4 text-white/40" /></button>}
+        <div style={{
+          flexShrink:0, display:"flex", alignItems:"center", gap:10,
+          padding:"8px 12px", background:"#17212b", borderBottom:"1px solid rgba(255,255,255,0.07)",
+        }}>
+          <Search style={{ width:16, height:16, color:"rgba(255,255,255,0.35)", flexShrink:0 }} />
+          <input autoFocus value={searchQ} onChange={e=>setSearchQ(e.target.value)}
+            placeholder="Rechercher…"
+            style={{
+              flex:1, background:"transparent", border:"none", outline:"none",
+              color:"#fff", fontSize:14,
+            }} />
+          {searchQ && (
+            <button onClick={()=>setSearchQ("")} style={{ background:"none", border:"none", cursor:"pointer" }}>
+              <X style={{ width:16, height:16, color:"rgba(255,255,255,0.35)" }} />
+            </button>
+          )}
         </div>
       )}
 
-      {/* ── MESSAGES ÉPINGLÉS ── */}
-      {showPinned && settings?.pinnedMessages && settings.pinnedMessages.length > 0 && (
-        <div className="flex-shrink-0 border-b border-white/5 px-4 py-2 space-y-1" style={{ background: "#1c2a3a" }}>
-          <div className="flex items-center gap-2 mb-1">
-            <Pin className="w-3 h-3 text-yellow-400" />
-            <span className="text-yellow-400 text-[11px] font-bold">Messages épinglés</span>
+      {/* ── PINNED ───────────────────────────────────── */}
+      {showPinned && (settings?.pinnedMessages ?? []).length > 0 && (
+        <div style={{
+          flexShrink:0, padding:"8px 14px",
+          background:"#1c2a3a", borderBottom:"1px solid rgba(255,255,255,0.07)",
+        }}>
+          <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
+            <Pin style={{ width:12, height:12, color:"#fbbf24" }} />
+            <span style={{ color:"#fbbf24", fontSize:11, fontWeight:700 }}>Messages épinglés</span>
           </div>
-          {settings.pinnedMessages.map((p) => (
-            <div key={p.id} className="text-white/60 text-xs truncate">
-              <span className="text-white/40">{p.full_name} : </span>{p.content}
+          {(settings!.pinnedMessages).map(p => (
+            <div key={p.id} style={{ color:"rgba(255,255,255,0.5)", fontSize:12, marginBottom:3 }}>
+              <span style={{ color:"rgba(255,255,255,0.3)" }}>{p.full_name}: </span>
+              <span>{p.content.slice(0, 80)}{p.content.length>80 ? "…" : ""}</span>
             </div>
           ))}
         </div>
       )}
 
-      {/* ── GROUPE FERMÉ BANNER ── */}
+      {/* ── CLOSED BANNER ────────────────────────────── */}
       {isClosed && (
-        <div className="flex items-center gap-2 px-4 py-2.5 flex-shrink-0" style={{ background: "rgba(239,68,68,0.12)", borderBottom: "1px solid rgba(239,68,68,0.2)" }}>
-          <Lock className="w-4 h-4 text-red-400" />
-          <span className="text-red-400 text-xs font-medium">Ce groupe est temporairement fermé par l'administrateur.</span>
+        <div style={{
+          flexShrink:0, display:"flex", alignItems:"center", gap:8,
+          padding:"10px 14px", background:"rgba(239,68,68,0.12)",
+          borderBottom:"1px solid rgba(239,68,68,0.2)",
+        }}>
+          <Lock style={{ width:15, height:15, color:"#f87171", flexShrink:0 }} />
+          <span style={{ color:"#f87171", fontSize:12 }}>
+            Groupe temporairement fermé par l'administrateur.
+          </span>
         </div>
       )}
 
-      {/* ── MESSAGES AREA ── */}
+      {/* ── MESSAGES AREA ────────────────────────────── */}
       <div
-        className="flex-1 overflow-y-auto px-3 py-3 space-y-1"
-        style={{ overscrollBehavior: "contain" }}
-        onScroll={(e) => {
+        ref={scrollRef}
+        style={{
+          flex:1, overflowY:"auto", padding:"12px 10px",
+          display:"flex", flexDirection:"column", gap:4,
+          WebkitOverflowScrolling:"touch",
+        }}
+        onScroll={e => {
           const el = e.currentTarget;
-          const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
-          setAutoScroll(nearBottom);
+          setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 60);
         }}
       >
         {displayed.length === 0 && (
-          <div className="flex flex-col items-center gap-3 py-16">
-            <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center">
-              <Users className="w-8 h-8 text-white/20" />
+          <div style={{
+            flex:1, display:"flex", flexDirection:"column", alignItems:"center",
+            justifyContent:"center", gap:12, padding:"40px 0",
+          }}>
+            <div style={{
+              width:64, height:64, borderRadius:"50%",
+              background:"rgba(255,255,255,0.06)",
+              display:"flex", alignItems:"center", justifyContent:"center",
+            }}>
+              <Users style={{ width:30, height:30, color:"rgba(255,255,255,0.2)" }} />
             </div>
-            <p className="text-white/30 text-sm text-center">
-              {searchQ ? "Aucun message trouvé" : "Soyez le premier à écrire dans le groupe !"}
+            <p style={{ color:"rgba(255,255,255,0.3)", fontSize:14, textAlign:"center" }}>
+              {searchQ ? "Aucun résultat" : "Soyez le premier à écrire dans le groupe !"}
             </p>
           </div>
         )}
 
-        {displayed.map((msg) => {
-          const isMe = msg.user_id === myId;
-          const grouped = groupReactions(msg.reactions);
+        {displayed.map(msg => {
+          const isMe = msg.user_id === me;
+          const grouped = groupReact(msg.reactions);
+          const bg = avatarBg(msg.user_id);
 
           return (
-            <div key={msg.id} className={`flex gap-2 items-end group ${isMe ? "flex-row-reverse" : ""}`}>
-              {/* Avatar (autres) */}
+            <div key={msg.id}
+              style={{
+                display:"flex", gap:8, alignItems:"flex-end",
+                flexDirection: isMe ? "row-reverse" : "row",
+                position:"relative",
+              }}
+              className="group"
+            >
+              {/* Avatar (autres uniquement) */}
               {!isMe && (
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mb-1"
-                  style={{ background: avatarGradient(msg.user_id) }}>
-                  {getInitial(msg.full_name)}
+                <div style={{
+                  width:32, height:32, borderRadius:"50%", flexShrink:0,
+                  background:bg, display:"flex", alignItems:"center",
+                  justifyContent:"center", color:"#fff", fontWeight:700,
+                  fontSize:13, marginBottom:2,
+                }}>
+                  {initial(msg.full_name)}
                 </div>
               )}
 
-              <div className={`max-w-[72%] ${isMe ? "items-end" : "items-start"} flex flex-col gap-0.5`}>
-                {/* Nom (messages des autres) */}
+              <div style={{
+                maxWidth:"72%",
+                display:"flex", flexDirection:"column",
+                alignItems: isMe ? "flex-end" : "flex-start",
+                gap:3,
+              }}>
+                {/* Nom expéditeur */}
                 {!isMe && !msg.is_deleted && (
-                  <span className="text-[11px] font-semibold ml-1" style={{ color: avatarGradient(msg.user_id).match(/#[0-9a-f]{6}/i)?.[0] ?? "#60a5fa" }}>
-                    {msg.full_name} {COUNTRY_FLAGS[msg.country] ?? ""}
+                  <span style={{ color:bg, fontSize:11, fontWeight:700, marginLeft:4 }}>
+                    {msg.full_name} {FLAGS[msg.country] ?? ""}
                   </span>
                 )}
 
                 {/* Bulle */}
-                <div className={`relative rounded-2xl ${isMe ? "rounded-br-sm" : "rounded-bl-sm"} px-3 py-2 ${msg.is_deleted ? "opacity-50" : ""}`}
-                  style={{ background: isMe ? "#2b5278" : "#182533" }}>
-
+                <div style={{
+                  background: isMe ? "#2b5278" : "#182533",
+                  borderRadius:16,
+                  borderBottomRightRadius: isMe ? 4 : 16,
+                  borderBottomLeftRadius:  isMe ? 16 : 4,
+                  padding:"8px 12px",
+                  opacity: msg.is_deleted ? 0.5 : 1,
+                  position:"relative",
+                }}>
                   {/* Reply context */}
                   {msg.reply_to_id && msg.reply_content && !msg.is_deleted && (
-                    <div className="rounded-lg px-2 py-1.5 mb-1.5 border-l-2 border-blue-400" style={{ background: "rgba(255,255,255,0.08)" }}>
-                      <p className="text-blue-300 text-[10px] font-bold">{msg.reply_author}</p>
-                      <p className="text-white/60 text-[11px] truncate">{msg.reply_content}</p>
+                    <div style={{
+                      borderLeft:"2px solid #60a5fa", paddingLeft:8, marginBottom:6,
+                      background:"rgba(255,255,255,0.07)", borderRadius:6, padding:"5px 8px",
+                    }}>
+                      <p style={{ color:"#93c5fd", fontSize:10, fontWeight:700, marginBottom:2 }}>
+                        {msg.reply_author}
+                      </p>
+                      <p style={{ color:"rgba(255,255,255,0.55)", fontSize:11 }}>
+                        {msg.reply_content?.slice(0,80)}
+                      </p>
                     </div>
                   )}
 
                   {/* Content */}
                   {msg.type === "image" && !msg.is_deleted ? (
-                    <img src={msg.content} alt="img" className="rounded-xl max-w-full max-h-56 object-contain" style={{ maxWidth: 220 }} />
+                    <img src={msg.content} alt="img"
+                      style={{ borderRadius:10, maxWidth:200, maxHeight:220, objectFit:"contain", display:"block" }} />
                   ) : (
-                    <p className="text-white text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
+                    <p style={{ color:"#e2e8f0", fontSize:14, lineHeight:1.5, margin:0, wordBreak:"break-word", whiteSpace:"pre-wrap" }}>
+                      {msg.content}
+                    </p>
                   )}
 
-                  {/* Time + menu */}
-                  <div className={`flex items-center gap-1.5 mt-0.5 ${isMe ? "justify-end" : ""}`}>
-                    <span className="text-white/30 text-[10px]">{formatTime(msg.created_at)}</span>
+                  {/* Time + menu btn */}
+                  <div style={{
+                    display:"flex", alignItems:"center", gap:6, marginTop:3,
+                    justifyContent: isMe ? "flex-end" : "flex-start",
+                  }}>
+                    <span style={{ color:"rgba(255,255,255,0.28)", fontSize:10 }}>{fmt(msg.created_at)}</span>
+                    {msg.is_pinned && <Pin style={{ width:10, height:10, color:"#fbbf24" }} />}
                     {(isMe || isAdmin) && !msg.is_deleted && (
                       <button
-                        onClick={() => setMsgMenu(msgMenu === msg.id ? null : msg.id)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={e => { e.stopPropagation(); setMenuId(menuId===msg.id ? null : msg.id); setEmojiFor(null); }}
+                        style={{ background:"none", border:"none", cursor:"pointer", padding:2, display:"flex", alignItems:"center" }}
                       >
-                        <MoreVertical className="w-3 h-3 text-white/40" />
+                        <MoreVertical style={{ width:13, height:13, color:"rgba(255,255,255,0.3)" }} />
                       </button>
                     )}
                   </div>
-
-                  {/* Context menu */}
-                  {msgMenu === msg.id && (
-                    <div className={`absolute bottom-full mb-1 ${isMe ? "right-0" : "left-0"} bg-[#17212b] rounded-2xl shadow-2xl border border-white/10 overflow-hidden z-20 min-w-[160px]`}>
-                      <button onClick={() => { setReplyTo(msg); setMsgMenu(null); inputRef.current?.focus(); }}
-                        className="flex items-center gap-3 w-full px-4 py-3 text-white/80 text-sm hover:bg-white/5 transition">
-                        <Reply className="w-4 h-4 text-blue-400" /><span>Répondre</span>
-                      </button>
-                      <button onClick={() => setEmojiFor(emojiFor === msg.id ? null : msg.id)}
-                        className="flex items-center gap-3 w-full px-4 py-3 text-white/80 text-sm hover:bg-white/5 transition">
-                        <Smile className="w-4 h-4 text-yellow-400" /><span>Réagir</span>
-                      </button>
-                      {isAdmin && (
-                        <button onClick={() => pinMut.mutate(msg.id)}
-                          className="flex items-center gap-3 w-full px-4 py-3 text-white/80 text-sm hover:bg-white/5 transition">
-                          <Pin className="w-4 h-4 text-yellow-400" /><span>{msg.is_pinned ? "Désépingler" : "Épingler"}</span>
-                        </button>
-                      )}
-                      {isAdmin && !isMe && (
-                        <button onClick={() => blockMut.mutate(msg.user_id)}
-                          className="flex items-center gap-3 w-full px-4 py-3 text-red-400 text-sm hover:bg-white/5 transition">
-                          <Lock className="w-4 h-4" /><span>Bloquer</span>
-                        </button>
-                      )}
-                      {isMe && (
-                        <button onClick={() => deleteMut.mutate(msg.id)}
-                          className="flex items-center gap-3 w-full px-4 py-3 text-red-400 text-sm hover:bg-white/5 transition">
-                          <Trash2 className="w-4 h-4" /><span>Supprimer</span>
-                        </button>
-                      )}
-                      {isAdmin && !isMe && (
-                        <button onClick={() => adminDeleteMut.mutate(msg.id)}
-                          className="flex items-center gap-3 w-full px-4 py-3 text-red-400 text-sm hover:bg-white/5 transition">
-                          <Trash2 className="w-4 h-4" /><span>Supprimer (admin)</span>
-                        </button>
-                      )}
-                    </div>
-                  )}
                 </div>
 
-                {/* Emoji picker for reactions */}
+                {/* Context menu */}
+                {menuId === msg.id && (
+                  <div style={{
+                    position:"absolute",
+                    top: isMe ? "auto" : "calc(100% + 4px)",
+                    bottom: isMe ? "calc(100% + 4px)" : "auto",
+                    right: isMe ? 0 : "auto",
+                    left:  isMe ? "auto" : 36,
+                    background:"#1e2d3d",
+                    borderRadius:16, overflow:"hidden",
+                    boxShadow:"0 8px 32px rgba(0,0,0,0.5)",
+                    border:"1px solid rgba(255,255,255,0.1)",
+                    zIndex:50, minWidth:170,
+                  }}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    {[
+                      { label:"Répondre", icon:<Reply style={{width:15,height:15,color:"#60a5fa"}}/>, action:()=>{ setReplyTo(msg); setMenuId(null); inputRef.current?.focus(); } },
+                      { label:"Réagir", icon:<Smile style={{width:15,height:15,color:"#fbbf24"}}/>, action:()=>{ setEmojiFor(emojiFor===msg.id ? null : msg.id); setMenuId(null); } },
+                      ...(isAdmin ? [
+                        { label: msg.is_pinned ? "Désépingler":"Épingler", icon:<Pin style={{width:15,height:15,color:"#fbbf24"}}/>, action:()=>pinMut.mutate(msg.id) },
+                      ] : []),
+                      ...(isMe ? [
+                        { label:"Supprimer", icon:<Trash2 style={{width:15,height:15,color:"#f87171"}}/>, action:()=>delMut.mutate(msg.id) },
+                      ] : []),
+                      ...(isAdmin && !isMe ? [
+                        { label:"Bloquer l'utilisateur", icon:<Lock style={{width:15,height:15,color:"#f87171"}}/>, action:()=>blockMut.mutate(msg.user_id) },
+                        { label:"Supprimer (admin)", icon:<Trash2 style={{width:15,height:15,color:"#f87171"}}/>, action:()=>adminDelMut.mutate(msg.id) },
+                      ] : []),
+                    ].map((item, i) => (
+                      <button key={i} onClick={item.action} style={{
+                        display:"flex", alignItems:"center", gap:10,
+                        width:"100%", padding:"11px 16px",
+                        background:"none", border:"none", cursor:"pointer",
+                        color:"rgba(255,255,255,0.8)", fontSize:13, textAlign:"left",
+                      }}
+                        onMouseEnter={e=>(e.currentTarget.style.background="rgba(255,255,255,0.07)")}
+                        onMouseLeave={e=>(e.currentTarget.style.background="none")}
+                      >
+                        {item.icon}
+                        <span>{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Emoji picker (for reacting) */}
                 {emojiFor === msg.id && (
-                  <div className="flex flex-wrap gap-1.5 mt-1 px-2 py-2 rounded-2xl max-w-[220px]" style={{ background: "#17212b", border: "1px solid rgba(255,255,255,0.08)" }}>
-                    {QUICK_EMOJIS.map((e) => (
-                      <button key={e} onClick={() => { reactMut.mutate({ id: msg.id, emoji: e }); setEmojiFor(null); setMsgMenu(null); }}
-                        className="text-xl hover:scale-125 transition-transform active:scale-95">{e}</button>
+                  <div style={{
+                    display:"flex", flexWrap:"wrap", gap:6, padding:"8px 10px",
+                    background:"#1e2d3d", borderRadius:14, maxWidth:240,
+                    border:"1px solid rgba(255,255,255,0.08)",
+                  }}>
+                    {QUICK_EMOJI.map(e => (
+                      <button key={e} onClick={()=>{ reactMut.mutate({ id:msg.id, emoji:e }); setEmojiFor(null); }}
+                        style={{ fontSize:20, background:"none", border:"none", cursor:"pointer",
+                          lineHeight:1, padding:2 }}>
+                        {e}
+                      </button>
                     ))}
                   </div>
                 )}
 
                 {/* Reactions display */}
                 {grouped.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-1">
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
                     {grouped.map(({ emoji, count, users }) => (
                       <button key={emoji}
-                        onClick={() => reactMut.mutate({ id: msg.id, emoji })}
-                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition ${users.includes(myId) ? "bg-blue-600/40 border border-blue-400/50" : "bg-white/8 border border-white/10"}`}
-                        style={{ background: users.includes(myId) ? "rgba(59,130,246,0.3)" : "rgba(255,255,255,0.08)" }}>
+                        onClick={() => reactMut.mutate({ id:msg.id, emoji })}
+                        style={{
+                          display:"flex", alignItems:"center", gap:4,
+                          padding:"2px 8px", borderRadius:99, fontSize:13,
+                          background: users.includes(me) ? "rgba(59,130,246,0.3)" : "rgba(255,255,255,0.08)",
+                          border: users.includes(me) ? "1px solid rgba(96,165,250,0.5)" : "1px solid rgba(255,255,255,0.1)",
+                          cursor:"pointer",
+                        }}>
                         <span>{emoji}</span>
-                        {count > 1 && <span className="text-white/70">{count}</span>}
+                        {count > 1 && <span style={{ color:"rgba(255,255,255,0.6)", fontSize:11 }}>{count}</span>}
                       </button>
                     ))}
                   </div>
@@ -448,72 +523,107 @@ export default function CommunityGroup() {
             </div>
           );
         })}
-        <div ref={messagesEndRef} />
+        {/* scroll anchor */}
+        <div style={{ height:1 }} />
       </div>
 
-      {/* ── FULL EMOJI PICKER ── */}
+      {/* ── FULL EMOJI PICKER ───────────────────────── */}
       {showEmoji && (
-        <div className="flex-shrink-0 px-3 py-3 grid grid-cols-8 gap-2 border-t border-white/5" style={{ background: "#17212b" }}>
-          {EMOJI_PICKER_LIST.map((e) => (
-            <button key={e} onClick={() => { setText((t) => t + e); setShowEmoji(false); inputRef.current?.focus(); }}
-              className="text-xl text-center hover:scale-125 transition-transform active:scale-95">{e}</button>
+        <div style={{
+          flexShrink:0, padding:"10px 12px",
+          display:"grid", gridTemplateColumns:"repeat(8,1fr)", gap:8,
+          background:"#17212b", borderTop:"1px solid rgba(255,255,255,0.07)",
+        }}>
+          {EMOJI_GRID.map(e => (
+            <button key={e} onClick={()=>{ setText(t=>t+e); setShowEmoji(false); inputRef.current?.focus(); }}
+              style={{ fontSize:22, background:"none", border:"none", cursor:"pointer", textAlign:"center" }}>
+              {e}
+            </button>
           ))}
         </div>
       )}
 
-      {/* ── REPLY PREVIEW ── */}
+      {/* ── REPLY PREVIEW ───────────────────────────── */}
       {replyTo && (
-        <div className="flex items-center gap-3 px-3 py-2 border-t border-white/5 flex-shrink-0" style={{ background: "#17212b" }}>
-          <div className="flex-1 min-w-0 border-l-2 border-blue-400 pl-2">
-            <p className="text-blue-300 text-[10px] font-bold">{replyTo.full_name}</p>
-            <p className="text-white/60 text-xs truncate">{replyTo.content}</p>
+        <div style={{
+          flexShrink:0, display:"flex", alignItems:"center", gap:10,
+          padding:"8px 12px", background:"#17212b",
+          borderTop:"1px solid rgba(255,255,255,0.07)",
+        }}>
+          <div style={{ borderLeft:"3px solid #60a5fa", paddingLeft:8, flex:1, minWidth:0 }}>
+            <p style={{ color:"#93c5fd", fontSize:11, fontWeight:700, marginBottom:2 }}>{replyTo.full_name}</p>
+            <p style={{ color:"rgba(255,255,255,0.5)", fontSize:12 }}>{replyTo.content.slice(0,60)}</p>
           </div>
-          <button onClick={() => setReplyTo(null)} className="text-white/40 hover:text-white/70 transition">
-            <X className="w-4 h-4" />
+          <button onClick={()=>setReplyTo(null)}
+            style={{ background:"none", border:"none", cursor:"pointer" }}>
+            <X style={{ width:16, height:16, color:"rgba(255,255,255,0.4)" }} />
           </button>
         </div>
       )}
 
-      {/* ── INPUT BAR ── */}
-      <div className="flex-shrink-0 px-3 py-3 flex items-end gap-2 border-t border-white/5" style={{ background: "#17212b" }}>
-        <button onClick={() => setShowEmoji(!showEmoji)}
-          className="w-9 h-9 rounded-full flex items-center justify-center text-white/50 hover:bg-white/10 transition flex-shrink-0 mb-0.5">
-          <Smile className="w-5 h-5" />
+      {/* ── INPUT BAR ───────────────────────────────── */}
+      <div style={{
+        flexShrink:0, display:"flex", alignItems:"flex-end", gap:8,
+        padding:"10px 12px 12px",
+        background:"#17212b", borderTop:"1px solid rgba(255,255,255,0.07)",
+      }}>
+        {/* Emoji button */}
+        <button onClick={()=>setShowEmoji(v=>!v)} style={{
+          width:38, height:38, borderRadius:"50%", background:"none",
+          border:"none", cursor:"pointer", flexShrink:0, marginBottom:1,
+          display:"flex", alignItems:"center", justifyContent:"center",
+        }}>
+          <Smile style={{ width:22, height:22, color:"rgba(255,255,255,0.45)" }} />
         </button>
 
-        <div className="flex-1 flex items-end rounded-2xl px-3 py-2 min-h-[40px]" style={{ background: "#2b3d4f" }}>
+        {/* Text area */}
+        <div style={{
+          flex:1, background:"#2b3d4f", borderRadius:22,
+          padding:"9px 14px", display:"flex", alignItems:"flex-end",
+        }}>
           <textarea
             ref={inputRef}
             value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={handleKeyDown}
+            onChange={e => setText(e.target.value)}
+            onKeyDown={onKey}
             disabled={isClosed}
-            placeholder={isClosed ? "Groupe fermé" : "Message…"}
+            placeholder={isClosed ? "Groupe fermé…" : "Message…"}
             rows={1}
-            className="flex-1 bg-transparent text-white text-sm outline-none resize-none placeholder-white/30 max-h-28 leading-relaxed"
-            style={{ lineHeight: "1.5" }}
+            style={{
+              flex:1, background:"transparent", border:"none", outline:"none",
+              color:"#e2e8f0", fontSize:14, resize:"none", lineHeight:1.5,
+              maxHeight:100, fontFamily:"inherit",
+            }}
           />
         </div>
 
-        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-        <button onClick={() => fileInputRef.current?.click()}
-          className="w-9 h-9 rounded-full flex items-center justify-center text-white/50 hover:bg-white/10 transition flex-shrink-0 mb-0.5">
-          <Image className="w-5 h-5" />
+        {/* Image button */}
+        <input ref={fileRef} type="file" accept="image/*" style={{ display:"none" }} onChange={onFile} />
+        <button onClick={()=>fileRef.current?.click()} style={{
+          width:38, height:38, borderRadius:"50%", background:"none",
+          border:"none", cursor:"pointer", flexShrink:0, marginBottom:1,
+          display:"flex", alignItems:"center", justifyContent:"center",
+        }}>
+          <ImageIcon style={{ width:22, height:22, color:"rgba(255,255,255,0.45)" }} />
         </button>
 
-        <button
-          onClick={handleSend}
-          disabled={!text.trim() || sendMut.isPending || isClosed}
-          className="w-9 h-9 rounded-full flex items-center justify-center transition flex-shrink-0 mb-0.5 disabled:opacity-40 active:scale-95"
-          style={{ background: text.trim() && !isClosed ? "#2b5278" : "rgba(255,255,255,0.08)" }}
-        >
-          <Send className="w-4 h-4 text-white" />
+        {/* Send button */}
+        <button onClick={send} disabled={!text.trim() || sendMut.isPending || isClosed}
+          style={{
+            width:38, height:38, borderRadius:"50%", flexShrink:0, marginBottom:1,
+            background: text.trim() && !isClosed ? "#2b5278" : "rgba(255,255,255,0.1)",
+            border:"none", cursor: text.trim() ? "pointer" : "default",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            transition:"background 0.2s",
+          }}>
+          <Send style={{ width:17, height:17, color:"#fff", marginLeft:2 }} />
         </button>
       </div>
 
-      {/* Close menu on outside click */}
-      {(msgMenu !== null || emojiFor !== null) && (
-        <div className="fixed inset-0 z-10" onClick={() => { setMsgMenu(null); setEmojiFor(null); }} />
+      {/* Click outside to close menus */}
+      {(menuId !== null || emojiFor !== null) && (
+        <div style={{ position:"fixed", inset:0, zIndex:40 }}
+          onClick={() => { setMenuId(null); setEmojiFor(null); }} />
       )}
     </div>
   );
