@@ -4,7 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppSetting } from "@/hooks/useAppSettings";
 import {
-  Send, Loader2, ChevronLeft, RotateCcw, Trash2, X, AlertTriangle,
+  Send, Loader2, ChevronLeft, RotateCcw, Trash2, X,
 } from "lucide-react";
 import { FaTelegram } from "react-icons/fa";
 import { Link } from "wouter";
@@ -181,37 +181,59 @@ export default function Assistance() {
         </div>
       </header>
 
-      {/* ── BANDEAU CONFIRMATION EFFACEMENT ─────────────────── */}
+      {/* ── MODAL CONFIRMATION EFFACEMENT ───────────────────── */}
       {confirmReset && (
         <div
-          className="flex-shrink-0 flex items-center gap-3 px-4 py-3 border-b border-orange-200"
-          style={{ background: "linear-gradient(135deg, #fff7ed, #ffedd5)" }}
+          className="fixed inset-0 z-50 flex items-center justify-center px-6"
+          style={{ background: "rgba(15,23,42,0.45)", backdropFilter: "blur(4px)" }}
+          onClick={() => setConfirmReset(false)}
         >
-          <AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0" />
-          <p className="flex-1 text-sm font-medium text-orange-800">
-            Effacer toute la conversation ?
-          </p>
-          <button
-            onClick={() => setConfirmReset(false)}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-white border border-slate-200 active:scale-95 transition-all"
+          <div
+            className="w-full max-w-xs rounded-3xl overflow-hidden"
+            style={{ boxShadow: "0 24px 60px rgba(0,0,0,0.25)" }}
+            onClick={(e) => e.stopPropagation()}
           >
-            Annuler
-          </button>
-          <button
-            onClick={confirmAndReset}
-            data-testid="button-confirm-clear"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white active:scale-95 transition-all"
-            style={{ background: "linear-gradient(135deg, #dc2626, #ef4444)" }}
-          >
-            <Trash2 className="w-3 h-3" />
-            Effacer
-          </button>
-          <button
-            onClick={() => setConfirmReset(false)}
-            className="w-7 h-7 rounded-lg bg-white/60 flex items-center justify-center active:scale-95"
-          >
-            <X className="w-3.5 h-3.5 text-orange-400" />
-          </button>
+            {/* Top */}
+            <div
+              className="flex flex-col items-center gap-3 px-6 pt-7 pb-5"
+              style={{ background: "#fff" }}
+            >
+              <div
+                className="w-14 h-14 rounded-2xl flex items-center justify-center"
+                style={{ background: "linear-gradient(135deg, #fee2e2, #fecaca)" }}
+              >
+                <Trash2 className="w-6 h-6 text-red-500" />
+              </div>
+              <div className="text-center">
+                <p className="text-slate-800 font-black text-base">Effacer la conversation ?</p>
+                <p className="text-slate-400 text-xs mt-1 leading-relaxed">
+                  Tous les messages seront supprimés.<br />Cette action est irréversible.
+                </p>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="h-px bg-slate-100" />
+
+            {/* Buttons */}
+            <div className="flex" style={{ background: "#fff" }}>
+              <button
+                onClick={() => setConfirmReset(false)}
+                className="flex-1 py-4 text-sm font-semibold text-slate-500 active:bg-slate-50 transition-colors"
+              >
+                Annuler
+              </button>
+              <div className="w-px bg-slate-100" />
+              <button
+                onClick={confirmAndReset}
+                data-testid="button-confirm-clear"
+                className="flex-1 py-4 text-sm font-black text-red-500 active:bg-red-50 transition-colors flex items-center justify-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Effacer
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
