@@ -43,7 +43,7 @@ const MENU_ITEMS = [
     icon: HelpCircle,
     label: "Assistance",
     desc: "Contactez le support",
-    href: "/assistance",
+    href: "/contact",
     from: "#0891b2",
     to: "#67e8f9",
   },

@@ -4,7 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppSetting } from "@/hooks/useAppSettings";
 import {
-  Send, Loader2, ChevronLeft, RotateCcw, Download, MessageCircle,
+  Send, Loader2, ChevronLeft, RotateCcw,
 } from "lucide-react";
 import { FaTelegram } from "react-icons/fa";
 import { Link } from "wouter";
@@ -51,7 +51,6 @@ export default function Assistance() {
 
   const [input, setInput]       = useState("");
   const [messages, setMessages] = useState<Message[]>([WELCOME]);
-  const [showSugg, setShowSugg] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
 
@@ -87,14 +86,12 @@ export default function Assistance() {
     const msg = (text || input).trim();
     if (!msg || chatMutation.isPending) return;
     setInput("");
-    setShowSugg(false);
     setMessages((p) => [...p, { role: "user", text: msg, timestamp: new Date() }]);
     chatMutation.mutate(msg);
   };
 
   const reset = () => {
     setMessages([{ ...WELCOME, timestamp: new Date() }]);
-    setShowSugg(true);
     setInput("");
   };
 
@@ -233,43 +230,6 @@ export default function Assistance() {
             </div>
           )}
 
-          {/* Suggestions */}
-          {showSugg && messages.length === 1 && (
-            <div className="pt-2 space-y-2">
-
-              {/* Telegram */}
-              <button
-                onClick={() => window.open(telegramUrl || "https://t.me/SIKAcustomer_service", "_blank", "noopener,noreferrer")}
-                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-white border border-slate-200 hover:border-blue-300 hover:bg-blue-50 transition-colors active:scale-[0.99]"
-              >
-                <div
-                  className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: "linear-gradient(135deg, #0088cc, #00a8e8)" }}
-                >
-                  <FaTelegram className="w-5 h-5 text-white" />
-                </div>
-                <div className="flex-1 text-left">
-                  <p className="text-sm font-semibold text-slate-700">Support humain Telegram</p>
-                  <p className="text-[11px] text-slate-400">Pour les cas urgents ou complexes</p>
-                </div>
-                <MessageCircle className="w-4 h-4 text-slate-300 flex-shrink-0" />
-              </button>
-
-              <button
-                onClick={() => window.open("https://play.google.com/store/apps/details?id=org.telegram.messenger", "_blank", "noopener,noreferrer")}
-                data-testid="button-download-telegram"
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-slate-200 hover:border-slate-300 transition-colors active:scale-[0.99]"
-              >
-                <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
-                  <Download className="w-4 h-4 text-blue-500" />
-                </div>
-                <div className="flex-1 text-left">
-                  <p className="text-sm font-medium text-slate-700">Pas encore Telegram ?</p>
-                  <p className="text-[11px] text-slate-400">Télécharger gratuitement</p>
-                </div>
-              </button>
-            </div>
-          )}
 
           <div ref={bottomRef} />
         </div>

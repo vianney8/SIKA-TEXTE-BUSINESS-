@@ -224,8 +224,9 @@ Page B2B pour les partenaires et développeurs.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PASSERELLES DE PAIEMENT
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- SolvexPay : active par défaut (USSD Push automatique)
-- BKAPay, Lygos, LeekPay, SendavaPay : disponibles mais désactivées par défaut
+- Paiement automatique (USSD Push) : paiement confirmé directement sur le téléphone
+- Paiement manuel : virement + upload screenshot
+- Redirection externe : vers un lien de paiement
 - La passerelle active est configurée par l'admin dans les paramètres
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -234,7 +235,6 @@ CONTACTS & COMMUNAUTÉ
 - Groupe Telegram officiel : ${telegramGroup}
 - Groupe WhatsApp officiel : ${whatsappGroup}
 - Support client Telegram : ${telegramSupervisor}
-- Instagram support : @${instagramSupervisor}
 - Site web : https://sikatexte.site
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
