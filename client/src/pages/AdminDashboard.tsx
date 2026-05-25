@@ -1390,6 +1390,13 @@ export default function AdminDashboard() {
               {isChatEnabled ? <MessageSquareOff className="h-4 w-4" /> : <MessageCircle className="h-4 w-4" />}
               <span className="text-xs font-semibold leading-none">{isChatEnabled ? "Chat ON" : "Chat OFF"}</span>
             </button>
+
+            {/* Lylya IA */}
+            <a href="/admin/ai-chat" data-testid="button-ai-chat"
+              className="flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-xl bg-purple-700/80 hover:bg-purple-700 text-white transition-colors text-center">
+              <Bot className="h-4 w-4" />
+              <span className="text-xs font-semibold leading-none">Lylya IA</span>
+            </a>
           </div>
         </div>
 
