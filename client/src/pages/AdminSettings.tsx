@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Settings, Save, Wrench, CheckCircle, Video, Upload, Play } from "lucide-react";
+import { ArrowLeft, Settings, Save, Wrench, CheckCircle, Video, Upload, Play, ShieldAlert } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -863,7 +863,179 @@ export default function AdminSettings() {
           </CardContent>
         </Card>
 
+      {/* ═══════════════════════════════════════
+          MODE MAINTENANCE
+      ═══════════════════════════════════════ */}
+      <MaintenanceCard />
+
       </div>
     </div>
+  );
+}
+
+// ─── Maintenance card (standalone component for clarity) ─────────────────────
+const DURATION_PRESETS = [
+  { label: "30 min", minutes: 30 },
+  { label: "1 heure", minutes: 60 },
+  { label: "2 heures", minutes: 120 },
+  { label: "4 heures", minutes: 240 },
+  { label: "8 heures", minutes: 480 },
+  { label: "24 heures", minutes: 1440 },
+];
+
+function MaintenanceCard() {
+  const { toast } = useToast();
+  const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
+  const [customMinutes, setCustomMinutes] = useState("");
+  const [message, setMessage] = useState("Le site est en cours de maintenance. Nous revenons très bientôt !");
+
+  const { data: maintenanceStatus, refetch } = useQuery<{ enabled: boolean; endTime: string; message: string }>({
+    queryKey: ['/api/maintenance-status'],
+    refetchInterval: 15000,
+  });
+
+  const isEnabled = maintenanceStatus?.enabled ?? false;
+
+  const enableMutation = useMutation({
+    mutationFn: async () => {
+      let durationMin = selectedPreset;
+      if (!durationMin && customMinutes) durationMin = parseInt(customMinutes);
+      if (!durationMin || durationMin < 1) throw new Error("Choisissez une durée");
+
+      const endTime = new Date(Date.now() + durationMin * 60000).toISOString();
+      await apiRequest("PUT", "/api/admin/settings/maintenance_enabled", { value: "true" });
+      await apiRequest("PUT", "/api/admin/settings/maintenance_end_time", { value: endTime });
+      await apiRequest("PUT", "/api/admin/settings/maintenance_message", { value: message });
+    },
+    onSuccess: () => {
+      toast({ title: "🔧 Maintenance activée", description: "Le site est maintenant en maintenance pour les utilisateurs." });
+      queryClient.invalidateQueries({ queryKey: ['/api/maintenance-status'] });
+      refetch();
+    },
+    onError: (e: any) => toast({ title: "Erreur", description: e.message, variant: "destructive" }),
+  });
+
+  const disableMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("PUT", "/api/admin/settings/maintenance_enabled", { value: "false" });
+      await apiRequest("PUT", "/api/admin/settings/maintenance_end_time", { value: "" });
+    },
+    onSuccess: () => {
+      toast({ title: "✅ Maintenance désactivée", description: "Le site est de nouveau accessible à tous." });
+      queryClient.invalidateQueries({ queryKey: ['/api/maintenance-status'] });
+      refetch();
+    },
+    onError: () => toast({ title: "Erreur", variant: "destructive" }),
+  });
+
+  const formatEndTime = (iso: string) => {
+    if (!iso) return null;
+    return new Date(iso).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
+  };
+
+  return (
+    <Card className={`border-2 transition-colors ${isEnabled ? "border-orange-400 bg-orange-50" : "border-gray-200"}`}>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-orange-700">
+          <ShieldAlert className="h-5 w-5" />
+          Mode Maintenance
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {/* Status banner */}
+        <div className={`flex items-center gap-3 p-4 rounded-xl border ${
+          isEnabled
+            ? "bg-orange-100 border-orange-300 text-orange-800"
+            : "bg-gray-50 border-gray-200 text-gray-600"
+        }`}>
+          <span className={`w-3 h-3 rounded-full flex-shrink-0 ${isEnabled ? "bg-orange-500 animate-pulse" : "bg-gray-400"}`} />
+          <div className="flex-1">
+            <p className="font-semibold text-sm">{isEnabled ? "Maintenance ACTIVE" : "Site en ligne"}</p>
+            {isEnabled && maintenanceStatus?.endTime && (
+              <p className="text-xs mt-0.5 opacity-75">Jusqu'à {formatEndTime(maintenanceStatus.endTime)}</p>
+            )}
+          </div>
+          {isEnabled && (
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => disableMutation.mutate()}
+              disabled={disableMutation.isPending}
+              data-testid="button-disable-maintenance"
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              {disableMutation.isPending ? "..." : "Désactiver"}
+            </Button>
+          )}
+        </div>
+
+        {!isEnabled && (
+          <>
+            <p className="text-sm text-muted-foreground">
+              Lorsque la maintenance est activée, tous les utilisateurs (sauf administrateurs) verront une page de maintenance animée avec un jeu de distraction.
+            </p>
+
+            {/* Duration presets */}
+            <div>
+              <Label className="text-sm font-semibold mb-2 block">Durée de la maintenance</Label>
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                {DURATION_PRESETS.map((p) => (
+                  <button
+                    key={p.minutes}
+                    type="button"
+                    onClick={() => { setSelectedPreset(p.minutes); setCustomMinutes(""); }}
+                    data-testid={`button-preset-${p.minutes}`}
+                    className={`py-2 px-3 rounded-xl text-sm font-medium border transition-all ${
+                      selectedPreset === p.minutes
+                        ? "bg-orange-500 text-white border-orange-500 shadow-sm"
+                        : "bg-white text-gray-700 border-gray-300 hover:border-orange-300 hover:bg-orange-50"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="Durée personnalisée (min)"
+                  value={customMinutes}
+                  onChange={(e) => { setCustomMinutes(e.target.value); setSelectedPreset(null); }}
+                  data-testid="input-custom-duration"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                />
+                <span className="text-sm text-gray-500 whitespace-nowrap">minutes</span>
+              </div>
+            </div>
+
+            {/* Message */}
+            <div>
+              <Label htmlFor="maintenance-message" className="text-sm font-semibold mb-1 block">Message affiché aux utilisateurs</Label>
+              <textarea
+                id="maintenance-message"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                rows={3}
+                data-testid="input-maintenance-message"
+                className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none"
+                placeholder="Message de maintenance..."
+              />
+            </div>
+
+            {/* Activate button */}
+            <Button
+              onClick={() => enableMutation.mutate()}
+              disabled={enableMutation.isPending || (!selectedPreset && !customMinutes)}
+              data-testid="button-enable-maintenance"
+              className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold"
+            >
+              <ShieldAlert className="h-4 w-4 mr-2" />
+              {enableMutation.isPending ? "Activation..." : "Activer la maintenance"}
+            </Button>
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }

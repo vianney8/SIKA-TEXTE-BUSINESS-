@@ -4895,6 +4895,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Route publique — statut de maintenance (pas d'auth requise)
+  app.get('/api/maintenance-status', async (_req, res) => {
+    try {
+      res.setHeader('Cache-Control', 'no-store');
+      const settings = await storage.getAppSettings();
+      const enabled = settings.find((s: any) => s.key === 'maintenance_enabled')?.value === 'true';
+      const endTime = settings.find((s: any) => s.key === 'maintenance_end_time')?.value || '';
+      const message = settings.find((s: any) => s.key === 'maintenance_message')?.value || '';
+      // Auto-disable if end time has passed
+      if (enabled && endTime && new Date(endTime) < new Date()) {
+        await storage.updateAppSetting('maintenance_enabled', 'false');
+        return res.json({ enabled: false, endTime: '', message });
+      }
+      res.json({ enabled, endTime, message });
+    } catch (error) {
+      res.status(500).json({ enabled: false, endTime: '', message: '' });
+    }
+  });
+
   // Route pour obtenir un paramètre spécifique (accessible à tous)
   app.get('/api/settings/:key', async (req: any, res) => {
     try {

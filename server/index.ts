@@ -83,6 +83,9 @@ app.use((req, res, next) => {
     { key: 'international_deposit_note_tg_tmoney', value: '', label: 'Note dépôt Togo T-Money' },
     { key: 'international_deposit_note_cm_mtn',    value: '', label: 'Note dépôt Cameroun MTN' },
     { key: 'international_deposit_note_cm_orange', value: '', label: 'Note dépôt Cameroun Orange' },
+    { key: 'maintenance_enabled',  value: 'false', label: 'Mode Maintenance Activé' },
+    { key: 'maintenance_end_time', value: '',       label: 'Fin de la maintenance (ISO)' },
+    { key: 'maintenance_message',  value: 'Le site est en cours de maintenance. Nous revenons très bientôt !', label: 'Message de maintenance' },
   ];
   try {
     for (const s of defaults) {

@@ -11,6 +11,7 @@ import { useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/Landing";
+import MaintenancePage from "@/pages/MaintenancePage";
 import Register from "@/pages/Register";
 import SimpleLogin from "@/pages/SimpleLogin";
 import Dashboard from "@/pages/Dashboard";
@@ -97,6 +98,23 @@ function SimpleLoginWithRedirect() {
   return <SimpleLogin />;
 }
 
+function MaintenanceGuard({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  const isAdmin = (user as any)?.role === 'admin';
+
+  const { data: maintenance } = useQuery<{ enabled: boolean; endTime: string; message: string }>({
+    queryKey: ['/api/maintenance-status'],
+    refetchInterval: 30000,
+    retry: false,
+  });
+
+  if (maintenance?.enabled && !isAdmin) {
+    return <MaintenancePage endTime={maintenance.endTime} message={maintenance.message} />;
+  }
+
+  return <>{children}</>;
+}
+
 function CiUpdateGuard({ children }: { children: ReactNode }) {
   const { isAuthenticated, user } = useAuth();
   const isAdmin = (user as any)?.role === 'admin';
@@ -131,6 +149,7 @@ function Router() {
   }
 
   return (
+    <MaintenanceGuard>
     <CiUpdateGuard>
     <Switch>
       {/* Public payment page — accessible without authentication */}
@@ -178,6 +197,7 @@ function Router() {
       <Route component={NotFound} />
     </Switch>
     </CiUpdateGuard>
+    </MaintenanceGuard>
   );
 }
 
