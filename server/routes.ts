@@ -6977,7 +6977,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         recentTransactions: recentTxSummary || 'Aucune transaction récente',
       }, liveSettings);
 
-      const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+      const GEMINI_API_KEY = process.env.AI_INTEGRATIONS_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+      const GEMINI_BASE_URL = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
+      console.log('[AI-CHAT] Key source:', process.env.AI_INTEGRATIONS_GEMINI_API_KEY ? 'Replit' : (process.env.GEMINI_API_KEY ? 'User' : 'NONE'));
+
       if (!GEMINI_API_KEY) {
         return res.status(503).json({ error: 'Service IA temporairement indisponible' });
       }
@@ -6994,7 +6997,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       contents.push({ role: 'user', parts: [{ text: message }] });
 
       const { GoogleGenAI } = await import('@google/genai');
-      const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+      const aiConfig: any = { apiKey: GEMINI_API_KEY };
+      if (GEMINI_BASE_URL) {
+        aiConfig.httpOptions = { apiVersion: '', baseUrl: GEMINI_BASE_URL };
+      }
+      const ai = new GoogleGenAI(aiConfig);
 
       const response = await ai.models.generateContent({
         model: 'gemini-2.0-flash',
