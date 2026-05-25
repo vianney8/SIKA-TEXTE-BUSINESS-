@@ -89,8 +89,13 @@ export default function Assistance() {
 
   const chatMutation = useMutation({
     mutationFn: async (msg: string) => {
-      const history = messages.slice(-14).map((m) => ({ role: m.role, text: m.text }));
+      const history = messages.slice(-12).map((m) => ({ role: m.role, text: m.text }));
       const res = await apiRequest("POST", "/api/ai-chat", { message: msg, history });
+      if (!res.ok) {
+        let errCode = "unknown";
+        try { const b = await res.json(); errCode = b?.error || errCode; } catch (_) {}
+        throw new Error(errCode);
+      }
       return res.json();
     },
     onSuccess: (data) => {
@@ -102,14 +107,18 @@ export default function Assistance() {
         showContact: hasContactSuggestion(reply),
       }]);
     },
-    onError: async (err: any) => {
-      let text = "❌ Une erreur s'est produite. Vérifiez votre connexion et réessayez.";
-      try {
-        const body = await err?.response?.json?.();
-        if (body?.error === "quota_exceeded") {
-          text = "⏳ Lylya est temporairement saturée (quota journalier atteint). Réessayez dans quelques minutes.";
-        }
-      } catch (_) {}
+    onError: (err: any) => {
+      const code = err?.message || "";
+      let text: string;
+      if (code === "quota_exceeded") {
+        text = "Je suis très sollicitée en ce moment 😊 Patientez quelques secondes, puis renvoyez votre message.";
+      } else if (code.includes("Service IA")) {
+        text = "Mon service est momentanément indisponible. Réessayez dans quelques instants 🙏";
+      } else if (!navigator.onLine) {
+        text = "Vous semblez hors ligne. Vérifiez votre connexion internet et réessayez.";
+      } else {
+        text = "Je rencontre une petite difficulté technique 🙏 Réessayez dans un instant. Si ça persiste, contactez le support.";
+      }
       setMessages((p) => [...p, {
         role: "assistant",
         text,

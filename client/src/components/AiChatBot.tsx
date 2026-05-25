@@ -48,8 +48,13 @@ export default function AiChatBot() {
 
   const chatMutation = useMutation({
     mutationFn: async (msg: string) => {
-      const history = messages.slice(-10).map((m) => ({ role: m.role, text: m.text }));
+      const history = messages.slice(-6).map((m) => ({ role: m.role, text: m.text }));
       const res = await apiRequest("POST", "/api/ai-chat", { message: msg, history });
+      if (!res.ok) {
+        let errCode = "unknown";
+        try { const b = await res.json(); errCode = b?.error || errCode; } catch (_) {}
+        throw new Error(errCode);
+      }
       return res.json();
     },
     onSuccess: (data) => {
@@ -58,15 +63,17 @@ export default function AiChatBot() {
       setMessages((prev) => [...prev, newMsg]);
       if (!open) setUnread((n) => n + 1);
     },
-    onError: () => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          text: "❌ Une erreur s'est produite. Vérifiez votre connexion et réessayez.",
-          timestamp: new Date(),
-        },
-      ]);
+    onError: (err: any) => {
+      const code = err?.message || "";
+      let text: string;
+      if (code === "quota_exceeded") {
+        text = "Je suis très sollicitée en ce moment 😊 Patientez quelques secondes, puis renvoyez votre message.";
+      } else if (!navigator.onLine) {
+        text = "Vous semblez hors ligne. Vérifiez votre connexion internet et réessayez.";
+      } else {
+        text = "Je rencontre une petite difficulté technique 🙏 Réessayez dans un instant.";
+      }
+      setMessages((prev) => [...prev, { role: "assistant", text, timestamp: new Date() }]);
     },
   });
 
