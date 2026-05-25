@@ -29,8 +29,8 @@ function hasContactSuggestion(text: string) {
 
 function renderText(raw: string) {
   const html = raw
-    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.*?)\*/g, "<em>$1</em>")
+    .replace(/\*\*([\s\S]*?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*([\s\S]*?)\*/g, "<em>$1</em>")
     .replace(/\n/g, "<br/>");
   return <span dangerouslySetInnerHTML={{ __html: html }} />;
 }

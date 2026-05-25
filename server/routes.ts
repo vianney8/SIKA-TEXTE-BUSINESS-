@@ -6932,7 +6932,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Message requis' });
       }
 
-      const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+      const GEMINI_API_KEY = process.env.AI_INTEGRATIONS_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
       if (!GEMINI_API_KEY) {
         return res.status(503).json({ error: 'Service IA temporairement indisponible' });
       }
@@ -6997,7 +6997,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-2.0-flash',
         contents,
         config: {
           systemInstruction: systemPrompt,
