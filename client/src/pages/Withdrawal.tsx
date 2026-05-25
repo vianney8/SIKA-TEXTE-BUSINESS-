@@ -294,7 +294,7 @@ export default function Withdrawal() {
                   {formatFCFA(transferredAmount)}
                 </div>
                 <div className="flex items-center justify-center gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400" style={{ animation: 'blink 1.2s infinite' }} />
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
                   <span className="text-blue-300 text-sm">Transfert en cours</span>
                 </div>
               </div>
@@ -304,9 +304,8 @@ export default function Withdrawal() {
                 <div className="h-full rounded-full"
                   style={{
                     background: "linear-gradient(90deg, #3b82f6, #8b5cf6, #f97316)",
-                    width: isAutoWithdrawal ? `${((13 - countdown) / 13) * 100}%` : '75%',
+                    width: isAutoWithdrawal ? `${((13 - countdown) / 13) * 100}%` : '70%',
                     transition: isAutoWithdrawal ? 'width 1s linear' : 'none',
-                    animation: isAutoWithdrawal ? 'none' : 'progressPulse 2s ease-in-out infinite',
                   }} />
               </div>
 
@@ -336,10 +335,7 @@ export default function Withdrawal() {
                   <div className="flex items-center gap-2">
                     {[0,1,2,3].map(i => (
                       <div key={i} className="w-2 h-2 rounded-full"
-                        style={{
-                          background: i % 2 === 0 ? '#3b82f6' : '#8b5cf6',
-                          animation: `bounce 1.2s ease-in-out infinite ${i * 0.18}s`,
-                        }} />
+                        style={{ background: i % 2 === 0 ? '#3b82f6' : '#8b5cf6', opacity: 0.6 + i * 0.1 }} />
                     ))}
                   </div>
                   <p className="text-blue-200 text-sm text-center">
@@ -367,7 +363,6 @@ export default function Withdrawal() {
                   style={{
                     background: "linear-gradient(135deg, #22c55e, #16a34a)",
                     boxShadow: "0 0 0 12px rgba(34,197,94,0.12), 0 0 48px rgba(34,197,94,0.35)",
-                    animation: 'pulseSuccess 2s ease-in-out infinite',
                   }}>
                   <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
                     <path d="M5 13l4 4L19 7" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -427,12 +422,6 @@ export default function Withdrawal() {
           )}
         </div>
 
-        <style>{`
-          @keyframes blink { 0%,100%{opacity:0.3} 50%{opacity:1} }
-          @keyframes bounce { 0%,80%,100%{transform:translateY(0);opacity:0.4} 40%{transform:translateY(-6px);opacity:1} }
-          @keyframes pulseSuccess { 0%,100%{box-shadow:0 0 0 12px rgba(34,197,94,0.12),0 0 48px rgba(34,197,94,0.35)} 50%{box-shadow:0 0 0 18px rgba(34,197,94,0.06),0 0 64px rgba(34,197,94,0.2)} }
-          @keyframes progressPulse { 0%{width:45%} 50%{width:75%} 100%{width:45%} }
-        `}</style>
       </div>
     );
   }
