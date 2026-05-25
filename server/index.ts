@@ -140,6 +140,22 @@ app.use((req, res, next) => {
     log('pcs_codes table setup skipped: ' + (err as Error).message);
   }
 
+  // Create ai_chat_messages table if not exists
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ai_chat_messages (
+        id serial PRIMARY KEY,
+        user_id varchar NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        role varchar NOT NULL,
+        content text NOT NULL,
+        created_at timestamp DEFAULT now()
+      )
+    `);
+    log('ai_chat_messages table ready');
+  } catch (err) {
+    log('ai_chat_messages table skipped: ' + (err as Error).message);
+  }
+
   // Create platform_notifications table if not exists
   try {
     await db.execute(sql`

@@ -6922,6 +6922,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Assistant IA SIKA TEXTE (Gemini) ─────────────────────────────────────
+  app.post('/api/ai-chat', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { message, history } = req.body;
+      if (!message || typeof message !== 'string') {
+        return res.status(400).json({ error: 'Message requis' });
+      }
+
+      const GEMINI_API_KEY = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
+      const GEMINI_BASE_URL = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
+      if (!GEMINI_API_KEY || !GEMINI_BASE_URL) {
+        return res.status(503).json({ error: 'Service IA temporairement indisponible' });
+      }
+
+      // Récupérer les données personnalisées de l'utilisateur
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(401).json({ error: 'Utilisateur non trouvé' });
+
+      const accountStatusRow = await storage.getAccountStatus(userId);
+      const transactions = await storage.getUserTransactions(userId, 10);
+      const balance = await storage.getUserBalance(userId);
+
+      const countryNames: Record<string, string> = {
+        BJ: 'Bénin', CI: "Côte d'Ivoire", SN: 'Sénégal', BF: 'Burkina Faso', TG: 'Togo', CM: 'Cameroun', ML: 'Mali'
+      };
+
+      const recentTxSummary = transactions.slice(0, 5).map((t: any) => {
+        const typeLabel: Record<string, string> = {
+          deposit: 'Dépôt', withdrawal: 'Retrait', transfer: 'Transfert',
+          payment: 'Paiement', bonus: 'Bonus', referral: 'Parrainage'
+        };
+        return `• ${typeLabel[t.type] || t.type} : ${Number(t.amount).toLocaleString('fr-FR')} FCFA — ${t.status === 'completed' ? 'Effectué' : t.status === 'pending' ? 'En attente' : 'Échoué'} (${new Date(t.createdAt).toLocaleDateString('fr-FR')})`;
+      }).join('\n');
+
+      const systemPrompt = `Tu es l'assistant officiel de SIKA TEXTE BUSINESS, une plateforme financière d'Afrique de l'Ouest.
+
+CONTEXTE DU COMPTE CONNECTÉ :
+- Nom : ${(user as any).fullName || (user as any).firstName || 'Utilisateur'}
+- Email : ${(user as any).email || 'Non renseigné'}
+- Téléphone : ${(user as any).phone || 'Non renseigné'}
+- Pays : ${countryNames[(user as any).country || ''] || (user as any).country || 'Non renseigné'}
+- Solde actuel : ${Number(balance).toLocaleString('fr-FR')} FCFA
+- Compte activé : ${accountStatusRow?.isActive ? 'OUI ✅' : 'NON ❌ (frais d\'activation : 3 600 FCFA)'}
+- Code de parrainage : ${(user as any).referralCode || 'Non disponible'}
+
+DERNIÈRES TRANSACTIONS :
+${recentTxSummary || 'Aucune transaction récente'}
+
+RÈGLES DE RÉPONSE :
+- Réponds TOUJOURS en français, de manière claire, polie et bienveillante
+- Tu aides pour : activation du compte, dépôts, retraits, transferts, parrainage, connexion/inscription, problèmes techniques
+- Pour l'activation : le coût est 3 600 FCFA, l'utilisateur doit aller dans l'onglet "Retrait" puis cliquer "Activer mon compte"
+- Pour les retraits : le compte doit être activé, minimum 500 FCFA, aller dans "Retrait"
+- Pour les dépôts : aller dans "Recharge" ou "Dépôt" selon l'opérateur mobile money
+- Pour le parrainage : partager le code ${(user as any).referralCode || 'personnel'}, chaque parrainage actif rapporte une commission
+- Pour les transferts : aller dans "Transfert", saisir le numéro du bénéficiaire SIKA TEXTE
+- Si l'utilisateur demande son solde, réponds avec le montant exact ci-dessus
+- Si l'utilisateur demande si son compte est activé, réponds avec le statut exact ci-dessus
+- Ne révèle JAMAIS de données d'autres utilisateurs
+- Garde les réponses courtes et pratiques (max 150 mots)
+- Si tu ne sais pas, dis-le honnêtement et propose de contacter le support humain`;
+
+      // Construire le contenu du chat avec l'historique
+      const contents: any[] = [];
+      if (Array.isArray(history)) {
+        for (const h of history.slice(-10)) {
+          if (h.role && h.text) {
+            contents.push({ role: h.role === 'assistant' ? 'model' : 'user', parts: [{ text: h.text }] });
+          }
+        }
+      }
+      contents.push({ role: 'user', parts: [{ text: message }] });
+
+      const { GoogleGenAI } = await import('@google/genai');
+      const ai = new GoogleGenAI({
+        apiKey: GEMINI_API_KEY,
+        httpOptions: { apiVersion: '', baseUrl: GEMINI_BASE_URL },
+      });
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents,
+        config: {
+          systemInstruction: systemPrompt,
+          maxOutputTokens: 8192,
+        },
+      });
+
+      const reply = response.text || 'Désolé, je n\'ai pas pu générer une réponse. Réessayez.';
+      res.json({ reply });
+    } catch (err: any) {
+      console.error('[AI-CHAT] Error:', err);
+      res.status(500).json({ error: 'Erreur lors de la communication avec l\'IA' });
+    }
+  });
+
   // Initialiser les paramètres par défaut
   storage.initializeDefaultSettings().catch(console.error);
 

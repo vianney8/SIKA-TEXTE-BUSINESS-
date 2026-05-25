@@ -40,6 +40,7 @@ import CiUpdatePage from "@/pages/CiUpdatePage";
 import ForgotPassword from "@/pages/ForgotPassword";
 import PaymentLinkPage from "@/pages/PaymentLinkPage";
 import SpayNetwork from "@/pages/SpayNetwork";
+import AiChatBot from "@/components/AiChatBot";
 
 // Wrapper component to handle authenticated user redirects for register page
 function RegisterWithRedirect() {
@@ -207,6 +208,7 @@ function App() {
       <TooltipProvider>
         <Toaster />
         <Router />
+        <AiChatBot />
       </TooltipProvider>
     </QueryClientProvider>
   );
