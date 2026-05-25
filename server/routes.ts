@@ -7044,6 +7044,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         throw lastError;
       }
 
+      // Persister le message utilisateur et la réponse IA dans la base de données
+      try {
+        await db.execute(sql`
+          INSERT INTO ai_chat_messages (user_id, role, content) VALUES (${userId}, 'user', ${message})
+        `);
+        await db.execute(sql`
+          INSERT INTO ai_chat_messages (user_id, role, content) VALUES (${userId}, 'assistant', ${reply})
+        `);
+      } catch (_) { /* Ignorer les erreurs de persistence */ }
+
       res.json({ reply });
     } catch (err: any) {
       console.error('[AI-CHAT] Error:', err);
@@ -7052,6 +7062,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(503).json({ error: 'quota_exceeded' });
       }
       res.status(500).json({ error: 'Erreur lors de la communication avec l\'IA' });
+    }
+  });
+
+  // ── ADMIN — Statistiques AI Chat ──────────────────────────────────────────
+  app.get('/api/admin/ai-chat/stats', requireAdmin, async (_req: any, res) => {
+    try {
+      const statsRows = await db.execute(sql`
+        SELECT
+          COUNT(DISTINCT user_id) AS total_users,
+          COUNT(*) FILTER (WHERE role = 'user') AS total_questions,
+          COUNT(*) FILTER (WHERE role = 'assistant') AS total_replies,
+          MAX(created_at) AS last_activity
+        FROM ai_chat_messages
+      `);
+      const row = (statsRows as any).rows?.[0] ?? (statsRows as any)[0] ?? {};
+      res.json({
+        totalUsers: Number(row.total_users ?? 0),
+        totalQuestions: Number(row.total_questions ?? 0),
+        totalReplies: Number(row.total_replies ?? 0),
+        lastActivity: row.last_activity ?? null,
+      });
+    } catch (e) {
+      console.error('[ADMIN AI-CHAT STATS]', e);
+      res.status(500).json({ message: 'Erreur stats AI chat' });
+    }
+  });
+
+  // ADMIN — Liste paginée des questions utilisateurs (150 par page)
+  app.get('/api/admin/ai-chat/questions', requireAdmin, async (req: any, res) => {
+    try {
+      const page = Math.max(1, parseInt(req.query.page as string) || 1);
+      const limit = 150;
+      const offset = (page - 1) * limit;
+
+      const [rowsResult, countResult] = await Promise.all([
+        db.execute(sql`
+          SELECT
+            m.id, m.content, m.created_at,
+            u.id AS user_id, u.full_name, u.phone, u.country
+          FROM ai_chat_messages m
+          JOIN users u ON u.id = m.user_id
+          WHERE m.role = 'user'
+          ORDER BY m.created_at DESC
+          LIMIT ${limit} OFFSET ${offset}
+        `),
+        db.execute(sql`
+          SELECT COUNT(*) AS total FROM ai_chat_messages WHERE role = 'user'
+        `),
+      ]);
+
+      const rows = (rowsResult as any).rows ?? (rowsResult as any) ?? [];
+      const countRow = ((countResult as any).rows ?? (countResult as any) ?? [])[0] ?? {};
+      const total = Number(countRow.total ?? 0);
+
+      res.json({ questions: rows, total, page, totalPages: Math.ceil(total / limit) });
+    } catch (e) {
+      console.error('[ADMIN AI-CHAT QUESTIONS]', e);
+      res.status(500).json({ message: 'Erreur récupération questions' });
     }
   });
 

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle, XCircle, Settings, MessageCircle, MessageSquareOff, RefreshCw, Link2, Plus, Copy, ToggleLeft, ToggleRight, ExternalLink, History, ChevronLeft, ChevronRight, Mail, Bot, Bell, BellOff, Send, LayoutDashboard } from "lucide-react";
+import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle, XCircle, Settings, MessageCircle, MessageSquare, MessageSquareOff, RefreshCw, Link2, Plus, Copy, ToggleLeft, ToggleRight, ExternalLink, History, ChevronLeft, ChevronRight, Mail, Bot, Bell, BellOff, Send, LayoutDashboard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 
@@ -1374,6 +1374,12 @@ export default function AdminDashboard() {
               <a href="/admin/connected-users">
                 <Users className="w-4 h-4 mr-2" />
                 👥 Connectés
+              </a>
+            </Button>
+            <Button asChild className="bg-purple-700 hover:bg-purple-800 text-white" data-testid="button-ai-chat">
+              <a href="/admin/ai-chat">
+                <MessageSquare className="w-4 h-4 mr-2" />
+                🤖 Lylya IA
               </a>
             </Button>
             <button

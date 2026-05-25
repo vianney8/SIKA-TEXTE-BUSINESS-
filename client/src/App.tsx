@@ -42,6 +42,7 @@ import PaymentLinkPage from "@/pages/PaymentLinkPage";
 import SpayNetwork from "@/pages/SpayNetwork";
 import Contact from "@/pages/Contact";
 import AdminConnectedUsers from "@/pages/AdminConnectedUsers";
+import AdminAIChat from "@/pages/AdminAIChat";
 
 // Wrapper component to handle authenticated user redirects for register page
 function RegisterWithRedirect() {
@@ -203,6 +204,7 @@ function Router() {
           <Route path="/spay-network" component={SpayNetwork} />
           <Route path="/contact" component={Contact} />
           <Route path="/admin/connected-users" component={AdminConnectedUsers} />
+          <Route path="/admin/ai-chat" component={AdminAIChat} />
           {/* Allow authenticated users to access login page (redirects to dashboard) */}
           <Route path="/simple-login" component={SimpleLoginWithRedirect} />
           {/* Allow authenticated users to access register page for referral links */}
