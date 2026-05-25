@@ -90,13 +90,15 @@ export default function Assistance() {
   const chatMutation = useMutation({
     mutationFn: async (msg: string) => {
       const history = messages.slice(-12).map((m) => ({ role: m.role, text: m.text }));
-      const res = await apiRequest("POST", "/api/ai-chat", { message: msg, history });
-      if (!res.ok) {
-        let errCode = "unknown";
-        try { const b = await res.json(); errCode = b?.error || errCode; } catch (_) {}
-        throw new Error(errCode);
-      }
-      return res.json();
+      const res = await fetch("/api/ai-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ message: msg, history }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || `http_${res.status}`);
+      return data;
     },
     onSuccess: (data) => {
       const reply = data.reply || "Désolé, je n'ai pas pu répondre. Réessayez.";
@@ -112,7 +114,7 @@ export default function Assistance() {
       let text: string;
       if (code === "quota_exceeded") {
         text = "Je suis très sollicitée en ce moment 😊 Patientez quelques secondes, puis renvoyez votre message.";
-      } else if (code.includes("Service IA")) {
+      } else if (code === "Service IA temporairement indisponible") {
         text = "Mon service est momentanément indisponible. Réessayez dans quelques instants 🙏";
       } else if (!navigator.onLine) {
         text = "Vous semblez hors ligne. Vérifiez votre connexion internet et réessayez.";
