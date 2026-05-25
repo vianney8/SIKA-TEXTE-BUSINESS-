@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAppSetting } from "@/hooks/useAppSettings";
 import { FaTelegram, FaWhatsapp } from "react-icons/fa";
 import { Link } from "wouter";
-import { Zap, ChevronRight, Sparkles, Download, Smartphone, Server } from "lucide-react";
+import { Zap, ChevronRight, Sparkles, Download, Smartphone, Server, HeadphonesIcon } from "lucide-react";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -78,6 +78,7 @@ export default function Dashboard() {
     const handler = (e: Event) => {
       e.preventDefault();
       setInstallPrompt(e);
+      (window as any).__pwaPrompt = e;
     };
     window.addEventListener("beforeinstallprompt", handler);
     // Check if already installed
@@ -271,68 +272,75 @@ export default function Dashboard() {
         ══════════════════════════════════════════ */}
         <div className="px-4 mt-3 space-y-3">
 
-          {/* Communautés */}
-          <div className="bg-white rounded-[20px] shadow-sm border border-gray-100 overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-50">
-              <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">Communauté</p>
+          {/* Communauté */}
+          <div className="rounded-[20px] overflow-hidden" style={{ background: "#fff", border: "1px solid #f1f5f9", boxShadow: "0 2px 12px rgba(0,0,0,0.05)" }}>
+            {/* En-tête section */}
+            <div className="px-4 pt-4 pb-3 flex items-center gap-2 border-b border-gray-50">
+              <div className="w-1 h-4 rounded-full" style={{ background: "linear-gradient(180deg, #1a237e, #1565c0)" }} />
+              <p className="text-gray-800 font-bold text-sm">Communauté</p>
+              <span className="ml-auto text-[10px] font-semibold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">SIKA TEXTE</span>
             </div>
 
+            {/* Telegram */}
             <a
               href={telegramGroup || 'https://t.me/+A1QL2HAVBkMyMDA0'}
               target="_blank"
               rel="noopener noreferrer"
               data-testid="button-telegram-group"
-              className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 active:bg-gray-100 transition-colors border-b border-gray-50"
+              className="flex items-center gap-3 px-4 py-3.5 active:bg-gray-50 transition-colors border-b border-gray-50"
             >
-              <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
+              <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm"
                 style={{ background: "linear-gradient(135deg, #0088cc, #229ed9)" }}>
-                <FaTelegram size={18} className="text-white" />
+                <FaTelegram size={20} className="text-white" />
               </div>
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <p className="text-gray-800 font-semibold text-sm">Groupe Telegram</p>
                 <p className="text-gray-400 text-xs">Actualités et annonces officielles</p>
               </div>
-              <ChevronRight size={15} className="text-gray-300" />
+              <div className="w-7 h-7 rounded-xl bg-gray-50 flex items-center justify-center flex-shrink-0">
+                <ChevronRight size={14} className="text-gray-400" />
+              </div>
             </a>
 
+            {/* WhatsApp */}
             <a
               href={whatsappGroup || 'https://whatsapp.com'}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 active:bg-gray-100 transition-colors border-b border-gray-50"
+              className="flex items-center gap-3 px-4 py-3.5 active:bg-gray-50 transition-colors border-b border-gray-50"
             >
-              <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
+              <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm"
                 style={{ background: "linear-gradient(135deg, #25d366, #128c7e)" }}>
-                <FaWhatsapp size={18} className="text-white" />
+                <FaWhatsapp size={20} className="text-white" />
               </div>
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <p className="text-gray-800 font-semibold text-sm">Chaîne WhatsApp</p>
                 <p className="text-gray-400 text-xs">Rejoignez notre chaîne d'info</p>
               </div>
-              <ChevronRight size={15} className="text-gray-300" />
+              <div className="w-7 h-7 rounded-xl bg-gray-50 flex items-center justify-center flex-shrink-0">
+                <ChevronRight size={14} className="text-gray-400" />
+              </div>
             </a>
 
-            {/* Installer l'application */}
-            {!isInstalled && (
-              <button
-                onClick={handleInstall}
-                className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 active:bg-gray-100 transition-colors text-left"
-              >
-                <div
-                  className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: "linear-gradient(135deg, #1a4fa0, #3b82f6)" }}
-                >
-                  <Smartphone size={18} className="text-white" />
+            {/* Service Client */}
+            <Link href="/assistance">
+              <a className="flex items-center gap-3 px-4 py-3.5 active:bg-gray-50 transition-colors">
+                <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm"
+                  style={{ background: "linear-gradient(135deg, #1a237e, #1565c0)" }}>
+                  <HeadphonesIcon size={18} className="text-white" />
                 </div>
-                <div className="flex-1">
-                  <p className="text-gray-800 font-semibold text-sm">Télécharger l'application</p>
-                  <p className="text-gray-400 text-xs">Ajouter à l'écran d'accueil</p>
+                <div className="flex-1 min-w-0">
+                  <p className="text-gray-800 font-semibold text-sm">Service Client</p>
+                  <p className="text-gray-400 text-xs">Superviseur IA disponible 24h/24</p>
                 </div>
-                <div className="flex-shrink-0">
-                  <Download size={16} className="text-blue-500" />
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
+                  <div className="w-7 h-7 rounded-xl bg-gray-50 flex items-center justify-center">
+                    <ChevronRight size={14} className="text-gray-400" />
+                  </div>
                 </div>
-              </button>
-            )}
+              </a>
+            </Link>
           </div>
 
           {/* Serveur & Réseaux Spay — carte seule */}

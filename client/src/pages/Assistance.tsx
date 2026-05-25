@@ -7,6 +7,7 @@ import {
   Send, Loader2, ChevronLeft, RotateCcw,
   Wallet, Shield, ArrowDownToLine, Users,
   Zap, Star, CreditCard, ShieldCheck, Download,
+  MessageCircle,
 } from "lucide-react";
 import { FaTelegram } from "react-icons/fa";
 import { Link } from "wouter";
@@ -15,6 +16,7 @@ interface Message {
   role: "user" | "assistant";
   text: string;
   timestamp: Date;
+  showContact?: boolean;
 }
 
 const SUGGESTIONS = [
@@ -27,6 +29,16 @@ const SUGGESTIONS = [
   { icon: CreditCard,      label: "Code PCS",        text: "Comment configurer mon code PCS ?" },
   { icon: ShieldCheck,     label: "Compte activé ?", text: "Mon compte est-il activé ?" },
 ];
+
+const CONTACT_KEYWORDS = [
+  "contacter", "superviseur", "support", "humain", "agent", "téléconseil",
+  "telegram", "whatsapp", "service client", "conseiller", "assistance humaine"
+];
+
+function hasContactSuggestion(text: string) {
+  const lower = text.toLowerCase();
+  return CONTACT_KEYWORDS.some((kw) => lower.includes(kw));
+}
 
 function renderText(raw: string) {
   const html = raw
@@ -42,7 +54,7 @@ function formatTime(d: Date) {
 
 const WELCOME: Message = {
   role: "assistant",
-  text: "Bonjour 👋 Je suis le **Superviseur IA officiel de SPay / SIKA TEXTE**.\n\nJe connais entièrement la plateforme : activations, retraits, transferts, parrainage, codes PCS, bonus et bien plus.\n\nComment puis-je vous aider ?",
+  text: "Bonjour 👋 , je me nomme Lylya. Je suis le Superviseur IA officiel de SIKA TEXTE.\nComment puis-je vous aider ?",
   timestamp: new Date(),
 };
 
@@ -67,10 +79,12 @@ export default function Assistance() {
       return res.json();
     },
     onSuccess: (data) => {
+      const reply = data.reply || "Désolé, je n'ai pas pu répondre. Réessayez.";
       setMessages((p) => [...p, {
         role: "assistant",
-        text: data.reply || "Désolé, je n'ai pas pu répondre. Réessayez.",
+        text: reply,
         timestamp: new Date(),
+        showContact: hasContactSuggestion(reply),
       }]);
     },
     onError: () => {
@@ -124,10 +138,10 @@ export default function Assistance() {
             <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
           </div>
           <div className="min-w-0">
-            <p className="text-slate-800 font-bold text-sm leading-none">Superviseur IA</p>
+            <p className="text-slate-800 font-bold text-sm leading-none">Lylya — Superviseur IA</p>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
-              <span className="text-green-600 text-[10px] font-medium">En ligne · SPay / SIKA TEXTE</span>
+              <span className="text-green-600 text-[10px] font-medium">En ligne · SIKA TEXTE</span>
             </div>
           </div>
         </div>
@@ -161,7 +175,6 @@ export default function Assistance() {
             return (
               <div key={i} className={`flex items-end gap-2.5 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
 
-                {/* Avatar */}
                 <div
                   className="w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center shadow-sm"
                   style={isUser
@@ -172,8 +185,7 @@ export default function Assistance() {
                   <span className="text-white font-black text-[10px]">{isUser ? "Moi" : "SI"}</span>
                 </div>
 
-                {/* Bulle */}
-                <div className={`flex flex-col gap-1 max-w-[78%] ${isUser ? "items-end" : "items-start"}`}>
+                <div className={`flex flex-col gap-1.5 max-w-[78%] ${isUser ? "items-end" : "items-start"}`}>
                   <div
                     className="px-4 py-3 text-sm leading-relaxed"
                     style={isUser ? {
@@ -191,6 +203,23 @@ export default function Assistance() {
                   >
                     {renderText(msg.text)}
                   </div>
+
+                  {/* Bouton contacter un humain si l'IA mentionne le support */}
+                  {!isUser && msg.showContact && (
+                    <button
+                      onClick={() => window.open(telegramUrl || "https://t.me/SIKAcustomer_service", "_blank", "noopener,noreferrer")}
+                      className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors active:scale-95"
+                      style={{
+                        background: "linear-gradient(135deg, #0088cc, #00a8e8)",
+                        color: "#fff",
+                        boxShadow: "0 2px 8px rgba(0,136,204,0.25)",
+                      }}
+                    >
+                      <FaTelegram className="w-3.5 h-3.5" />
+                      Contacter le support humain
+                    </button>
+                  )}
+
                   <span className="text-[10px] text-slate-400 px-1">{formatTime(msg.timestamp)}</span>
                 </div>
               </div>
@@ -219,11 +248,7 @@ export default function Assistance() {
 
           {/* Suggestions */}
           {showSugg && messages.length === 1 && (
-            <div className="pt-2 space-y-3">
-              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest px-1">
-                Questions fréquentes
-              </p>
-
+            <div className="pt-2 space-y-2">
               <div className="grid grid-cols-2 gap-2">
                 {SUGGESTIONS.map(({ icon: Icon, label, text }) => (
                   <button
@@ -254,7 +279,7 @@ export default function Assistance() {
                   <p className="text-sm font-semibold text-slate-700">Support humain Telegram</p>
                   <p className="text-[11px] text-slate-400">Pour les cas urgents ou complexes</p>
                 </div>
-                <ChevronLeft className="w-4 h-4 text-slate-400 rotate-180 flex-shrink-0" />
+                <MessageCircle className="w-4 h-4 text-slate-300 flex-shrink-0" />
               </button>
 
               <button
@@ -293,7 +318,7 @@ export default function Assistance() {
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
               }}
-              placeholder="Posez votre question au Superviseur IA…"
+              placeholder="Posez votre question à Lylya…"
               disabled={chatMutation.isPending}
               rows={1}
               className="flex-1 resize-none bg-transparent text-sm text-slate-800 placeholder-slate-400 outline-none disabled:opacity-50"
@@ -313,7 +338,7 @@ export default function Assistance() {
           </button>
         </div>
         <p className="text-center text-[10px] text-slate-400 mt-2">
-          Superviseur IA · SPay / SIKA TEXTE BUSINESS
+          Lylya · Superviseur IA · SIKA TEXTE BUSINESS
         </p>
       </footer>
 

@@ -1,10 +1,11 @@
 import {
   LogOut, TrendingUp, HelpCircle, Wallet, Home,
-  X, ChevronRight, Shield, Settings
+  X, ChevronRight, Shield, Settings, Smartphone
 } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { formatFCFA } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 import logoPath from "@assets/1764438802465_1773510898637.jpg";
 
 interface HamburgerMenuProps {
@@ -58,6 +59,25 @@ const MENU_ITEMS = [
 
 export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuProps) {
   const { data: balance } = useQuery({ queryKey: ["/api/user/balance"] });
+  const { toast } = useToast();
+
+  const handleInstall = async () => {
+    const prompt = (window as any).__pwaPrompt;
+    if (prompt) {
+      prompt.prompt();
+      const { outcome } = await prompt.userChoice;
+      if (outcome === "accepted") {
+        (window as any).__pwaPrompt = null;
+        toast({ title: "Application installée !", description: "SIKA TEXTE est sur votre écran d'accueil" });
+      }
+    } else {
+      toast({
+        title: "Installer l'application",
+        description: "Dans votre navigateur, appuyez sur ⋮ puis « Ajouter à l'écran d'accueil »",
+      });
+    }
+    onClose();
+  };
 
   const handleLogout = async () => {
     try {
@@ -168,24 +188,39 @@ export default function HamburgerMenu({ isOpen, onClose, user }: HamburgerMenuPr
                 className="flex items-center gap-3.5 px-4 py-3.5 rounded-2xl active:scale-[0.98] transition-all cursor-pointer"
                 style={{ background: "#f8fafc" }}
               >
-                {/* Icône dégradée */}
                 <div
                   className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
                   style={{ background: `linear-gradient(135deg, ${item.from}, ${item.to})` }}
                 >
                   <item.icon size={18} className="text-white" strokeWidth={2} />
                 </div>
-
-                {/* Texte */}
                 <div className="flex-1 min-w-0">
                   <p className="text-gray-800 font-bold text-sm">{item.label}</p>
                   <p className="text-gray-400 text-[11px]">{item.desc}</p>
                 </div>
-
                 <ChevronRight size={15} className="text-gray-300 flex-shrink-0" />
               </div>
             </Link>
           ))}
+
+          {/* Télécharger l'application */}
+          <button
+            onClick={handleInstall}
+            className="w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl active:scale-[0.98] transition-all text-left"
+            style={{ background: "#f8fafc" }}
+          >
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: "linear-gradient(135deg, #1a4fa0, #3b82f6)" }}
+            >
+              <Smartphone size={18} className="text-white" strokeWidth={2} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-gray-800 font-bold text-sm">Télécharger l'application</p>
+              <p className="text-gray-400 text-[11px]">Ajouter à l'écran d'accueil</p>
+            </div>
+            <ChevronRight size={15} className="text-gray-300 flex-shrink-0" />
+          </button>
         </div>
 
         {/* ── Déconnexion ── */}
