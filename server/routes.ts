@@ -6932,11 +6932,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Message requis' });
       }
 
-      const GEMINI_API_KEY = process.env.AI_INTEGRATIONS_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
-      if (!GEMINI_API_KEY) {
-        return res.status(503).json({ error: 'Service IA temporairement indisponible' });
-      }
-
       // Récupérer les données personnalisées de l'utilisateur
       const user = await storage.getUser(userId);
       if (!user) return res.status(401).json({ error: 'Utilisateur non trouvé' });
@@ -6982,30 +6977,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         recentTransactions: recentTxSummary || 'Aucune transaction récente',
       }, liveSettings);
 
-      // Construire le contenu du chat avec l'historique
-      const contents: any[] = [];
+      // Construire l'historique au format OpenAI-compatible
+      const messages: any[] = [{ role: 'system', content: systemPrompt }];
       if (Array.isArray(history)) {
         for (const h of history.slice(-10)) {
           if (h.role && h.text) {
-            contents.push({ role: h.role === 'assistant' ? 'model' : 'user', parts: [{ text: h.text }] });
+            messages.push({ role: h.role === 'assistant' ? 'assistant' : 'user', content: h.text });
           }
         }
       }
-      contents.push({ role: 'user', parts: [{ text: message }] });
+      messages.push({ role: 'user', content: message });
 
-      const { GoogleGenAI } = await import('@google/genai');
-      const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
-        contents,
-        config: {
-          systemInstruction: systemPrompt,
-          maxOutputTokens: 8192,
-        },
+      // Utiliser le client Replit AI Integrations (crédits Replit, sans quota Google)
+      const { default: OpenAI } = await import('openai');
+      const aiClient = new OpenAI({
+        apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
       });
 
-      const reply = response.text || 'Désolé, je n\'ai pas pu générer une réponse. Réessayez.';
+      const completion = await aiClient.chat.completions.create({
+        model: 'gemini-2.5-flash',
+        messages,
+        max_tokens: 8192,
+      });
+
+      const reply = completion.choices[0]?.message?.content || 'Désolé, je n\'ai pas pu générer une réponse. Réessayez.';
       res.json({ reply });
     } catch (err: any) {
       console.error('[AI-CHAT] Error:', err);

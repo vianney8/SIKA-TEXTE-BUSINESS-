@@ -58,7 +58,6 @@ SOLVEXPAY_API_KEY = "sk_live_1cfb32d9730641a0c3c2bffe422ea65836490bebaedf65d8"
 PRIVATE_OBJECT_DIR = "/FairInfantileAddons"
 PUBLIC_OBJECT_SEARCH_PATHS = "/FairInfantileAddons"
 RESEND_FROM_EMAIL = "support@sikatexte.site"
-GEMINI_API_KEY = "AIzaSyCMIfb6hS25TqM6PQberxvss1-vUOLxjAA"
 
 [objectStorage]
 defaultBucketID = "replit-objstore-8ec8422d-72f4-48ba-b6e4-98b8904293d6"
