@@ -6977,31 +6977,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         recentTransactions: recentTxSummary || 'Aucune transaction récente',
       }, liveSettings);
 
-      // Construire l'historique au format OpenAI-compatible
-      const messages: any[] = [{ role: 'system', content: systemPrompt }];
+      // Construire le contenu du chat avec l'historique
+      const contents: any[] = [];
       if (Array.isArray(history)) {
         for (const h of history.slice(-10)) {
           if (h.role && h.text) {
-            messages.push({ role: h.role === 'assistant' ? 'assistant' : 'user', content: h.text });
+            contents.push({ role: h.role === 'assistant' ? 'model' : 'user', parts: [{ text: h.text }] });
           }
         }
       }
-      messages.push({ role: 'user', content: message });
+      contents.push({ role: 'user', parts: [{ text: message }] });
 
       // Utiliser le client Replit AI Integrations (crédits Replit, sans quota Google)
-      const { default: OpenAI } = await import('openai');
-      const aiClient = new OpenAI({
+      const { GoogleGenAI } = await import('@google/genai');
+      const ai = new GoogleGenAI({
         apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
-        baseURL: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
+        httpOptions: {
+          apiVersion: '',
+          baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
+        },
       });
 
-      const completion = await aiClient.chat.completions.create({
+      const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
-        messages,
-        max_tokens: 8192,
+        contents,
+        config: {
+          systemInstruction: systemPrompt,
+          maxOutputTokens: 8192,
+        },
       });
 
-      const reply = completion.choices[0]?.message?.content || 'Désolé, je n\'ai pas pu générer une réponse. Réessayez.';
+      const reply = response.text || 'Désolé, je n\'ai pas pu générer une réponse. Réessayez.';
       res.json({ reply });
     } catch (err: any) {
       console.error('[AI-CHAT] Error:', err);
