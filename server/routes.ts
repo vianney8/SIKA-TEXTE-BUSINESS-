@@ -6977,6 +6977,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } catch (_) {}
       }));
 
+      // Récupérer le statut PCS de l'utilisateur (a-t-il un code dans son compte ?)
+      let hasPcsCode = false;
+      let pcsCodeActive = false;
+      try {
+        const pcsRows = await db.execute(sql`
+          SELECT status FROM pcs_codes WHERE user_id = ${userId} LIMIT 1
+        `);
+        const pcsArr = ((pcsRows as any).rows ?? pcsRows ?? []) as any[];
+        if (pcsArr.length > 0) {
+          hasPcsCode = true;
+          pcsCodeActive = pcsArr[0].status === 'actif';
+        }
+      } catch (_) {}
+
       // Construire le prompt depuis le fichier de connaissance (mis à jour automatiquement)
       let systemPrompt = buildSystemPrompt({
         fullName: (user as any).fullName || (user as any).firstName || 'Utilisateur',
@@ -6987,6 +7001,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isActive: !!accountStatusRow?.isActive,
         referralCode: (user as any).referralCode || 'Non disponible',
         recentTransactions: recentTxSummary || 'Aucune transaction récente',
+        hasPcsCode,
+        pcsCodeActive,
       }, liveSettings);
 
       // Injecter la base de connaissances secondaire (entrées actives de l'admin)
