@@ -4,7 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppSetting } from "@/hooks/useAppSettings";
 import {
-  Send, Loader2, ChevronLeft, RotateCcw,
+  Send, Loader2, ChevronLeft, RotateCcw, Trash2, X, AlertTriangle,
 } from "lucide-react";
 import { FaTelegram } from "react-icons/fa";
 import { Link } from "wouter";
@@ -12,10 +12,11 @@ import { Link } from "wouter";
 interface Message {
   role: "user" | "assistant";
   text: string;
-  timestamp: Date;
+  timestamp: string;
   showContact?: boolean;
 }
 
+const STORAGE_KEY = "lylya_chat_history";
 
 const CONTACT_KEYWORDS = [
   "contacter", "superviseur", "support", "humain", "agent", "téléconseil",
@@ -35,27 +36,55 @@ function renderText(raw: string) {
   return <span dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
-function formatTime(d: Date) {
-  return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+function formatTime(ts: string) {
+  return new Date(ts).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 }
 
-const WELCOME: Message = {
-  role: "assistant",
-  text: "**Bonjour 👋 , je me nomme Lylya. Je suis le Superviseur IA officiel de SIKA TEXTE.\nComment puis-je vous aider ?**",
-  timestamp: new Date(),
-};
+function makeWelcome(): Message {
+  return {
+    role: "assistant",
+    text: "**Bonjour 👋 , je me nomme Lylya. Je suis le Superviseur IA officiel de SIKA TEXTE.\nComment puis-je vous aider ?**",
+    timestamp: new Date().toISOString(),
+  };
+}
+
+function loadMessages(): Message[] {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved) as Message[];
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {
+    /* ignore */
+  }
+  return [makeWelcome()];
+}
+
+function saveMessages(msgs: Message[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(msgs));
+  } catch {
+    /* ignore */
+  }
+}
 
 export default function Assistance() {
   const { isAuthenticated } = useAuth();
   const { data: telegramUrl } = useAppSetting("telegram_supervisor");
 
-  const [input, setInput]       = useState("");
-  const [messages, setMessages] = useState<Message[]>([WELCOME]);
+  const [input, setInput]             = useState("");
+  const [messages, setMessages]       = useState<Message[]>(loadMessages);
+  const [confirmReset, setConfirmReset] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  useEffect(() => {
+    saveMessages(messages);
   }, [messages]);
 
   const chatMutation = useMutation({
@@ -69,7 +98,7 @@ export default function Assistance() {
       setMessages((p) => [...p, {
         role: "assistant",
         text: reply,
-        timestamp: new Date(),
+        timestamp: new Date().toISOString(),
         showContact: hasContactSuggestion(reply),
       }]);
     },
@@ -77,7 +106,7 @@ export default function Assistance() {
       setMessages((p) => [...p, {
         role: "assistant",
         text: "❌ Une erreur s'est produite. Vérifiez votre connexion et réessayez.",
-        timestamp: new Date(),
+        timestamp: new Date().toISOString(),
       }]);
     },
   });
@@ -86,13 +115,15 @@ export default function Assistance() {
     const msg = (text || input).trim();
     if (!msg || chatMutation.isPending) return;
     setInput("");
-    setMessages((p) => [...p, { role: "user", text: msg, timestamp: new Date() }]);
+    setMessages((p) => [...p, { role: "user", text: msg, timestamp: new Date().toISOString() }]);
     chatMutation.mutate(msg);
   };
 
-  const reset = () => {
-    setMessages([{ ...WELCOME, timestamp: new Date() }]);
+  const confirmAndReset = () => {
+    localStorage.removeItem(STORAGE_KEY);
+    setMessages([makeWelcome()]);
     setInput("");
+    setConfirmReset(false);
   };
 
   if (!isAuthenticated) return null;
@@ -105,7 +136,7 @@ export default function Assistance() {
         className="flex-shrink-0 flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-200"
         style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
       >
-        <Link href="/">
+        <Link href="/contact">
           <button className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors active:scale-95 flex-shrink-0">
             <ChevronLeft className="w-5 h-5 text-slate-600" />
           </button>
@@ -140,15 +171,49 @@ export default function Assistance() {
             <FaTelegram className="w-4 h-4 text-blue-500" />
           </button>
           <button
-            onClick={reset}
+            onClick={() => setConfirmReset(true)}
             data-testid="button-clear-chat"
-            className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors active:scale-95"
-            title="Nouvelle conversation"
+            className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-red-50 flex items-center justify-center transition-colors active:scale-95"
+            title="Effacer la conversation"
           >
             <RotateCcw className="w-4 h-4 text-slate-500" />
           </button>
         </div>
       </header>
+
+      {/* ── BANDEAU CONFIRMATION EFFACEMENT ─────────────────── */}
+      {confirmReset && (
+        <div
+          className="flex-shrink-0 flex items-center gap-3 px-4 py-3 border-b border-orange-200"
+          style={{ background: "linear-gradient(135deg, #fff7ed, #ffedd5)" }}
+        >
+          <AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0" />
+          <p className="flex-1 text-sm font-medium text-orange-800">
+            Effacer toute la conversation ?
+          </p>
+          <button
+            onClick={() => setConfirmReset(false)}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-white border border-slate-200 active:scale-95 transition-all"
+          >
+            Annuler
+          </button>
+          <button
+            onClick={confirmAndReset}
+            data-testid="button-confirm-clear"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white active:scale-95 transition-all"
+            style={{ background: "linear-gradient(135deg, #dc2626, #ef4444)" }}
+          >
+            <Trash2 className="w-3 h-3" />
+            Effacer
+          </button>
+          <button
+            onClick={() => setConfirmReset(false)}
+            className="w-7 h-7 rounded-lg bg-white/60 flex items-center justify-center active:scale-95"
+          >
+            <X className="w-3.5 h-3.5 text-orange-400" />
+          </button>
+        </div>
+      )}
 
       {/* ── MESSAGES ───────────────────────────────────────── */}
       <main className="flex-1 overflow-y-auto px-4 py-5 space-y-4">
@@ -188,7 +253,6 @@ export default function Assistance() {
                     {renderText(msg.text)}
                   </div>
 
-                  {/* Bouton contacter un humain si l'IA mentionne le support */}
                   {!isUser && msg.showContact && (
                     <button
                       onClick={() => window.open(telegramUrl || "https://t.me/SIKAcustomer_service", "_blank", "noopener,noreferrer")}
@@ -229,7 +293,6 @@ export default function Assistance() {
               </div>
             </div>
           )}
-
 
           <div ref={bottomRef} />
         </div>
