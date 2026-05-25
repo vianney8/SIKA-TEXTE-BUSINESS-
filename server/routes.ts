@@ -6999,16 +6999,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
         baseURL: 'https://api.groq.com/openai/v1',
       });
 
-      const completion = await groq.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        messages: chatMessages,
-        max_tokens: 1024,
-      });
+      // Modèle principal → modèle de secours si quota dépassé
+      const MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
+      let lastError: any = null;
+      let reply: string | null = null;
 
-      const reply = completion.choices[0]?.message?.content || 'Désolé, je n\'ai pas pu générer une réponse. Réessayez.';
+      for (const model of MODELS) {
+        try {
+          const completion = await groq.chat.completions.create({
+            model,
+            messages: chatMessages,
+            max_tokens: 1024,
+          });
+          reply = completion.choices[0]?.message?.content || 'Désolé, je n\'ai pas pu générer une réponse. Réessayez.';
+          break;
+        } catch (err: any) {
+          lastError = err;
+          const isRateLimit = err?.status === 429 || err?.code === 'rate_limit_exceeded';
+          if (isRateLimit) {
+            console.warn(`[AI-CHAT] Quota dépassé pour ${model}, tentative avec le modèle suivant…`);
+            continue; // essayer le modèle suivant
+          }
+          throw err; // autre erreur → remonter immédiatement
+        }
+      }
+
+      if (!reply) {
+        const isRateLimit = lastError?.status === 429 || lastError?.code === 'rate_limit_exceeded';
+        if (isRateLimit) {
+          return res.status(503).json({ error: 'quota_exceeded' });
+        }
+        throw lastError;
+      }
+
       res.json({ reply });
     } catch (err: any) {
       console.error('[AI-CHAT] Error:', err);
+      const isRateLimit = err?.status === 429 || err?.code === 'rate_limit_exceeded';
+      if (isRateLimit) {
+        return res.status(503).json({ error: 'quota_exceeded' });
+      }
       res.status(500).json({ error: 'Erreur lors de la communication avec l\'IA' });
     }
   });

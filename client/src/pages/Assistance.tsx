@@ -102,10 +102,17 @@ export default function Assistance() {
         showContact: hasContactSuggestion(reply),
       }]);
     },
-    onError: () => {
+    onError: async (err: any) => {
+      let text = "❌ Une erreur s'est produite. Vérifiez votre connexion et réessayez.";
+      try {
+        const body = await err?.response?.json?.();
+        if (body?.error === "quota_exceeded") {
+          text = "⏳ Lylya est temporairement saturée (quota journalier atteint). Réessayez dans quelques minutes.";
+        }
+      } catch (_) {}
       setMessages((p) => [...p, {
         role: "assistant",
-        text: "❌ Une erreur s'est produite. Vérifiez votre connexion et réessayez.",
+        text,
         timestamp: new Date().toISOString(),
       }]);
     },
