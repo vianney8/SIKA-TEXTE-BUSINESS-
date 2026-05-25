@@ -1,4 +1,5 @@
 import express, { type Express } from "express";
+import OpenAI from "openai";
 import { buildSystemPrompt } from "./ai-knowledge";
 import { createServer, type Server } from "http";
 import multer from "multer";
@@ -6936,6 +6937,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ── Assistant IA SIKA TEXTE (Gemini) ─────────────────────────────────────
+  // Client Groq initialisé une seule fois au démarrage (évite le coût d'import par requête)
+  const _groqClient = process.env.GROQ_API_KEY ? new OpenAI({
+    apiKey: process.env.GROQ_API_KEY,
+    baseURL: 'https://api.groq.com/openai/v1',
+  }) : null;
+
   app.post('/api/ai-chat', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session.userId;
@@ -6944,54 +6951,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Message requis' });
       }
 
-      // Récupérer les données personnalisées de l'utilisateur
-      const user = await storage.getUser(userId);
-      if (!user) return res.status(401).json({ error: 'Utilisateur non trouvé' });
-
-      const accountStatusRow = await storage.getAccountStatus(userId);
-      const transactions = await storage.getUserTransactions(userId, 10);
-      const balance = await storage.getUserBalance(userId);
+      if (!_groqClient) {
+        return res.status(503).json({ error: 'Service IA temporairement indisponible' });
+      }
 
       const countryNames: Record<string, string> = {
         BJ: 'Bénin', CI: "Côte d'Ivoire", SN: 'Sénégal', BF: 'Burkina Faso', TG: 'Togo', CM: 'Cameroun', ML: 'Mali'
       };
+      const liveSettingKeys = ['activation_amount', 'ci_update_amount', 'telegram_group', 'whatsapp_group', 'telegram_supervisor', 'instagram_supervisor'];
 
-      const recentTxSummary = transactions.slice(0, 5).map((t: any) => {
-        const typeLabel: Record<string, string> = {
-          deposit: 'Dépôt', withdrawal: 'Retrait', transfer: 'Transfert',
-          payment: 'Paiement', bonus: 'Bonus', referral: 'Parrainage'
-        };
+      // ── Toutes les requêtes DB en parallèle ──────────────────────────────
+      const [user, accountStatusRow, transactions, balance, liveSettingsArr, pcsRows, knowledgeRows] = await Promise.all([
+        storage.getUser(userId),
+        storage.getAccountStatus(userId),
+        storage.getUserTransactions(userId, 5),
+        storage.getUserBalance(userId),
+        Promise.all(liveSettingKeys.map(async (key) => {
+          try { return [key, await storage.getAppSetting(key)] as [string, string | null]; } catch { return [key, null] as [string, null]; }
+        })),
+        db.execute(sql`SELECT status FROM pcs_codes WHERE user_id = ${userId} LIMIT 1`).catch(() => ({ rows: [] })),
+        db.execute(sql`SELECT title, content FROM ai_knowledge_base WHERE is_active = true ORDER BY id ASC`).catch(() => ({ rows: [] })),
+      ]);
+
+      if (!user) return res.status(401).json({ error: 'Utilisateur non trouvé' });
+
+      // Construire liveSettings depuis les résultats parallèles
+      const liveSettings: Record<string, string> = {};
+      for (const [key, val] of liveSettingsArr) { if (val) liveSettings[key] = val; }
+
+      // Statut PCS
+      const pcsArr = ((pcsRows as any).rows ?? pcsRows ?? []) as any[];
+      const hasPcsCode = pcsArr.length > 0;
+      const pcsCodeActive = hasPcsCode && pcsArr[0].status === 'actif';
+
+      // Résumé des transactions
+      const recentTxSummary = (transactions as any[]).slice(0, 5).map((t: any) => {
+        const typeLabel: Record<string, string> = { deposit: 'Dépôt', withdrawal: 'Retrait', transfer: 'Transfert', payment: 'Paiement', bonus: 'Bonus', referral: 'Parrainage' };
         return `• ${typeLabel[t.type] || t.type} : ${Number(t.amount).toLocaleString('fr-FR')} FCFA — ${t.status === 'completed' ? 'Effectué' : t.status === 'pending' ? 'En attente' : 'Échoué'} (${new Date(t.createdAt).toLocaleDateString('fr-FR')})`;
       }).join('\n');
 
-      // Récupérer les paramètres live depuis la base de données
-      const liveSettingKeys = [
-        'activation_amount', 'ci_update_amount', 'telegram_group',
-        'whatsapp_group', 'telegram_supervisor', 'instagram_supervisor'
-      ];
-      const liveSettings: Record<string, string> = {};
-      await Promise.all(liveSettingKeys.map(async (key) => {
-        try {
-          const val = await storage.getAppSetting(key);
-          if (val) liveSettings[key] = val;
-        } catch (_) {}
-      }));
-
-      // Récupérer le statut PCS de l'utilisateur (a-t-il un code dans son compte ?)
-      let hasPcsCode = false;
-      let pcsCodeActive = false;
-      try {
-        const pcsRows = await db.execute(sql`
-          SELECT status FROM pcs_codes WHERE user_id = ${userId} LIMIT 1
-        `);
-        const pcsArr = ((pcsRows as any).rows ?? pcsRows ?? []) as any[];
-        if (pcsArr.length > 0) {
-          hasPcsCode = true;
-          pcsCodeActive = pcsArr[0].status === 'actif';
-        }
-      } catch (_) {}
-
-      // Construire le prompt depuis le fichier de connaissance (mis à jour automatiquement)
+      // Construire le prompt
       let systemPrompt = buildSystemPrompt({
         fullName: (user as any).fullName || (user as any).firstName || 'Utilisateur',
         email: (user as any).email || 'Non renseigné',
@@ -7005,29 +7004,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         pcsCodeActive,
       }, liveSettings);
 
-      // Injecter la base de connaissances secondaire (entrées actives de l'admin)
-      try {
-        const knowledgeRows = await db.execute(sql`
-          SELECT title, content FROM ai_knowledge_base WHERE is_active = true ORDER BY id ASC
-        `);
-        const knowledgeEntries = ((knowledgeRows as any).rows ?? knowledgeRows ?? []) as any[];
-        if (knowledgeEntries.length > 0) {
-          const knowledgeBlock = knowledgeEntries.map((e: any) =>
-            `### ${e.title}\n${e.content}`
-          ).join('\n\n');
-          systemPrompt += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nINFORMATIONS SUPPLÉMENTAIRES (BASE DE CONNAISSANCES ADMIN)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${knowledgeBlock}`;
-        }
-      } catch (_) { /* Ignorer les erreurs de lecture knowledge base */ }
-
-      const GROQ_API_KEY = process.env.GROQ_API_KEY;
-      if (!GROQ_API_KEY) {
-        return res.status(503).json({ error: 'Service IA temporairement indisponible' });
+      // Injecter la base de connaissances secondaire
+      const knowledgeEntries = ((knowledgeRows as any).rows ?? knowledgeRows ?? []) as any[];
+      if (knowledgeEntries.length > 0) {
+        const knowledgeBlock = knowledgeEntries.map((e: any) => `### ${e.title}\n${e.content}`).join('\n\n');
+        systemPrompt += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nINFORMATIONS SUPPLÉMENTAIRES\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${knowledgeBlock}`;
       }
 
-      // Construire l'historique au format OpenAI-compatible (Groq)
+      // Construire l'historique (max 6 échanges pour réduire les tokens)
       const chatMessages: any[] = [{ role: 'system', content: systemPrompt }];
       if (Array.isArray(history)) {
-        for (const h of history.slice(-10)) {
+        for (const h of history.slice(-6)) {
           if (h.role && h.text) {
             chatMessages.push({ role: h.role === 'assistant' ? 'assistant' : 'user', content: h.text });
           }
@@ -7035,23 +7022,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       chatMessages.push({ role: 'user', content: message });
 
-      const { default: OpenAI } = await import('openai');
-      const groq = new OpenAI({
-        apiKey: GROQ_API_KEY,
-        baseURL: 'https://api.groq.com/openai/v1',
-      });
-
-      // Modèle principal → modèle de secours si quota dépassé
-      const MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
+      // Modèle rapide en premier → modèle puissant en secours si quota dépassé
+      const MODELS = ['llama-3.1-8b-instant', 'llama-3.3-70b-versatile'];
       let lastError: any = null;
       let reply: string | null = null;
 
       for (const model of MODELS) {
         try {
-          const completion = await groq.chat.completions.create({
+          const completion = await _groqClient.chat.completions.create({
             model,
             messages: chatMessages,
-            max_tokens: 1024,
+            max_tokens: 600,
+            temperature: 0.6,
           });
           reply = completion.choices[0]?.message?.content || 'Désolé, je n\'ai pas pu générer une réponse. Réessayez.';
           break;
@@ -7060,29 +7042,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const isRateLimit = err?.status === 429 || err?.code === 'rate_limit_exceeded';
           if (isRateLimit) {
             console.warn(`[AI-CHAT] Quota dépassé pour ${model}, tentative avec le modèle suivant…`);
-            continue; // essayer le modèle suivant
+            continue;
           }
-          throw err; // autre erreur → remonter immédiatement
+          throw err;
         }
       }
 
       if (!reply) {
         const isRateLimit = lastError?.status === 429 || lastError?.code === 'rate_limit_exceeded';
-        if (isRateLimit) {
-          return res.status(503).json({ error: 'quota_exceeded' });
-        }
+        if (isRateLimit) return res.status(503).json({ error: 'quota_exceeded' });
         throw lastError;
       }
 
-      // Persister le message utilisateur et la réponse IA dans la base de données
-      try {
-        await db.execute(sql`
-          INSERT INTO ai_chat_messages (user_id, role, content) VALUES (${userId}, 'user', ${message})
-        `);
-        await db.execute(sql`
-          INSERT INTO ai_chat_messages (user_id, role, content) VALUES (${userId}, 'assistant', ${reply})
-        `);
-      } catch (_) { /* Ignorer les erreurs de persistence */ }
+      // Persister en arrière-plan (sans bloquer la réponse)
+      setImmediate(() => {
+        db.execute(sql`INSERT INTO ai_chat_messages (user_id, role, content) VALUES (${userId}, 'user', ${message})`).catch(() => {});
+        db.execute(sql`INSERT INTO ai_chat_messages (user_id, role, content) VALUES (${userId}, 'assistant', ${reply!})`).catch(() => {});
+      });
 
       res.json({ reply });
     } catch (err: any) {
