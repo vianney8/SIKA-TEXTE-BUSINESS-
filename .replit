@@ -8,7 +8,7 @@ channel = "stable-24_05"
 [deployment]
 deploymentTarget = "autoscale"
 build = ["npm", "run", "build"]
-run = ["sh", "-c", "NODE_ENV=production node ./dist/index.js"]
+run = ["node", "./dist/index.cjs"]
 
 [[ports]]
 localPort = 5000
@@ -58,6 +58,7 @@ SOLVEXPAY_API_KEY = "sk_live_1cfb32d9730641a0c3c2bffe422ea65836490bebaedf65d8"
 PRIVATE_OBJECT_DIR = "/FairInfantileAddons"
 PUBLIC_OBJECT_SEARCH_PATHS = "/FairInfantileAddons"
 RESEND_FROM_EMAIL = "support@sikatexte.site"
+PORT = "5000"
 
 [objectStorage]
 defaultBucketID = "replit-objstore-8ec8422d-72f4-48ba-b6e4-98b8904293d6"
