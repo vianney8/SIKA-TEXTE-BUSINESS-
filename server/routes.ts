@@ -3067,6 +3067,164 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.sendStatus(200);
         }
 
+        // ── Parsing format "Transfert XXXF de NOM (PHONE) DATE ..." ─────────────
+        // Ex: "Transfert 3800F de MAHUTIN AUGUSTIN (2290157529769) 2026-06-02 ..."
+        const isTransfertFormat = /Transfert\s+\d+[Ff]\s+de\s+.+\(\d{8,}\)/m.test(msgText);
+        if (isTransfertFormat) {
+          interface TrfLine { amount: number|null; phone: string|null; name: string|null; raw: string; }
+
+          const tLines = msgText.split('\n').filter(l => /Transfert\s+\d+[Ff]\s+de\s+/i.test(l));
+          const tParsed: TrfLine[] = tLines.map(line => {
+            const amtM   = /Transfert\s+(\d+)[Ff]/i.exec(line);
+            const phoneM = /\((\d{8,})\)/.exec(line);
+            const nameM  = /Transfert\s+\d+[Ff]\s+de\s+(.+?)\s*\(\d{8,}\)/i.exec(line);
+            return {
+              amount: amtM   ? parseInt(amtM[1])   : null,
+              phone:  phoneM ? phoneM[1]            : null,
+              name:   nameM  ? nameM[1].trim()      : null,
+              raw:    line
+            };
+          });
+
+          const tNormPhone = (raw: string): string => {
+            let n = raw.replace(/\D/g, '');
+            for (const cc of ['229','225','221','226','228','237']) {
+              if (n.startsWith('00'+cc)) return n.slice(2+cc.length);
+              if (n.startsWith(cc))      return n.slice(cc.length);
+            }
+            return n;
+          };
+
+          // Chercher dans toutes les demandes en attente (activation + liens + PCS)
+          const tPendingRes = await db.execute(sql`
+            SELECT id, 'activation' AS src, user_id,
+                   payment_phone AS phone, payer_name, full_name AS customer_name,
+                   amount, transaction_id, screenshot_url, country, operator,
+                   email, referral_code, NULL AS link_id, NULL AS link_label, created_at
+            FROM manual_activation_requests WHERE status = 'pending'
+            UNION ALL
+            SELECT id, 'link' AS src, NULL AS user_id,
+                   phone, NULL AS payer_name, customer_name,
+                   amount, transaction_id, screenshot_url, country, operator,
+                   customer_email AS email, NULL AS referral_code, link_id, link_label, created_at
+            FROM link_manual_requests WHERE status = 'pending'
+            UNION ALL
+            SELECT id::text, 'pcs' AS src, NULL AS user_id,
+                   phone, NULL AS payer_name, customer_name,
+                   amount, reference AS transaction_id, NULL AS screenshot_url,
+                   NULL AS country, NULL AS operator,
+                   customer_email AS email, NULL AS referral_code,
+                   link_id, NULL AS link_label, created_at
+            FROM payment_link_transactions WHERE status = 'pending'
+            ORDER BY created_at DESC
+          `);
+          const tPending = (tPendingRes.rows || []) as any[];
+
+          // Associer chaque ligne parsée à une demande (phone + montant)
+          const tMatches: { lineIdx: number; line: TrfLine; req: any }[] = [];
+          for (let i = 0; i < tParsed.length; i++) {
+            const { phone, amount } = tParsed[i];
+            if (!phone) continue;
+            const normP = tNormPhone(phone);
+            for (const req of tPending) {
+              if (tMatches.some(m => m.req.id === req.id)) continue;
+              const normR = tNormPhone(req.phone || '');
+              const phoneOk  = normP.length >= 6 && normR.length >= 6 && normP === normR;
+              const amountOk = amount !== null && Number(req.amount) === amount;
+              if (phoneOk && amountOk) tMatches.push({ lineIdx: i, line: tParsed[i], req });
+            }
+          }
+
+          // Résumé des lignes parsées
+          const tSummary = tParsed.map((p, i) =>
+            `<b>Ligne ${i+1}</b>  💰 ${p.amount !== null ? p.amount.toLocaleString('fr-FR')+' FCFA' : '—'}  📱 ${p.phone ? '+'+p.phone : '—'}  👤 ${p.name||'—'}`
+          ).join('\n');
+
+          const TRF_FLAGS: Record<string,string> = { BJ:'🇧🇯',CI:'🇨🇮',SN:'🇸🇳',BF:'🇧🇫',TG:'🇹🇬',CM:'🇨🇲' };
+          const TRF_OPS:   Record<string,string> = { mtn:'MTN',moov:'Moov',orange:'Orange',wave:'Wave',tmoney:'T-Money',free:'Free',airtel:'Airtel' };
+
+          if (!tMatches.length) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({
+                chat_id: chatId,
+                text: `💳 <b>Analyse ${tParsed.length} ligne(s) Transfert</b>\n\n${tSummary}\n\n❌ <b>Aucune correspondance</b> parmi ${tPending.length} demande(s) en attente\n\n<i>Aucune demande ne correspond exactement au numéro et au montant.</i>`,
+                parse_mode:'HTML'
+              })
+            });
+          } else {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({
+                chat_id: chatId,
+                text: `💳 <b>Analyse ${tParsed.length} ligne(s) Transfert</b>\n\n${tSummary}\n\n✅ <b>${tMatches.length} correspondance(s) trouvée(s)</b>`,
+                parse_mode:'HTML'
+              })
+            });
+
+            for (const { lineIdx, req: r } of tMatches) {
+              const date = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'}) : '—';
+              const flag = TRF_FLAGS[r.country] || '🌍';
+              const op   = TRF_OPS[r.operator] || r.operator || '—';
+
+              let cardText = '';
+              let buttons: any = null;
+
+              if (r.src === 'activation') {
+                cardText =
+                  `${flag} <b>✅ L${lineIdx+1} — ACTIVATION — ${op}</b>\n\n` +
+                  `📊 ⏳ En attente\n` +
+                  `👤 Payeur SIM : <b>${r.payer_name||r.customer_name||'N/A'}</b>\n` +
+                  `📱 <code>${r.phone||'—'}</code>\n` +
+                  `💰 ${Number(r.amount).toLocaleString('fr-FR')} FCFA\n` +
+                  `📧 ${r.email||'N/A'}\n` +
+                  `📋 Code Sika : <code>${r.referral_code||'N/A'}</code>\n` +
+                  `🔖 ID tx : <code>${r.transaction_id||'—'}</code>\n` +
+                  `🕒 ${date}`;
+                buttons = { inline_keyboard: [
+                  [{ text:'✅ Approuver', callback_data:`manact_app_pre_${r.id}` }, { text:'❌ Rejeter', callback_data:`manact_rej_pre_${r.id}` }],
+                  [{ text:'🔒 Bloquer le compte', callback_data:`blkuser_pre_${r.user_id}` }]
+                ]};
+              } else if (r.src === 'link') {
+                cardText =
+                  `🔗 <b>✅ L${lineIdx+1} — LIEN PAIEMENT — ${op}</b>\n\n` +
+                  `📊 ⏳ En attente\n` +
+                  `👤 <b>${r.customer_name||'N/A'}</b>\n` +
+                  `📱 <code>${r.phone||'—'}</code>\n` +
+                  `💰 ${Number(r.amount).toLocaleString('fr-FR')} FCFA\n` +
+                  `📧 ${r.email||'N/A'}\n` +
+                  `🔖 ID tx : <code>${r.transaction_id||'—'}</code>\n` +
+                  `🕒 ${date}`;
+                buttons = { inline_keyboard: [
+                  [{ text:'✅ Approuver', callback_data:`lnkma_pre_${r.id}` }, { text:'❌ Rejeter', callback_data:`lnkrej_pre_${r.id}` }],
+                  [{ text:'🔒 Bloquer', callback_data:`blklnkr_pre_${r.id}` }]
+                ]};
+              } else {
+                cardText =
+                  `💳 <b>✅ L${lineIdx+1} — PAIEMENT PCS</b>\n\n` +
+                  `📊 ⏳ En attente\n` +
+                  `👤 <b>${r.customer_name||'N/A'}</b>\n` +
+                  `📱 <code>${r.phone||'—'}</code>\n` +
+                  `💰 ${Number(r.amount).toLocaleString('fr-FR')} FCFA\n` +
+                  `📧 ${r.email||'N/A'}\n` +
+                  `🔖 Réf : <code>${r.transaction_id||'—'}</code>\n` +
+                  `🕒 ${date}`;
+                buttons = { inline_keyboard: [
+                  [{ text:'🔒 Bloquer le compte', callback_data:`blkplt_pre_${r.id}` }]
+                ]};
+              }
+
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', ...(buttons ? { reply_markup: buttons } : {}) })
+              });
+              if (r.screenshot_url) await sendShot(chatId, r.screenshot_url);
+              await new Promise(resolve => setTimeout(resolve, 80));
+            }
+          }
+          return res.sendStatus(200);
+        }
+
         // ── Recherche par ID de transaction : "tx <ID>" ou "id <ID>" ──────────
         const txIdMatch = /^(?:tx|id)\s+([A-Za-z0-9._\-]{4,80})\s*$/i.exec(msgText);
         if (txIdMatch) {
