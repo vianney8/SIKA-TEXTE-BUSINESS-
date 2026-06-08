@@ -99,6 +99,11 @@ export default function AdminDashboard() {
   const [pnEditMessage, setPnEditMessage] = useState("");
   const [pnEditColor, setPnEditColor] = useState<'green' | 'red'>('green');
 
+  // Block reason dialog
+  const [blockDialog, setBlockDialog] = useState(false);
+  const [blockTarget, setBlockTarget] = useState<AdminUser | null>(null);
+  const [blockReasonInput, setBlockReasonInput] = useState("");
+
   // Payment links — create
   const [paymentLinkModal, setPaymentLinkModal] = useState(false);
   const [plLabel, setPlLabel] = useState("");
@@ -1207,10 +1212,9 @@ export default function AdminDashboard() {
                       variant={user.isBlocked ? "default" : "destructive"}
                       onClick={() => {
                         if (!user.isBlocked) {
-                          const reason = window.prompt('Motif du blocage (obligatoire) :', '');
-                          if (reason === null) return;
-                          if (!reason.trim()) { alert('Le motif est obligatoire.'); return; }
-                          blockUserMutation.mutate({ userId: user.id, blocked: true, reason: reason.trim() });
+                          setBlockTarget(user);
+                          setBlockReasonInput("");
+                          setBlockDialog(true);
                         } else {
                           blockUserMutation.mutate({ userId: user.id, blocked: false });
                         }
@@ -3008,6 +3012,63 @@ export default function AdminDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+      {/* ── Dialog motif de blocage ── */}
+      <Dialog open={blockDialog} onOpenChange={(open) => { if (!open) { setBlockDialog(false); setBlockTarget(null); setBlockReasonInput(""); } }}>
+        <DialogContent className="max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Lock className="h-4 w-4" /> Bloquer le compte
+            </DialogTitle>
+            <DialogDescription>
+              {blockTarget && (
+                <span className="text-gray-700 text-sm">
+                  <strong>{blockTarget.fullName || blockTarget.phone}</strong><br />
+                  {blockTarget.email && <span className="text-gray-500">{blockTarget.email}</span>}
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 pt-1">
+            <div>
+              <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5 block">
+                Motif du blocage <span className="text-red-500">*</span>
+              </Label>
+              <Textarea
+                placeholder="Ex : Fraude, Activité suspecte, Double compte..."
+                value={blockReasonInput}
+                onChange={(e) => setBlockReasonInput(e.target.value)}
+                className="rounded-xl resize-none text-sm"
+                rows={3}
+                autoFocus
+              />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button
+                variant="outline"
+                className="flex-1 rounded-xl"
+                onClick={() => { setBlockDialog(false); setBlockTarget(null); setBlockReasonInput(""); }}
+              >
+                Annuler
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1 rounded-xl font-bold"
+                disabled={!blockReasonInput.trim() || blockUserMutation.isPending}
+                onClick={() => {
+                  if (!blockTarget || !blockReasonInput.trim()) return;
+                  blockUserMutation.mutate(
+                    { userId: blockTarget.id, blocked: true, reason: blockReasonInput.trim() },
+                    { onSettled: () => { setBlockDialog(false); setBlockTarget(null); setBlockReasonInput(""); } }
+                  );
+                }}
+              >
+                {blockUserMutation.isPending ? "Blocage…" : "Bloquer"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
