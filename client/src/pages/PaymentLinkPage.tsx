@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
 import {
-  CheckCircle, ChevronRight, Clock, Copy, ExternalLink, ImageIcon,
-  Loader2, Upload, XCircle, ShieldCheck, AlertTriangle, AlertCircle, Info, Wrench, Globe, Phone
+  CheckCircle, ChevronLeft, ChevronRight, Clock, Copy, ExternalLink, Globe, ImageIcon,
+  Info, Loader2, Phone, ShieldCheck, Upload, Wrench, XCircle, AlertCircle, AlertTriangle
 } from "lucide-react";
 
 // ─── Config pays & opérateurs ────────────────────────────────────────────────
@@ -34,7 +34,6 @@ const BLU   = "#1565c0";
 const BLU2  = "#0d47a1";
 
 // ─── Sous-composants ────────────────────────────────────────────────────────
-
 function OperatorBadge({ code, size = "md" }: { code: string; size?: "sm" | "md" | "lg" }) {
   const op = OPERATORS[code];
   if (!op) return null;
@@ -45,10 +44,6 @@ function OperatorBadge({ code, size = "md" }: { code: string; size?: "sm" | "md"
       {op.initials}
     </div>
   );
-}
-
-function OperatorLogo({ code, size = "md" }: { code: string; size?: "sm" | "md" | "lg" }) {
-  return <OperatorBadge code={code} size={size} />;
 }
 
 function MaintenanceBadge() {
@@ -83,13 +78,61 @@ function ElapsedTimer({ since }: { since: string | null }) {
   return <span className="font-mono font-bold" style={{ color: EM1 }}>{String(m).padStart(2,"0")}:{String(s).padStart(2,"0")}</span>;
 }
 
-type Step = "form" | "manual" | "pending" | "success" | "failed" | "redirected" | "submitted";
+function ProgressBar({ step, isPcs }: { step: FormStep; isPcs?: boolean }) {
+  const steps = isPcs
+    ? ["country","operator","phone"] as FormStep[]
+    : ["country","operator","phone"] as FormStep[];
+  const labels = ["Pays", "Réseau", isPcs ? "Infos" : "Numéro"];
+  const currentIdx = steps.indexOf(step);
+
+  return (
+    <div className="px-5 pb-4 pt-1">
+      <div className="flex items-center justify-between gap-1">
+        {steps.map((s, i) => {
+          const done   = i < currentIdx;
+          const active = i === currentIdx;
+          return (
+            <div key={s} className="flex-1 flex flex-col items-center gap-1.5">
+              <div className="flex items-center w-full">
+                {i > 0 && (
+                  <div className="flex-1 h-0.5 rounded-full"
+                    style={{ background: done ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.2)" }} />
+                )}
+                <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all"
+                  style={{
+                    background: done ? "rgba(255,255,255,0.9)" : active ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.07)",
+                    border: active ? "2px solid rgba(255,255,255,0.8)" : done ? "none" : "2px solid rgba(255,255,255,0.2)",
+                  }}>
+                  {done
+                    ? <CheckCircle size={13} style={{ color: BLU }} />
+                    : <span className="text-[10px] font-black" style={{ color: active ? "#fff" : "rgba(255,255,255,0.3)" }}>{i + 1}</span>
+                  }
+                </div>
+                {i < steps.length - 1 && (
+                  <div className="flex-1 h-0.5 rounded-full"
+                    style={{ background: done ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.2)" }} />
+                )}
+              </div>
+              <p className="text-[9px] font-bold tracking-wide"
+                style={{ color: active ? "#fff" : done ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.25)" }}>
+                {labels[i]}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+type FormStep = "country" | "operator" | "phone";
+type Step = FormStep | "manual" | "pending" | "success" | "failed" | "redirected" | "submitted";
 
 export default function PaymentLinkPage() {
   const params = useParams<{ linkId: string }>();
   const linkId = params.linkId;
 
-  const [link, setLink]         = useState<any>(null);
+  const [link, setLink]           = useState<any>(null);
   const [loadError, setLoadError] = useState("");
 
   const [country, setCountry]   = useState("");
@@ -115,7 +158,7 @@ export default function PaymentLinkPage() {
   const [pollCount, setPollCount]   = useState(0);
   const [submittedAt, setSubmittedAt] = useState<string | null>(null);
 
-  const [step, setStep]         = useState<Step>("form");
+  const [step, setStep]         = useState<Step>("country");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]       = useState("");
 
@@ -124,15 +167,16 @@ export default function PaymentLinkPage() {
 
   type PayMode = "manual" | "redirect" | "solvexpay";
   const countryModes: Record<string, { mode: PayMode; redirectUrl: string }> = link?.countryModes ?? {};
-  const ciMode: PayMode       = link?.ciMode ?? "redirect";
+  const ciMode: PayMode        = link?.ciMode ?? "redirect";
   const maintenanceMap: Record<string, boolean> = link?.maintenanceMap ?? {};
-  const isOpMaintenance       = (c: string, op: string) => maintenanceMap[`${c}_${op}`] === true;
-  const getMode               = (c: string): PayMode  => { if (!c) return "manual"; if (c === "CI") return ciMode; return countryModes[c]?.mode ?? "manual"; };
-  const getRedirectUrl        = (c: string): string   => { if (c === "CI") return link?.ciRedirectUrl || ""; return countryModes[c]?.redirectUrl || ""; };
-  const currentMode           = getMode(country);
-  const useRedirect           = country !== "" && currentMode === "redirect";
-  const useManual             = country !== "" && (currentMode === "manual" || (!useRedirect && link?.manualMode === true));
+  const isOpMaintenance        = (c: string, op: string) => maintenanceMap[`${c}_${op}`] === true;
+  const getMode                = (c: string): PayMode => { if (!c) return "manual"; if (c === "CI") return ciMode; return countryModes[c]?.mode ?? "manual"; };
+  const getRedirectUrl         = (c: string): string  => { if (c === "CI") return link?.ciRedirectUrl || ""; return countryModes[c]?.redirectUrl || ""; };
+  const currentMode            = getMode(country);
+  const useRedirect            = country !== "" && currentMode === "redirect";
+  const useManual              = country !== "" && (currentMode === "manual" || (!useRedirect && link?.manualMode === true));
 
+  // ── Effects ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!linkId) return;
     const fetchLink = () =>
@@ -186,6 +230,7 @@ export default function PaymentLinkPage() {
     return () => { cancelled = true; clearInterval(iv); };
   }, [step, txnId]);
 
+  // ── Handlers ──────────────────────────────────────────────────────────────
   const copyDepositNumber = () => {
     const num = depositInfo?.depositNumber || "";
     if (num) { navigator.clipboard.writeText(num); setCopied(true); setTimeout(() => setCopied(false), 2000); }
@@ -208,7 +253,7 @@ export default function PaymentLinkPage() {
       setManualScreenshotUrl("");
       setError(e?.message || "Impossible d'envoyer la capture. Vérifiez le format (JPG, PNG) et réessayez.");
     }
-    finally  { setManualUploading(false); }
+    finally { setManualUploading(false); }
   };
 
   const handleContinue = async () => {
@@ -284,7 +329,7 @@ export default function PaymentLinkPage() {
   };
 
   const reset = () => {
-    setStep("form"); setCountry(""); setOperator(""); setPhone(""); setFirstName(""); setLastName("");
+    setStep("country"); setCountry(""); setOperator(""); setPhone(""); setFirstName(""); setLastName("");
     if (!link?.isPcs || !currentUserEmail) setEmail("");
     setDepositInfo(null); setManualTxnId(""); setScreenshotFile(null); setManualScreenshotUrl("");
     setTxnId(""); setPollCount(0); setError("");
@@ -292,6 +337,54 @@ export default function PaymentLinkPage() {
 
   const amount = link ? parseFloat(link.amount).toLocaleString("fr-FR") : "—";
   const canSend = manualTxnId.trim().length >= 3 && !!manualScreenshotUrl;
+
+  // ── Header commun avec montant ────────────────────────────────────────────
+  function PageHeader({ onBack, showProgress = true, formStep }: {
+    onBack?: () => void; showProgress?: boolean; formStep?: FormStep;
+  }) {
+    return (
+      <div style={{ background: HDR }}>
+        <div className="px-5 pt-6 pb-3 flex items-center justify-between">
+          {onBack ? (
+            <button onClick={onBack}
+              className="flex items-center gap-1.5 text-xs font-semibold text-white/60 rounded-xl px-3 py-1.5"
+              style={{ background: "rgba(255,255,255,0.1)" }}>
+              <ChevronLeft size={13} /> Retour
+            </button>
+          ) : <div className="w-16" />}
+          <div className="flex items-center gap-2">
+            <img src="/logo.jpg" alt="SIKApay" className="w-7 h-7 rounded-lg object-cover" />
+            <p className="text-white font-black text-sm">SIKA TEXTE</p>
+          </div>
+          <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1.5"
+            style={{ background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)" }}>
+            <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+            <span className="text-[10px] font-bold text-white">Sécurisé</span>
+          </div>
+        </div>
+
+        {link?.imageUrl && (
+          <div className="mx-5 rounded-2xl overflow-hidden mb-3 ring-1 ring-white/10" style={{ maxHeight: 130 }}>
+            <img src={link.imageUrl} alt={link.label} className="w-full object-cover" style={{ maxHeight: 130 }} />
+          </div>
+        )}
+
+        <div className="px-5 pb-3">
+          <p className="text-[11px] font-semibold uppercase tracking-widest mb-1 text-white/50">Total à payer</p>
+          <div className="flex items-end gap-2">
+            <span className="text-5xl font-black text-white leading-none">{amount}</span>
+            <span className="text-xl font-bold text-white/40 mb-1">{link?.currency}</span>
+          </div>
+          <p className="text-white/60 text-sm mt-1 font-semibold">{link?.label}</p>
+          {link?.description && <p className="text-white/40 text-xs mt-0.5 leading-relaxed">{link.description}</p>}
+        </div>
+
+        {showProgress && formStep && (
+          <ProgressBar step={formStep} isPcs={link?.isPcs} />
+        )}
+      </div>
+    );
+  }
 
   // ── Chargement ────────────────────────────────────────────────────────────
   if (!link && !loadError) return (
@@ -390,9 +483,7 @@ export default function PaymentLinkPage() {
           <span>En attente</span>
           <AnimatedDots />
         </div>
-        <button onClick={reset} className="text-xs text-slate-300 hover:text-slate-500 transition-colors underline">
-          Annuler
-        </button>
+        <button onClick={reset} className="text-xs text-slate-300 hover:text-slate-500 transition-colors underline">Annuler</button>
       </div>
     </div>
   );
@@ -426,7 +517,6 @@ export default function PaymentLinkPage() {
     return (
       <div className="min-h-screen pb-8" style={{ background: PG }}>
         <style>{`@keyframes bounceDot{0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1}}`}</style>
-
         <div className="px-5 pt-6 pb-4 flex items-center justify-between" style={{ background: HDR }}>
           <div className="flex items-center gap-2.5">
             <img src="/logo.jpg" alt="SIKApay" className="w-9 h-9 rounded-xl object-cover ring-2 ring-white/15" />
@@ -441,7 +531,6 @@ export default function PaymentLinkPage() {
             <span className="text-amber-300 text-[11px] font-bold">En vérification</span>
           </div>
         </div>
-
         <div className="px-4 py-5 space-y-4 max-w-md mx-auto">
           <div className="text-center pb-1">
             <h1 className="text-slate-900 font-black text-2xl mb-1">Vérification en cours</h1>
@@ -450,7 +539,6 @@ export default function PaymentLinkPage() {
               <span className="text-slate-700 font-semibold">Nos agents vérifient votre paiement.</span>
             </p>
           </div>
-
           <div className="bg-white rounded-3xl shadow-md p-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${EM1}12` }}>
@@ -460,7 +548,6 @@ export default function PaymentLinkPage() {
             </div>
             <ElapsedTimer since={submittedAt} />
           </div>
-
           <div className="bg-white rounded-3xl shadow-md p-4 flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "#D1FAE5" }}>
               <span className="text-xl">👥</span>
@@ -476,7 +563,6 @@ export default function PaymentLinkPage() {
               ))}
             </div>
           </div>
-
           <div className="bg-white rounded-3xl shadow-md overflow-hidden">
             <div className="px-4 py-3 border-b border-slate-100">
               <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Avancement du dossier</p>
@@ -502,7 +588,6 @@ export default function PaymentLinkPage() {
               </div>
             ))}
           </div>
-
           <div className="bg-white rounded-3xl shadow-md overflow-hidden">
             <div className="px-4 py-3 border-b border-slate-100">
               <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Récapitulatif</p>
@@ -524,7 +609,6 @@ export default function PaymentLinkPage() {
               )}
             </div>
           </div>
-
           <p className="text-slate-300 text-[10px] flex items-center justify-center gap-1.5 pb-2">
             <ShieldCheck size={9} /> Paiement sécurisé · SIKApay SIKA TEXTE
           </p>
@@ -541,12 +625,11 @@ export default function PaymentLinkPage() {
     return (
       <div className="min-h-screen pb-52" style={{ background: PG }}>
         <style>{`@keyframes bounceDot{0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1}}`}</style>
-
         <div className="px-5 pt-6 pb-3 flex items-center justify-between" style={{ background: HDR }}>
-          <button onClick={() => setStep("form")}
+          <button onClick={() => setStep("phone")}
             className="flex items-center gap-1.5 text-xs font-semibold text-white/60 rounded-xl px-3 py-1.5"
             style={{ background: "rgba(255,255,255,0.08)" }}>
-            ← Retour
+            <ChevronLeft size={13} /> Retour
           </button>
           <div className="flex items-center gap-2">
             <img src="/logo.jpg" alt="SIKApay" className="w-7 h-7 rounded-lg object-cover" />
@@ -565,8 +648,6 @@ export default function PaymentLinkPage() {
           </div>
         ) : depositInfo ? (
           <div className="px-4 pt-4 space-y-4 max-w-md mx-auto">
-
-            {/* Carte bon de virement (style ticket/reçu) */}
             <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
               <div className="px-5 py-4 flex items-center justify-between" style={{ background: HDR }}>
                 <div className="flex items-center gap-2.5">
@@ -673,7 +754,7 @@ export default function PaymentLinkPage() {
                     )}
                     {!manualUploading && (
                       <button onClick={() => { setScreenshotFile(null); setManualScreenshotUrl(""); if (fileInputRef.current) fileInputRef.current.value = ""; }}
-                        className="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center text-white text-xs font-bold">
+                        className="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold">
                         ✕
                       </button>
                     )}
@@ -742,175 +823,238 @@ export default function PaymentLinkPage() {
     );
   }
 
-  // ── Formulaire principal (étape 1) ────────────────────────────────────────
-  return (
-    <div className="min-h-screen pb-52" style={{ background: PG }}>
-      <style>{`@keyframes bounceDot{0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1}}`}</style>
-
-      {/* Header sombre avec montant */}
-      <div style={{ background: HDR }}>
-        <div className="px-5 pt-6 pb-3 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <img src="/logo.jpg" alt="SIKApay" className="w-10 h-10 rounded-2xl object-cover ring-2 ring-white/10" />
-            <div>
-              <p className="text-[9px] font-bold uppercase tracking-widest text-white/60">SIKApay</p>
-              <p className="text-white font-black text-sm">SIKA TEXTE</p>
-            </div>
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ÉTAPE 1 : Sélection du pays
+  // ─────────────────────────────────────────────────────────────────────────────
+  if (step === "country") {
+    return (
+      <div className="min-h-screen pb-10" style={{ background: PG }}>
+        <PageHeader showProgress formStep="country" />
+        <div className="px-4 pt-5 pb-10 space-y-4 max-w-md mx-auto">
+          <div className="text-center pb-1">
+            <p className="text-slate-700 font-black text-lg">Sélectionnez votre pays</p>
+            <p className="text-slate-400 text-sm mt-0.5">Étape 1 sur 3 — Choisissez votre pays de résidence</p>
           </div>
-          <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1.5"
-            style={{ background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)" }}>
-            <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-            <span className="text-[10px] font-bold text-white">Sécurisé</span>
-          </div>
-        </div>
 
-        {link.imageUrl && (
-          <div className="mx-5 rounded-2xl overflow-hidden mb-3 ring-1 ring-white/10" style={{ maxHeight: 130 }}>
-            <img src={link.imageUrl} alt={link.label} className="w-full object-cover" style={{ maxHeight: 130 }} />
-          </div>
-        )}
-
-        <div className="px-5 pb-5">
-          <p className="text-[11px] font-semibold uppercase tracking-widest mb-1 text-white/50">Total à payer</p>
-          <div className="flex items-end gap-2">
-            <span className="text-5xl font-black text-white leading-none">{amount}</span>
-            <span className="text-xl font-bold text-white/40 mb-1">{link.currency}</span>
-          </div>
-          <p className="text-white/60 text-sm mt-1 font-semibold">{link.label}</p>
-          {link.description && <p className="text-white/40 text-xs mt-0.5 leading-relaxed">{link.description}</p>}
-        </div>
-
-      </div>
-
-      <div className="px-4 pt-4 space-y-4 max-w-md mx-auto">
-
-        {/* Pays */}
-        <div className="bg-white rounded-3xl shadow-md p-4">
-          <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest mb-3 flex items-center gap-1.5">
-            <Globe size={11} /> Pays
-          </p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2.5">
             {COUNTRIES.map(c => (
-              <button key={c.code} onClick={() => { setCountry(c.code); setOperator(""); }}
-                className={`flex items-center gap-2.5 p-3 rounded-2xl border-2 text-left transition-all ${
-                  country === c.code ? "border-blue-500 bg-blue-50" : "border-slate-100 bg-slate-50 hover:border-slate-200"
-                }`}>
-                <span className="text-2xl">{c.flag}</span>
+              <button key={c.code}
+                onClick={() => { setCountry(c.code); setOperator(""); setStep("operator"); }}
+                className="flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all active:scale-95"
+                style={{
+                  background: "#fff",
+                  borderColor: "#E2E8F0",
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+                }}>
+                <span className="text-3xl">{c.flag}</span>
                 <div className="flex-1 min-w-0">
-                  <p className={`text-xs font-bold leading-tight truncate ${country === c.code ? "text-blue-900" : "text-slate-700"}`}>{c.name}</p>
-                  <p className="text-[10px] text-slate-400">+{c.prefix}</p>
+                  <p className="text-sm font-bold leading-tight text-slate-800 truncate">{c.name}</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">+{c.prefix}</p>
                 </div>
-                {country === c.code && <CheckCircle size={13} style={{ color: BLU }} className="flex-shrink-0" />}
               </button>
             ))}
           </div>
+
+          <div className="rounded-2xl px-4 py-3 flex gap-2.5 bg-blue-50 border border-blue-100">
+            <Info size={15} className="text-blue-500 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-blue-700 leading-relaxed">
+              Choisissez votre pays pour voir les réseaux Mobile Money disponibles dans votre zone.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ÉTAPE 2 : Sélection de l'opérateur
+  // ─────────────────────────────────────────────────────────────────────────────
+  if (step === "operator") {
+    const modeForCountry = getMode(country);
+    return (
+      <div className="min-h-screen pb-10" style={{ background: PG }}>
+        <PageHeader onBack={() => setStep("country")} showProgress formStep="operator" />
+        <div className="px-4 pt-5 pb-10 space-y-4 max-w-md mx-auto">
+
+          <div className="flex items-center gap-2 pb-1">
+            <span className="text-2xl">{selectedCountry?.flag}</span>
+            <div>
+              <p className="text-slate-700 font-black text-lg leading-tight">Réseau Mobile Money</p>
+              <p className="text-slate-400 text-sm">Étape 2 sur 3 — {selectedCountry?.name}</p>
+            </div>
+          </div>
+
+          <div className="space-y-2.5">
+            {selectedCountry?.operators.map(op => {
+              const info = OPERATORS[op];
+              const inMaintenance = isOpMaintenance(country, op);
+              return (
+                <button key={op} disabled={inMaintenance}
+                  onClick={() => { setOperator(op); setStep("phone"); }}
+                  className="w-full flex items-center gap-4 p-4 rounded-2xl border-2 text-left transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{
+                    background: inMaintenance ? "#f8fafc" : "#fff",
+                    borderColor: "#E2E8F0",
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+                  }}>
+                  <div className={inMaintenance ? "grayscale opacity-60" : ""}>
+                    <OperatorBadge code={op} size="md" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-bold text-slate-800 text-sm">{info.name}</p>
+                      {inMaintenance && <MaintenanceBadge />}
+                    </div>
+                    <p className="text-slate-400 text-xs mt-0.5">{info.full}</p>
+                    {inMaintenance && <p className="text-red-500 text-[10px] font-semibold mt-0.5">Indisponible — en maintenance</p>}
+                  </div>
+                  {!inMaintenance && <ChevronRight size={18} className="text-slate-300 flex-shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
+
+          {modeForCountry === "redirect" && (
+            <div className="bg-orange-50 border border-orange-200 rounded-2xl p-3.5 flex gap-3">
+              <ExternalLink size={15} className="text-orange-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-orange-800">
+                <strong>{selectedCountry?.name} :</strong> Vous serez redirigé vers la page de paiement sécurisée.
+              </p>
+            </div>
+          )}
+
+          {modeForCountry === "manual" && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex gap-3">
+              <Info size={15} className="text-amber-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-800">
+                Le paiement pour <strong>{selectedCountry?.name}</strong> se fait par <strong>dépôt manuel</strong>. Vous recevrez un numéro de dépôt à l'étape suivante.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ÉTAPE 3 : Numéro + infos identité
+  // ─────────────────────────────────────────────────────────────────────────────
+  // step === "phone"
+  const phoneValid = phone.replace(/\D/g, "").length >= 6;
+  const nameValid  = !link?.isPcs || (firstName.trim() && lastName.trim());
+  const emailValid = !link?.isPcs || (email.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()));
+  const canContinue = phoneValid && nameValid && emailValid && !isOpMaintenance(country, operator);
+
+  return (
+    <div className="min-h-screen pb-52" style={{ background: PG }}>
+      <style>{`@keyframes bounceDot{0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1}}`}</style>
+      <PageHeader onBack={() => setStep("operator")} showProgress formStep="phone" />
+
+      <div className="px-4 pt-5 space-y-4 max-w-md mx-auto">
+
+        <div className="flex items-center gap-3 pb-1">
+          <OperatorBadge code={operator} size="sm" />
+          <div>
+            <p className="text-slate-700 font-black text-lg leading-tight">Numéro Mobile Money</p>
+            <p className="text-slate-400 text-sm">Étape 3 sur 3 — {selectedOp?.full}</p>
+          </div>
         </div>
 
-        {/* Opérateur */}
-        {selectedCountry && (
-          <div className="bg-white rounded-3xl shadow-md p-4">
-            <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest mb-3">Réseau Mobile Money</p>
-            <div className="space-y-2">
-              {selectedCountry.operators.map(op => {
-                const info = OPERATORS[op];
-                const selected = operator === op;
-                const inMaintenance = isOpMaintenance(country, op);
-                return (
-                  <div key={op}
-                    onClick={() => { if (!inMaintenance) setOperator(op); }}
-                    className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 transition-all select-none ${
-                      inMaintenance ? "border-slate-100 bg-slate-50 opacity-50 cursor-not-allowed"
-                        : selected ? "border-blue-500 bg-blue-50 cursor-pointer"
-                        : "border-slate-100 bg-slate-50 cursor-pointer hover:border-slate-200"
-                    }`}>
-                    <div className={inMaintenance ? "grayscale opacity-50" : ""}><OperatorBadge code={op} size="sm" /></div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className={`text-sm font-bold ${inMaintenance ? "text-slate-400" : selected ? "text-blue-900" : "text-slate-700"}`}>{info.name}</p>
-                        {inMaintenance && <MaintenanceBadge />}
-                      </div>
-                      <p className="text-[11px] text-slate-400">{info.full}</p>
-                      {inMaintenance && <p className="text-[10px] text-red-500 font-semibold mt-0.5">Indisponible — en maintenance</p>}
-                    </div>
-                    {selected && !inMaintenance && <CheckCircle size={16} style={{ color: BLU }} className="flex-shrink-0" />}
-                  </div>
-                );
-              })}
+        {/* Numéro */}
+        <div className="bg-white rounded-3xl shadow-md p-4 space-y-2">
+          <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5">
+            <Phone size={11} /> Numéro Mobile Money
+          </p>
+          <div className="flex gap-2">
+            <div className="flex items-center justify-center bg-slate-100 rounded-2xl px-3 text-sm font-bold text-slate-500 whitespace-nowrap flex-shrink-0">
+              +{selectedCountry?.prefix}
             </div>
+            <input type="tel" inputMode="numeric" autoFocus value={phone}
+              onChange={e => setPhone(e.target.value.replace(/[^\d\s]/g, ""))}
+              placeholder={`Ex : ${selectedCountry?.phonePlaceholder}`}
+              className="flex-1 bg-slate-50 border-2 border-slate-100 focus:border-blue-400 rounded-2xl px-4 py-3 text-base font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none transition-colors" />
+          </div>
+          <p className="text-slate-300 text-xs pl-1">Entrez votre numéro local (sans l'indicatif pays)</p>
+        </div>
+
+        {isOpMaintenance(country, operator) && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-3.5 flex gap-3">
+            <AlertTriangle size={15} className="text-red-500 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-red-700"><strong>{selectedOp?.name}</strong> est en maintenance. Le paiement peut échouer.</p>
           </div>
         )}
 
-        {/* Note redirection */}
         {useRedirect && operator && (
           <div className="bg-orange-50 border border-orange-200 rounded-2xl p-3.5 flex gap-3">
-            <ExternalLink size={16} className="text-orange-500 flex-shrink-0 mt-0.5" />
+            <ExternalLink size={15} className="text-orange-500 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-orange-800">
               <strong>{selectedCountry?.name} :</strong> Vous serez redirigé vers la page de paiement sécurisée.
             </p>
           </div>
         )}
 
-        {/* Note dépôt manuel */}
         {useManual && !useRedirect && operator && (
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex gap-3">
-            <Info size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
+            <Info size={15} className="text-amber-500 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-amber-800">
               Le paiement pour <strong>{selectedCountry?.name}</strong> se fait par <strong>dépôt manuel</strong>. À l'étape suivante, vous recevrez un numéro de dépôt.
             </p>
           </div>
         )}
 
-        {/* Numéro */}
-        {operator && (
-          <div className="bg-white rounded-3xl shadow-md p-4">
-            <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest mb-3 flex items-center gap-1.5">
-              <Phone size={11} /> Numéro Mobile Money
-            </p>
-            <div className="flex gap-2">
-              <div className="flex items-center justify-center bg-slate-100 rounded-2xl px-3 text-sm font-bold text-slate-500 whitespace-nowrap">
-                +{selectedCountry?.prefix}
-              </div>
-              <input type="tel" inputMode="numeric" value={phone}
-                onChange={e => setPhone(e.target.value.replace(/[^\d\s]/g, ""))}
-                placeholder={`Ex : ${selectedCountry?.phonePlaceholder}`}
-                className="flex-1 bg-slate-50 border-2 border-slate-100 focus:border-blue-400 rounded-2xl px-4 py-3 text-base font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none transition-colors" />
-            </div>
-            <p className="text-slate-300 text-xs mt-2 pl-1">Entrez votre numéro local (sans l'indicatif pays)</p>
-          </div>
-        )}
-
         {/* Prénom / Nom / Email */}
-        {operator && (
-          <div className="bg-white rounded-3xl shadow-md p-4 space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { label: "Prénom", value: firstName, set: setFirstName, ph: "Jean" },
-                { label: "Nom",    value: lastName,  set: setLastName,  ph: "Dupont" },
-              ].map(f => (
-                <div key={f.label}>
-                  <p className="text-slate-400 text-[11px] font-black uppercase tracking-wider mb-2">{f.label}</p>
-                  <input type="text" value={f.value} onChange={e => f.set(e.target.value)} placeholder={f.ph}
-                    className="w-full bg-slate-50 border-2 border-slate-100 focus:border-blue-400 rounded-2xl px-3 py-3 text-sm font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none transition-colors" />
-                </div>
-              ))}
+        <div className="bg-white rounded-3xl shadow-md p-4 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { label: "Prénom", value: firstName, set: setFirstName, ph: "Jean" },
+              { label: "Nom",    value: lastName,  set: setLastName,  ph: "Dupont" },
+            ].map(f => (
+              <div key={f.label}>
+                <p className="text-slate-400 text-[11px] font-black uppercase tracking-wider mb-2">{f.label}</p>
+                <input type="text" value={f.value} onChange={e => f.set(e.target.value)} placeholder={f.ph}
+                  className="w-full bg-slate-50 border-2 border-slate-100 focus:border-blue-400 rounded-2xl px-3 py-3 text-sm font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none transition-colors" />
+              </div>
+            ))}
+          </div>
+          <div>
+            <p className="text-slate-400 text-[11px] font-black uppercase tracking-wider mb-2">
+              Email{link?.isPcs ? " — Compte Sika Texte" : ""}
+            </p>
+            {link?.isPcs && currentUserEmail ? (
+              <div className="w-full border-2 border-emerald-200 bg-emerald-50 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-800 flex items-center gap-2">
+                <CheckCircle size={14} style={{ color: EM1 }} className="flex-shrink-0" />
+                <span className="truncate">{email}</span>
+              </div>
+            ) : (
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                placeholder={link?.isPcs ? "Adresse e-mail de votre compte Sika" : "jean@exemple.com"}
+                className="w-full bg-slate-50 border-2 border-slate-100 focus:border-blue-400 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none transition-colors" />
+            )}
+            {link?.isPcs && (
+              <p className="text-slate-300 text-[10px] mt-1.5">⚠️ Seuls les comptes Sika Texte sont acceptés.</p>
+            )}
+          </div>
+        </div>
+
+        {/* Récapitulatif */}
+        {phoneValid && (
+          <div className="bg-white rounded-3xl shadow-md overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-50">
+              <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Récapitulatif</p>
             </div>
-            <div>
-              <p className="text-slate-400 text-[11px] font-black uppercase tracking-wider mb-2">
-                Email{link?.isPcs ? " — Compte Sika Texte" : ""}
-              </p>
-              {link?.isPcs && currentUserEmail ? (
-                <div className="w-full border-2 border-emerald-200 bg-emerald-50 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-800 flex items-center gap-2">
-                  <CheckCircle size={14} style={{ color: EM1 }} className="flex-shrink-0" />
-                  <span className="truncate">{email}</span>
-                </div>
-              ) : (
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                  placeholder={link?.isPcs ? "Adresse e-mail de votre compte Sika" : "jean@exemple.com"}
-                  className="w-full bg-slate-50 border-2 border-slate-100 focus:border-blue-400 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none transition-colors" />
-              )}
-              {link?.isPcs && (
-                <p className="text-slate-300 text-[10px] mt-1.5">⚠️ Seuls les comptes Sika Texte sont acceptés.</p>
-              )}
+            <div className="divide-y divide-slate-50">
+              <div className="flex items-center justify-between px-4 py-3">
+                <p className="text-slate-500 text-sm">Pays</p>
+                <div className="flex items-center gap-1.5"><span className="text-lg">{selectedCountry?.flag}</span><span className="font-semibold text-slate-800 text-sm">{selectedCountry?.name}</span></div>
+              </div>
+              <div className="flex items-center justify-between px-4 py-3">
+                <p className="text-slate-500 text-sm">Réseau</p>
+                <div className="flex items-center gap-2"><OperatorBadge code={operator} size="sm" /><span className="font-semibold text-slate-800 text-sm">{selectedOp?.name}</span></div>
+              </div>
+              <div className="flex items-center justify-between px-4 py-3">
+                <p className="text-slate-500 text-sm">Numéro</p>
+                <p className="font-bold text-slate-800 font-mono">+{selectedCountry?.prefix} {phone}</p>
+              </div>
             </div>
           </div>
         )}
@@ -933,14 +1077,12 @@ export default function PaymentLinkPage() {
           </div>
           <div className="rounded-xl px-3 py-2 flex gap-2 bg-amber-50 border border-amber-100">
             <AlertCircle size={11} className="text-amber-500 flex-shrink-0 mt-0.5" />
-            <p className="text-[10px] text-amber-700 leading-snug">
-              Nos équipes sont mobilisées. Veuillez patienter après chaque paiement.
-            </p>
+            <p className="text-[10px] text-amber-700 leading-snug">Nos équipes sont mobilisées. Veuillez patienter après chaque paiement.</p>
           </div>
         </div>
         <div className="bg-white px-4 pt-2 pb-5">
           <button onClick={handleContinue}
-            disabled={submitting || !country || !operator || isOpMaintenance(country, operator)}
+            disabled={submitting || !canContinue}
             className="w-full py-4 rounded-2xl font-black text-white text-base transition-all disabled:opacity-40 flex items-center justify-center gap-2"
             style={{
               background: useRedirect && operator
@@ -951,7 +1093,7 @@ export default function PaymentLinkPage() {
             {submitting
               ? <><Loader2 size={18} className="animate-spin" /> Traitement<AnimatedDots /></>
               : useRedirect && operator
-                ? <><ExternalLink size={18} /> Accéder au paiement ({amount} {link.currency})</>
+                ? <><ExternalLink size={18} /> Accéder au paiement ({amount} {link?.currency})</>
                 : <>Continuer <ChevronRight size={18} /></>
             }
           </button>

@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   CheckCircle, Loader2, Clock, XCircle, RefreshCw,
   ShieldCheck, ChevronRight, ChevronLeft, Phone, Globe,
@@ -43,8 +42,10 @@ const HDR = "#0D1B2A";
 const EM1 = "#10B981";
 const EM2 = "#059669";
 
-// ─── Sous-composants ─────────────────────────────────────────────────────────
+// ─── Step type ───────────────────────────────────────────────────────────────
+type FormStep = "country" | "operator" | "phone" | "confirm" | "manual";
 
+// ─── Sous-composants ─────────────────────────────────────────────────────────
 function OperatorBadge({ code, size = "md" }: { code: string; size?: "sm" | "md" | "lg" }) {
   const op = OPERATORS[code];
   if (!op) return null;
@@ -57,15 +58,10 @@ function OperatorBadge({ code, size = "md" }: { code: string; size?: "sm" | "md"
   );
 }
 
-function OperatorLogo({ code, size = "md" }: { code: string; size?: "sm" | "md" | "lg" }) {
-  return <OperatorBadge code={code} size={size} />;
-}
-
 function MethodPill({ method }: { method: MethodType }) {
-  const labels: Record<MethodType, string> = { ussd: "USSD Push", redirect: "Redirection" };
   return (
     <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700">
-      {method === "ussd" ? "📱" : "↗️"} {labels[method]}
+      {method === "ussd" ? "📱" : "↗️"} {method === "ussd" ? "USSD Push" : "Redirection"}
     </span>
   );
 }
@@ -75,6 +71,56 @@ function MaintenanceBadge() {
     <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border border-red-200 bg-red-50 text-red-600">
       <Wrench size={9} /> Maintenance
     </span>
+  );
+}
+
+function ProgressBar({ step }: { step: FormStep }) {
+  const steps: { key: FormStep; label: string; icon: any }[] = [
+    { key: "country",  label: "Pays",    icon: Globe },
+    { key: "operator", label: "Réseau",  icon: Phone },
+    { key: "phone",    label: "Numéro",  icon: Phone },
+    { key: "confirm",  label: "Confirmer", icon: CheckCircle },
+  ];
+  const mainSteps = ["country", "operator", "phone", "confirm"];
+  const currentIdx = mainSteps.indexOf(step === "manual" ? "confirm" : step);
+
+  return (
+    <div className="px-5 pb-4">
+      <div className="flex items-center justify-between gap-1">
+        {steps.map((s, i) => {
+          const done    = i < currentIdx;
+          const active  = i === currentIdx;
+          return (
+            <div key={s.key} className="flex-1 flex flex-col items-center gap-1.5">
+              <div className="flex items-center w-full">
+                {i > 0 && (
+                  <div className="flex-1 h-0.5 rounded-full"
+                    style={{ background: done ? EM1 : "rgba(255,255,255,0.15)" }} />
+                )}
+                <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all"
+                  style={{
+                    background: done ? EM1 : active ? "rgba(16,185,129,0.2)" : "rgba(255,255,255,0.08)",
+                    border: active ? `2px solid ${EM1}` : done ? "none" : "2px solid rgba(255,255,255,0.15)",
+                  }}>
+                  {done
+                    ? <CheckCircle size={13} className="text-white" />
+                    : <span className="text-[10px] font-black" style={{ color: active ? EM1 : "rgba(255,255,255,0.3)" }}>{i + 1}</span>
+                  }
+                </div>
+                {i < steps.length - 1 && (
+                  <div className="flex-1 h-0.5 rounded-full"
+                    style={{ background: done ? EM1 : "rgba(255,255,255,0.15)" }} />
+                )}
+              </div>
+              <p className="text-[9px] font-bold tracking-wide"
+                style={{ color: active ? EM1 : done ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.2)" }}>
+                {s.label}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -147,10 +193,10 @@ export default function Activation() {
   const { data: activationStatus, refetch: refetchStatus } = useQuery({ queryKey: ["/api/activation/status"] }) as any;
   const { data: paymentInfo }                               = useQuery({ queryKey: ["/api/activation/payment-info"], refetchInterval: 30000 }) as any;
 
-  const [step, setStep]       = useState<1 | 2 | 3>(1);
-  const [country, setCountry] = useState("");
+  const [step, setStep]         = useState<FormStep>("country");
+  const [country, setCountry]   = useState("");
   const [operator, setOperator] = useState("");
-  const [phone, setPhone]     = useState("");
+  const [phone, setPhone]       = useState("");
   const [initializing, setInitializing] = useState(true);
 
   const [depositInfo, setDepositInfo]               = useState<any>(null);
@@ -193,14 +239,14 @@ export default function Activation() {
 
   type PayMode = "manual" | "redirect" | "solvexpay";
   const countryModes: Record<string, { mode: PayMode; redirectUrl: string }> = paymentInfo?.countryModes ?? {};
-  const getCountryMode     = (c: string): PayMode  => { if (c === "CI") return ciMode; return countryModes[c]?.mode ?? "manual"; };
-  const getCountryRedirectUrl = (c: string): string => { if (c === "CI") return ciRedirectUrl; return countryModes[c]?.redirectUrl || ""; };
-  const isManualCountry    = (c: string) => getCountryMode(c) === "manual";
-  const isRedirectCountry  = (c: string) => getCountryMode(c) === "redirect";
+  const getCountryMode        = (c: string): PayMode  => { if (c === "CI") return ciMode; return countryModes[c]?.mode ?? "manual"; };
+  const getCountryRedirectUrl = (c: string): string   => { if (c === "CI") return ciRedirectUrl; return countryModes[c]?.redirectUrl || ""; };
+  const isManualCountry       = (c: string) => getCountryMode(c) === "manual";
+  const isRedirectCountry     = (c: string) => getCountryMode(c) === "redirect";
 
   // Effects
   useEffect(() => {
-    if (step !== 2 || !country || !operator) return;
+    if (step !== "manual" || !country || !operator) return;
     setDepositLoading(true);
     fetch(`/api/activation/manual-deposit-info?country=${country}&operator=${operator}`, { credentials: "include" })
       .then(r => r.json()).then(d => setDepositInfo(d)).catch(() => setDepositInfo(null)).finally(() => setDepositLoading(false));
@@ -237,13 +283,13 @@ export default function Activation() {
       .then(r => r.json())
       .then(data => {
         if (!data.found) return;
-        const createdAt   = new Date(data.createdAt);
-        const hoursDiff   = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60);
+        const createdAt = new Date(data.createdAt);
+        const hoursDiff = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60);
         if (data.status === "pending" && hoursDiff < 24) {
           setPendingCreatedAt(createdAt.toISOString()); setManualSubmitted(true);
         } else if (data.status === "rejected") {
-          const dismissedAt  = localStorage.getItem("sika_rejection_dismissed_at");
-          const requestTime  = new Date(data.createdAt).getTime();
+          const dismissedAt = localStorage.getItem("sika_rejection_dismissed_at");
+          const requestTime = new Date(data.createdAt).getTime();
           if (!dismissedAt || requestTime > parseInt(dismissedAt)) setRejectionNote(data.adminNote || "");
         }
       })
@@ -275,8 +321,9 @@ export default function Activation() {
     catch { toast({ title: "Copié", description: depositInfo.depositNumber }); }
   };
 
-  const handleStep1Continue = () => {
-    if (isManualCountry(country)) setStep(2); else setStep(3);
+  const handlePhoneContinue = () => {
+    if (isManualCountry(country)) setStep("manual");
+    else setStep("confirm");
   };
 
   const handleManualSubmit = async () => {
@@ -309,7 +356,8 @@ export default function Activation() {
   const handleReset = () => {
     localStorage.setItem("sika_rejection_dismissed_at", Date.now().toString());
     setTransactionId(null); setTxStatus(null); setCheckCount(0);
-    setStep(1); setPhone(""); setPayerName(""); setTransactionId2(""); setScreenshotFile(null);
+    setStep("country"); setCountry(""); setOperator(""); setPhone("");
+    setPayerName(""); setTransactionId2(""); setScreenshotFile(null);
     setManualSubmitted(false); setDepositInfo(null); setPendingCreatedAt(null); setRejectionNote(null);
     if (intervalRef.current) clearInterval(intervalRef.current);
   };
@@ -360,6 +408,49 @@ export default function Activation() {
     } catch (err: any) { toast({ title: "Erreur", description: err.message, variant: "destructive" }); }
     finally { setLoading(false); }
   };
+
+  // ── Header commun ──────────────────────────────────────────────────────────
+  function PageHeader({ onBack, showBack = true }: { onBack?: () => void; showBack?: boolean }) {
+    return (
+      <div style={{ background: HDR }}>
+        <div className="px-5 pt-6 pb-2 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <img src={sikaLogo} alt="Sika" className="w-10 h-10 rounded-2xl object-cover ring-2 ring-white/10" />
+            <div>
+              <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: EM1 }}>Sika Services</p>
+              <p className="text-white font-black text-sm">SIKA TEXTE</p>
+            </div>
+          </div>
+          {showBack && onBack ? (
+            <button onClick={onBack}
+              className="flex items-center gap-1.5 text-xs font-semibold text-white/60 rounded-xl px-3 py-1.5"
+              style={{ background: "rgba(255,255,255,0.08)" }}>
+              <ChevronLeft size={13} /> Retour
+            </button>
+          ) : showBack ? (
+            <Link href="/withdrawal">
+              <button className="flex items-center gap-1.5 text-xs font-semibold text-white/60 rounded-xl px-3 py-1.5"
+                style={{ background: "rgba(255,255,255,0.08)" }}>
+                <ArrowLeft size={13} /> Retour
+              </button>
+            </Link>
+          ) : null}
+        </div>
+        <div className="px-5 pt-3 pb-2">
+          <p className="text-[11px] font-semibold uppercase tracking-widest mb-1" style={{ color: `${EM1}90` }}>Frais d'activation</p>
+          <div className="flex items-end gap-2">
+            <span className="text-5xl font-black text-white leading-none">{activationAmount}</span>
+            <span className="text-xl font-bold text-white/40 mb-1">FCFA</span>
+          </div>
+          <div className="flex items-center gap-1.5 mt-1.5">
+            <ShieldCheck size={11} style={{ color: EM1 }} />
+            <span className="text-xs font-semibold" style={{ color: `${EM1}80` }}>Upay · Paiement sécurisé</span>
+          </div>
+        </div>
+        <ProgressBar step={step} />
+      </div>
+    );
+  }
 
   // ── Chargement ────────────────────────────────────────────────────────────
   if (initializing || activationStatus === undefined) {
@@ -528,7 +619,6 @@ export default function Activation() {
     return (
       <div className="min-h-screen pb-8" style={{ background: PG }}>
         <style>{`@keyframes bounceScale{0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1}}`}</style>
-
         <div className="px-5 pt-6 pb-4 flex items-center justify-between" style={{ background: HDR }}>
           <div className="flex items-center gap-2.5">
             <img src={sikaLogo} alt="Sika" className="w-9 h-9 rounded-xl object-cover" />
@@ -543,16 +633,14 @@ export default function Activation() {
             <span className="text-amber-300 text-[11px] font-bold">En vérification</span>
           </div>
         </div>
-
         <div className="px-4 py-5 space-y-4 max-w-md mx-auto">
           <div className="text-center pb-1">
-            <h1 className="text-slate-900 font-black text-2xl mb-1">vérification en cours</h1>
+            <h1 className="text-slate-900 font-black text-2xl mb-1">Vérification en cours</h1>
             <p className="text-slate-500 text-sm leading-relaxed">
               Votre demande a bien été reçue.<br />
               <span className="text-slate-700 font-semibold">Nos équipes sont mobilisées</span> pour la traiter rapidement.
             </p>
           </div>
-
           {pendingCreatedAt ? (
             <CountdownHero createdAt={pendingCreatedAt} />
           ) : (
@@ -566,7 +654,6 @@ export default function Activation() {
               </div>
             </div>
           )}
-
           <div className="bg-white rounded-3xl shadow-md p-4 flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "#D1FAE5" }}>
               <span className="text-xl">👥</span>
@@ -582,7 +669,6 @@ export default function Activation() {
               ))}
             </div>
           </div>
-
           <div className="bg-white rounded-3xl shadow-md overflow-hidden">
             <div className="px-4 py-3 border-b border-slate-100">
               <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Avancement du dossier</p>
@@ -609,27 +695,6 @@ export default function Activation() {
               </div>
             ))}
           </div>
-
-          <div className="bg-white rounded-3xl shadow-md p-4">
-            <div className="flex items-center gap-2.5 mb-3">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-blue-50 flex-shrink-0">
-                <Info size={14} className="text-blue-500" />
-              </div>
-              <p className="text-slate-800 font-black text-sm">En attendant…</p>
-            </div>
-            <ul className="space-y-2">
-              {[
-                "Gardez votre téléphone à portée — vous serez notifié",
-                "Ne soumettez pas une autre demande pour le même paiement",
-                "Vérifiez que votre SMS de confirmation est bien reçu",
-              ].map((txt, i) => (
-                <li key={i} className="flex items-start gap-2 text-slate-500 text-xs leading-snug">
-                  <span style={{ color: EM1 }} className="flex-shrink-0 mt-0.5 font-bold">→</span>{txt}
-                </li>
-              ))}
-            </ul>
-          </div>
-
           <div className="space-y-3 pt-1">
             <button onClick={checkPendingStatus} disabled={statusChecking}
               className="w-full py-4 rounded-2xl font-black text-white text-sm flex items-center justify-center gap-2 disabled:opacity-50"
@@ -642,7 +707,6 @@ export default function Activation() {
               </button>
             </Link>
           </div>
-
           <p className="text-slate-300 text-[10px] flex items-center justify-center gap-1.5 pb-2">
             <ShieldCheck size={9} /> Traitement sécurisé · Actualisation auto toutes les 30 s
           </p>
@@ -651,153 +715,195 @@ export default function Activation() {
     );
   }
 
-  // ── ÉTAPE 1 : Coordonnées ─────────────────────────────────────────────────
-  if (step === 1) {
-    const canContinue = !!(country && operator && phone.replace(/\D/g, "").length >= 6 && !isOpMaintenance(country, operator));
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ÉTAPE 1 : Sélection du pays
+  // ─────────────────────────────────────────────────────────────────────────────
+  if (step === "country") {
+    return (
+      <div className="min-h-screen pb-10" style={{ background: PG }}>
+        <PageHeader showBack={true} />
+        <div className="px-4 pt-5 pb-10 space-y-4 max-w-md mx-auto">
+
+          <div className="text-center pb-1">
+            <p className="text-slate-700 font-black text-lg">Sélectionnez votre pays</p>
+            <p className="text-slate-400 text-sm mt-0.5">Étape 1 sur 3 — Choisissez votre pays de résidence</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5">
+            {COUNTRIES.map(c => (
+              <button key={c.code}
+                onClick={() => { setCountry(c.code); setOperator(""); setStep("operator"); }}
+                className="flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all active:scale-95"
+                style={{
+                  background: country === c.code ? "#F0FDF9" : "#fff",
+                  borderColor: country === c.code ? EM1 : "#E2E8F0",
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+                }}>
+                <span className="text-3xl">{c.flag}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold leading-tight text-slate-800 truncate">{c.name}</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">+{c.prefix}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <div className="rounded-2xl px-4 py-3 flex gap-2.5 bg-blue-50 border border-blue-100">
+            <Info size={15} className="text-blue-500 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-blue-700 leading-relaxed">
+              Sélectionnez votre pays pour voir les réseaux Mobile Money disponibles.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ÉTAPE 2 : Sélection du réseau Mobile Money
+  // ─────────────────────────────────────────────────────────────────────────────
+  if (step === "operator") {
+    return (
+      <div className="min-h-screen pb-10" style={{ background: PG }}>
+        <PageHeader onBack={() => setStep("country")} />
+        <div className="px-4 pt-5 pb-10 space-y-4 max-w-md mx-auto">
+
+          <div className="flex items-center gap-2 pb-1">
+            <span className="text-2xl">{selectedCountry?.flag}</span>
+            <div>
+              <p className="text-slate-700 font-black text-lg leading-tight">Réseau Mobile Money</p>
+              <p className="text-slate-400 text-sm">Étape 2 sur 3 — {selectedCountry?.name}</p>
+            </div>
+          </div>
+
+          <div className="space-y-2.5">
+            {selectedCountry?.operators.map(op => {
+              const info = OPERATORS[op];
+              const inMaintenance = isOpMaintenance(country, op);
+              return (
+                <button key={op} disabled={inMaintenance}
+                  onClick={() => { setOperator(op); setStep("phone"); }}
+                  className="w-full flex items-center gap-4 p-4 rounded-2xl border-2 text-left transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{
+                    background: inMaintenance ? "#f8fafc" : "#fff",
+                    borderColor: "#E2E8F0",
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+                  }}>
+                  <div className={inMaintenance ? "grayscale opacity-60" : ""}>
+                    <OperatorBadge code={op} size="md" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-bold text-slate-800 text-sm">{info.name}</p>
+                      {inMaintenance && <MaintenanceBadge />}
+                    </div>
+                    <p className="text-slate-400 text-xs mt-0.5">{info.full}</p>
+                    {!inMaintenance && <div className="mt-1.5"><MethodPill method={info.method} /></div>}
+                    {inMaintenance && <p className="text-red-500 text-[10px] font-semibold mt-0.5">Indisponible — en maintenance</p>}
+                  </div>
+                  {!inMaintenance && (
+                    <ChevronRight size={18} className="text-slate-300 flex-shrink-0" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {isRedirectCountry(country) && (
+            <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-3.5 flex gap-3">
+              <ExternalLink size={15} className="text-indigo-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-indigo-800">
+                Pour <strong>{selectedCountry?.name}</strong>, vous serez redirigé vers la <strong>page de paiement sécurisée</strong> de votre opérateur.
+              </p>
+            </div>
+          )}
+
+          {isManualCountry(country) && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex gap-3">
+              <Info size={15} className="text-amber-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-800">
+                L'activation pour <strong>{selectedCountry?.name}</strong> se fait par <strong>dépôt manuel</strong>. Vous recevrez un numéro de dépôt à l'étape suivante.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ÉTAPE 3 : Numéro de téléphone
+  // ─────────────────────────────────────────────────────────────────────────────
+  if (step === "phone") {
+    const canContinue = phone.replace(/\D/g, "").length >= 6 && !isOpMaintenance(country, operator);
     return (
       <div className="min-h-screen pb-52" style={{ background: PG }}>
-        <div style={{ background: HDR }}>
-          <div className="px-5 pt-6 pb-2 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <img src={sikaLogo} alt="Sika" className="w-10 h-10 rounded-2xl object-cover ring-2 ring-white/10" />
-              <div>
-                <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: EM1 }}>Sika Services</p>
-                <p className="text-white font-black text-sm">SIKA TEXTE</p>
-              </div>
-            </div>
-            <Link href="/withdrawal">
-              <button className="flex items-center gap-1.5 text-xs font-semibold text-white/60 rounded-xl px-3 py-1.5"
-                style={{ background: "rgba(255,255,255,0.08)" }}>
-                <ArrowLeft size={13} /> Retour
-              </button>
-            </Link>
-          </div>
-          <div className="px-5 pt-3 pb-5">
-            <p className="text-[11px] font-semibold uppercase tracking-widest mb-1" style={{ color: `${EM1}90` }}>Frais d'activation</p>
-            <div className="flex items-end gap-2">
-              <span className="text-5xl font-black text-white leading-none">{activationAmount}</span>
-              <span className="text-xl font-bold text-white/40 mb-1">FCFA</span>
-            </div>
-            <div className="flex items-center gap-1.5 mt-2">
-              <ShieldCheck size={11} style={{ color: EM1 }} />
-              <span className="text-xs font-semibold" style={{ color: `${EM1}80` }}>Upay · Paiement sécurisé</span>
-            </div>
-          </div>
-        </div>
+        <PageHeader onBack={() => setStep("operator")} />
+        <div className="px-4 pt-5 space-y-4 max-w-md mx-auto">
 
-        <div className="px-4 pt-4 space-y-4 max-w-md mx-auto">
-          <div className="bg-white rounded-3xl shadow-md p-4">
-            <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest mb-3 flex items-center gap-1.5">
-              <Globe size={11} /> Pays
+          <div className="flex items-center gap-3 pb-1">
+            <OperatorBadge code={operator} size="sm" />
+            <div>
+              <p className="text-slate-700 font-black text-lg leading-tight">Numéro de paiement</p>
+              <p className="text-slate-400 text-sm">Étape 3 sur 3 — {selectedOp?.full}</p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl shadow-md p-5 space-y-2">
+            <p className="text-slate-500 text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5">
+              <Phone size={11} /> Votre numéro Mobile Money
             </p>
-            <div className="grid grid-cols-2 gap-2">
-              {COUNTRIES.map(c => (
-                <button key={c.code} onClick={() => { setCountry(c.code); setOperator(""); }}
-                  className={`flex items-center gap-2.5 p-3 rounded-2xl border-2 text-left transition-all ${
-                    country === c.code ? "border-emerald-400 bg-emerald-50" : "border-slate-100 bg-slate-50 hover:border-slate-200"
-                  }`}>
-                  <span className="text-2xl">{c.flag}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-xs font-bold leading-tight truncate ${country === c.code ? "text-emerald-800" : "text-slate-700"}`}>{c.name}</p>
-                    <p className="text-[10px] text-slate-400">+{c.prefix}</p>
-                  </div>
-                  {country === c.code && <CheckCircle size={13} style={{ color: EM1 }} className="flex-shrink-0" />}
-                </button>
-              ))}
+            <div className="flex gap-2">
+              <div className="flex items-center justify-center bg-slate-100 rounded-2xl px-4 text-sm font-bold text-slate-500 whitespace-nowrap flex-shrink-0">
+                +{selectedCountry?.prefix}
+              </div>
+              <input type="tel" inputMode="numeric" autoFocus
+                placeholder={`Ex : ${phonePlaceholder}`} value={phone}
+                onChange={e => setPhone(e.target.value.replace(/[^\d\s]/g, ""))}
+                className="flex-1 bg-slate-50 border-2 border-slate-100 focus:border-emerald-300 rounded-2xl px-4 py-3.5 text-lg font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none transition-colors" />
             </div>
+            <p className="text-slate-300 text-xs pl-1">Entrez votre numéro local sans l'indicatif pays</p>
           </div>
 
-          {selectedCountry && (
-            <div className="bg-white rounded-3xl shadow-md p-4">
-              <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest mb-3">Réseau Mobile Money</p>
-              <div className="space-y-2">
-                {selectedCountry.operators.map(op => {
-                  const info = OPERATORS[op];
-                  const selected = operator === op;
-                  const inMaintenance = isOpMaintenance(country, op);
-                  return (
-                    <div key={op}
-                      onClick={() => { if (!inMaintenance) setOperator(op); }}
-                      className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 transition-all select-none ${
-                        inMaintenance ? "border-slate-100 bg-slate-50 opacity-50 cursor-not-allowed"
-                          : selected ? "border-emerald-400 bg-emerald-50 cursor-pointer"
-                          : "border-slate-100 bg-slate-50 cursor-pointer hover:border-slate-200"
-                      }`}>
-                      <div className={inMaintenance ? "grayscale opacity-50" : ""}><OperatorBadge code={op} size="sm" /></div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className={`text-sm font-bold ${inMaintenance ? "text-slate-400" : selected ? "text-emerald-800" : "text-slate-700"}`}>{info.name}</p>
-                          {inMaintenance && <MaintenanceBadge />}
-                        </div>
-                        <p className="text-[11px] text-slate-400 mb-1">{info.full}</p>
-                        {!inMaintenance && <MethodPill method={info.method} />}
-                        {inMaintenance && <p className="text-[10px] text-red-500 font-semibold mt-0.5">Indisponible — en maintenance</p>}
-                      </div>
-                      {selected && !inMaintenance && <CheckCircle size={16} style={{ color: EM1 }} className="flex-shrink-0" />}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {isWave && (
-            <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-3.5 flex gap-3">
-              <ExternalLink size={16} className="text-indigo-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-bold text-indigo-800 text-sm mb-0.5">Paiement Wave</p>
-                <p className="text-xs text-indigo-600">Vous serez redirigé vers Wave pour finaliser votre transaction.</p>
-              </div>
-            </div>
-          )}
-
-          {operator && (
-            <div className="bg-white rounded-3xl shadow-md p-4">
-              <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                <Phone size={11} /> Numéro de paiement
-              </p>
-              <div className="flex gap-2">
-                <div className="flex items-center justify-center bg-slate-100 rounded-2xl px-3 text-sm font-bold text-slate-500 whitespace-nowrap">
-                  +{selectedCountry?.prefix}
-                </div>
-                <input type="tel" inputMode="numeric"
-                  placeholder={`Ex : ${phonePlaceholder}`} value={phone}
-                  onChange={e => setPhone(e.target.value.replace(/[^\d\s]/g, ""))}
-                  className="flex-1 bg-slate-50 border-2 border-slate-100 focus:border-emerald-300 rounded-2xl px-4 py-3 text-base font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none transition-colors" />
-              </div>
-              <p className="text-slate-300 text-xs mt-2 pl-1">Entrez votre numéro local (sans l'indicatif pays)</p>
-            </div>
-          )}
-
-          {operator && isOpMaintenance(country, operator) && (
+          {isOpMaintenance(country, operator) && (
             <div className="bg-red-50 border border-red-200 rounded-2xl p-3.5 flex gap-3">
-              <AlertTriangle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
-              <div className="text-xs text-red-700">
-                <p className="font-bold mb-0.5">⚠ {selectedOp?.name} — En maintenance</p>
-                <p>SolvexPay signale une maintenance sur cet opérateur. Le paiement peut échouer.</p>
-              </div>
+              <AlertTriangle size={15} className="text-red-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-red-700"><strong>{selectedOp?.name}</strong> est en maintenance. Le paiement peut échouer.</p>
             </div>
           )}
 
-          {country && operator && isManualCountry(country) && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex gap-3">
-              <Info size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-amber-800">
-                L'activation pour <strong>{selectedCountry?.name}</strong> se fait par <strong>dépôt manuel</strong>. À l'étape suivante, vous recevrez un numéro de dépôt.
-              </p>
-            </div>
-          )}
-
-          {country && operator && isRedirectCountry(country) && (
+          {isWave && !isOpMaintenance(country, operator) && (
             <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-3.5 flex gap-3">
-              <ExternalLink size={16} className="text-indigo-500 flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-indigo-800">
-                Vous serez redirigé vers la <strong>page de paiement sécurisée</strong> de votre opérateur.
-              </p>
+              <ExternalLink size={15} className="text-indigo-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-indigo-800"><strong>Paiement Wave :</strong> Vous serez redirigé vers Wave pour finaliser votre transaction.</p>
+            </div>
+          )}
+
+          {/* Récapitulatif */}
+          {phone.replace(/\D/g, "").length >= 6 && (
+            <div className="bg-white rounded-3xl shadow-md overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-50">
+                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Récapitulatif</p>
+              </div>
+              <div className="divide-y divide-slate-50">
+                <div className="flex items-center justify-between px-4 py-3">
+                  <p className="text-slate-500 text-sm">Pays</p>
+                  <div className="flex items-center gap-1.5"><span className="text-lg">{selectedCountry?.flag}</span><span className="font-semibold text-slate-800 text-sm">{selectedCountry?.name}</span></div>
+                </div>
+                <div className="flex items-center justify-between px-4 py-3">
+                  <p className="text-slate-500 text-sm">Réseau</p>
+                  <div className="flex items-center gap-2"><OperatorBadge code={operator} size="sm" /><span className="font-semibold text-slate-800 text-sm">{selectedOp?.name}</span></div>
+                </div>
+                <div className="flex items-center justify-between px-4 py-3">
+                  <p className="text-slate-500 text-sm">Numéro</p>
+                  <p className="font-bold text-slate-800 font-mono">+{selectedCountry?.prefix} {phone}</p>
+                </div>
+              </div>
             </div>
           )}
         </div>
 
+        {/* Bouton fixe */}
         <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto">
           <div className="bg-white border-t border-slate-100 shadow-2xl px-4 pt-3 pb-1 space-y-1.5">
             <div className="rounded-xl px-3 py-2 flex gap-2 bg-red-50 border border-red-100">
@@ -808,13 +914,11 @@ export default function Activation() {
             </div>
             <div className="rounded-xl px-3 py-2 flex gap-2 bg-amber-50 border border-amber-100">
               <AlertCircle size={11} className="text-amber-500 flex-shrink-0 mt-0.5" />
-              <p className="text-[10px] text-amber-700 leading-snug">
-                Nos équipes sont mobilisées. Veuillez patienter après chaque paiement.
-              </p>
+              <p className="text-[10px] text-amber-700 leading-snug">Nos équipes sont mobilisées. Veuillez patienter après chaque paiement.</p>
             </div>
           </div>
           <div className="bg-white px-4 pt-2 pb-5">
-            <button onClick={handleStep1Continue} disabled={!canContinue}
+            <button onClick={handlePhoneContinue} disabled={!canContinue}
               className="w-full py-4 rounded-2xl font-black text-white text-base transition-all disabled:opacity-40 flex items-center justify-center gap-2"
               style={{
                 background: canContinue ? `linear-gradient(135deg,${EM1},${EM2})` : "#E2E8F0",
@@ -832,15 +936,17 @@ export default function Activation() {
     );
   }
 
-  // ── ÉTAPE 2 : Dépôt manuel ─────────────────────────────────────────────────
-  if (step === 2) {
-    const canSubmit  = transactionId2.trim().length >= 3;
-    const fullPhone  = `+${selectedCountry?.prefix}${phone.replace(/\s/g, "")}`;
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ÉTAPE MANUELLE : Dépôt Mobile Money
+  // ─────────────────────────────────────────────────────────────────────────────
+  if (step === "manual") {
+    const canSubmit = transactionId2.trim().length >= 3;
+    const fullPhone = `+${selectedCountry?.prefix}${phone.replace(/\s/g, "")}`;
 
     return (
       <div className="min-h-screen pb-52" style={{ background: PG }}>
         <div className="px-5 pt-6 pb-3 flex items-center justify-between" style={{ background: HDR }}>
-          <button onClick={() => setStep(1)}
+          <button onClick={() => setStep("phone")}
             className="w-9 h-9 rounded-xl flex items-center justify-center"
             style={{ background: "rgba(255,255,255,0.08)" }}>
             <ChevronLeft size={18} className="text-white" />
@@ -862,8 +968,6 @@ export default function Activation() {
           </div>
         ) : depositInfo ? (
           <div className="px-4 pt-4 space-y-4 max-w-md mx-auto">
-
-            {/* Carte bon de virement (style ticket/reçu) */}
             <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
               <div className="px-5 py-4 flex items-center justify-between" style={{ background: HDR }}>
                 <div className="flex items-center gap-2.5">
@@ -1022,15 +1126,17 @@ export default function Activation() {
     );
   }
 
-  // ── ÉTAPE 3 : Récapitulatif & confirmation ────────────────────────────────
-  const op            = selectedOp;
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ÉTAPE CONFIRM : Récapitulatif & confirmation (USSD / Redirect)
+  // ─────────────────────────────────────────────────────────────────────────────
+  const op           = selectedOp;
   const displayMethod: MethodType = op?.method ?? "ussd";
-  const phoneDisplay  = `+${selectedCountry?.prefix} ${phone}`;
+  const phoneDisplay = `+${selectedCountry?.prefix} ${phone}`;
 
   return (
     <div className="min-h-screen pb-60" style={{ background: PG }}>
       <div style={{ background: HDR }} className="px-5 pt-6 pb-5">
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5">
             <img src={sikaLogo} alt="Sika" className="w-10 h-10 rounded-2xl object-cover" />
             <div>
@@ -1049,6 +1155,7 @@ export default function Activation() {
           <span className="text-5xl font-black text-white">{activationAmount}</span>
           <span className="text-xl font-bold text-white/40 mb-1">FCFA</span>
         </div>
+        <ProgressBar step="confirm" />
       </div>
 
       {isOpMaintenance(country, operator) && (
@@ -1062,7 +1169,7 @@ export default function Activation() {
         <div className="bg-white rounded-3xl shadow-md overflow-hidden">
           <div className="px-5 py-4 flex items-center justify-between border-b border-slate-50">
             <p className="font-black text-slate-800">Récapitulatif</p>
-            <button onClick={() => setStep(1)} className="flex items-center gap-1 text-sm font-semibold" style={{ color: EM1 }}>
+            <button onClick={() => setStep("phone")} className="flex items-center gap-1 text-sm font-semibold" style={{ color: EM1 }}>
               <ChevronLeft size={14} /> Modifier
             </button>
           </div>
@@ -1129,9 +1236,7 @@ export default function Activation() {
           </div>
           <div className="rounded-xl px-3 py-2 flex gap-2 bg-amber-50 border border-amber-100">
             <AlertCircle size={12} className="text-amber-500 flex-shrink-0 mt-0.5" />
-            <p className="text-[10px] text-amber-700 leading-snug">
-              Nos équipes sont mobilisées. Veuillez patienter après chaque paiement.
-            </p>
+            <p className="text-[10px] text-amber-700 leading-snug">Nos équipes sont mobilisées. Veuillez patienter après chaque paiement.</p>
           </div>
         </div>
         <div className="px-4 pt-2 pb-5">
