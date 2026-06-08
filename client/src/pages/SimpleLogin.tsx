@@ -25,6 +25,7 @@ export default function SimpleLogin() {
   const [showPassword, setShowPassword]     = useState(false);
   const [isLoading, setIsLoading]           = useState(false);
   const [isBlocked, setIsBlocked]           = useState(false);
+  const [blockedReason, setBlockedReason]   = useState<string | null>(null);
   const [showSupervisorDialog, setShowSupervisorDialog] = useState(false);
   const { toast }    = useToast();
   const [, setLocation] = useLocation();
@@ -54,6 +55,7 @@ export default function SimpleLogin() {
         toast({ title: "Connexion réussie !", description: "Bienvenue sur SIKA TEXTE" });
         setTimeout(() => window.location.replace("/"), 800);
       } else if (response.status === 403 && data.blocked) {
+        setBlockedReason(data.blockedReason || null);
         setIsBlocked(true);
       } else {
         toast({ title: "Erreur", description: data.message || "Numéro ou mot de passe incorrect", variant: "destructive" });
@@ -109,6 +111,12 @@ export default function SimpleLogin() {
                 <p className="text-gray-500 text-sm text-center leading-relaxed">
                   Votre compte a été bloqué suite à une activité non conforme à nos politiques d'utilisation.
                 </p>
+                {blockedReason && (
+                  <div className="w-full bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-center">
+                    <p className="text-red-600 text-xs font-semibold uppercase tracking-wide mb-1">Motif du blocage</p>
+                    <p className="text-red-800 text-sm font-medium leading-snug">{blockedReason}</p>
+                  </div>
+                )}
               </div>
               <button
                 onClick={() => setShowSupervisorDialog(true)}

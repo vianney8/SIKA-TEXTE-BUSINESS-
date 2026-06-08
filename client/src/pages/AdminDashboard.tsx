@@ -830,8 +830,8 @@ export default function AdminDashboard() {
 
   // Block/Unblock user mutation with optimistic update
   const blockUserMutation = useMutation({
-    mutationFn: async ({ userId, blocked }: { userId: string; blocked: boolean }) => {
-      return apiRequest('POST', `/api/admin/users/${userId}/block`, { blocked });
+    mutationFn: async ({ userId, blocked, reason }: { userId: string; blocked: boolean; reason?: string }) => {
+      return apiRequest('POST', `/api/admin/users/${userId}/block`, { blocked, reason });
     },
     onMutate: async ({ userId, blocked }) => {
       await queryClient.cancelQueries({ queryKey: ['/api/admin/users'] });
@@ -1205,7 +1205,16 @@ export default function AdminDashboard() {
                     <Button
                       size="sm"
                       variant={user.isBlocked ? "default" : "destructive"}
-                      onClick={() => blockUserMutation.mutate({ userId: user.id, blocked: !user.isBlocked })}
+                      onClick={() => {
+                        if (!user.isBlocked) {
+                          const reason = window.prompt('Motif du blocage (obligatoire) :', '');
+                          if (reason === null) return;
+                          if (!reason.trim()) { alert('Le motif est obligatoire.'); return; }
+                          blockUserMutation.mutate({ userId: user.id, blocked: true, reason: reason.trim() });
+                        } else {
+                          blockUserMutation.mutate({ userId: user.id, blocked: false });
+                        }
+                      }}
                       data-testid={`button-block-${user.id}`}
                     >
                       {user.isBlocked ? <Unlock className="h-3 w-3 mr-1" /> : <Lock className="h-3 w-3 mr-1" />}

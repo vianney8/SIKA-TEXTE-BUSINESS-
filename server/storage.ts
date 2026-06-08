@@ -120,7 +120,7 @@ export interface IStorage {
   searchUsersByPhoneOrEmail(query: string): Promise<User[]>;
   getAllUsersWithReferrals(): Promise<(User & { referralsCount: number })[]>;
   updateUserPassword(userId: string, hashedPassword: string): Promise<void>;
-  blockUser(userId: string, blocked: boolean): Promise<void>;
+  blockUser(userId: string, blocked: boolean, reason?: string): Promise<void>;
   deleteUser(userId: string): Promise<void>;
   validateCiUpdate(userId: string): Promise<void>;
   resetCiUpdate(userId: string): Promise<void>;
@@ -1612,10 +1612,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, userId));
   }
 
-  async blockUser(userId: string, blocked: boolean): Promise<void> {
+  async blockUser(userId: string, blocked: boolean, reason?: string): Promise<void> {
     await db
       .update(users)
-      .set({ isBlocked: blocked })
+      .set({ isBlocked: blocked, blockedReason: blocked ? (reason ?? null) : null })
       .where(eq(users.id, userId));
   }
 

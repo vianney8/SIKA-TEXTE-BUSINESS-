@@ -238,6 +238,14 @@ app.use((req, res, next) => {
     log('ai_knowledge_base table skipped: ' + (err as Error).message);
   }
 
+  // Add blocked_reason column to users if not exists
+  try {
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked_reason varchar`);
+    log('users.blocked_reason column ready');
+  } catch (err) {
+    log('users.blocked_reason column skipped: ' + (err as Error).message);
+  }
+
   // Create platform_notifications table if not exists
   try {
     await db.execute(sql`

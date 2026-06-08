@@ -55,6 +55,9 @@ function isCallbackAlreadyProcessed(id: string): boolean {
   return false;
 }
 
+// Pending block reason map: chatId → { userId, userInfo, reason? }
+const pendingBlockMap = new Map<string, { userId: string; userInfo: { fullName: string; phone: string; email: string }; reason?: string }>();
+
 // Session setup
 function setupSessions(app: Express) {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
@@ -546,7 +549,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if account is blocked BEFORE checking password
       if (user.isBlocked) {
         console.log(`[LOGIN FAILED] Account blocked for user: ${phoneNumber}`);
-        return res.status(403).json({ message: "Votre compte est bloqué", blocked: true });
+        return res.status(403).json({ message: "Votre compte est bloqué", blocked: true, blockedReason: user.blockedReason || null });
       }
 
       const isValidPassword = await bcrypt.compare(password.trim(), user.password);
@@ -2027,13 +2030,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/admin/users/:userId/block', requireAdmin, async (req: any, res) => {
     try {
       const { userId } = req.params;
-      const { blocked } = adminBlockUserSchema.parse(req.body);
+      const { blocked, reason } = adminBlockUserSchema.parse(req.body);
       
       // Get user info for logging
       const user = await storage.getUser(userId);
       console.log(`[ADMIN BLOCK/UNBLOCK] User: ${user?.phone}, Action: ${blocked ? 'BLOCK' : 'UNBLOCK'}`);
       
-      await storage.blockUser(userId, blocked);
+      await storage.blockUser(userId, blocked, reason);
       
       // If blocking, destroy all active sessions
       if (blocked) {
@@ -2589,6 +2592,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
               parse_mode: 'HTML'
             })
           });
+        }
+
+        // ── Pending block reason intercept ─────────────────────────────────────
+        if (pendingBlockMap.has(chatId)) {
+          const pending = pendingBlockMap.get(chatId)!;
+          const reason = msgText;
+          if (reason.toLowerCase() === 'annuler' || reason.toLowerCase() === 'cancel') {
+            pendingBlockMap.delete(chatId);
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: chatId, text: '◀ Blocage annulé.', parse_mode: 'HTML' })
+            });
+            return res.sendStatus(200);
+          }
+          pendingBlockMap.set(chatId, { ...pending, reason });
+          const u = pending.userInfo;
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              text: `🔒 <b>Confirmer le blocage ?</b>\n\n👤 ${u.fullName}\n📱 <code>${u.phone}</code>\n📧 ${u.email}\n\n📝 <b>Motif :</b> ${reason}\n\n⚠️ L'utilisateur ne pourra plus se connecter.`,
+              parse_mode: 'HTML',
+              reply_markup: { inline_keyboard: [[
+                { text: '🔒 Oui, bloquer', callback_data: `blkuser_ok_${pending.userId}` },
+                { text: '◀ Annuler', callback_data: `blkuser_cancel_${pending.userId}` }
+              ]] }
+            })
+          });
+          return res.sendStatus(200);
         }
 
         // Activation PCS search: phone (avec indicatif +) + "act pcs" ou "activation pcs"
@@ -5021,21 +5053,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (!blkUser) { answerText = '❌ Utilisateur introuvable'; }
             else if (blkUser.isBlocked) { answerText = '⚠️ Compte déjà bloqué'; }
             else {
-              answerText = '⚠️ Confirmer le blocage ?';
-              if (chatId && messageId) {
-                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
-                  method:'POST', headers:{'Content-Type':'application/json'},
-                  body: JSON.stringify({
-                    chat_id: chatId, message_id: messageId,
-                    text: `🔒 <b>Confirmer le blocage du compte ?</b>\n\n👤 ${blkUser.fullName||'N/A'}\n📱 <code>${blkUser.phone||'—'}</code>\n📧 ${blkUser.email||'—'}\n\n⚠️ L'utilisateur ne pourra plus se connecter.`,
-                    parse_mode:'HTML',
-                    reply_markup:{ inline_keyboard:[[
-                      { text:'🔒 Oui, bloquer', callback_data:`blkuser_ok_${blkUserId}` },
-                      { text:'◀ Annuler',        callback_data:`blkuser_no_${blkUserId}` }
-                    ]]}
-                  })
-                });
-              }
+              pendingBlockMap.set(chatId!, {
+                userId: blkUserId,
+                userInfo: { fullName: blkUser.fullName||'N/A', phone: blkUser.phone||'—', email: blkUser.email||'—' }
+              });
+              answerText = '✏️ Saisissez le motif...';
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  text: `🔒 <b>Motif du blocage requis</b>\n\n👤 ${blkUser.fullName||'N/A'}\n📱 <code>${blkUser.phone||'—'}</code>\n📧 ${blkUser.email||'—'}\n\n✏️ <b>Tapez le motif du blocage dans votre prochain message</b>\n(ex : Fraude, Activité suspecte, Double compte...)\n\nOu tapez <code>annuler</code> pour annuler.`,
+                  parse_mode:'HTML'
+                })
+              });
             }
           } catch(e) { answerText='❌ Erreur'; console.error('[BLKUSER-PRE]',e); }
 
@@ -5045,7 +5075,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const blkUser = await storage.getUser(blkUserId);
             if (!blkUser) { answerText = '❌ Introuvable'; }
             else {
-              await storage.blockUser(blkUserId, true);
+              const pending = pendingBlockMap.get(chatId!);
+              const reason = (pending?.userId === blkUserId) ? pending?.reason : undefined;
+              pendingBlockMap.delete(chatId!);
+              await storage.blockUser(blkUserId, true, reason);
+              await db.execute(sql`DELETE FROM sessions WHERE sess::jsonb->>'userId' = ${blkUserId}`);
               answerText = '🔒 Compte bloqué !';
               if (chatId && messageId) {
                 await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
@@ -5057,7 +5091,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 method:'POST', headers:{'Content-Type':'application/json'},
                 body: JSON.stringify({
                   chat_id: chatId,
-                  text: `🔒 <b>Compte bloqué avec succès</b>\n\n👤 ${blkUser.fullName||'N/A'}\n📱 <code>${blkUser.phone||'—'}</code>\n📧 ${blkUser.email||'—'}\n\nCet utilisateur ne peut plus se connecter.`,
+                  text: `🔒 <b>Compte bloqué avec succès</b>\n\n👤 ${blkUser.fullName||'N/A'}\n📱 <code>${blkUser.phone||'—'}</code>\n📧 ${blkUser.email||'—'}${reason ? `\n\n📝 <b>Motif :</b> ${reason}` : ''}\n\nCet utilisateur ne peut plus se connecter.`,
                   parse_mode:'HTML'
                 })
               });
@@ -5065,7 +5099,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } catch(e:any) { answerText='❌ Erreur'; console.error('[BLKUSER-OK]',e); }
 
         } else if (data.startsWith('blkuser_no_')) {
+          pendingBlockMap.delete(chatId!);
           answerText = 'Annulé.';
+          if (chatId && messageId) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup:{ inline_keyboard:[] } })
+            });
+          }
+
+        } else if (data.startsWith('blkuser_cancel_')) {
+          pendingBlockMap.delete(chatId!);
+          answerText = '◀ Blocage annulé.';
           if (chatId && messageId) {
             await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
               method:'POST', headers:{'Content-Type':'application/json'},
@@ -5086,15 +5131,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
               if (!u) { answerText = '❌ Aucun compte SIKA TEXTE pour cet email'; }
               else if (u.is_blocked) { answerText = '⚠️ Compte déjà bloqué'; }
               else {
-                answerText = '⚠️ Confirmer le blocage ?';
-                if (chatId && messageId) {
-                  const _blkLnkText = `🔒 <b>Confirmer le blocage du compte ?</b>\n\n👤 ${u.full_name||'N/A'}\n📱 <code>${u.phone||'—'}</code>\n📧 ${u.email||'—'}\n\n⚠️ L'utilisateur ne pourra plus se connecter.`;
-                  const _blkLnkMarkup = { inline_keyboard:[[{ text:'🔒 Oui, bloquer', callback_data:`blkuser_ok_${u.id}` },{ text:'◀ Annuler', callback_data:`blkuser_no_${u.id}` }]] };
-                  const _blkLnkJson = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ chat_id: chatId, message_id: messageId, text: _blkLnkText, parse_mode:'HTML', reply_markup: _blkLnkMarkup }) }).then(r=>r.json()) as any;
-                  if (!_blkLnkJson.ok) {
-                    await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageCaption`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ chat_id: chatId, message_id: messageId, caption: _blkLnkText, parse_mode:'HTML', reply_markup: _blkLnkMarkup }) }).catch(()=>{});
-                  }
-                }
+                pendingBlockMap.set(chatId!, {
+                  userId: u.id,
+                  userInfo: { fullName: u.full_name||'N/A', phone: u.phone||'—', email: u.email||'—' }
+                });
+                answerText = '✏️ Saisissez le motif...';
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                  method:'POST', headers:{'Content-Type':'application/json'},
+                  body: JSON.stringify({
+                    chat_id: chatId,
+                    text: `🔒 <b>Motif du blocage requis</b>\n\n👤 ${u.full_name||'N/A'}\n📱 <code>${u.phone||'—'}</code>\n📧 ${u.email||'—'}\n\n✏️ <b>Tapez le motif du blocage dans votre prochain message</b>\n(ex : Fraude, Activité suspecte, Double compte...)\n\nOu tapez <code>annuler</code> pour annuler.`,
+                    parse_mode:'HTML'
+                  })
+                });
               }
             }
           } catch(e) { answerText='❌ Erreur'; console.error('[BLKLNKR-PRE]',e); }
@@ -5112,15 +5161,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
               if (!u) { answerText = '❌ Aucun compte SIKA TEXTE pour cet email'; }
               else if (u.is_blocked) { answerText = '⚠️ Compte déjà bloqué'; }
               else {
-                answerText = '⚠️ Confirmer le blocage ?';
-                if (chatId && messageId) {
-                  const _blkPltText = `🔒 <b>Confirmer le blocage du compte ?</b>\n\n👤 ${u.full_name||'N/A'}\n📱 <code>${u.phone||'—'}</code>\n📧 ${u.email||'—'}\n\n⚠️ L'utilisateur ne pourra plus se connecter.`;
-                  const _blkPltMarkup = { inline_keyboard:[[{ text:'🔒 Oui, bloquer', callback_data:`blkuser_ok_${u.id}` },{ text:'◀ Annuler', callback_data:`blkuser_no_${u.id}` }]] };
-                  const _blkPltJson = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ chat_id: chatId, message_id: messageId, text: _blkPltText, parse_mode:'HTML', reply_markup: _blkPltMarkup }) }).then(r=>r.json()) as any;
-                  if (!_blkPltJson.ok) {
-                    await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageCaption`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ chat_id: chatId, message_id: messageId, caption: _blkPltText, parse_mode:'HTML', reply_markup: _blkPltMarkup }) }).catch(()=>{});
-                  }
-                }
+                pendingBlockMap.set(chatId!, {
+                  userId: u.id,
+                  userInfo: { fullName: u.full_name||'N/A', phone: u.phone||'—', email: u.email||'—' }
+                });
+                answerText = '✏️ Saisissez le motif...';
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                  method:'POST', headers:{'Content-Type':'application/json'},
+                  body: JSON.stringify({
+                    chat_id: chatId,
+                    text: `🔒 <b>Motif du blocage requis</b>\n\n👤 ${u.full_name||'N/A'}\n📱 <code>${u.phone||'—'}</code>\n📧 ${u.email||'—'}\n\n✏️ <b>Tapez le motif du blocage dans votre prochain message</b>\n(ex : Fraude, Activité suspecte, Double compte...)\n\nOu tapez <code>annuler</code> pour annuler.`,
+                    parse_mode:'HTML'
+                  })
+                });
               }
             }
           } catch(e) { answerText='❌ Erreur'; console.error('[BLKPLT-PRE]',e); }

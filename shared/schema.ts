@@ -41,6 +41,7 @@ export const users: any = pgTable("users", {
   referredBy: varchar("referred_by").references((): any => users.id),
   role: varchar("role").default('user'), // 'user' or 'admin'
   isBlocked: boolean("is_blocked").default(false), // Pour bloquer des utilisateurs
+  blockedReason: varchar("blocked_reason"), // Motif du blocage
   ciUpdateValidated: boolean("ci_update_validated").default(false), // Mise à jour requise Côte d'Ivoire
   emailVerified: boolean("email_verified").default(false),
   emailVerificationCode: varchar("email_verification_code"),
@@ -406,6 +407,7 @@ export const adminUpdatePasswordSchema = z.object({
 
 export const adminBlockUserSchema = z.object({
   blocked: z.boolean(),
+  reason: z.string().optional(),
 });
 
 export const adminCreditAccountSchema = z.object({
