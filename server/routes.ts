@@ -2606,20 +2606,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
             return res.sendStatus(200);
           }
-          pendingBlockMap.set(chatId, { ...pending, reason });
+          // Bloquer directement sans confirmation supplémentaire
+          pendingBlockMap.delete(chatId);
           const u = pending.userInfo;
-          await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chat_id: chatId,
-              text: `🔒 <b>Confirmer le blocage ?</b>\n\n👤 ${u.fullName}\n📱 <code>${u.phone}</code>\n📧 ${u.email}\n\n📝 <b>Motif :</b> ${reason}\n\n⚠️ L'utilisateur ne pourra plus se connecter.`,
-              parse_mode: 'HTML',
-              reply_markup: { inline_keyboard: [[
-                { text: '🔒 Oui, bloquer', callback_data: `blkuser_ok_${pending.userId}` },
-                { text: '◀ Annuler', callback_data: `blkuser_cancel_${pending.userId}` }
-              ]] }
-            })
-          });
+          try {
+            await storage.blockUser(pending.userId, true, reason);
+            await db.execute(sql`DELETE FROM sessions WHERE sess::jsonb->>'userId' = ${pending.userId}`);
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                text: `🔒 <b>Compte bloqué avec succès</b>\n\n👤 ${u.fullName}\n📱 <code>${u.phone}</code>\n📧 ${u.email}\n\n📝 <b>Motif :</b> ${reason}\n\nCet utilisateur ne peut plus se connecter.`,
+                parse_mode: 'HTML'
+              })
+            });
+          } catch(e) {
+            console.error('[PENDING-BLOCK]', e);
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: chatId, text: '❌ Erreur lors du blocage. Veuillez réessayer.', parse_mode: 'HTML' })
+            });
+          }
           return res.sendStatus(200);
         }
 
