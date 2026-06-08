@@ -65,18 +65,6 @@ function AnimatedDots() {
   );
 }
 
-function ElapsedTimer({ since }: { since: string | null }) {
-  const [elapsed, setElapsed] = useState(0);
-  useEffect(() => {
-    if (!since) return;
-    const start = new Date(since).getTime();
-    const iv = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
-    return () => clearInterval(iv);
-  }, [since]);
-  const m = Math.floor(elapsed / 60);
-  const s = elapsed % 60;
-  return <span className="font-mono font-bold" style={{ color: EM1 }}>{String(m).padStart(2,"0")}:{String(s).padStart(2,"0")}</span>;
-}
 
 function ProgressBar({ step, isPcs }: { step: FormStep; isPcs?: boolean }) {
   const steps = isPcs
@@ -538,15 +526,6 @@ export default function PaymentLinkPage() {
               Votre demande a bien été reçue.<br />
               <span className="text-slate-700 font-semibold">Nos agents vérifient votre paiement.</span>
             </p>
-          </div>
-          <div className="bg-white rounded-3xl shadow-md p-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${EM1}12` }}>
-                <Clock size={16} style={{ color: EM1 }} />
-              </div>
-              <span className="text-slate-500 text-sm font-medium">Temps écoulé</span>
-            </div>
-            <ElapsedTimer since={submittedAt} />
           </div>
           <div className="bg-white rounded-3xl shadow-md p-4 flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "#D1FAE5" }}>

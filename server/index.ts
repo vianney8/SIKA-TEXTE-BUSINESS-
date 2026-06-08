@@ -258,7 +258,8 @@ app.use((req, res, next) => {
   // Auto-register Telegram webhook in production
   if (process.env.TELEGRAM_BOT_TOKEN) {
     const webhookUrl = 'https://sikatexte.site/api/telegram/ci-webhook';
-    fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/setWebhook`, {
+    const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+    fetch(`https://api.telegram.org/bot${TOKEN}/setWebhook`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url: webhookUrl, allowed_updates: ['message', 'callback_query'] })
@@ -266,6 +267,26 @@ app.use((req, res, next) => {
       log(`Telegram webhook registered: ${data.ok ? 'OK' : data.description}`);
     }).catch((err: any) => {
       log(`Telegram webhook setup failed: ${err}`);
+    });
+
+    // Register bot command menu (shown when admin types "/" in Telegram)
+    fetch(`https://api.telegram.org/bot${TOKEN}/setMyCommands`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        commands: [
+          { command: 'start',               description: 'Afficher l\'aide et les commandes' },
+          { command: 'activation_attente',  description: 'Demandes d\'activation manuelles en attente' },
+          { command: 'paiement_lien',       description: 'Paiements par lien en attente' },
+          { command: 'activation_pcs',      description: 'Demandes d\'activation PCS (80 premières)' },
+          { command: 'paiement_pcs',        description: 'Demandes de paiement PCS en attente (80)' },
+          { command: 'lien_paiement',       description: 'Toutes les demandes de paiement par lien (80)' },
+        ]
+      })
+    }).then((r: any) => r.json()).then((data: any) => {
+      log(`Telegram commands menu set: ${data.ok ? 'OK' : data.description}`);
+    }).catch((err: any) => {
+      log(`Telegram commands menu setup failed: ${err}`);
     });
   }
 

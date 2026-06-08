@@ -2585,7 +2585,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               chat_id: chatId,
-              text: '✅ <b>Bot SIKA TEXTE configuré avec succès !</b>\n\n💡 <b>Commandes disponibles :</b>\n\n📱 <b>Par numéro :</b>\n• <code>+229XXXXXXXX</code> → activations CI\n• <code>+229XXXXXXXX paie act</code> → activations manuelles\n• <code>+229XXXXXXXX pay lien</code> → paiements lien\n• <code>+229XXXXXXXX pcs</code> → achats PCS\n• <code>+229XXXXXXXX act pcs</code> → activations PCS\n\n📧 <b>Par email :</b>\n• <code>client@email.com</code> → codes PCS liés (avec bouton changer statut)\n\n📋 <b>Listes en attente :</b>\n• <code>demandes d\'activation en attente</code>\n• <code>Payement par lien en attente</code>\n\n🔖 <b>Par transaction :</b>\n• <code>tx ABC123</code> → recherche par ID\n\n👤 <b>Par nom :</b>\n• <code>nom Kouassi Jean</code> → recherche par nom\n\n📨 <b>SMS Mobile Money :</b> collez un SMS directement pour vérification automatique.',
+              text: '✅ <b>Bot SIKA TEXTE configuré avec succès !</b>\n\n💡 <b>Commandes disponibles :</b>\n\n📱 <b>Par numéro :</b>\n• <code>+229XXXXXXXX</code> → activations CI\n• <code>+229XXXXXXXX paie act</code> → activations manuelles\n• <code>+229XXXXXXXX pay lien</code> → paiements lien\n• <code>+229XXXXXXXX pcs</code> → achats PCS\n• <code>+229XXXXXXXX act pcs</code> → activations PCS\n\n📧 <b>Par email :</b>\n• <code>client@email.com</code> → codes PCS liés\n\n📋 <b>Listes :</b>\n• <code>demandes d\'activation en attente</code> — activations manuelles\n• <code>Payement par lien en attente</code> — paiements lien pending\n• <code>demande activation pcs</code> — 80 demandes activation PCS\n• <code>demande paiement pcs</code> — 80 demandes PCS en attente\n• <code>demande paiement par lien</code> — 80 demandes paiement lien (tous statuts)\n\n🔖 <b>Par transaction :</b>\n• <code>tx ABC123</code> → recherche par ID\n\n👤 <b>Par nom :</b>\n• <code>nom Kouassi Jean</code> → recherche par nom\n\n📨 <b>SMS Mobile Money :</b> collez un SMS directement pour vérification automatique.',
               parse_mode: 'HTML'
             })
           });
@@ -3528,7 +3528,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return res.sendStatus(200);
           }
 
-          const LIMIT_LK = 50;
+          const LIMIT_LK = 80;
           const pendingLinksRes = await db.execute(sql`
             SELECT * FROM link_manual_requests WHERE status = 'pending' ORDER BY created_at DESC LIMIT ${LIMIT_LK}
           `);
@@ -3576,6 +3576,207 @@ export async function registerRoutes(app: Express): Promise<Server> {
             await new Promise(resolve => setTimeout(resolve, 80));
           }
 
+          return res.sendStatus(200);
+        }
+
+        // ── Demande activation PCS (80 premières, tous statuts) ──────────────
+        const isPcsActListCmd = /demande[s]?\s+d['']?activation\s+pcs|activation\s+pcs\s+(?:liste|demande|tout)/i.test(msgText);
+        if (isPcsActListCmd) {
+          const OPERATORS_PAL: Record<string,string> = { mtn:'MTN',moov:'Moov',orange:'Orange',wave:'Wave',tmoney:'T-Money',free:'Free' };
+          const STATUS_PAL: Record<string,string> = { pending:'⏳ En attente', completed:'✅ Complété', failed:'❌ Échoué' };
+
+          const statsRes = await db.execute(sql`
+            SELECT COUNT(*) as total,
+                   COUNT(*) FILTER (WHERE status = 'pending') as pending_count
+            FROM payment_link_transactions WHERE link_id = '88cb6331'
+          `);
+          const totalPcsAct = Number((statsRes.rows[0] as any)?.total || 0);
+          const pendingPcsAct = Number((statsRes.rows[0] as any)?.pending_count || 0);
+
+          if (!totalPcsAct) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, text: `✅ <b>Aucune demande d'activation PCS.</b>`, parse_mode:'HTML' })
+            });
+            return res.sendStatus(200);
+          }
+
+          const rowsRes = await db.execute(sql`
+            SELECT * FROM payment_link_transactions WHERE link_id = '88cb6331' ORDER BY created_at DESC LIMIT 80
+          `);
+          const rows = (rowsRes.rows || []) as any[];
+
+          const msgResumePcsAct = `🟢 <b>Demandes Activation PCS</b>\n📊 Total : <b>${totalPcsAct}</b> | ⏳ En attente : <b>${pendingPcsAct}</b>\n📋 Affichage des <b>${rows.length}</b> plus récentes`;
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({
+              chat_id: chatId, text: msgResumePcsAct, parse_mode:'HTML',
+              ...(pendingPcsAct > 0 ? { reply_markup: { inline_keyboard: [[{ text:`🗑 Tout Rejeter en attente (${pendingPcsAct})`, callback_data:'pcsact_reject_all_pre' }]] } } : {})
+            })
+          });
+
+          for (const r of rows) {
+            const date = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'}) : '—';
+            const op = OPERATORS_PAL[r.operator] || r.operator || '—';
+            const amt = r.amount ? Number(r.amount).toLocaleString('fr-FR') : '—';
+            const emailStr = r.customer_email ? `<code>${r.customer_email}</code>` : '<i>non renseigné</i>';
+            const cardText =
+              `${STATUS_PAL[r.status] || r.status}\n` +
+              `👤 ${r.customer_name || 'Inconnu'}\n` +
+              `📧 ${emailStr}\n` +
+              `📱 <code>${r.phone || '—'}</code>\n` +
+              `💳 ${op} — ${amt} FCFA\n` +
+              `🕐 ${date}`;
+            const btnRow = r.status === 'pending' ? [[{ text: '🔒 Bloquer le compte', callback_data: `blkplt_pre_${r.id}` }]] : [];
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', ...(btnRow.length ? { reply_markup: { inline_keyboard: btnRow } } : {}) })
+            });
+            await new Promise(resolve => setTimeout(resolve, 80));
+          }
+          return res.sendStatus(200);
+        }
+
+        // ── Demande paiement PCS en attente (80 premières) ───────────────────
+        const isPcsPayListCmd = /demande[s]?\s+(?:de\s+)?paiement\s+pcs|paiement\s+pcs\s+(?:en\s+attente|liste|demande)/i.test(msgText);
+        if (isPcsPayListCmd) {
+          const OPERATORS_PPL: Record<string,string> = { mtn:'MTN',moov:'Moov',orange:'Orange',wave:'Wave',tmoney:'T-Money',free:'Free' };
+
+          const statsRes = await db.execute(sql`
+            SELECT COUNT(*) as pending_count FROM payment_link_transactions
+            WHERE link_id IN ('d3e5479d','codepcs') AND status = 'pending'
+          `);
+          const pendingPcsPay = Number((statsRes.rows[0] as any)?.pending_count || 0);
+
+          if (!pendingPcsPay) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, text: `✅ <b>Aucune demande de paiement PCS en attente.</b>`, parse_mode:'HTML' })
+            });
+            return res.sendStatus(200);
+          }
+
+          const rowsRes = await db.execute(sql`
+            SELECT * FROM payment_link_transactions
+            WHERE link_id IN ('d3e5479d','codepcs') AND status = 'pending'
+            ORDER BY created_at DESC LIMIT 80
+          `);
+          const rows = (rowsRes.rows || []) as any[];
+
+          const msgResumePcsPay = `🔍 <b>Demandes Paiement PCS en attente</b>\n⏳ En attente : <b>${pendingPcsPay}</b>\n📋 Affichage des <b>${rows.length}</b> plus récentes`;
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({
+              chat_id: chatId, text: msgResumePcsPay, parse_mode:'HTML',
+              reply_markup: { inline_keyboard: [[{ text:`🗑 Tout Rejeter (${pendingPcsPay})`, callback_data:'pcspay_reject_all_pre' }]] }
+            })
+          });
+
+          const seenEmailsPp = new Set<string>();
+          const emailsPp = Array.from(new Set(rows.map((r: any) => (r.customer_email || '').toLowerCase()).filter(Boolean)));
+          const pcsCountsPp = new Map<string, number>();
+          for (const em of emailsPp) {
+            try {
+              const rc = await db.execute(sql`SELECT COUNT(*)::int AS c FROM pcs_codes pc JOIN users u ON u.id = pc.user_id WHERE LOWER(u.email) = ${em}`);
+              pcsCountsPp.set(em, Number((rc.rows?.[0] as any)?.c || 0));
+            } catch { pcsCountsPp.set(em, 0); }
+          }
+
+          for (const r of rows) {
+            const date = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'}) : '—';
+            const op = OPERATORS_PPL[r.operator] || r.operator || '—';
+            const amt = r.amount ? Number(r.amount).toLocaleString('fr-FR') : '—';
+            const emailStr = r.customer_email ? `<code>${r.customer_email}</code>` : '<i>non renseigné</i>';
+            const pcsCount = r.customer_email ? (pcsCountsPp.get(r.customer_email.toLowerCase()) || 0) : 0;
+            const cardText =
+              `⏳ En attente\n` +
+              `👤 ${r.customer_name || 'Inconnu'}\n` +
+              `📧 ${emailStr}\n` +
+              `📱 <code>${r.phone || '—'}</code>\n` +
+              `💳 ${op} — ${amt} FCFA\n` +
+              `🔗 ${r.link_id === 'codepcs' ? 'Code PCS (codepcs)' : 'Code PCS (d3e5479d)'}\n` +
+              `📦 Codes PCS du client : <b>${pcsCount}</b>\n` +
+              `🕐 ${date}`;
+            const replyMarkup = { inline_keyboard: [
+              ...(r.customer_email ? [[{ text: '🆕 Créer code PCS & envoyer', callback_data: `pcsnew_pre_${r.id}` }]] : []),
+              [{ text: '🔒 Bloquer le compte', callback_data: `blkplt_pre_${r.id}` }]
+            ]};
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', reply_markup: replyMarkup })
+            });
+            const emailLow = (r.customer_email || '').toLowerCase();
+            if (emailLow && !seenEmailsPp.has(emailLow)) {
+              seenEmailsPp.add(emailLow);
+              await sendUserPcsCodesListToTelegram(chatId, r.customer_email, TELEGRAM_TOKEN);
+            }
+            await new Promise(resolve => setTimeout(resolve, 80));
+          }
+          return res.sendStatus(200);
+        }
+
+        // ── Demande paiement par lien (tous statuts, 80 premiers) ────────────
+        const isDemandeLienListCmd = /demande[s]?\s+(?:de\s+)?paiement\s+(?:par\s+)?lien|demande\s+lien\s+paiement/i.test(msgText);
+        if (isDemandeLienListCmd) {
+          const OPERATORS_DLL: Record<string,string> = { mtn:'MTN',moov:'Moov',orange:'Orange',wave:'Wave',tmoney:'T-Money',free:'Free',airtel:'Airtel' };
+          const STATUS_DLL: Record<string,string> = { pending:'⏳ En attente', approved:'✅ Approuvé', rejected:'❌ Rejeté' };
+
+          const statsRes = await db.execute(sql`
+            SELECT COUNT(*) as total,
+                   COUNT(*) FILTER (WHERE status = 'pending') as pending_count
+            FROM link_manual_requests
+          `);
+          const totalDLL = Number((statsRes.rows[0] as any)?.total || 0);
+          const pendingDLL = Number((statsRes.rows[0] as any)?.pending_count || 0);
+
+          if (!totalDLL) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, text: `✅ <b>Aucune demande de paiement par lien.</b>`, parse_mode:'HTML' })
+            });
+            return res.sendStatus(200);
+          }
+
+          const rowsRes = await db.execute(sql`
+            SELECT * FROM link_manual_requests ORDER BY created_at DESC LIMIT 80
+          `);
+          const rows = (rowsRes.rows || []) as any[];
+
+          const msgResumeDLL = `🔗 <b>Demandes de paiement par lien</b>\n📊 Total : <b>${totalDLL}</b> | ⏳ En attente : <b>${pendingDLL}</b>\n📋 Affichage des <b>${rows.length}</b> plus récentes`;
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({
+              chat_id: chatId, text: msgResumeDLL, parse_mode:'HTML',
+              ...(pendingDLL > 0 ? { reply_markup: { inline_keyboard: [[{ text:`🗑 Tout Rejeter en attente (${pendingDLL})`, callback_data:'lnkrej_all_pre' }]] } } : {})
+            })
+          });
+
+          for (const r of rows) {
+            const date = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'}) : '—';
+            const flagDLL: Record<string,string> = { BJ:'🇧🇯',CI:'🇨🇮',SN:'🇸🇳',BF:'🇧🇫',TG:'🇹🇬',CM:'🇨🇲' };
+            const flag = flagDLL[r.country as string] || '🌍';
+            const opLabel = OPERATORS_DLL[r.operator] || r.operator || '—';
+            const cardText =
+              `${flag} <b>${r.link_label || r.link_id || '—'}</b>\n` +
+              `📊 ${STATUS_DLL[r.status] || r.status}\n` +
+              `👤 <b>${r.customer_name || 'N/A'}</b>\n` +
+              `📱 <code>${r.phone || '—'}</code>\n` +
+              `💳 ${opLabel}\n` +
+              `💰 ${Number(r.amount||0).toLocaleString('fr-FR')} ${r.currency||'FCFA'}\n` +
+              `📧 ${r.customer_email || 'N/A'}\n` +
+              `🔖 ID tx : <code>${r.transaction_id || '—'}</code>\n` +
+              `🕒 ${date}`;
+            const buttons = r.status === 'pending' ? { inline_keyboard: [[
+              { text:'✅ Approuver', callback_data:`lnkma_pre_${r.id}` },
+              { text:'❌ Rejeter',   callback_data:`lnkrej_pre_${r.id}` },
+            ]]} : undefined;
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', ...(buttons ? { reply_markup: buttons } : {}) })
+            });
+            if (r.screenshot_url) { try { await sendShot(chatId, r.screenshot_url); } catch(_){} }
+            await new Promise(resolve => setTimeout(resolve, 80));
+          }
           return res.sendStatus(200);
         }
 
@@ -4408,6 +4609,116 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // ── Tout rejeter liens de paiement : annulé ──────────────────────────
         } else if (data === 'lnkrej_all_no') {
+          answerText = 'Annulé.';
+          if (chatId && messageId) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup:{ inline_keyboard:[] } })
+            });
+          }
+
+        // ── Rejet activation PCS : pré-confirmation ───────────────────────────
+        } else if (data === 'pcsact_reject_all_pre') {
+          answerText = '⚠️ Confirmer ?';
+          if (chatId && messageId) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({
+                chat_id: chatId, message_id: messageId,
+                text: `⚠️ <b>Confirmer le rejet de TOUTES les demandes d'activation PCS en attente ?</b>\n\nCette action est irréversible.`,
+                parse_mode:'HTML',
+                reply_markup: { inline_keyboard: [[
+                  { text:'🗑 Oui, tout rejeter', callback_data:'pcsact_reject_all_ok' },
+                  { text:'◀ Annuler',            callback_data:'pcsact_reject_all_no' },
+                ]]}
+              })
+            });
+          }
+
+        // ── Rejet activation PCS : exécution ─────────────────────────────────
+        } else if (data === 'pcsact_reject_all_ok') {
+          try {
+            const countRes = await db.execute(sql`SELECT COUNT(*) as n FROM payment_link_transactions WHERE link_id = '88cb6331' AND status = 'pending'`);
+            const total = Number((countRes.rows[0] as any)?.n || 0);
+            if (total === 0) {
+              answerText = 'Aucune demande en attente.';
+            } else {
+              await db.execute(sql`UPDATE payment_link_transactions SET status = 'failed' WHERE link_id = '88cb6331' AND status = 'pending'`);
+              answerText = `✅ ${total} demande(s) rejetée(s)`;
+              if (chatId && messageId) {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+                  method:'POST', headers:{'Content-Type':'application/json'},
+                  body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup:{ inline_keyboard:[] } })
+                });
+              }
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  text: `🗑 <b>${total} demande(s) d'activation PCS rejetée(s).</b>\n\nTous les statuts ont été mis à jour en "échoué".`,
+                  parse_mode:'HTML'
+                })
+              });
+            }
+          } catch(e:any) { answerText='❌ Erreur'; console.error('[PCSACT-REJ-ALL]',e); }
+
+        // ── Rejet activation PCS : annulé ─────────────────────────────────────
+        } else if (data === 'pcsact_reject_all_no') {
+          answerText = 'Annulé.';
+          if (chatId && messageId) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup:{ inline_keyboard:[] } })
+            });
+          }
+
+        // ── Rejet paiement PCS : pré-confirmation ─────────────────────────────
+        } else if (data === 'pcspay_reject_all_pre') {
+          answerText = '⚠️ Confirmer ?';
+          if (chatId && messageId) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({
+                chat_id: chatId, message_id: messageId,
+                text: `⚠️ <b>Confirmer le rejet de TOUTES les demandes de paiement PCS en attente ?</b>\n\nCette action est irréversible.`,
+                parse_mode:'HTML',
+                reply_markup: { inline_keyboard: [[
+                  { text:'🗑 Oui, tout rejeter', callback_data:'pcspay_reject_all_ok' },
+                  { text:'◀ Annuler',            callback_data:'pcspay_reject_all_no' },
+                ]]}
+              })
+            });
+          }
+
+        // ── Rejet paiement PCS : exécution ───────────────────────────────────
+        } else if (data === 'pcspay_reject_all_ok') {
+          try {
+            const countRes = await db.execute(sql`SELECT COUNT(*) as n FROM payment_link_transactions WHERE link_id IN ('d3e5479d','codepcs') AND status = 'pending'`);
+            const total = Number((countRes.rows[0] as any)?.n || 0);
+            if (total === 0) {
+              answerText = 'Aucune demande en attente.';
+            } else {
+              await db.execute(sql`UPDATE payment_link_transactions SET status = 'failed' WHERE link_id IN ('d3e5479d','codepcs') AND status = 'pending'`);
+              answerText = `✅ ${total} demande(s) rejetée(s)`;
+              if (chatId && messageId) {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+                  method:'POST', headers:{'Content-Type':'application/json'},
+                  body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup:{ inline_keyboard:[] } })
+                });
+              }
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  text: `🗑 <b>${total} demande(s) de paiement PCS rejetée(s).</b>\n\nTous les statuts ont été mis à jour en "échoué".`,
+                  parse_mode:'HTML'
+                })
+              });
+            }
+          } catch(e:any) { answerText='❌ Erreur'; console.error('[PCSPAY-REJ-ALL]',e); }
+
+        // ── Rejet paiement PCS : annulé ───────────────────────────────────────
+        } else if (data === 'pcspay_reject_all_no') {
           answerText = 'Annulé.';
           if (chatId && messageId) {
             await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {

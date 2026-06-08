@@ -124,67 +124,6 @@ function ProgressBar({ step }: { step: FormStep }) {
   );
 }
 
-function CountdownHero({ createdAt }: { createdAt: string }) {
-  const [remaining, setRemaining] = useState(0);
-  const [progress, setProgress]   = useState(1);
-  const TOTAL = 24 * 60 * 60 * 1000;
-  useEffect(() => {
-    const deadline = new Date(createdAt).getTime() + TOTAL;
-    const update = () => {
-      const diff = Math.max(0, deadline - Date.now());
-      setRemaining(diff);
-      setProgress(diff / TOTAL);
-    };
-    update();
-    const iv = setInterval(update, 1000);
-    return () => clearInterval(iv);
-  }, [createdAt]);
-  const h   = Math.floor(remaining / 3600000);
-  const m   = Math.floor((remaining % 3600000) / 60000);
-  const s   = Math.floor((remaining % 60000) / 1000);
-  const pct = Math.round((1 - progress) * 100);
-  const urgency = progress < 0.25;
-  const expired = remaining === 0;
-
-  return (
-    <div className="bg-white rounded-3xl shadow-md overflow-hidden w-full">
-      <div className="px-5 py-3.5 flex items-center gap-3"
-        style={{ background: urgency ? "#FFF7F7" : "#F0FDF9", borderBottom: `1px solid ${urgency ? "#FECDD3" : "#A7F3D0"}` }}>
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ background: urgency ? "#FEE2E2" : "#D1FAE5" }}>
-          <Clock size={16} style={{ color: urgency ? "#EF4444" : EM1 }} />
-        </div>
-        <div className="flex-1">
-          <p className="text-slate-900 font-bold text-sm">Délai de traitement</p>
-          <p className="text-slate-400 text-xs">Maximum 24 h après la soumission</p>
-        </div>
-      </div>
-      <div className="px-6 py-5 text-center">
-        {expired ? (
-          <p className="text-red-600 font-black text-3xl">Délai expiré</p>
-        ) : (
-          <p className={`font-black text-4xl font-mono tracking-wider leading-none ${urgency ? "text-red-600" : "text-slate-900"}`}>
-            {String(h).padStart(2, "0")}:{String(m).padStart(2, "0")}:{String(s).padStart(2, "0")}
-          </p>
-        )}
-        <p className="text-slate-400 text-xs mt-2 font-semibold uppercase tracking-widest">temps restant</p>
-        <div className="mt-4">
-          <div className="flex justify-between text-xs font-semibold mb-2">
-            <span className="text-slate-400">Avancement</span>
-            <span style={{ color: urgency ? "#EF4444" : EM1 }}>{pct}% écoulé</span>
-          </div>
-          <div className="h-2.5 rounded-full overflow-hidden bg-slate-100">
-            <div className="h-full rounded-full transition-all duration-1000"
-              style={{
-                width: `${pct}%`,
-                background: urgency ? "linear-gradient(90deg,#f97316,#ef4444)" : `linear-gradient(90deg,${EM1},${EM2})`
-              }} />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ─── Composant principal ──────────────────────────────────────────────────────
 export default function Activation() {
@@ -641,19 +580,15 @@ export default function Activation() {
               <span className="text-slate-700 font-semibold">Nos équipes sont mobilisées</span> pour la traiter rapidement.
             </p>
           </div>
-          {pendingCreatedAt ? (
-            <CountdownHero createdAt={pendingCreatedAt} />
-          ) : (
-            <div className="bg-white rounded-3xl shadow-md p-4 flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${EM1}15` }}>
-                <Clock size={22} style={{ color: EM1 }} />
-              </div>
-              <div>
-                <p className="text-slate-900 font-bold">Délai maximum</p>
-                <p className="text-slate-500 text-sm">24 heures de traitement</p>
-              </div>
+          <div className="bg-white rounded-3xl shadow-md p-4 flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${EM1}15` }}>
+              <Clock size={22} style={{ color: EM1 }} />
             </div>
-          )}
+            <div>
+              <p className="text-slate-900 font-bold">Traitement en cours</p>
+              <p className="text-slate-500 text-sm">Nos agents traitent votre dossier</p>
+            </div>
+          </div>
           <div className="bg-white rounded-3xl shadow-md p-4 flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "#D1FAE5" }}>
               <span className="text-xl">👥</span>
