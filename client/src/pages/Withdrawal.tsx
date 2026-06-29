@@ -4,7 +4,7 @@ import {
   CreditCard, AlertTriangle, Shield, Banknote,
   MessageCircle, Edit3, CheckCircle,
   ArrowDownCircle, Send, ChevronRight, KeyRound, Eye, EyeOff, Lock,
-  Wallet, ShieldCheck, Smartphone, ArrowRight
+  Wallet, ShieldCheck, Smartphone, ArrowRight, Wifi, Zap, Globe, X
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -68,7 +68,13 @@ export default function Withdrawal() {
   const [transferredAmount, setTransferredAmount] = useState(0);
   const [animStep, setAnimStep] = useState(0); // 0=initial 1=arrow 2=done
 
+  const [showDnsPage, setShowDnsPage] = useState(false);
+
   const { data: telegramSupervisor } = useAppSetting("telegram_supervisor");
+
+  const { data: dnsEligibility } = useQuery<{ eligible: boolean }>({
+    queryKey: ["/api/withdrawal/dns-eligibility"],
+  });
 
   const { data: spaySettings } = useQuery<{ hasSavedPcsCode: boolean; savedPcsCodeMasked: string | null; lowLatencyMode: boolean }>({
     queryKey: ["/api/user/spay-settings"],
@@ -635,6 +641,55 @@ export default function Withdrawal() {
           </button>
         </div>
 
+        {/* DNS Privé AdGuard — visible uniquement si les 5 conditions sont remplies */}
+        {dnsEligibility?.eligible && (
+          <button
+            data-testid="button-dns-prive"
+            onClick={() => setShowDnsPage(true)}
+            className="w-full text-left rounded-[20px] p-5 relative overflow-hidden active:scale-[0.98] transition-all"
+            style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%)" }}
+          >
+            {/* Glow orb */}
+            <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full opacity-20"
+              style={{ background: "radial-gradient(circle, #818cf8, transparent)" }} />
+            <div className="absolute -bottom-4 -left-4 w-20 h-20 rounded-full opacity-10"
+              style={{ background: "radial-gradient(circle, #6366f1, transparent)" }} />
+
+            <div className="relative z-10 flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+                style={{ background: "linear-gradient(135deg, #4338ca, #6d28d9)", boxShadow: "0 4px 20px rgba(99,102,241,0.5)" }}>
+                <Shield size={22} className="text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <p className="text-white font-black text-sm">DNS Privé AdGuard</p>
+                  <span className="bg-indigo-500/30 border border-indigo-400/40 text-indigo-200 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    NOUVEAU
+                  </span>
+                </div>
+                <p className="text-indigo-300 text-xs leading-snug">
+                  Sécurisez et optimisez vos retraits
+                </p>
+              </div>
+              <ChevronRight size={18} className="text-indigo-400 flex-shrink-0" />
+            </div>
+
+            {/* Bottom bar */}
+            <div className="relative z-10 flex items-center gap-3 mt-4 pt-3 border-t border-white/10">
+              {[
+                { icon: Lock, label: "Sécurisé" },
+                { icon: Zap, label: "Rapide" },
+                { icon: Globe, label: "Fiable" },
+              ].map(({ icon: Icon, label }) => (
+                <div key={label} className="flex items-center gap-1.5">
+                  <Icon size={11} className="text-indigo-400" />
+                  <span className="text-indigo-300 text-[10px] font-semibold">{label}</span>
+                </div>
+              ))}
+            </div>
+          </button>
+        )}
+
         {/* Support */}
         <div className="bg-white rounded-[20px] shadow-sm border border-gray-100 p-5">
           <div className="flex items-center gap-3 mb-3">
@@ -761,6 +816,164 @@ export default function Withdrawal() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ── Page DNS Privé AdGuard (plein écran animé) ─────────────── */}
+      {showDnsPage && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col overflow-y-auto"
+          style={{ background: "linear-gradient(160deg, #0f172a 0%, #1e1b4b 40%, #0f172a 100%)" }}
+        >
+          {/* Orbes de lumière décoratifs */}
+          <div className="fixed top-0 left-1/2 -translate-x-1/2 w-96 h-96 rounded-full pointer-events-none"
+            style={{ background: "radial-gradient(circle, rgba(99,102,241,0.18) 0%, transparent 70%)", filter: "blur(40px)" }} />
+          <div className="fixed bottom-0 right-0 w-64 h-64 rounded-full pointer-events-none"
+            style={{ background: "radial-gradient(circle, rgba(109,40,217,0.14) 0%, transparent 70%)", filter: "blur(40px)" }} />
+
+          {/* Header */}
+          <div className="relative z-10 flex items-center justify-between px-5 pt-12 pb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl flex items-center justify-center"
+                style={{ background: "linear-gradient(135deg, #4338ca, #6d28d9)", boxShadow: "0 4px 20px rgba(99,102,241,0.45)" }}>
+                <Shield size={20} className="text-white" />
+              </div>
+              <div>
+                <p className="text-white font-black text-base leading-tight">DNS Privé</p>
+                <p className="text-indigo-400 text-[10px] font-bold uppercase tracking-widest">AdGuard — SIKA TEXTE</p>
+              </div>
+            </div>
+            <button
+              data-testid="button-dns-close"
+              onClick={() => setShowDnsPage(false)}
+              className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center active:scale-90 transition-all"
+            >
+              <X size={18} className="text-white/70" />
+            </button>
+          </div>
+
+          {/* Contenu */}
+          <div className="relative z-10 px-5 pb-10 space-y-5">
+
+            {/* Bannière principale */}
+            <div className="rounded-3xl p-6 relative overflow-hidden"
+              style={{ background: "linear-gradient(135deg, rgba(67,56,202,0.35) 0%, rgba(109,40,217,0.35) 100%)", border: "1px solid rgba(129,140,248,0.2)" }}>
+              <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full pointer-events-none"
+                style={{ background: "radial-gradient(circle, rgba(129,140,248,0.25), transparent)" }} />
+              <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-2xl">📢</span>
+                  <p className="text-indigo-200 text-xs font-bold uppercase tracking-widest">Fonctionnalité intégrée</p>
+                </div>
+                <h1 className="text-white font-black text-xl leading-tight mb-3">
+                  À quoi sert le DNS Privé sur SIKA TEXTE BUSINESS ?
+                </h1>
+                <p className="text-indigo-200 text-sm leading-relaxed">
+                  Le DNS Privé est une fonctionnalité intégrée à SIKA TEXTE BUSINESS pour garantir une meilleure qualité de service et renforcer la sécurité de la plateforme.
+                </p>
+                <p className="text-indigo-300 text-sm leading-relaxed mt-2">
+                  Il remplit principalement trois rôles essentiels :
+                </p>
+              </div>
+            </div>
+
+            {/* Rôle 1 */}
+            <div className="rounded-2xl p-5 relative overflow-hidden"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)", boxShadow: "0 4px 16px rgba(59,130,246,0.35)" }}>
+                  <Lock size={20} className="text-white" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-blue-400 font-black text-xs">🔒 1.</span>
+                    <p className="text-white font-black text-sm">Sécuriser les connexions</p>
+                  </div>
+                  <p className="text-slate-300 text-xs leading-relaxed">
+                    Il protège les échanges entre votre appareil et les serveurs SIKA afin de réduire les risques liés aux connexions non sécurisées.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Rôle 2 */}
+            <div className="rounded-2xl p-5 relative overflow-hidden"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: "linear-gradient(135deg, #d97706, #f59e0b)", boxShadow: "0 4px 16px rgba(245,158,11,0.35)" }}>
+                  <Zap size={20} className="text-white" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-amber-400 font-black text-xs">⚡ 2.</span>
+                    <p className="text-white font-black text-sm">Optimiser les performances</p>
+                  </div>
+                  <p className="text-slate-300 text-xs leading-relaxed">
+                    Il améliore la rapidité d'accès à la plateforme et contribue à une meilleure stabilité, même lorsque le nombre d'utilisateurs connectés est élevé.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Rôle 3 */}
+            <div className="rounded-2xl p-5 relative overflow-hidden"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: "linear-gradient(135deg, #059669, #10b981)", boxShadow: "0 4px 16px rgba(16,185,129,0.35)" }}>
+                  <ShieldCheck size={20} className="text-white" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-emerald-400 font-black text-xs">🛡️ 3.</span>
+                    <p className="text-white font-black text-sm">Renforcer la fiabilité des opérations</p>
+                  </div>
+                  <p className="text-slate-300 text-xs leading-relaxed">
+                    Il participe à la sécurisation des opérations importantes, telles que les activations de compte, les dépôts et les retraits, afin d'assurer un traitement plus fiable des services.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Message de conclusion */}
+            <div className="rounded-2xl p-5"
+              style={{ background: "linear-gradient(135deg, rgba(67,56,202,0.25), rgba(109,40,217,0.25))", border: "1px solid rgba(129,140,248,0.15)" }}>
+              <div className="flex items-start gap-3">
+                <Globe size={18} className="text-indigo-400 flex-shrink-0 mt-0.5" />
+                <p className="text-indigo-200 text-xs leading-relaxed">
+                  Grâce au DNS Privé, SIKA TEXTE BUSINESS continue d'améliorer son infrastructure pour offrir à ses utilisateurs une plateforme toujours plus <strong className="text-white">sécurisée, rapide et performante</strong>.
+                </p>
+              </div>
+            </div>
+
+            {/* Badges de stats */}
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { icon: Shield, value: "100%", label: "Chiffré", color: "#4338ca" },
+                { icon: Zap, value: "Ultra", label: "Rapide", color: "#d97706" },
+                { icon: CheckCircle, value: "24/7", label: "Actif", color: "#059669" },
+              ].map(({ icon: Icon, value, label, color }) => (
+                <div key={label} className="rounded-2xl p-4 text-center"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  <Icon size={18} className="mx-auto mb-2" style={{ color }} />
+                  <p className="text-white font-black text-sm">{value}</p>
+                  <p className="text-slate-400 text-[10px] font-semibold mt-0.5">{label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Bouton retour */}
+            <button
+              data-testid="button-dns-back"
+              onClick={() => setShowDnsPage(false)}
+              className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 active:scale-[0.97] transition-all"
+              style={{ background: "linear-gradient(135deg, #4338ca, #6d28d9)", boxShadow: "0 6px 24px rgba(99,102,241,0.4)" }}
+            >
+              <ArrowRight size={18} className="rotate-180" /> Retour au retrait
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

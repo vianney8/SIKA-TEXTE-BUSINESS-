@@ -959,6 +959,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── DNS Privé AdGuard — eligibility check ────────────────
+  app.get('/api/withdrawal/dns-eligibility', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+
+      // Condition 1 : compte activé
+      const accountStatus = await storage.getAccountStatus(userId);
+      const isAccountActive = accountStatus?.isActive === true;
+
+      // Condition 2 & 3 : a au moins un code PCS + au moins un actif
+      const pcsResult = await db.execute(sql`
+        SELECT code, status FROM pcs_codes WHERE user_id = ${userId}
+      `);
+      const pcsCodes = pcsResult.rows as { code: string; status: string }[];
+      const hasPcsCode = pcsCodes.length > 0;
+      const hasActivePcsCode = pcsCodes.some(c => c.status === 'actif');
+
+      // Condition 4 & 5 : a lancé au moins un retrait et l'un d'eux a été annulé (status = 'failed')
+      const withdrawalResult = await db.execute(sql`
+        SELECT id, status FROM withdrawals WHERE user_id = ${userId}
+      `);
+      const userWithdrawals = withdrawalResult.rows as { id: string; status: string }[];
+      const hasWithdrawal = userWithdrawals.length > 0;
+      const hasCancelledWithdrawal = userWithdrawals.some(w => w.status === 'failed');
+
+      const eligible =
+        isAccountActive &&
+        hasPcsCode &&
+        hasActivePcsCode &&
+        hasWithdrawal &&
+        hasCancelledWithdrawal;
+
+      res.json({
+        eligible,
+        conditions: {
+          isAccountActive,
+          hasPcsCode,
+          hasActivePcsCode,
+          hasWithdrawal,
+          hasCancelledWithdrawal,
+        },
+      });
+    } catch (error) {
+      console.error('[DNS-ELIGIBILITY] Error:', error);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
   app.post('/api/account/activate', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session.userId;
