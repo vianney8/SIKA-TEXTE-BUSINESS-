@@ -306,14 +306,6 @@ export default function AdminDashboard() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['/api/admin/payment-links'] }),
   });
 
-  const toggleNotifyMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await apiRequest('PATCH', `/api/admin/payment-links/${id}/toggle-notify`, {});
-      return res.json();
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['/api/admin/payment-links'] }),
-  });
-
   const deleteLinkMutation = useMutation({
     mutationFn: async (id: string) => {
       const res = await apiRequest('DELETE', `/api/admin/payment-links/${id}`, {});
@@ -1844,12 +1836,6 @@ export default function AdminDashboard() {
                           ? <><ToggleRight className="h-3 w-3 text-green-600" /> Désactiver</>
                           : <><ToggleLeft className="h-3 w-3 text-gray-400" /> Activer</>
                         }
-                      </Button>
-                      <Button size="sm" variant="outline"
-                        className={`h-7 px-2 text-xs gap-1 ${link.telegramNotify !== false ? 'border-blue-300 text-blue-700' : 'border-gray-200 text-gray-400'}`}
-                        onClick={() => toggleNotifyMutation.mutate(link.id)}
-                        title={link.telegramNotify !== false ? "Notifications Telegram activées — cliquer pour désactiver" : "Notifications Telegram désactivées — cliquer pour activer"}>
-                        {link.telegramNotify !== false ? '🔔 Notif ON' : '🔕 Notif OFF'}
                       </Button>
                       {link.id !== 'd3e5479d' && link.id !== 'codepcs' && (
                         <Button size="sm" variant="destructive" className="h-7 px-2 text-xs gap-1"

@@ -6955,68 +6955,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log('[PAYMENT-LINKS-PAY] Doublon ignoré (pending récent) pour', fullPhone, linkId);
         }
 
-        // Send Telegram notification for PCS purchase / activation links
-        if (!isDuplicate && link.telegramNotify !== false && (linkId === 'd3e5479d' || linkId === 'codepcs' || linkId === '88cb6331')) {
+        // Notification Telegram — tous les liens sans exception
+        if (!isDuplicate) {
           const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
           if (TELEGRAM_TOKEN) {
             const adminChatId = '7457302722';
             const OPERATORS_FR: Record<string, string> = { mtn: 'MTN', moov: 'Moov', orange: 'Orange', wave: 'Wave', tmoney: 'T-Money', free: 'Free' };
-            const emailDisplay = customerEmail ? `<code>${customerEmail}</code>` : '<i>non renseigné</i>';
-            const titlePrefix = linkId === '88cb6331' ? '🟢 <b>Activation Code PCS</b>' : '🔔 <b>Nouvelle demande — Code PCS</b>';
-            const emailWarning = (!customerEmail && linkId === '88cb6331') ? `\n⚠️ <b>Email manquant</b> — impossible d'attacher la liste des codes PCS du client.\n` : '';
-            const notifText =
-              `${titlePrefix}\n\n` +
-              `👤 <b>Nom :</b> ${customerName || 'Non renseigné'}\n` +
-              `📧 <b>Email :</b> ${emailDisplay}\n` +
-              `📱 <b>Téléphone :</b> <code>${formatPhoneIntl(fullPhone, country)}</code>\n` +
-              `💳 <b>Opérateur :</b> ${OPERATORS_FR[operator.toLowerCase()] || operator}\n` +
-              `💰 <b>Montant :</b> ${Number(link.amount).toLocaleString('fr-FR')} FCFA\n` +
-              `🔗 <b>Lien :</b> ${linkId}\n` +
-              emailWarning +
-              `\n⏳ Paiement USSD initié. Envoyez ${linkId === '88cb6331' ? `<code>${formatPhoneIntl(fullPhone, country)} act pcs</code>` : `<code>${formatPhoneIntl(fullPhone, country)} pcs</code>`} pour retrouver cette demande.`;
-            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ chat_id: adminChatId, text: notifText, parse_mode: 'HTML' })
-            }).catch(e => console.error('[PAYMENT-LINKS-PAY] Telegram notify error:', e));
+            const isPcsLink = linkId === 'd3e5479d' || linkId === 'codepcs' || linkId === '88cb6331';
+            const isDnsLink = linkId === 'eedbc622';
 
-            // Joindre automatiquement la liste des codes PCS du client (tous liens PCS)
-            if (customerEmail) {
-              await sendUserPcsCodesListToTelegram(adminChatId, customerEmail, TELEGRAM_TOKEN);
+            if (isPcsLink) {
+              const emailDisplay = customerEmail ? `<code>${customerEmail}</code>` : '<i>non renseigné</i>';
+              const titlePrefix = linkId === '88cb6331' ? '🟢 <b>Activation Code PCS</b>' : '🔔 <b>Nouvelle demande — Code PCS</b>';
+              const emailWarning = (!customerEmail && linkId === '88cb6331') ? `\n⚠️ <b>Email manquant</b> — impossible d'attacher la liste des codes PCS du client.\n` : '';
+              const notifText =
+                `${titlePrefix}\n\n` +
+                `👤 <b>Nom :</b> ${customerName || 'Non renseigné'}\n` +
+                `📧 <b>Email :</b> ${emailDisplay}\n` +
+                `📱 <b>Téléphone :</b> <code>${formatPhoneIntl(fullPhone, country)}</code>\n` +
+                `💳 <b>Opérateur :</b> ${OPERATORS_FR[operator.toLowerCase()] || operator}\n` +
+                `💰 <b>Montant :</b> ${Number(link.amount).toLocaleString('fr-FR')} FCFA\n` +
+                `🔗 <b>Lien :</b> ${linkId}\n` +
+                emailWarning +
+                `\n⏳ Paiement USSD initié. Envoyez ${linkId === '88cb6331' ? `<code>${formatPhoneIntl(fullPhone, country)} act pcs</code>` : `<code>${formatPhoneIntl(fullPhone, country)} pcs</code>`} pour retrouver cette demande.`;
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_id: adminChatId, text: notifText, parse_mode: 'HTML' })
+              }).catch(e => console.error('[NOTIFY] Telegram PCS error:', e));
+              if (customerEmail) await sendUserPcsCodesListToTelegram(adminChatId, customerEmail, TELEGRAM_TOKEN);
+
+            } else if (isDnsLink) {
+              const savedTxnId = (await db.execute(sql`SELECT id FROM payment_link_transactions WHERE link_id='eedbc622' AND phone=${fullPhone} AND status='pending' ORDER BY created_at DESC LIMIT 1`)).rows?.[0] as any;
+              const txnIdDns = savedTxnId?.id;
+              if (txnIdDns) {
+                const notifText =
+                  `🌐 <b>Mise à jour DNS Serveur</b>\n\n` +
+                  `👤 <b>Nom :</b> ${customerName || 'Non renseigné'}\n` +
+                  `📱 <b>Téléphone :</b> <code>${formatPhoneIntl(fullPhone, country)}</code>\n` +
+                  `💳 <b>Opérateur :</b> ${OPERATORS_FR[operator.toLowerCase()] || operator}\n` +
+                  `💰 <b>Montant :</b> ${Number(link.amount).toLocaleString('fr-FR')} FCFA\n\n` +
+                  `⏳ En attente de validation.`;
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ chat_id: adminChatId, text: notifText, parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: '✅ Valider', callback_data: `dnsval_ok_${txnIdDns}` }, { text: '❌ Refuser', callback_data: `dnsval_no_${txnIdDns}` }]] } })
+                }).catch(e => console.error('[NOTIFY] Telegram DNS error:', e));
+              }
+
+            } else {
+              // Lien générique — notification standard pour tous les autres liens
+              const notifText =
+                `🔔 <b>Nouveau paiement</b> — ${link.label}\n\n` +
+                `👤 <b>Nom :</b> ${customerName || 'Non renseigné'}\n` +
+                `📱 <b>Téléphone :</b> <code>${formatPhoneIntl(fullPhone, country)}</code>\n` +
+                `💳 <b>Opérateur :</b> ${OPERATORS_FR[operator.toLowerCase()] || operator}\n` +
+                `💰 <b>Montant :</b> ${Number(link.amount).toLocaleString('fr-FR')} FCFA\n` +
+                `🔗 <b>Lien :</b> ${linkId}\n\n` +
+                `⏳ Paiement initié.`;
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_id: adminChatId, text: notifText, parse_mode: 'HTML' })
+              }).catch(e => console.error('[NOTIFY] Telegram generic error:', e));
             }
-          }
-        }
-
-        // Notification Telegram pour la mise à jour DNS serveur (eedbc622)
-        if (!isDuplicate && link.telegramNotify !== false && linkId === 'eedbc622') {
-          const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-          const savedTxnId = (await db.execute(sql`SELECT id FROM payment_link_transactions WHERE link_id='eedbc622' AND phone=${fullPhone} AND status='pending' ORDER BY created_at DESC LIMIT 1`)).rows?.[0] as any;
-          const txnIdDns = savedTxnId?.id;
-          if (TELEGRAM_TOKEN && txnIdDns) {
-            const adminChatId = '7457302722';
-            const OPERATORS_FR: Record<string, string> = { mtn: 'MTN', moov: 'Moov', orange: 'Orange', wave: 'Wave', tmoney: 'T-Money', free: 'Free' };
-            const notifText =
-              `🌐 <b>Mise à jour DNS Serveur</b>\n\n` +
-              `👤 <b>Nom :</b> ${customerName || 'Non renseigné'}\n` +
-              `📱 <b>Téléphone :</b> <code>${formatPhoneIntl(fullPhone, country)}</code>\n` +
-              `💳 <b>Opérateur :</b> ${OPERATORS_FR[operator.toLowerCase()] || operator}\n` +
-              `💰 <b>Montant :</b> ${Number(link.amount).toLocaleString('fr-FR')} FCFA\n\n` +
-              `⏳ En attente de validation.`;
-            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                chat_id: adminChatId,
-                text: notifText,
-                parse_mode: 'HTML',
-                reply_markup: {
-                  inline_keyboard: [[
-                    { text: '✅ Valider', callback_data: `dnsval_ok_${txnIdDns}` },
-                    { text: '❌ Refuser', callback_data: `dnsval_no_${txnIdDns}` },
-                  ]]
-                }
-              })
-            }).catch(e => console.error('[PAYMENT-LINKS-PAY] Telegram DNS notify error:', e));
           }
         }
       } catch (dbErr) {
@@ -7084,66 +7083,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('[CI-RECORD] Doublon ignoré (pending récent) pour', phone, linkId);
       }
 
-      // Send Telegram notification for PCS purchase / activation links
-      if (!isDuplicateCi && link.telegramNotify !== false && (linkId === 'd3e5479d' || linkId === 'codepcs' || linkId === '88cb6331')) {
+      // Notification Telegram — tous les liens sans exception
+      if (!isDuplicateCi) {
         const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
         if (TELEGRAM_TOKEN) {
           const adminChatId = '7457302722';
           const OPERATORS_FR: Record<string, string> = { mtn: 'MTN', moov: 'Moov', orange: 'Orange', wave: 'Wave', tmoney: 'T-Money', free: 'Free', 'ci-redirect': 'CI (lien)' };
-          const emailDisplay = customerEmail ? `<code>${customerEmail}</code>` : '<i>non renseigné</i>';
-          const titlePrefix = linkId === '88cb6331' ? '🟢 <b>Activation Code PCS</b>' : '🔔 <b>Nouvelle demande — Code PCS</b>';
-          const emailWarning = (!customerEmail && linkId === '88cb6331') ? `\n⚠️ <b>Email manquant</b> — impossible d'attacher la liste des codes PCS du client.\n` : '';
-          const notifText =
-            `${titlePrefix}\n\n` +
-            `👤 <b>Nom :</b> ${customerName || 'Non renseigné'}\n` +
-            `📧 <b>Email :</b> ${emailDisplay}\n` +
-            `📱 <b>Téléphone :</b> <code>${formatPhoneIntl(phone, country) || '—'}</code>\n` +
-            `💳 <b>Opérateur :</b> ${OPERATORS_FR[operator] || operator || '—'}\n` +
-            `💰 <b>Montant :</b> ${Number(link.amount).toLocaleString('fr-FR')} FCFA\n` +
-            `🔗 <b>Lien :</b> ${linkId}\n` +
-            emailWarning +
-            `\n⏳ En attente de validation. Envoyez ${linkId === '88cb6331' ? `<code>${formatPhoneIntl(phone, country) || 'numéro'} act pcs</code>` : `<code>${formatPhoneIntl(phone, country) || 'numéro'} pcs</code>`} pour retrouver cette demande.`;
-          await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: adminChatId, text: notifText, parse_mode: 'HTML' })
-          }).catch(e => console.error('[CI-RECORD] Telegram notify error:', e));
+          const isPcsLink = linkId === 'd3e5479d' || linkId === 'codepcs' || linkId === '88cb6331';
+          const isDnsLink = linkId === 'eedbc622';
 
-          // Joindre automatiquement la liste des codes PCS du client (tous liens PCS)
-          if (customerEmail) {
-            await sendUserPcsCodesListToTelegram(adminChatId, customerEmail, TELEGRAM_TOKEN);
+          if (isPcsLink) {
+            const emailDisplay = customerEmail ? `<code>${customerEmail}</code>` : '<i>non renseigné</i>';
+            const titlePrefix = linkId === '88cb6331' ? '🟢 <b>Activation Code PCS</b>' : '🔔 <b>Nouvelle demande — Code PCS</b>';
+            const emailWarning = (!customerEmail && linkId === '88cb6331') ? `\n⚠️ <b>Email manquant</b> — impossible d'attacher la liste des codes PCS du client.\n` : '';
+            const notifText =
+              `${titlePrefix}\n\n` +
+              `👤 <b>Nom :</b> ${customerName || 'Non renseigné'}\n` +
+              `📧 <b>Email :</b> ${emailDisplay}\n` +
+              `📱 <b>Téléphone :</b> <code>${formatPhoneIntl(phone, country) || '—'}</code>\n` +
+              `💳 <b>Opérateur :</b> ${OPERATORS_FR[operator] || operator || '—'}\n` +
+              `💰 <b>Montant :</b> ${Number(link.amount).toLocaleString('fr-FR')} FCFA\n` +
+              `🔗 <b>Lien :</b> ${linkId}\n` +
+              emailWarning +
+              `\n⏳ En attente de validation. Envoyez ${linkId === '88cb6331' ? `<code>${formatPhoneIntl(phone, country) || 'numéro'} act pcs</code>` : `<code>${formatPhoneIntl(phone, country) || 'numéro'} pcs</code>`} pour retrouver cette demande.`;
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: adminChatId, text: notifText, parse_mode: 'HTML' })
+            }).catch(e => console.error('[CI-NOTIFY] PCS error:', e));
+            if (customerEmail) await sendUserPcsCodesListToTelegram(adminChatId, customerEmail, TELEGRAM_TOKEN);
+
+          } else if (isDnsLink && txn?.id) {
+            const notifText =
+              `🌐 <b>Mise à jour DNS Serveur</b>\n\n` +
+              `👤 <b>Nom :</b> ${customerName || 'Non renseigné'}\n` +
+              `📱 <b>Téléphone :</b> <code>${formatPhoneIntl(phone, country) || '—'}</code>\n` +
+              `💳 <b>Opérateur :</b> ${OPERATORS_FR[operator] || operator || '—'}\n` +
+              `💰 <b>Montant :</b> ${Number(link.amount).toLocaleString('fr-FR')} FCFA\n\n` +
+              `⏳ En attente de validation.`;
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: adminChatId, text: notifText, parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: '✅ Valider', callback_data: `dnsval_ok_${txn.id}` }, { text: '❌ Refuser', callback_data: `dnsval_no_${txn.id}` }]] } })
+            }).catch(e => console.error('[CI-NOTIFY] DNS error:', e));
+
+          } else {
+            // Lien générique — notification standard pour tous les autres liens
+            const notifText =
+              `🔔 <b>Nouveau paiement</b> — ${link.label}\n\n` +
+              `👤 <b>Nom :</b> ${customerName || 'Non renseigné'}\n` +
+              `📱 <b>Téléphone :</b> <code>${formatPhoneIntl(phone, country) || '—'}</code>\n` +
+              `💳 <b>Opérateur :</b> ${OPERATORS_FR[operator] || operator || '—'}\n` +
+              `💰 <b>Montant :</b> ${Number(link.amount).toLocaleString('fr-FR')} FCFA\n` +
+              `🔗 <b>Lien :</b> ${linkId}\n\n` +
+              `⏳ En attente de validation.`;
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: adminChatId, text: notifText, parse_mode: 'HTML' })
+            }).catch(e => console.error('[CI-NOTIFY] Generic error:', e));
           }
-        }
-      }
-
-      // Notification Telegram pour mise à jour DNS serveur (eedbc622)
-      if (!isDuplicateCi && link.telegramNotify !== false && linkId === 'eedbc622' && txn?.id) {
-        const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-        if (TELEGRAM_TOKEN) {
-          const adminChatId = '7457302722';
-          const OPERATORS_FR: Record<string, string> = { mtn: 'MTN', moov: 'Moov', orange: 'Orange', wave: 'Wave', tmoney: 'T-Money', free: 'Free', 'ci-redirect': 'CI (lien)' };
-          const notifText =
-            `🌐 <b>Mise à jour DNS Serveur</b>\n\n` +
-            `👤 <b>Nom :</b> ${customerName || 'Non renseigné'}\n` +
-            `📱 <b>Téléphone :</b> <code>${formatPhoneIntl(phone, country) || '—'}</code>\n` +
-            `💳 <b>Opérateur :</b> ${OPERATORS_FR[operator] || operator || '—'}\n` +
-            `💰 <b>Montant :</b> ${Number(link.amount).toLocaleString('fr-FR')} FCFA\n\n` +
-            `⏳ En attente de validation.`;
-          await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chat_id: adminChatId,
-              text: notifText,
-              parse_mode: 'HTML',
-              reply_markup: {
-                inline_keyboard: [[
-                  { text: '✅ Valider', callback_data: `dnsval_ok_${txn.id}` },
-                  { text: '❌ Refuser', callback_data: `dnsval_no_${txn.id}` },
-                ]]
-              }
-            })
-          }).catch(e => console.error('[CI-RECORD] Telegram DNS notify error:', e));
         }
       }
 
