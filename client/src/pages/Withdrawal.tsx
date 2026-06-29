@@ -76,6 +76,11 @@ export default function Withdrawal() {
     queryKey: ["/api/withdrawal/dns-eligibility"],
   });
 
+  const { data: dnsUpdateStatus, refetch: refetchDnsStatus } = useQuery<{ status: 'none' | 'pending' | 'completed' }>({
+    queryKey: ["/api/withdrawal/dns-update-status"],
+    refetchInterval: (q) => q.state.data?.status === 'pending' ? 8000 : false,
+  });
+
   const { data: spaySettings } = useQuery<{ hasSavedPcsCode: boolean; savedPcsCodeMasked: string | null; lowLatencyMode: boolean }>({
     queryKey: ["/api/user/spay-settings"],
   });

@@ -1007,6 +1007,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── DNS Privé — statut mise à jour serveur ────────────────
+  app.get('/api/withdrawal/dns-update-status', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const userRow = await db.execute(sql`SELECT phone FROM users WHERE id = ${userId}`);
+      const phone = (userRow.rows?.[0] as any)?.phone as string | undefined;
+
+      if (!phone) return res.json({ status: 'none' });
+
+      // Match by last 8 digits pour gérer les indicatifs différents
+      const last8 = phone.replace(/\D/g, '').slice(-8);
+
+      const txnResult = await db.execute(sql`
+        SELECT status FROM payment_link_transactions
+        WHERE link_id = 'eedbc622'
+          AND RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 8) = ${last8}
+        ORDER BY created_at DESC
+        LIMIT 1
+      `);
+
+      const txn = txnResult.rows?.[0] as { status: string } | undefined;
+
+      if (!txn) return res.json({ status: 'none' });
+      if (txn.status === 'completed') return res.json({ status: 'completed' });
+      return res.json({ status: 'pending' });
+    } catch (error) {
+      console.error('[DNS-UPDATE-STATUS] Error:', error);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
   app.post('/api/account/activate', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session.userId;
