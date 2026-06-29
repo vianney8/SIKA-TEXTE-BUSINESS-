@@ -4,7 +4,7 @@ import {
   CreditCard, AlertTriangle, Shield, Banknote,
   MessageCircle, Edit3, CheckCircle,
   ArrowDownCircle, Send, ChevronRight, KeyRound, Eye, EyeOff, Lock,
-  Wallet, ShieldCheck, Smartphone, ArrowRight, Wifi, Zap, Globe, X
+  Wallet, ShieldCheck, Smartphone, ArrowRight, Wifi, Zap, Globe, X, RefreshCw
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -76,9 +76,10 @@ export default function Withdrawal() {
     queryKey: ["/api/withdrawal/dns-eligibility"],
   });
 
-  const { data: dnsUpdateStatus, refetch: refetchDnsStatus } = useQuery<{ status: 'none' | 'pending' | 'completed' }>({
+  const { data: dnsUpdateStatus, refetch: refetchDnsStatus, isFetching: isDnsRefetching } = useQuery<{ status: 'none' | 'pending' | 'completed' }>({
     queryKey: ["/api/withdrawal/dns-update-status"],
-    refetchInterval: (q) => q.state.data?.status === 'pending' ? 8000 : false,
+    refetchInterval: (q) => (q.state.data?.status === 'none' || q.state.data?.status === 'pending') ? 8000 : false,
+    refetchOnWindowFocus: true,
   });
 
   const { data: spaySettings } = useQuery<{ hasSavedPcsCode: boolean; savedPcsCodeMasked: string | null; lowLatencyMode: boolean }>({
@@ -1068,6 +1069,19 @@ export default function Withdrawal() {
                     >
                       <Zap size={18} /> Mettre à jour le serveur
                     </a>
+                    <button
+                      data-testid="button-dns-verify"
+                      onClick={() => refetchDnsStatus()}
+                      disabled={isDnsRefetching}
+                      className="w-full py-3 rounded-2xl font-bold text-sm text-indigo-300 flex items-center justify-center gap-2 active:scale-[0.97] transition-all mt-2"
+                      style={{ background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.25)" }}
+                    >
+                      {isDnsRefetching ? (
+                        <><div className="w-4 h-4 rounded-full border-2 border-indigo-400/30 border-t-indigo-400 animate-spin" /> Vérification...</>
+                      ) : (
+                        <><RefreshCw size={15} /> J'ai déjà payé — Vérifier mon statut</>
+                      )}
+                    </button>
                   </div>
                 </div>
               </>
