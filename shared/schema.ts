@@ -442,6 +442,7 @@ export const paymentLinks = pgTable("payment_links", {
   solvexpayLinkId: varchar("solvexpay_link_id"),
   imageUrl: text("image_url"),
   isActive: boolean("is_active").default(true),
+  telegramNotify: boolean("telegram_notify").default(true),
   manualMode: boolean("manual_mode").default(false),
   manualDepositNumber: varchar("manual_deposit_number"),
   manualDepositLabel: varchar("manual_deposit_label"),

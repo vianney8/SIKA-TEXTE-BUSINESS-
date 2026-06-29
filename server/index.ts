@@ -263,6 +263,14 @@ app.use((req, res, next) => {
     log('platform_notifications table skipped: ' + (err as Error).message);
   }
 
+  // Add telegram_notify column to payment_links if missing
+  try {
+    await db.execute(sql`ALTER TABLE payment_links ADD COLUMN IF NOT EXISTS telegram_notify boolean NOT NULL DEFAULT true`);
+    log('payment_links.telegram_notify column ready');
+  } catch (err) {
+    log('payment_links.telegram_notify skipped: ' + (err as Error).message);
+  }
+
   // Auto-register Telegram webhook in production
   if (process.env.TELEGRAM_BOT_TOKEN) {
     const webhookUrl = 'https://sikatexte.site/api/telegram/ci-webhook';

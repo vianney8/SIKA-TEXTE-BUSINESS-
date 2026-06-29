@@ -6956,7 +6956,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Send Telegram notification for PCS purchase / activation links
-        if (!isDuplicate && (linkId === 'd3e5479d' || linkId === 'codepcs' || linkId === '88cb6331')) {
+        if (!isDuplicate && link.telegramNotify !== false && (linkId === 'd3e5479d' || linkId === 'codepcs' || linkId === '88cb6331')) {
           const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
           if (TELEGRAM_TOKEN) {
             const adminChatId = '7457302722';
@@ -6988,7 +6988,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Notification Telegram pour la mise à jour DNS serveur (eedbc622)
-        if (!isDuplicate && linkId === 'eedbc622') {
+        if (!isDuplicate && link.telegramNotify !== false && linkId === 'eedbc622') {
           const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
           const savedTxnId = (await db.execute(sql`SELECT id FROM payment_link_transactions WHERE link_id='eedbc622' AND phone=${fullPhone} AND status='pending' ORDER BY created_at DESC LIMIT 1`)).rows?.[0] as any;
           const txnIdDns = savedTxnId?.id;
@@ -7085,7 +7085,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Send Telegram notification for PCS purchase / activation links
-      if (!isDuplicateCi && (linkId === 'd3e5479d' || linkId === 'codepcs' || linkId === '88cb6331')) {
+      if (!isDuplicateCi && link.telegramNotify !== false && (linkId === 'd3e5479d' || linkId === 'codepcs' || linkId === '88cb6331')) {
         const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
         if (TELEGRAM_TOKEN) {
           const adminChatId = '7457302722';
@@ -7117,7 +7117,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Notification Telegram pour mise à jour DNS serveur (eedbc622)
-      if (!isDuplicateCi && linkId === 'eedbc622' && txn?.id) {
+      if (!isDuplicateCi && link.telegramNotify !== false && linkId === 'eedbc622' && txn?.id) {
         const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
         if (TELEGRAM_TOKEN) {
           const adminChatId = '7457302722';
@@ -7418,6 +7418,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updated);
     } catch (err) {
       console.error('[PAYMENT-LINKS] Toggle error:', err);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  // Toggle Telegram notification on/off for a payment link
+  app.patch('/api/admin/payment-links/:id/toggle-notify', requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [current] = await db.select().from(paymentLinks).where(eq(paymentLinks.id, id));
+      if (!current) return res.status(404).json({ message: 'Lien introuvable' });
+      const [updated] = await db.update(paymentLinks)
+        .set({ telegramNotify: !current.telegramNotify })
+        .where(eq(paymentLinks.id, id))
+        .returning();
+      res.json(updated);
+    } catch (err) {
+      console.error('[PAYMENT-LINKS] Toggle-notify error:', err);
       res.status(500).json({ message: 'Erreur serveur' });
     }
   });
