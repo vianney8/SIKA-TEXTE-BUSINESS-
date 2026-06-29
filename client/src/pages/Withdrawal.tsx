@@ -828,7 +828,7 @@ export default function Withdrawal() {
           className="fixed inset-0 z-50 flex flex-col overflow-y-auto"
           style={{ background: "linear-gradient(160deg, #0f172a 0%, #1e1b4b 40%, #0f172a 100%)" }}
         >
-          {/* Orbes de lumière décoratifs */}
+          {/* Orbes décoratifs */}
           <div className="fixed top-0 left-1/2 -translate-x-1/2 w-96 h-96 rounded-full pointer-events-none"
             style={{ background: "radial-gradient(circle, rgba(99,102,241,0.18) 0%, transparent 70%)", filter: "blur(40px)" }} />
           <div className="fixed bottom-0 right-0 w-64 h-64 rounded-full pointer-events-none"
@@ -846,133 +846,239 @@ export default function Withdrawal() {
                 <p className="text-indigo-400 text-[10px] font-bold uppercase tracking-widest">AdGuard — SIKA TEXTE</p>
               </div>
             </div>
-            <button
-              data-testid="button-dns-close"
-              onClick={() => setShowDnsPage(false)}
-              className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center active:scale-90 transition-all"
-            >
+            <button data-testid="button-dns-close" onClick={() => setShowDnsPage(false)}
+              className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center active:scale-90 transition-all">
               <X size={18} className="text-white/70" />
             </button>
           </div>
 
-          {/* Contenu */}
           <div className="relative z-10 px-5 pb-10 space-y-5">
 
-            {/* Bannière principale */}
-            <div className="rounded-3xl p-6 relative overflow-hidden"
-              style={{ background: "linear-gradient(135deg, rgba(67,56,202,0.35) 0%, rgba(109,40,217,0.35) 100%)", border: "1px solid rgba(129,140,248,0.2)" }}>
-              <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full pointer-events-none"
-                style={{ background: "radial-gradient(circle, rgba(129,140,248,0.25), transparent)" }} />
-              <div className="relative z-10">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-2xl">📢</span>
-                  <p className="text-indigo-200 text-xs font-bold uppercase tracking-widest">Fonctionnalité intégrée</p>
-                </div>
-                <h1 className="text-white font-black text-xl leading-tight mb-3">
-                  À quoi sert le DNS Privé sur SIKA TEXTE BUSINESS ?
-                </h1>
-                <p className="text-indigo-200 text-sm leading-relaxed">
-                  Le DNS Privé est une fonctionnalité intégrée à SIKA TEXTE BUSINESS pour garantir une meilleure qualité de service et renforcer la sécurité de la plateforme.
-                </p>
-                <p className="text-indigo-300 text-sm leading-relaxed mt-2">
-                  Il remplit principalement trois rôles essentiels :
-                </p>
-              </div>
-            </div>
-
-            {/* Rôle 1 */}
-            <div className="rounded-2xl p-5 relative overflow-hidden"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)", boxShadow: "0 4px 16px rgba(59,130,246,0.35)" }}>
-                  <Lock size={20} className="text-white" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className="text-blue-400 font-black text-xs">🔒 1.</span>
-                    <p className="text-white font-black text-sm">Sécuriser les connexions</p>
+            {/* ── État : COMPLETED — Serveur à jour ── */}
+            {dnsUpdateStatus?.status === 'completed' && (
+              <>
+                {/* Badge succès */}
+                <div className="rounded-3xl p-6 relative overflow-hidden text-center"
+                  style={{ background: "linear-gradient(135deg, rgba(5,150,105,0.3), rgba(16,185,129,0.2))", border: "1px solid rgba(52,211,153,0.25)" }}>
+                  <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full pointer-events-none"
+                    style={{ background: "radial-gradient(circle, rgba(52,211,153,0.2), transparent)" }} />
+                  <div className="relative z-10">
+                    <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center"
+                      style={{ background: "linear-gradient(135deg, #059669, #10b981)", boxShadow: "0 8px 32px rgba(16,185,129,0.45)" }}>
+                      <CheckCircle size={30} className="text-white" />
+                    </div>
+                    <div className="flex items-center justify-center gap-2 mb-2">
+                      <p className="text-white font-black text-xl">Serveur DNS à jour</p>
+                    </div>
+                    <div className="inline-flex items-center gap-1.5 bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-black px-3 py-1 rounded-full mb-3">
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      Dernière mise à jour : v2.4.1
+                    </div>
+                    <p className="text-emerald-200 text-sm leading-relaxed">
+                      Votre serveur DNS AdGuard est synchronisé avec la dernière version. Vos connexions sont pleinement sécurisées et optimisées.
+                    </p>
                   </div>
-                  <p className="text-slate-300 text-xs leading-relaxed">
-                    Il protège les échanges entre votre appareil et les serveurs SIKA afin de réduire les risques liés aux connexions non sécurisées.
-                  </p>
                 </div>
-              </div>
-            </div>
 
-            {/* Rôle 2 */}
-            <div className="rounded-2xl p-5 relative overflow-hidden"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: "linear-gradient(135deg, #d97706, #f59e0b)", boxShadow: "0 4px 16px rgba(245,158,11,0.35)" }}>
-                  <Zap size={20} className="text-white" />
+                {/* Infos version */}
+                <div className="rounded-2xl p-5 space-y-3"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">Détails de la mise à jour</p>
+                  {[
+                    { label: "Version", value: "v2.4.1 — Stable", color: "text-emerald-400" },
+                    { label: "Protocole", value: "DNS-over-HTTPS (DoH)", color: "text-blue-400" },
+                    { label: "Filtre", value: "AdGuard DNS — Protection activée", color: "text-indigo-400" },
+                    { label: "Statut", value: "✅ Opérationnel", color: "text-emerald-400" },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} className="flex items-center justify-between">
+                      <span className="text-slate-400 text-xs">{label}</span>
+                      <span className={`text-xs font-bold ${color}`}>{value}</span>
+                    </div>
+                  ))}
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className="text-amber-400 font-black text-xs">⚡ 2.</span>
-                    <p className="text-white font-black text-sm">Optimiser les performances</p>
+
+                {/* Badges */}
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { icon: Shield, value: "100%", label: "Chiffré", color: "#4338ca" },
+                    { icon: Zap, value: "Ultra", label: "Rapide", color: "#d97706" },
+                    { icon: CheckCircle, value: "24/7", label: "Actif", color: "#059669" },
+                  ].map(({ icon: Icon, value, label, color }) => (
+                    <div key={label} className="rounded-2xl p-4 text-center"
+                      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                      <Icon size={18} className="mx-auto mb-2" style={{ color }} />
+                      <p className="text-white font-black text-sm">{value}</p>
+                      <p className="text-slate-400 text-[10px] font-semibold mt-0.5">{label}</p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* ── État : PENDING — En attente de validation ── */}
+            {dnsUpdateStatus?.status === 'pending' && (
+              <>
+                <div className="rounded-3xl p-6 relative overflow-hidden text-center"
+                  style={{ background: "linear-gradient(135deg, rgba(161,98,7,0.3), rgba(217,119,6,0.2))", border: "1px solid rgba(251,191,36,0.2)" }}>
+                  <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full pointer-events-none"
+                    style={{ background: "radial-gradient(circle, rgba(251,191,36,0.15), transparent)" }} />
+                  <div className="relative z-10">
+                    {/* Spinner animé */}
+                    <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center relative"
+                      style={{ border: "3px solid rgba(251,191,36,0.2)" }}>
+                      <div className="absolute inset-0 rounded-full border-t-2 border-amber-400 animate-spin" />
+                      <Wifi size={24} className="text-amber-400" />
+                    </div>
+                    <p className="text-white font-black text-xl mb-2">Paiement en attente</p>
+                    <div className="inline-flex items-center gap-1.5 bg-amber-500/20 border border-amber-400/30 text-amber-300 text-xs font-black px-3 py-1 rounded-full mb-3">
+                      <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                      Validation en cours...
+                    </div>
+                    <p className="text-amber-200 text-sm leading-relaxed">
+                      Votre paiement a bien été reçu et est en cours de validation par notre équipe. La mise à jour de votre serveur DNS sera activée automatiquement une fois le paiement confirmé.
+                    </p>
                   </div>
-                  <p className="text-slate-300 text-xs leading-relaxed">
-                    Il améliore la rapidité d'accès à la plateforme et contribue à une meilleure stabilité, même lorsque le nombre d'utilisateurs connectés est élevé.
-                  </p>
                 </div>
-              </div>
-            </div>
 
-            {/* Rôle 3 */}
-            <div className="rounded-2xl p-5 relative overflow-hidden"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: "linear-gradient(135deg, #059669, #10b981)", boxShadow: "0 4px 16px rgba(16,185,129,0.35)" }}>
-                  <ShieldCheck size={20} className="text-white" />
+                <div className="rounded-2xl p-5 space-y-3"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  {[
+                    { icon: CheckCircle, label: "Paiement soumis", done: true },
+                    { icon: Wifi, label: "Validation en cours", done: false, spinning: true },
+                    { icon: Shield, label: "Activation DNS", done: false },
+                  ].map(({ icon: Icon, label, done, spinning }, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${done ? 'bg-emerald-500/20' : 'bg-white/5'}`}>
+                        <Icon size={15} className={`${done ? 'text-emerald-400' : 'text-slate-500'} ${spinning ? 'animate-spin' : ''}`} />
+                      </div>
+                      <span className={`text-sm font-semibold ${done ? 'text-emerald-300' : 'text-slate-400'}`}>{label}</span>
+                      {done && <CheckCircle size={13} className="text-emerald-400 ml-auto" />}
+                    </div>
+                  ))}
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className="text-emerald-400 font-black text-xs">🛡️ 3.</span>
-                    <p className="text-white font-black text-sm">Renforcer la fiabilité des opérations</p>
+
+                <button onClick={() => refetchDnsStatus()}
+                  className="w-full py-3 rounded-2xl font-bold text-sm text-amber-300 border border-amber-400/30 bg-amber-500/10 active:scale-[0.97] transition-all flex items-center justify-center gap-2">
+                  <Wifi size={15} /> Actualiser le statut
+                </button>
+              </>
+            )}
+
+            {/* ── État : NONE — Bouton paiement + présentation ── */}
+            {(!dnsUpdateStatus || dnsUpdateStatus.status === 'none') && (
+              <>
+                {/* Bannière principale */}
+                <div className="rounded-3xl p-6 relative overflow-hidden"
+                  style={{ background: "linear-gradient(135deg, rgba(67,56,202,0.35) 0%, rgba(109,40,217,0.35) 100%)", border: "1px solid rgba(129,140,248,0.2)" }}>
+                  <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full pointer-events-none"
+                    style={{ background: "radial-gradient(circle, rgba(129,140,248,0.25), transparent)" }} />
+                  <div className="relative z-10">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-2xl">📢</span>
+                      <p className="text-indigo-200 text-xs font-bold uppercase tracking-widest">Fonctionnalité intégrée</p>
+                    </div>
+                    <h1 className="text-white font-black text-xl leading-tight mb-3">
+                      À quoi sert le DNS Privé sur SIKA TEXTE BUSINESS ?
+                    </h1>
+                    <p className="text-indigo-200 text-sm leading-relaxed">
+                      Le DNS Privé garantit une meilleure qualité de service et renforce la sécurité de la plateforme.
+                    </p>
+                    <p className="text-indigo-300 text-sm leading-relaxed mt-2">
+                      Il remplit principalement trois rôles essentiels :
+                    </p>
                   </div>
-                  <p className="text-slate-300 text-xs leading-relaxed">
-                    Il participe à la sécurisation des opérations importantes, telles que les activations de compte, les dépôts et les retraits, afin d'assurer un traitement plus fiable des services.
-                  </p>
                 </div>
-              </div>
-            </div>
 
-            {/* Message de conclusion */}
-            <div className="rounded-2xl p-5"
-              style={{ background: "linear-gradient(135deg, rgba(67,56,202,0.25), rgba(109,40,217,0.25))", border: "1px solid rgba(129,140,248,0.15)" }}>
-              <div className="flex items-start gap-3">
-                <Globe size={18} className="text-indigo-400 flex-shrink-0 mt-0.5" />
-                <p className="text-indigo-200 text-xs leading-relaxed">
-                  Grâce au DNS Privé, SIKA TEXTE BUSINESS continue d'améliorer son infrastructure pour offrir à ses utilisateurs une plateforme toujours plus <strong className="text-white">sécurisée, rapide et performante</strong>.
-                </p>
-              </div>
-            </div>
-
-            {/* Badges de stats */}
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { icon: Shield, value: "100%", label: "Chiffré", color: "#4338ca" },
-                { icon: Zap, value: "Ultra", label: "Rapide", color: "#d97706" },
-                { icon: CheckCircle, value: "24/7", label: "Actif", color: "#059669" },
-              ].map(({ icon: Icon, value, label, color }) => (
-                <div key={label} className="rounded-2xl p-4 text-center"
-                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                  <Icon size={18} className="mx-auto mb-2" style={{ color }} />
-                  <p className="text-white font-black text-sm">{value}</p>
-                  <p className="text-slate-400 text-[10px] font-semibold mt-0.5">{label}</p>
+                {/* Rôle 1 */}
+                <div className="rounded-2xl p-5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+                      style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)", boxShadow: "0 4px 16px rgba(59,130,246,0.35)" }}>
+                      <Lock size={20} className="text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-white font-black text-sm mb-1">🔒 1. Sécuriser les connexions</p>
+                      <p className="text-slate-300 text-xs leading-relaxed">Il protège les échanges entre votre appareil et les serveurs SIKA afin de réduire les risques liés aux connexions non sécurisées.</p>
+                    </div>
+                  </div>
                 </div>
-              ))}
-            </div>
 
-            {/* Bouton retour */}
+                {/* Rôle 2 */}
+                <div className="rounded-2xl p-5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+                      style={{ background: "linear-gradient(135deg, #d97706, #f59e0b)", boxShadow: "0 4px 16px rgba(245,158,11,0.35)" }}>
+                      <Zap size={20} className="text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-white font-black text-sm mb-1">⚡ 2. Optimiser les performances</p>
+                      <p className="text-slate-300 text-xs leading-relaxed">Il améliore la rapidité d'accès à la plateforme et contribue à une meilleure stabilité, même lorsque le nombre d'utilisateurs est élevé.</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rôle 3 */}
+                <div className="rounded-2xl p-5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+                      style={{ background: "linear-gradient(135deg, #059669, #10b981)", boxShadow: "0 4px 16px rgba(16,185,129,0.35)" }}>
+                      <ShieldCheck size={20} className="text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-white font-black text-sm mb-1">🛡️ 3. Renforcer la fiabilité des opérations</p>
+                      <p className="text-slate-300 text-xs leading-relaxed">Il sécurise les activations de compte, dépôts et retraits, afin d'assurer un traitement plus fiable des services.</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Conclusion */}
+                <div className="rounded-2xl p-5"
+                  style={{ background: "linear-gradient(135deg, rgba(67,56,202,0.25), rgba(109,40,217,0.25))", border: "1px solid rgba(129,140,248,0.15)" }}>
+                  <div className="flex items-start gap-3">
+                    <Globe size={18} className="text-indigo-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-indigo-200 text-xs leading-relaxed">
+                      Grâce au DNS Privé, SIKA TEXTE BUSINESS continue d'améliorer son infrastructure pour offrir une plateforme toujours plus <strong className="text-white">sécurisée, rapide et performante</strong>.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Séparateur mise à jour serveur */}
+                <div className="rounded-3xl p-6 relative overflow-hidden"
+                  style={{ background: "linear-gradient(135deg, rgba(67,56,202,0.4), rgba(109,40,217,0.4))", border: "1px solid rgba(129,140,248,0.3)" }}>
+                  <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full pointer-events-none"
+                    style={{ background: "radial-gradient(circle, rgba(129,140,248,0.3), transparent)" }} />
+                  <div className="relative z-10">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-8 h-8 rounded-xl flex items-center justify-center"
+                        style={{ background: "linear-gradient(135deg, #4338ca, #6d28d9)" }}>
+                        <Wifi size={16} className="text-white" />
+                      </div>
+                      <p className="text-white font-black text-sm">Mise à jour du serveur</p>
+                    </div>
+                    <p className="text-indigo-200 text-xs leading-relaxed mb-4">
+                      Pour activer et synchroniser votre serveur DNS AdGuard avec la dernière version sécurisée, effectuez la mise à jour maintenant.
+                    </p>
+                    <a
+                      data-testid="button-dns-pay"
+                      href="https://sikatexte.site/pay/eedbc622"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 active:scale-[0.97] transition-all"
+                      style={{ background: "linear-gradient(135deg, #059669, #10b981)", boxShadow: "0 6px 24px rgba(16,185,129,0.4)" }}
+                    >
+                      <Zap size={18} /> Mettre à jour le serveur
+                    </a>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Bouton retour — toujours visible */}
             <button
               data-testid="button-dns-back"
               onClick={() => setShowDnsPage(false)}
-              className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 active:scale-[0.97] transition-all"
-              style={{ background: "linear-gradient(135deg, #4338ca, #6d28d9)", boxShadow: "0 6px 24px rgba(99,102,241,0.4)" }}
+              className="w-full py-4 rounded-2xl font-black text-base text-white/70 flex items-center justify-center gap-2 active:scale-[0.97] transition-all"
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
             >
               <ArrowRight size={18} className="rotate-180" /> Retour au retrait
             </button>
