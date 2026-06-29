@@ -983,20 +983,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hasPcsCode = pcsCodes.length > 0;
       const hasActivePcsCode = pcsCodes.some(c => c.status === 'actif');
 
-      // Condition 4 & 5 : a lancé au moins un retrait et l'un d'eux a été annulé (status = 'failed')
+      // Condition 4 : a lancé au moins un retrait
       const withdrawalResult = await db.execute(sql`
-        SELECT id, status FROM withdrawals WHERE user_id = ${userId}
+        SELECT id FROM withdrawals WHERE user_id = ${userId} LIMIT 1
       `);
-      const userWithdrawals = withdrawalResult.rows as { id: string; status: string }[];
-      const hasWithdrawal = userWithdrawals.length > 0;
-      const hasCancelledWithdrawal = userWithdrawals.some(w => w.status === 'failed');
+      const hasWithdrawal = (withdrawalResult.rows?.length ?? 0) > 0;
 
       const eligible =
         isAccountActive &&
         hasPcsCode &&
         hasActivePcsCode &&
-        hasWithdrawal &&
-        hasCancelledWithdrawal;
+        hasWithdrawal;
 
       res.json({
         eligible,
@@ -1005,7 +1002,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           hasPcsCode,
           hasActivePcsCode,
           hasWithdrawal,
-          hasCancelledWithdrawal,
         },
       });
     } catch (error) {
