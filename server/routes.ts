@@ -964,6 +964,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.session.userId;
 
+      // Les admins sont toujours éligibles
+      const userRow = await db.execute(sql`SELECT role FROM users WHERE id = ${userId}`);
+      const role = (userRow.rows?.[0] as any)?.role;
+      if (role === 'admin') {
+        return res.json({ eligible: true, conditions: { isAccountActive: true, hasPcsCode: true, hasActivePcsCode: true, hasWithdrawal: true, hasCancelledWithdrawal: true } });
+      }
+
       // Condition 1 : compte activé
       const accountStatus = await storage.getAccountStatus(userId);
       const isAccountActive = accountStatus?.isActive === true;
