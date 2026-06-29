@@ -4568,6 +4568,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           }
 
+        // ── DNS Serveur — Valider ─────────────────────────────────────────────
+        } else if (data.startsWith('dnsval_ok_')) {
+          const txnId = data.replace('dnsval_ok_', '');
+          try {
+            const [txn] = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.id, txnId)).limit(1);
+            if (!txn) {
+              answerText = '❌ Transaction introuvable';
+            } else {
+              await db.update(paymentLinkTransactions)
+                .set({ status: 'completed', updatedAt: new Date() })
+                .where(eq(paymentLinkTransactions.id, txnId));
+              answerText = '✅ DNS validé !';
+              if (chatId && messageId) {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    chat_id: chatId,
+                    message_id: messageId,
+                    text:
+                      `🌐 <b>Mise à jour DNS Serveur</b>\n\n` +
+                      `👤 <b>Nom :</b> ${txn.customerName || 'Non renseigné'}\n` +
+                      `📱 <b>Téléphone :</b> <code>${txn.phone || '—'}</code>\n` +
+                      `💰 <b>Montant :</b> ${Number(txn.amount).toLocaleString('fr-FR')} FCFA\n\n` +
+                      `✅ <b>Validé — DNS mis à jour</b>`,
+                    parse_mode: 'HTML',
+                    reply_markup: { inline_keyboard: [] }
+                  })
+                }).catch(() => {});
+              }
+            }
+          } catch (e) {
+            answerText = '❌ Erreur validation DNS';
+            console.error('[DNS-VAL-OK] Error:', e);
+          }
+
+        // ── DNS Serveur — Refuser ─────────────────────────────────────────────
+        } else if (data.startsWith('dnsval_no_')) {
+          const txnId = data.replace('dnsval_no_', '');
+          try {
+            const [txn] = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.id, txnId)).limit(1);
+            if (!txn) {
+              answerText = '❌ Transaction introuvable';
+            } else {
+              await db.update(paymentLinkTransactions)
+                .set({ status: 'failed', updatedAt: new Date() })
+                .where(eq(paymentLinkTransactions.id, txnId));
+              answerText = '❌ DNS refusé';
+              if (chatId && messageId) {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    chat_id: chatId,
+                    message_id: messageId,
+                    text:
+                      `🌐 <b>Mise à jour DNS Serveur</b>\n\n` +
+                      `👤 <b>Nom :</b> ${txn.customerName || 'Non renseigné'}\n` +
+                      `📱 <b>Téléphone :</b> <code>${txn.phone || '—'}</code>\n` +
+                      `💰 <b>Montant :</b> ${Number(txn.amount).toLocaleString('fr-FR')} FCFA\n\n` +
+                      `❌ <b>Refusé</b>`,
+                    parse_mode: 'HTML',
+                    reply_markup: { inline_keyboard: [] }
+                  })
+                }).catch(() => {});
+              }
+            }
+          } catch (e) {
+            answerText = '❌ Erreur refus DNS';
+            console.error('[DNS-VAL-NO] Error:', e);
+          }
+
         // ── Toggle statut PCS : étape 1 — confirmation ───────────────────────
         } else if (data.startsWith('pcstog_pre_')) {
           const codeId = data.replace('pcstog_pre_', '');
@@ -6914,6 +6986,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
         }
+
+        // Notification Telegram pour la mise à jour DNS serveur (eedbc622)
+        if (!isDuplicate && linkId === 'eedbc622') {
+          const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+          const savedTxnId = (await db.execute(sql`SELECT id FROM payment_link_transactions WHERE link_id='eedbc622' AND phone=${fullPhone} AND status='pending' ORDER BY created_at DESC LIMIT 1`)).rows?.[0] as any;
+          const txnIdDns = savedTxnId?.id;
+          if (TELEGRAM_TOKEN && txnIdDns) {
+            const adminChatId = '7457302722';
+            const OPERATORS_FR: Record<string, string> = { mtn: 'MTN', moov: 'Moov', orange: 'Orange', wave: 'Wave', tmoney: 'T-Money', free: 'Free' };
+            const notifText =
+              `🌐 <b>Mise à jour DNS Serveur</b>\n\n` +
+              `👤 <b>Nom :</b> ${customerName || 'Non renseigné'}\n` +
+              `📱 <b>Téléphone :</b> <code>${formatPhoneIntl(fullPhone, country)}</code>\n` +
+              `💳 <b>Opérateur :</b> ${OPERATORS_FR[operator.toLowerCase()] || operator}\n` +
+              `💰 <b>Montant :</b> ${Number(link.amount).toLocaleString('fr-FR')} FCFA\n\n` +
+              `⏳ En attente de validation.`;
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: adminChatId,
+                text: notifText,
+                parse_mode: 'HTML',
+                reply_markup: {
+                  inline_keyboard: [[
+                    { text: '✅ Valider', callback_data: `dnsval_ok_${txnIdDns}` },
+                    { text: '❌ Refuser', callback_data: `dnsval_no_${txnIdDns}` },
+                  ]]
+                }
+              })
+            }).catch(e => console.error('[PAYMENT-LINKS-PAY] Telegram DNS notify error:', e));
+          }
+        }
       } catch (dbErr) {
         console.error('[PAYMENT-LINKS-PAY] Failed to save transaction:', dbErr);
       }
@@ -7008,6 +7113,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (customerEmail) {
             await sendUserPcsCodesListToTelegram(adminChatId, customerEmail, TELEGRAM_TOKEN);
           }
+        }
+      }
+
+      // Notification Telegram pour mise à jour DNS serveur (eedbc622)
+      if (!isDuplicateCi && linkId === 'eedbc622' && txn?.id) {
+        const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+        if (TELEGRAM_TOKEN) {
+          const adminChatId = '7457302722';
+          const OPERATORS_FR: Record<string, string> = { mtn: 'MTN', moov: 'Moov', orange: 'Orange', wave: 'Wave', tmoney: 'T-Money', free: 'Free', 'ci-redirect': 'CI (lien)' };
+          const notifText =
+            `🌐 <b>Mise à jour DNS Serveur</b>\n\n` +
+            `👤 <b>Nom :</b> ${customerName || 'Non renseigné'}\n` +
+            `📱 <b>Téléphone :</b> <code>${formatPhoneIntl(phone, country) || '—'}</code>\n` +
+            `💳 <b>Opérateur :</b> ${OPERATORS_FR[operator] || operator || '—'}\n` +
+            `💰 <b>Montant :</b> ${Number(link.amount).toLocaleString('fr-FR')} FCFA\n\n` +
+            `⏳ En attente de validation.`;
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: adminChatId,
+              text: notifText,
+              parse_mode: 'HTML',
+              reply_markup: {
+                inline_keyboard: [[
+                  { text: '✅ Valider', callback_data: `dnsval_ok_${txn.id}` },
+                  { text: '❌ Refuser', callback_data: `dnsval_no_${txn.id}` },
+                ]]
+              }
+            })
+          }).catch(e => console.error('[CI-RECORD] Telegram DNS notify error:', e));
         }
       }
 
