@@ -1059,16 +1059,17 @@ export default function Withdrawal() {
                     <p className="text-indigo-200 text-xs leading-relaxed mb-4">
                       Pour activer et synchroniser votre serveur DNS AdGuard avec la dernière version sécurisée, effectuez la mise à jour maintenant.
                     </p>
-                    <a
+                    <button
                       data-testid="button-dns-pay"
-                      href="https://sikatexte.site/pay/eedbc622"
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      onClick={() => {
+                        window.open("https://sikatexte.site/pay/eedbc622", "_blank", "noopener,noreferrer");
+                        setTimeout(() => refetchDnsStatus(), 12000);
+                      }}
                       className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 active:scale-[0.97] transition-all"
                       style={{ background: "linear-gradient(135deg, #059669, #10b981)", boxShadow: "0 6px 24px rgba(16,185,129,0.4)" }}
                     >
                       <Zap size={18} /> Mettre à jour le serveur
-                    </a>
+                    </button>
                     <button
                       data-testid="button-dns-verify"
                       onClick={() => refetchDnsStatus()}
