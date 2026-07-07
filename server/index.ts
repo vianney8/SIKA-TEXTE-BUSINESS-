@@ -297,6 +297,7 @@ app.use((req, res, next) => {
           { command: 'activation_pcs',      description: 'Demandes d\'activation PCS (80 premières)' },
           { command: 'paiement_pcs',        description: 'Demandes de paiement PCS en attente (80)' },
           { command: 'lien_paiement',       description: 'Toutes les demandes de paiement par lien (80)' },
+          { command: 'aide_sms',            description: 'Comment coller un SMS Moov Money pour recherche' },
         ]
       })
     }).then((r: any) => r.json()).then((data: any) => {
