@@ -1014,19 +1014,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/withdrawal/dns-update-status', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session.userId;
-      const userRow = await db.execute(sql`SELECT phone FROM users WHERE id = ${userId}`);
-      const phone = (userRow.rows?.[0] as any)?.phone as string | undefined;
+      const userRow = await db.execute(sql`SELECT phone, full_name FROM users WHERE id = ${userId}`);
+      const userPhone    = ((userRow.rows?.[0] as any)?.phone    || '') as string;
+      const userFullName = ((userRow.rows?.[0] as any)?.full_name || '') as string;
 
-      if (!phone) return res.json({ status: 'none' });
+      // Critère 1 : 8 derniers chiffres du numéro enregistré
+      const last8 = userPhone.replace(/\D/g, '').slice(-8);
 
-      // Match by last 8 digits pour gérer les indicatifs différents
-      const last8 = phone.replace(/\D/g, '').slice(-8);
+      // Critère 2 : prénom (1er mot du nom complet, ≥3 car.)
+      const nameParts  = userFullName.trim().split(/\s+/).filter(p => p.length >= 3);
+      const firstName  = (nameParts[0] || '').toLowerCase();
 
+      // On cherche d'abord les transactions complétées, puis en attente
+      // Correspondance : téléphone (last8) OU prénom contenu dans customer_name
       const txnResult = await db.execute(sql`
         SELECT status FROM payment_link_transactions
         WHERE link_id = 'eedbc622'
-          AND RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 8) = ${last8}
-        ORDER BY created_at DESC
+          AND status IN ('completed', 'pending')
+          AND (
+            (${last8} != '' AND RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 8) = ${last8})
+            OR (${firstName} != '' AND LOWER(COALESCE(customer_name,'')) LIKE ${'%' + firstName + '%'})
+          )
+        ORDER BY
+          CASE status WHEN 'completed' THEN 0 ELSE 1 END,
+          created_at DESC
         LIMIT 1
       `);
 
