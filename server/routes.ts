@@ -8204,7 +8204,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Initier un appel (utilisateur → admin)
   app.post('/api/calls/initiate', requireAuth, async (req: any, res) => {
     try {
-      const userId = req.user?.id;
+      const userId = req.session?.userId;
       if (!userId) return res.status(401).json({ message: 'Non authentifié' });
 
       // Récupérer le profil utilisateur
@@ -8260,7 +8260,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Terminer un appel
   app.post('/api/calls/end', requireAuth, async (req: any, res) => {
     try {
-      const userId = req.user?.id;
+      const userId = req.session?.userId;
       if (!userId) return res.status(401).json({ message: 'Non authentifié' });
       await db.execute(sql`
         UPDATE calls SET status = 'ended', ended_at = now()
@@ -8275,7 +8275,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Statut de l'appel en cours
   app.get('/api/calls/status', requireAuth, async (req: any, res) => {
     try {
-      const userId = req.user?.id;
+      const userId = req.session?.userId;
       if (!userId) return res.status(401).json({ message: 'Non authentifié' });
       const rows = await db.execute(sql`
         SELECT room_name, status FROM calls
