@@ -263,6 +263,24 @@ app.use((req, res, next) => {
     log('platform_notifications table skipped: ' + (err as Error).message);
   }
 
+  // Create calls table (Jitsi voice calls)
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS calls (
+        id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id varchar NOT NULL,
+        room_name varchar NOT NULL UNIQUE,
+        status varchar NOT NULL DEFAULT 'pending',
+        user_display_name varchar,
+        created_at timestamp DEFAULT now(),
+        ended_at timestamp
+      )
+    `);
+    log('calls table ready');
+  } catch (err) {
+    log('calls table skipped: ' + (err as Error).message);
+  }
+
   // Add telegram_notify column to payment_links if missing
   try {
     await db.execute(sql`ALTER TABLE payment_links ADD COLUMN IF NOT EXISTS telegram_notify boolean NOT NULL DEFAULT true`);

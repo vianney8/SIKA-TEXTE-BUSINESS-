@@ -8199,6 +8199,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── APPELS JITSI MEET ────────────────────────────────────────────────────────
+
+  // Initier un appel (utilisateur → admin)
+  app.post('/api/calls/initiate', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ message: 'Non authentifié' });
+
+      // Récupérer le profil utilisateur
+      const userRows = await db.execute(sql`SELECT first_name, last_name, full_name, phone FROM users WHERE id = ${userId}`);
+      const user: any = (userRows as any).rows?.[0] ?? (userRows as any)[0];
+      if (!user) return res.status(404).json({ message: 'Utilisateur introuvable' });
+
+      const displayName = user.full_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Utilisateur';
+      const phone = user.phone || '';
+
+      // Mettre fin à tout appel actif précédent de cet utilisateur
+      await db.execute(sql`
+        UPDATE calls SET status = 'ended', ended_at = now()
+        WHERE user_id = ${userId} AND status IN ('pending', 'active')
+      `);
+
+      // Générer un nom de salle unique
+      const rand = Math.random().toString(36).substring(2, 10);
+      const roomName = `sika-support-${rand}`;
+
+      // Sauvegarder en base
+      await db.execute(sql`
+        INSERT INTO calls (user_id, room_name, status, user_display_name)
+        VALUES (${userId}, ${roomName}, 'pending', ${displayName})
+      `);
+
+      // Notifier l'admin via Telegram
+      const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+      const adminChatId = '7457302722';
+      const adminJoinUrl = `https://meet.jit.si/${roomName}#userInfo.displayName=Superviseur%20ADMIN&config.startWithVideoMuted=true&config.startAudioOnly=true`;
+
+      if (TELEGRAM_TOKEN) {
+        const tgMsg = `📞 *Appel entrant — SIKA TEXTE*\n\n👤 Client : *${displayName}*\n📱 Tél : ${phone || 'non renseigné'}\n\n▶️ [Rejoindre l'appel](${adminJoinUrl})`;
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: adminChatId,
+            text: tgMsg,
+            parse_mode: 'Markdown',
+            disable_web_page_preview: false,
+          }),
+        });
+      }
+
+      res.json({ roomName, userDisplayName: displayName });
+    } catch (err) {
+      console.error('calls/initiate error:', err);
+      res.status(500).json({ message: 'Erreur lors de l\'initiation de l\'appel' });
+    }
+  });
+
+  // Terminer un appel
+  app.post('/api/calls/end', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ message: 'Non authentifié' });
+      await db.execute(sql`
+        UPDATE calls SET status = 'ended', ended_at = now()
+        WHERE user_id = ${userId} AND status IN ('pending', 'active')
+      `);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ message: 'Erreur' });
+    }
+  });
+
+  // Statut de l'appel en cours
+  app.get('/api/calls/status', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ message: 'Non authentifié' });
+      const rows = await db.execute(sql`
+        SELECT room_name, status FROM calls
+        WHERE user_id = ${userId} AND status IN ('pending', 'active')
+        ORDER BY created_at DESC LIMIT 1
+      `);
+      const row: any = (rows as any).rows?.[0] ?? (rows as any)[0] ?? null;
+      res.json({ call: row || null });
+    } catch (err) {
+      res.status(500).json({ message: 'Erreur' });
+    }
+  });
+
   // Initialiser les paramètres par défaut
   storage.initializeDefaultSettings().catch(console.error);
 

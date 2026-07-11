@@ -4,7 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppSetting } from "@/hooks/useAppSettings";
 import {
-  Send, Loader2, ChevronLeft, RotateCcw, Trash2, X,
+  Send, Loader2, ChevronLeft, RotateCcw, Trash2, Phone, PhoneOff, PhoneMissed,
 } from "lucide-react";
 import { FaTelegram } from "react-icons/fa";
 import { Link } from "wouter";
@@ -69,13 +69,23 @@ function saveMessages(msgs: Message[]) {
   }
 }
 
+type CallState = "idle" | "connecting" | "active" | "ended";
+
 export default function Assistance() {
   const { isAuthenticated } = useAuth();
   const { data: telegramUrl } = useAppSetting("telegram_supervisor");
 
-  const [input, setInput]             = useState("");
-  const [messages, setMessages]       = useState<Message[]>(loadMessages);
+  const [input, setInput]               = useState("");
+  const [messages, setMessages]         = useState<Message[]>(loadMessages);
   const [confirmReset, setConfirmReset] = useState(false);
+
+  // Appel Jitsi
+  const [callState, setCallState]       = useState<CallState>("idle");
+  const [callRoom, setCallRoom]         = useState<string | null>(null);
+  const [callDisplayName, setCallDisplayName] = useState<string>("");
+  const jitsiContainerRef               = useRef<HTMLDivElement>(null);
+  const jitsiApiRef                     = useRef<any>(null);
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
 
@@ -86,6 +96,109 @@ export default function Assistance() {
   useEffect(() => {
     saveMessages(messages);
   }, [messages]);
+
+  // ── APPEL ─────────────────────────────────────────────────────────────────
+
+  const initiateMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/calls/initiate", {});
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "Erreur");
+      return data as { roomName: string; userDisplayName: string };
+    },
+    onSuccess: (data) => {
+      setCallRoom(data.roomName);
+      setCallDisplayName(data.userDisplayName);
+      setCallState("connecting");
+      loadJitsi(data.roomName, data.userDisplayName);
+    },
+    onError: () => {
+      setCallState("idle");
+    },
+  });
+
+  const endCallMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/calls/end", {});
+    },
+  });
+
+  function loadJitsi(roomName: string, displayName: string) {
+    const win = window as any;
+    if (win.JitsiMeetExternalAPI) {
+      initJitsi(roomName, displayName);
+    } else {
+      const script = document.createElement("script");
+      script.src = "https://meet.jit.si/external_api.js";
+      script.async = true;
+      script.onload = () => initJitsi(roomName, displayName);
+      script.onerror = () => setCallState("idle");
+      document.head.appendChild(script);
+    }
+  }
+
+  function initJitsi(roomName: string, displayName: string) {
+    if (!jitsiContainerRef.current) return;
+    const JitsiMeetExternalAPI = (window as any).JitsiMeetExternalAPI;
+    const api = new JitsiMeetExternalAPI("meet.jit.si", {
+      roomName,
+      width: "100%",
+      height: "100%",
+      parentNode: jitsiContainerRef.current,
+      userInfo: {
+        displayName,
+        email: "",
+      },
+      configOverwrite: {
+        startWithAudioMuted: false,
+        startWithVideoMuted: true,
+        startAudioOnly: true,
+        disableDeepLinking: true,
+        prejoinPageEnabled: false,
+        disableInviteFunctions: true,
+        enableNoisyMicDetection: false,
+      },
+      interfaceConfigOverwrite: {
+        TOOLBAR_BUTTONS: ["microphone", "hangup"],
+        SHOW_JITSI_WATERMARK: false,
+        SHOW_WATERMARK_FOR_GUESTS: false,
+        SHOW_BRAND_WATERMARK: false,
+        SHOW_POWERED_BY: false,
+        DISPLAY_WELCOME_FOOTER: false,
+        MOBILE_APP_PROMO: false,
+        HIDE_INVITE_MORE_HEADER: true,
+      },
+    });
+
+    api.addEventListeners({
+      videoConferenceJoined: () => setCallState("active"),
+      videoConferenceLeft: () => hangUp(api),
+      readyToClose: () => hangUp(api),
+    });
+
+    jitsiApiRef.current = api;
+  }
+
+  function hangUp(api?: any) {
+    const instance = api || jitsiApiRef.current;
+    if (instance) {
+      try { instance.dispose(); } catch { /* ignore */ }
+      jitsiApiRef.current = null;
+    }
+    setCallState("ended");
+    endCallMutation.mutate();
+    setTimeout(() => {
+      setCallState("idle");
+      setCallRoom(null);
+    }, 2000);
+  }
+
+  function startCall() {
+    if (callState !== "idle") return;
+    initiateMutation.mutate();
+  }
+
+  // ── CHAT ──────────────────────────────────────────────────────────────────
 
   const chatMutation = useMutation({
     mutationFn: async (msg: string) => {
@@ -180,6 +293,20 @@ export default function Assistance() {
         </div>
 
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* Bouton appel vocal */}
+          <button
+            onClick={startCall}
+            disabled={callState !== "idle" || initiateMutation.isPending}
+            data-testid="button-start-call"
+            className="w-9 h-9 rounded-xl flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: "linear-gradient(135deg, #059669 0%, #10b981 100%)" }}
+            title="Appeler le service client"
+          >
+            {initiateMutation.isPending
+              ? <Loader2 className="w-4 h-4 text-white animate-spin" />
+              : <Phone className="w-4 h-4 text-white" />}
+          </button>
+
           <button
             onClick={() => window.open(telegramUrl || "https://t.me/SIKAcustomer_service", "_blank", "noopener,noreferrer")}
             data-testid="button-telegram-contact"
@@ -199,6 +326,79 @@ export default function Assistance() {
         </div>
       </header>
 
+      {/* ── OVERLAY APPEL JITSI ─────────────────────────────── */}
+      {callState !== "idle" && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col"
+          style={{ background: "#0f172a" }}
+        >
+          {/* Barre supérieure appel */}
+          <div
+            className="flex-shrink-0 flex items-center justify-between px-4 py-3"
+            style={{ background: "rgba(0,0,0,0.4)" }}
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className="w-10 h-10 rounded-2xl flex items-center justify-center"
+                style={{ background: "linear-gradient(135deg, #1a237e 0%, #1565c0 100%)" }}
+              >
+                <span className="text-white font-black text-sm">SI</span>
+              </div>
+              <div>
+                <p className="text-white font-bold text-sm leading-none">Superviseur ADMIN</p>
+                <p className="text-slate-400 text-[11px] mt-0.5">
+                  {callState === "connecting" && "Connexion en cours…"}
+                  {callState === "active" && (
+                    <span className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse inline-block" />
+                      En appel
+                    </span>
+                  )}
+                  {callState === "ended" && "Appel terminé"}
+                </p>
+              </div>
+            </div>
+
+            {/* Bouton raccrocher */}
+            {callState !== "ended" && (
+              <button
+                onClick={() => hangUp()}
+                data-testid="button-hang-up"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-white text-sm font-bold transition-all active:scale-95"
+                style={{ background: "linear-gradient(135deg, #dc2626 0%, #ef4444 100%)" }}
+              >
+                <PhoneOff className="w-4 h-4" />
+                Raccrocher
+              </button>
+            )}
+            {callState === "ended" && (
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-white text-sm font-semibold opacity-60"
+                style={{ background: "#374151" }}>
+                <PhoneMissed className="w-4 h-4" />
+                Terminé
+              </div>
+            )}
+          </div>
+
+          {/* Avertissement confidentialité */}
+          {callState === "connecting" && (
+            <div className="flex-shrink-0 mx-4 mt-3 px-4 py-2.5 rounded-2xl text-center"
+              style={{ background: "rgba(6,182,212,0.12)", border: "1px solid rgba(6,182,212,0.3)" }}>
+              <p className="text-cyan-300 text-xs font-medium">
+                🔒 Votre interlocuteur apparaîtra uniquement comme <strong>« Superviseur ADMIN »</strong>
+              </p>
+            </div>
+          )}
+
+          {/* Conteneur Jitsi */}
+          <div
+            ref={jitsiContainerRef}
+            className="flex-1 w-full"
+            style={{ minHeight: 0 }}
+          />
+        </div>
+      )}
+
       {/* ── MODAL CONFIRMATION EFFACEMENT ───────────────────── */}
       {confirmReset && (
         <div
@@ -211,7 +411,6 @@ export default function Assistance() {
             style={{ boxShadow: "0 24px 60px rgba(0,0,0,0.25)" }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Top */}
             <div
               className="flex flex-col items-center gap-3 px-6 pt-7 pb-5"
               style={{ background: "#fff" }}
@@ -229,11 +428,7 @@ export default function Assistance() {
                 </p>
               </div>
             </div>
-
-            {/* Divider */}
             <div className="h-px bg-slate-100" />
-
-            {/* Buttons */}
             <div className="flex" style={{ background: "#fff" }}>
               <button
                 onClick={() => setConfirmReset(false)}
@@ -263,7 +458,6 @@ export default function Assistance() {
             const isUser = msg.role === "user";
             return (
               <div key={i} className={`flex items-end gap-2.5 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
-
                 <div
                   className="w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center shadow-sm"
                   style={isUser
@@ -314,7 +508,6 @@ export default function Assistance() {
             );
           })}
 
-          {/* Indicateur de frappe */}
           {chatMutation.isPending && (
             <div className="flex items-end gap-2.5">
               <div

@@ -598,3 +598,15 @@ export const supportMessagesRelations = relations(supportMessages, ({ one }) => 
 
 export type SupportMessage = typeof supportMessages.$inferSelect;
 export type InsertSupportMessage = typeof supportMessages.$inferInsert;
+
+// Table appels voix (Jitsi Meet)
+export const calls = pgTable("calls", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  roomName: varchar("room_name").notNull().unique(),
+  status: varchar("status").notNull().default('pending'), // pending | active | ended
+  userDisplayName: varchar("user_display_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  endedAt: timestamp("ended_at"),
+});
+export type Call = typeof calls.$inferSelect;
