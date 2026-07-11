@@ -4,7 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppSetting } from "@/hooks/useAppSettings";
 import {
-  Send, Loader2, ChevronLeft, RotateCcw, Trash2, Phone, PhoneOff, PhoneMissed,
+  Send, Loader2, ChevronLeft, RotateCcw, Trash2, Phone, PhoneOff, PhoneMissed, AlertCircle,
 } from "lucide-react";
 import { FaTelegram } from "react-icons/fa";
 import { Link } from "wouter";
@@ -83,6 +83,7 @@ export default function Assistance() {
   const [callState, setCallState]       = useState<CallState>("idle");
   const [callRoom, setCallRoom]         = useState<string | null>(null);
   const [callDisplayName, setCallDisplayName] = useState<string>("");
+  const [callError, setCallError]       = useState<string | null>(null);
   const jitsiContainerRef               = useRef<HTMLDivElement>(null);
   const jitsiApiRef                     = useRef<any>(null);
 
@@ -101,19 +102,27 @@ export default function Assistance() {
 
   const initiateMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/calls/initiate", {});
+      const res = await fetch("/api/calls/initiate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({}),
+      });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || "Erreur");
+      if (!res.ok) throw new Error(data?.message || "Erreur serveur");
       return data as { roomName: string; userDisplayName: string };
     },
     onSuccess: (data) => {
+      setCallError(null);
       setCallRoom(data.roomName);
       setCallDisplayName(data.userDisplayName);
       setCallState("connecting");
       loadJitsi(data.roomName, data.userDisplayName);
     },
-    onError: () => {
+    onError: (err: any) => {
       setCallState("idle");
+      setCallError(err?.message || "Impossible de démarrer l'appel. Réessayez.");
+      setTimeout(() => setCallError(null), 5000);
     },
   });
 
@@ -293,20 +302,6 @@ export default function Assistance() {
         </div>
 
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          {/* Bouton appel vocal */}
-          <button
-            onClick={startCall}
-            disabled={callState !== "idle" || initiateMutation.isPending}
-            data-testid="button-start-call"
-            className="w-9 h-9 rounded-xl flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ background: "linear-gradient(135deg, #059669 0%, #10b981 100%)" }}
-            title="Appeler le service client"
-          >
-            {initiateMutation.isPending
-              ? <Loader2 className="w-4 h-4 text-white animate-spin" />
-              : <Phone className="w-4 h-4 text-white" />}
-          </button>
-
           <button
             onClick={() => window.open(telegramUrl || "https://t.me/SIKAcustomer_service", "_blank", "noopener,noreferrer")}
             data-testid="button-telegram-contact"
@@ -325,6 +320,42 @@ export default function Assistance() {
           </button>
         </div>
       </header>
+
+      {/* ── BANDEAU APPEL VOCAL ─────────────────────────────── */}
+      {callState === "idle" && (
+        <div className="flex-shrink-0 px-4 pt-3 pb-0">
+          <button
+            onClick={startCall}
+            disabled={initiateMutation.isPending}
+            data-testid="button-start-call"
+            className="w-full flex items-center justify-center gap-3 py-3 px-5 rounded-2xl text-white font-bold text-sm transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+            style={{
+              background: "linear-gradient(135deg, #059669 0%, #10b981 100%)",
+              boxShadow: "0 4px 14px rgba(5,150,105,0.35)",
+            }}
+          >
+            {initiateMutation.isPending ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Connexion en cours…
+              </>
+            ) : (
+              <>
+                <Phone className="w-5 h-5" />
+                Appeler le Superviseur ADMIN
+              </>
+            )}
+          </button>
+
+          {callError && (
+            <div className="mt-2 flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium"
+              style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626" }}>
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {callError}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── OVERLAY APPEL JITSI ─────────────────────────────── */}
       {callState !== "idle" && (
