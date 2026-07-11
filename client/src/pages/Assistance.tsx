@@ -74,6 +74,8 @@ type CallState = "idle" | "connecting" | "active" | "ended";
 export default function Assistance() {
   const { isAuthenticated } = useAuth();
   const { data: telegramUrl } = useAppSetting("telegram_supervisor");
+  const { data: callEnabledRaw } = useAppSetting("call_enabled");
+  const callEnabled = callEnabledRaw !== 'false';
 
   const [input, setInput]               = useState("");
   const [messages, setMessages]         = useState<Message[]>(loadMessages);
@@ -322,7 +324,7 @@ export default function Assistance() {
       </header>
 
       {/* ── BANDEAU APPEL VOCAL ─────────────────────────────── */}
-      {callState === "idle" && (
+      {callState === "idle" && callEnabled && (
         <div className="flex-shrink-0 px-4 pt-3 pb-0">
           <button
             onClick={startCall}

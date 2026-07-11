@@ -286,6 +286,33 @@ export default function AdminSettings() {
               </p>
             </div>
 
+            {/* Toggle appel vocal */}
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-green-500 to-emerald-600 flex items-center justify-center text-white text-lg">
+                  📞
+                </div>
+                <div>
+                  <p className="font-medium">Bouton d'appel vocal</p>
+                  <p className="text-sm text-muted-foreground">
+                    {settings.call_enabled !== 'false' ? '✓ Visible sur la page Assistance' : '✗ Masqué pour les utilisateurs'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleInputChange('call_enabled', settings.call_enabled === 'false' ? 'true' : 'false')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  settings.call_enabled !== 'false'
+                    ? 'bg-green-500 hover:bg-green-600 text-white'
+                    : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
+                }`}
+                data-testid="toggle-call-enabled"
+              >
+                {settings.call_enabled !== 'false' ? 'Activé' : 'Désactivé'}
+              </button>
+            </div>
+
             <Button 
               onClick={handleSave} 
               disabled={saveSettingsMutation.isPending}
