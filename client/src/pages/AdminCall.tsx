@@ -5,44 +5,56 @@ import AgoraRTC, { IAgoraRTCClient, ILocalAudioTrack } from "agora-rtc-sdk-ng";
 
 type AdminCallState = "connecting" | "waiting" | "active" | "ended" | "error";
 
-// ── Effet "voix robot" : ring modulation + distorsion + filtrage ───────────
-// Transforme le flux micro brut en une voix robotique/métallique en temps réel
-// via Web Audio API, sans dépendance externe.
+// ── Effet "voix robot aiguë et synthétique" (façon assistant vocal) ────────
+// Transforme le flux micro brut en une voix robotique haut perchée en temps
+// réel via Web Audio API, sans dépendance externe : modulation en anneau à
+// fréquence élevée (déplace le timbre vers l'aigu), léger "bitcrush" pour
+// un rendu numérique, puis filtrage passe-bande centré sur les aigus pour
+// accentuer le côté synthétique/assistant vocal.
 function buildRobotAudioTrack(rawStream: MediaStream): { track: MediaStreamTrack; ctx: AudioContext } {
   const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
   const source = ctx.createMediaStreamSource(rawStream);
 
-  // Porteuse de modulation en anneau (donne le côté "métallique/robot")
+  // Porteuse de modulation en anneau à fréquence élevée : déplace le spectre
+  // vocal vers l'aigu et crée des harmoniques métalliques bien perceptibles.
   const carrier = ctx.createOscillator();
   carrier.type = "sine";
-  carrier.frequency.value = 45;
+  carrier.frequency.value = 320;
   carrier.start();
 
   const ringGain = ctx.createGain();
   ringGain.gain.value = 0;
   carrier.connect(ringGain.gain);
 
-  // Légère distorsion pour renforcer le côté synthétique
+  // Distorsion numérique ("bitcrush" léger) pour un rendu synthétique
   const shaper = ctx.createWaveShaper();
   const curve = new Float32Array(1024);
   for (let i = 0; i < 1024; i++) {
     const x = (i * 2) / 1024 - 1;
-    curve[i] = ((3 + 12) * x * 20 * Math.PI / 180) / (Math.PI + 12 * Math.abs(x));
+    curve[i] = ((3 + 22) * x * 20 * Math.PI / 180) / (Math.PI + 22 * Math.abs(x));
   }
   shaper.curve = curve;
   shaper.oversample = "4x";
 
-  // Filtrage pour un son plus "électronique"
-  const lowpass = ctx.createBiquadFilter();
-  lowpass.type = "lowpass";
-  lowpass.frequency.value = 3200;
+  // Coupe les graves pour alléger la voix (effet "aigu")
+  const highpass = ctx.createBiquadFilter();
+  highpass.type = "highpass";
+  highpass.frequency.value = 400;
+
+  // Bande passante centrée sur les fréquences hautes de la voix, façon
+  // haut-parleur d'assistant vocal synthétique
+  const bandpass = ctx.createBiquadFilter();
+  bandpass.type = "bandpass";
+  bandpass.frequency.value = 2600;
+  bandpass.Q.value = 0.7;
 
   const destination = ctx.createMediaStreamDestination();
 
   source.connect(ringGain);
   ringGain.connect(shaper);
-  shaper.connect(lowpass);
-  lowpass.connect(destination);
+  shaper.connect(highpass);
+  highpass.connect(bandpass);
+  bandpass.connect(destination);
 
   return { track: destination.stream.getAudioTracks()[0], ctx };
 }
