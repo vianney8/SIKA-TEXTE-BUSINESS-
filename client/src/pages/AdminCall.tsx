@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useRoute } from "wouter";
-import { Mic, MicOff, PhoneOff, Loader2, Bot, User } from "lucide-react";
+import { Mic, MicOff, PhoneOff, Loader2, Bot } from "lucide-react";
 import AgoraRTC, { IAgoraRTCClient, ILocalAudioTrack } from "agora-rtc-sdk-ng";
 
 type AdminCallState = "connecting" | "waiting" | "active" | "ended" | "error";
@@ -57,14 +57,11 @@ export default function AdminCall() {
   const [isMuted, setIsMuted]   = useState(false);
   const [elapsed, setElapsed]   = useState(0);
   const [error, setError]       = useState("");
-  const [robotVoice, setRobotVoice] = useState(false);
 
   const hasJoined = useRef(false);
   const clientRef = useRef<IAgoraRTCClient | null>(null);
   const rawStreamRef      = useRef<MediaStream | null>(null);
-  const normalTrackRef    = useRef<ILocalAudioTrack | null>(null);
   const robotTrackRef     = useRef<ILocalAudioTrack | null>(null);
-  const publishedRef      = useRef<ILocalAudioTrack | null>(null);
   const robotCtxRef       = useRef<AudioContext | null>(null);
   const timerRef  = useRef<any>(null);
 
@@ -110,18 +107,15 @@ export default function AdminCall() {
       // Micro brut (jamais de vidéo : uniquement le flux audio)
       const rawStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       rawStreamRef.current = rawStream;
-      const rawTrack = rawStream.getAudioTracks()[0];
 
-      const normalTrack = AgoraRTC.createCustomAudioTrack({ mediaStreamTrack: rawTrack });
-      normalTrackRef.current = normalTrack;
-
+      // La voix de l'administrateur est TOUJOURS transformée en voix robot avant
+      // d'être publiée : le client n'entend jamais la vraie voix de l'administrateur.
       const { track: robotMediaTrack, ctx } = buildRobotAudioTrack(rawStream);
       robotCtxRef.current = ctx;
       const robotTrack = AgoraRTC.createCustomAudioTrack({ mediaStreamTrack: robotMediaTrack });
       robotTrackRef.current = robotTrack;
 
-      publishedRef.current = normalTrack;
-      await client.publish([normalTrack]);
+      await client.publish([robotTrack]);
       setState("waiting");
     } catch (e: any) {
       setError(e?.message || "Impossible de rejoindre l'appel.");
@@ -131,11 +125,8 @@ export default function AdminCall() {
 
   async function leave() {
     clearInterval(timerRef.current);
-    try { normalTrackRef.current?.close(); } catch {}
     try { robotTrackRef.current?.close(); } catch {}
-    normalTrackRef.current = null;
     robotTrackRef.current = null;
-    publishedRef.current = null;
     try { robotCtxRef.current?.close(); } catch {}
     robotCtxRef.current = null;
     rawStreamRef.current?.getTracks().forEach(t => t.stop());
@@ -157,21 +148,6 @@ export default function AdminCall() {
     if (!rawTrack) return;
     rawTrack.enabled = isMuted; // isMuted actuel -> on inverse
     setIsMuted(m => !m);
-  }
-
-  async function toggleRobotVoice() {
-    const client = clientRef.current;
-    const current = publishedRef.current;
-    const next = robotVoice ? normalTrackRef.current : robotTrackRef.current;
-    if (!client || !current || !next || current === next) return;
-    try {
-      await client.unpublish([current]);
-      await client.publish([next]);
-      publishedRef.current = next;
-      setRobotVoice(v => !v);
-    } catch {
-      /* ignore */
-    }
   }
 
   function fmt(s: number) {
@@ -283,8 +259,8 @@ export default function AdminCall() {
           </div>
         )}
 
-        {/* Badge voix robot */}
-        {robotVoice && (isWaiting || isActive) && (
+        {/* Badge voix robot (toujours active pendant l'appel) */}
+        {(isWaiting || isActive) && (
           <div
             className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium"
             style={{ background: "rgba(139,92,246,0.14)", border: "1px solid rgba(139,92,246,0.3)", color: "#c4b5fd" }}
@@ -316,6 +292,17 @@ export default function AdminCall() {
 
             <div className="flex flex-col items-center gap-2">
               <button
+                disabled
+                className="w-16 h-16 rounded-full flex items-center justify-center cursor-default"
+                style={{ background: "rgba(139,92,246,0.22)", border: "1px solid rgba(139,92,246,0.4)" }}
+              >
+                <Bot className="w-6 h-6 text-violet-300" />
+              </button>
+              <span className="text-slate-600 text-[11px]">Voix robot</span>
+            </div>
+
+            <div className="flex flex-col items-center gap-2">
+              <button
                 onClick={hangUp}
                 className="w-20 h-20 rounded-full flex items-center justify-center transition-all active:scale-90"
                 style={{
@@ -326,22 +313,6 @@ export default function AdminCall() {
                 <PhoneOff className="w-8 h-8 text-white" />
               </button>
               <span className="text-slate-600 text-[11px]">Raccrocher</span>
-            </div>
-
-            <div className="flex flex-col items-center gap-2">
-              <button
-                onClick={toggleRobotVoice}
-                className="w-16 h-16 rounded-full flex items-center justify-center transition-all active:scale-90"
-                style={{
-                  background: robotVoice ? "rgba(139,92,246,0.22)" : "rgba(255,255,255,0.07)",
-                  border: `1px solid ${robotVoice ? "rgba(139,92,246,0.4)" : "rgba(255,255,255,0.1)"}`,
-                }}
-              >
-                {robotVoice
-                  ? <Bot className="w-6 h-6 text-violet-300" />
-                  : <User className="w-6 h-6 text-white" />}
-              </button>
-              <span className="text-slate-600 text-[11px]">{robotVoice ? "Voix normale" : "Voix robot"}</span>
             </div>
           </>
         )}
