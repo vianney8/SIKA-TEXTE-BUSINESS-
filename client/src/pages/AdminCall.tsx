@@ -1,9 +1,51 @@
 import { useState, useEffect, useRef } from "react";
 import { useRoute } from "wouter";
-import { Mic, MicOff, PhoneOff, Loader2 } from "lucide-react";
-import AgoraRTC, { IAgoraRTCClient, IMicrophoneAudioTrack } from "agora-rtc-sdk-ng";
+import { Mic, MicOff, PhoneOff, Loader2, Bot, User } from "lucide-react";
+import AgoraRTC, { IAgoraRTCClient, ILocalAudioTrack } from "agora-rtc-sdk-ng";
 
 type AdminCallState = "connecting" | "waiting" | "active" | "ended" | "error";
+
+// ── Effet "voix robot" : ring modulation + distorsion + filtrage ───────────
+// Transforme le flux micro brut en une voix robotique/métallique en temps réel
+// via Web Audio API, sans dépendance externe.
+function buildRobotAudioTrack(rawStream: MediaStream): { track: MediaStreamTrack; ctx: AudioContext } {
+  const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+  const source = ctx.createMediaStreamSource(rawStream);
+
+  // Porteuse de modulation en anneau (donne le côté "métallique/robot")
+  const carrier = ctx.createOscillator();
+  carrier.type = "sine";
+  carrier.frequency.value = 45;
+  carrier.start();
+
+  const ringGain = ctx.createGain();
+  ringGain.gain.value = 0;
+  carrier.connect(ringGain.gain);
+
+  // Légère distorsion pour renforcer le côté synthétique
+  const shaper = ctx.createWaveShaper();
+  const curve = new Float32Array(1024);
+  for (let i = 0; i < 1024; i++) {
+    const x = (i * 2) / 1024 - 1;
+    curve[i] = ((3 + 12) * x * 20 * Math.PI / 180) / (Math.PI + 12 * Math.abs(x));
+  }
+  shaper.curve = curve;
+  shaper.oversample = "4x";
+
+  // Filtrage pour un son plus "électronique"
+  const lowpass = ctx.createBiquadFilter();
+  lowpass.type = "lowpass";
+  lowpass.frequency.value = 3200;
+
+  const destination = ctx.createMediaStreamDestination();
+
+  source.connect(ringGain);
+  ringGain.connect(shaper);
+  shaper.connect(lowpass);
+  lowpass.connect(destination);
+
+  return { track: destination.stream.getAudioTracks()[0], ctx };
+}
 
 export default function AdminCall() {
   const [, params] = useRoute("/admin-call/:channelName/:token");
@@ -15,10 +57,15 @@ export default function AdminCall() {
   const [isMuted, setIsMuted]   = useState(false);
   const [elapsed, setElapsed]   = useState(0);
   const [error, setError]       = useState("");
+  const [robotVoice, setRobotVoice] = useState(false);
 
   const hasJoined = useRef(false);
   const clientRef = useRef<IAgoraRTCClient | null>(null);
-  const micRef    = useRef<IMicrophoneAudioTrack | null>(null);
+  const rawStreamRef      = useRef<MediaStream | null>(null);
+  const normalTrackRef    = useRef<ILocalAudioTrack | null>(null);
+  const robotTrackRef     = useRef<ILocalAudioTrack | null>(null);
+  const publishedRef      = useRef<ILocalAudioTrack | null>(null);
+  const robotCtxRef       = useRef<AudioContext | null>(null);
   const timerRef  = useRef<any>(null);
 
   useEffect(() => {
@@ -60,9 +107,21 @@ export default function AdminCall() {
       await client.join(appId, channelName, token, 2);
       hasJoined.current = true;
 
-      const mic = await AgoraRTC.createMicrophoneAudioTrack();
-      micRef.current = mic;
-      await client.publish([mic]);
+      // Micro brut (jamais de vidéo : uniquement le flux audio)
+      const rawStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      rawStreamRef.current = rawStream;
+      const rawTrack = rawStream.getAudioTracks()[0];
+
+      const normalTrack = AgoraRTC.createCustomAudioTrack({ mediaStreamTrack: rawTrack });
+      normalTrackRef.current = normalTrack;
+
+      const { track: robotMediaTrack, ctx } = buildRobotAudioTrack(rawStream);
+      robotCtxRef.current = ctx;
+      const robotTrack = AgoraRTC.createCustomAudioTrack({ mediaStreamTrack: robotMediaTrack });
+      robotTrackRef.current = robotTrack;
+
+      publishedRef.current = normalTrack;
+      await client.publish([normalTrack]);
       setState("waiting");
     } catch (e: any) {
       setError(e?.message || "Impossible de rejoindre l'appel.");
@@ -72,9 +131,15 @@ export default function AdminCall() {
 
   async function leave() {
     clearInterval(timerRef.current);
-    micRef.current?.stop();
-    micRef.current?.close();
-    micRef.current = null;
+    try { normalTrackRef.current?.close(); } catch {}
+    try { robotTrackRef.current?.close(); } catch {}
+    normalTrackRef.current = null;
+    robotTrackRef.current = null;
+    publishedRef.current = null;
+    try { robotCtxRef.current?.close(); } catch {}
+    robotCtxRef.current = null;
+    rawStreamRef.current?.getTracks().forEach(t => t.stop());
+    rawStreamRef.current = null;
     if (clientRef.current && hasJoined.current) {
       try { await clientRef.current.leave(); } catch {}
       clientRef.current = null;
@@ -88,9 +153,25 @@ export default function AdminCall() {
   }
 
   async function toggleMute() {
-    if (!micRef.current) return;
-    await micRef.current.setMuted(!isMuted);
+    const rawTrack = rawStreamRef.current?.getAudioTracks()[0];
+    if (!rawTrack) return;
+    rawTrack.enabled = isMuted; // isMuted actuel -> on inverse
     setIsMuted(m => !m);
+  }
+
+  async function toggleRobotVoice() {
+    const client = clientRef.current;
+    const current = publishedRef.current;
+    const next = robotVoice ? normalTrackRef.current : robotTrackRef.current;
+    if (!client || !current || !next || current === next) return;
+    try {
+      await client.unpublish([current]);
+      await client.publish([next]);
+      publishedRef.current = next;
+      setRobotVoice(v => !v);
+    } catch {
+      /* ignore */
+    }
   }
 
   function fmt(s: number) {
@@ -201,10 +282,20 @@ export default function AdminCall() {
             <MicOff className="w-3 h-3" /> Micro désactivé
           </div>
         )}
+
+        {/* Badge voix robot */}
+        {robotVoice && (isWaiting || isActive) && (
+          <div
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium"
+            style={{ background: "rgba(139,92,246,0.14)", border: "1px solid rgba(139,92,246,0.3)", color: "#c4b5fd" }}
+          >
+            <Bot className="w-3 h-3" /> Voix robot activée
+          </div>
+        )}
       </div>
 
       {/* ── BAS : boutons d'action ── */}
-      <div className="flex items-end justify-center gap-10 pb-16">
+      <div className="flex items-end justify-center gap-8 pb-16">
         {(isWaiting || isActive) && (
           <>
             <div className="flex flex-col items-center gap-2">
@@ -235,6 +326,22 @@ export default function AdminCall() {
                 <PhoneOff className="w-8 h-8 text-white" />
               </button>
               <span className="text-slate-600 text-[11px]">Raccrocher</span>
+            </div>
+
+            <div className="flex flex-col items-center gap-2">
+              <button
+                onClick={toggleRobotVoice}
+                className="w-16 h-16 rounded-full flex items-center justify-center transition-all active:scale-90"
+                style={{
+                  background: robotVoice ? "rgba(139,92,246,0.22)" : "rgba(255,255,255,0.07)",
+                  border: `1px solid ${robotVoice ? "rgba(139,92,246,0.4)" : "rgba(255,255,255,0.1)"}`,
+                }}
+              >
+                {robotVoice
+                  ? <Bot className="w-6 h-6 text-violet-300" />
+                  : <User className="w-6 h-6 text-white" />}
+              </button>
+              <span className="text-slate-600 text-[11px]">{robotVoice ? "Voix normale" : "Voix robot"}</span>
             </div>
           </>
         )}
