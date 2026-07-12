@@ -12,6 +12,15 @@ Communication : Simple, langue française, sans jargon technique.
 
 ---
 
+## Lancer le projet sur Replit
+
+- Installation : `npm install`
+- Démarrage (dev) : `npm run dev` (déjà configuré comme workflow "Start application", port 5000)
+- Les tables et paramètres de base de données sont créés/complétés automatiquement au démarrage du serveur (pas besoin de lancer `npm run db:push` sauf après modification du schéma dans `shared/`)
+- Secrets déjà configurés dans cet environnement : `DATABASE_URL`, `SESSION_SECRET`, `TELEGRAM_BOT_TOKEN`, `SOLVEXPAY_API_KEY`, `SOLVEXPAY_SECRET_KEY`, `SOLVEXPAY_WEBHOOK_SECRET`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `PRIVATE_OBJECT_DIR`, `PUBLIC_OBJECT_SEARCH_PATHS`
+
+---
+
 ## Identité visuelle & Couleurs
 
 ### Palette principale
