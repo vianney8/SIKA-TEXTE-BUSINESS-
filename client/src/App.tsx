@@ -43,6 +43,7 @@ import SpayNetwork from "@/pages/SpayNetwork";
 import Contact from "@/pages/Contact";
 import AdminConnectedUsers from "@/pages/AdminConnectedUsers";
 import AdminAIChat from "@/pages/AdminAIChat";
+import AdminCall from "@/pages/AdminCall";
 
 // Wrapper component to handle authenticated user redirects for register page
 function RegisterWithRedirect() {
@@ -168,6 +169,8 @@ function Router() {
     <Switch>
       {/* Public payment page — accessible without authentication */}
       <Route path="/pay/:linkId" component={PaymentLinkPage} />
+      {/* Admin call page — accessible without authentication (token in URL acts as key) */}
+      <Route path="/admin-call/:channelName/:token" component={AdminCall} />
 
       {!isAuthenticated ? (
         <>

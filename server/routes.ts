@@ -8199,13 +8199,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // ── APPELS JITSI MEET ────────────────────────────────────────────────────────
+  // ── APPELS AGORA RTC ─────────────────────────────────────────────────────────
+
+  // Retourne l'App ID public Agora (non sensible)
+  app.get('/api/agora/config', (_req, res) => {
+    res.json({ appId: process.env.AGORA_APP_ID || '' });
+  });
 
   // Initier un appel (utilisateur → admin)
   app.post('/api/calls/initiate', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session?.userId;
       if (!userId) return res.status(401).json({ message: 'Non authentifié' });
+
+      const AGORA_APP_ID  = process.env.AGORA_APP_ID || '';
+      const AGORA_APP_CERT = process.env.AGORA_APP_CERTIFICATE || '';
+      if (!AGORA_APP_ID || !AGORA_APP_CERT) {
+        return res.status(500).json({ message: 'Configuration Agora manquante' });
+      }
 
       // Récupérer le profil utilisateur
       const userRows = await db.execute(sql`SELECT first_name, last_name, full_name, phone FROM users WHERE id = ${userId}`);
@@ -8221,21 +8232,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         WHERE user_id = ${userId} AND status IN ('pending', 'active')
       `);
 
-      // Générer un nom de salle unique
+      // Générer un nom de canal unique (alphanumérique uniquement)
       const rand = Math.random().toString(36).substring(2, 10);
-      const roomName = `sika-support-${rand}`;
+      const channelName = `sika${rand}`;
+      const expireTs = Math.floor(Date.now() / 1000) + 7200; // 2 heures
+
+      // Générer les tokens Agora
+      const { RtcTokenBuilder, RtcRole } = await import('agora-access-token');
+      const userToken  = RtcTokenBuilder.buildTokenWithUid(AGORA_APP_ID, AGORA_APP_CERT, channelName, 1, RtcRole.PUBLISHER, expireTs);
+      const adminToken = RtcTokenBuilder.buildTokenWithUid(AGORA_APP_ID, AGORA_APP_CERT, channelName, 2, RtcRole.PUBLISHER, expireTs);
 
       // Sauvegarder en base
       await db.execute(sql`
         INSERT INTO calls (user_id, room_name, status, user_display_name)
-        VALUES (${userId}, ${roomName}, 'pending', ${displayName})
+        VALUES (${userId}, ${channelName}, 'pending', ${displayName})
       `);
+
+      // Lien admin — page de l'app qui gère la connexion Agora
+      const adminJoinUrl = `https://sikatexte.site/admin-call/${channelName}/${encodeURIComponent(adminToken)}?appId=${encodeURIComponent(AGORA_APP_ID)}`;
 
       // Notifier l'admin via Telegram
       const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
       const adminChatId = '7457302722';
-      const adminJoinUrl = `https://meet.jit.si/${roomName}#userInfo.displayName=Superviseur%20ADMIN&config.startWithVideoMuted=true&config.startAudioOnly=true`;
-
       if (TELEGRAM_TOKEN) {
         const tgMsg = `📞 *Appel entrant — SIKA TEXTE*\n\n👤 Client : *${displayName}*\n📱 Tél : ${phone || 'non renseigné'}\n\n▶️ [Rejoindre l'appel](${adminJoinUrl})`;
         await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
@@ -8250,7 +8268,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      res.json({ roomName, userDisplayName: displayName });
+      res.json({ channelName, userToken, agoraAppId: AGORA_APP_ID, userDisplayName: displayName });
     } catch (err) {
       console.error('calls/initiate error:', err);
       res.status(500).json({ message: 'Erreur lors de l\'initiation de l\'appel' });

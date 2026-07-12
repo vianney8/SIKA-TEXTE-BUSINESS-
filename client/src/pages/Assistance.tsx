@@ -1,13 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppSetting } from "@/hooks/useAppSettings";
 import {
-  Send, Loader2, ChevronLeft, RotateCcw, Trash2, Phone, PhoneOff, PhoneMissed, AlertCircle,
+  Send, Loader2, ChevronLeft, RotateCcw, Trash2, Phone, PhoneOff, Mic, MicOff, AlertCircle,
 } from "lucide-react";
 import { FaTelegram } from "react-icons/fa";
 import { Link } from "wouter";
+import AgoraRTC, { IAgoraRTCClient, IMicrophoneAudioTrack } from "agora-rtc-sdk-ng";
 
 interface Message {
   role: "user" | "assistant";
@@ -81,13 +81,14 @@ export default function Assistance() {
   const [messages, setMessages]         = useState<Message[]>(loadMessages);
   const [confirmReset, setConfirmReset] = useState(false);
 
-  // Appel Jitsi
-  const [callState, setCallState]       = useState<CallState>("idle");
-  const [callRoom, setCallRoom]         = useState<string | null>(null);
-  const [callDisplayName, setCallDisplayName] = useState<string>("");
-  const [callError, setCallError]       = useState<string | null>(null);
-  const jitsiContainerRef               = useRef<HTMLDivElement>(null);
-  const jitsiApiRef                     = useRef<any>(null);
+  // Appel Agora
+  const [callState, setCallState]             = useState<CallState>("idle");
+  const [callError, setCallError]             = useState<string | null>(null);
+  const [isMuted, setIsMuted]                 = useState(false);
+  const [elapsed, setElapsed]                 = useState(0);
+  const agoraClientRef = useRef<IAgoraRTCClient | null>(null);
+  const micTrackRef    = useRef<IMicrophoneAudioTrack | null>(null);
+  const timerRef       = useRef<any>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
@@ -100,7 +101,18 @@ export default function Assistance() {
     saveMessages(messages);
   }, [messages]);
 
-  // ── APPEL ─────────────────────────────────────────────────────────────────
+  // Timer de durée d'appel
+  useEffect(() => {
+    if (callState === "active") {
+      timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
+    } else {
+      clearInterval(timerRef.current);
+      if (callState === "idle") setElapsed(0);
+    }
+    return () => clearInterval(timerRef.current);
+  }, [callState]);
+
+  // ── APPEL AGORA ───────────────────────────────────────────────────────────
 
   const initiateMutation = useMutation({
     mutationFn: async () => {
@@ -112,14 +124,12 @@ export default function Assistance() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Erreur serveur");
-      return data as { roomName: string; userDisplayName: string };
+      return data as { channelName: string; userToken: string; agoraAppId: string; userDisplayName: string };
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       setCallError(null);
-      setCallRoom(data.roomName);
-      setCallDisplayName(data.userDisplayName);
       setCallState("connecting");
-      loadJitsi(data.roomName, data.userDisplayName);
+      await joinAgora(data.agoraAppId, data.channelName, data.userToken);
     },
     onError: (err: any) => {
       setCallState("idle");
@@ -128,80 +138,74 @@ export default function Assistance() {
     },
   });
 
-  const endCallMutation = useMutation({
-    mutationFn: async () => {
-      await apiRequest("POST", "/api/calls/end", {});
-    },
-  });
+  async function joinAgora(appId: string, channelName: string, token: string) {
+    try {
+      const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+      agoraClientRef.current = client;
 
-  function loadJitsi(roomName: string, displayName: string) {
-    const win = window as any;
-    if (win.JitsiMeetExternalAPI) {
-      initJitsi(roomName, displayName);
-    } else {
-      const script = document.createElement("script");
-      script.src = "https://meet.jit.si/external_api.js";
-      script.async = true;
-      script.onload = () => initJitsi(roomName, displayName);
-      script.onerror = () => setCallState("idle");
-      document.head.appendChild(script);
+      // Quand l'admin rejoint et publie son audio
+      client.on("user-published", async (remoteUser, mediaType) => {
+        await client.subscribe(remoteUser, mediaType);
+        if (mediaType === "audio") {
+          remoteUser.audioTrack?.play();
+          setCallState("active");
+        }
+      });
+      client.on("user-left", () => {
+        // admin a raccroché de son côté, on reste en attente
+      });
+
+      // Rejoindre le canal (uid 1 = utilisateur)
+      await client.join(appId, channelName, token, 1);
+
+      // Créer et publier le micro
+      const micTrack = await AgoraRTC.createMicrophoneAudioTrack();
+      micTrackRef.current = micTrack;
+      await client.publish([micTrack]);
+
+      setCallState("waiting");
+    } catch (err: any) {
+      console.error("Agora join error:", err);
+      setCallError(err?.message || "Erreur de connexion audio. Vérifiez votre micro.");
+      setCallState("idle");
+      await cleanupAgora();
     }
   }
 
-  function initJitsi(roomName: string, displayName: string) {
-    if (!jitsiContainerRef.current) return;
-    const JitsiMeetExternalAPI = (window as any).JitsiMeetExternalAPI;
-    const api = new JitsiMeetExternalAPI("meet.jit.si", {
-      roomName,
-      width: "100%",
-      height: "100%",
-      parentNode: jitsiContainerRef.current,
-      userInfo: {
-        displayName,
-        email: "",
-      },
-      configOverwrite: {
-        startWithAudioMuted: false,
-        startWithVideoMuted: true,
-        startAudioOnly: true,
-        disableDeepLinking: true,
-        prejoinPageEnabled: false,
-        disableInviteFunctions: true,
-        enableNoisyMicDetection: false,
-      },
-      interfaceConfigOverwrite: {
-        TOOLBAR_BUTTONS: ["microphone", "hangup"],
-        SHOW_JITSI_WATERMARK: false,
-        SHOW_WATERMARK_FOR_GUESTS: false,
-        SHOW_BRAND_WATERMARK: false,
-        SHOW_POWERED_BY: false,
-        DISPLAY_WELCOME_FOOTER: false,
-        MOBILE_APP_PROMO: false,
-        HIDE_INVITE_MORE_HEADER: true,
-      },
-    });
-
-    api.addEventListeners({
-      videoConferenceJoined: () => setCallState("active"),
-      videoConferenceLeft: () => hangUp(api),
-      readyToClose: () => hangUp(api),
-    });
-
-    jitsiApiRef.current = api;
+  async function cleanupAgora() {
+    if (micTrackRef.current) {
+      micTrackRef.current.stop();
+      micTrackRef.current.close();
+      micTrackRef.current = null;
+    }
+    if (agoraClientRef.current) {
+      try { await agoraClientRef.current.leave(); } catch {}
+      agoraClientRef.current = null;
+    }
   }
 
-  function hangUp(api?: any) {
-    const instance = api || jitsiApiRef.current;
-    if (instance) {
-      try { instance.dispose(); } catch { /* ignore */ }
-      jitsiApiRef.current = null;
-    }
+  async function hangUp() {
     setCallState("ended");
-    endCallMutation.mutate();
+    await cleanupAgora();
+    // Notifier le serveur
+    fetch("/api/calls/end", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(() => {});
     setTimeout(() => {
       setCallState("idle");
-      setCallRoom(null);
+      setAdminJoined(false);
+      setIsMuted(false);
     }, 2000);
+  }
+
+  async function toggleMute() {
+    if (!micTrackRef.current) return;
+    await micTrackRef.current.setMuted(!isMuted);
+    setIsMuted(!isMuted);
+  }
+
+  function formatElapsed(s: number) {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
   }
 
   function startCall() {
@@ -359,76 +363,112 @@ export default function Assistance() {
         </div>
       )}
 
-      {/* ── OVERLAY APPEL JITSI ─────────────────────────────── */}
+      {/* ── OVERLAY APPEL AGORA ─────────────────────────────── */}
       {callState !== "idle" && (
         <div
-          className="fixed inset-0 z-50 flex flex-col"
-          style={{ background: "#0f172a" }}
+          className="fixed inset-0 z-50 flex flex-col items-center justify-between py-10 px-6"
+          style={{ background: "linear-gradient(160deg, #0f172a 0%, #1e293b 100%)" }}
         >
-          {/* Barre supérieure appel */}
-          <div
-            className="flex-shrink-0 flex items-center justify-between px-4 py-3"
-            style={{ background: "rgba(0,0,0,0.4)" }}
-          >
-            <div className="flex items-center gap-3">
+          {/* Logo haut */}
+          <div className="flex flex-col items-center gap-2 mt-2">
+            <div
+              className="w-12 h-12 rounded-2xl flex items-center justify-center"
+              style={{ background: "linear-gradient(135deg, #1a237e 0%, #1565c0 100%)" }}
+            >
+              <span className="text-white font-black text-sm">SI</span>
+            </div>
+            <p className="text-slate-500 text-xs tracking-wide">SIKA TEXTE — Appel vocal</p>
+          </div>
+
+          {/* Centre — avatar + statut */}
+          <div className="flex flex-col items-center gap-5">
+            <div className="relative">
               <div
-                className="w-10 h-10 rounded-2xl flex items-center justify-center"
-                style={{ background: "linear-gradient(135deg, #1a237e 0%, #1565c0 100%)" }}
+                className="w-28 h-28 rounded-full flex items-center justify-center"
+                style={{ background: "linear-gradient(135deg, #059669 0%, #10b981 100%)" }}
               >
-                <span className="text-white font-black text-sm">SI</span>
+                <Phone className="w-12 h-12 text-white" />
               </div>
-              <div>
-                <p className="text-white font-bold text-sm leading-none">Superviseur ADMIN</p>
-                <p className="text-slate-400 text-[11px] mt-0.5">
-                  {callState === "connecting" && "Connexion en cours…"}
-                  {callState === "active" && (
-                    <span className="flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse inline-block" />
-                      En appel
-                    </span>
-                  )}
-                  {callState === "ended" && "Appel terminé"}
-                </p>
-              </div>
+              {callState === "active" && (
+                <span className="absolute inset-0 rounded-full animate-ping opacity-20"
+                  style={{ background: "#10b981" }} />
+              )}
+              {(callState === "connecting" || callState === "waiting") && (
+                <span className="absolute inset-0 rounded-full animate-pulse opacity-25"
+                  style={{ background: "#f59e0b" }} />
+              )}
             </div>
 
-            {/* Bouton raccrocher */}
-            {callState !== "ended" && (
-              <button
-                onClick={() => hangUp()}
-                data-testid="button-hang-up"
-                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-white text-sm font-bold transition-all active:scale-95"
-                style={{ background: "linear-gradient(135deg, #dc2626 0%, #ef4444 100%)" }}
-              >
-                <PhoneOff className="w-4 h-4" />
-                Raccrocher
-              </button>
-            )}
-            {callState === "ended" && (
-              <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-white text-sm font-semibold opacity-60"
-                style={{ background: "#374151" }}>
-                <PhoneMissed className="w-4 h-4" />
-                Terminé
+            <div className="text-center space-y-1.5">
+              <p className="text-white font-black text-2xl">Superviseur ADMIN</p>
+              {callState === "connecting" && (
+                <p className="text-amber-400 text-sm font-medium flex items-center justify-center gap-1.5">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Connexion audio…
+                </p>
+              )}
+              {callState === "waiting" && (
+                <p className="text-amber-400 text-sm font-medium flex items-center justify-center gap-1.5">
+                  <span className="w-2 h-2 bg-amber-400 rounded-full animate-pulse inline-block" />
+                  En attente du superviseur…
+                </p>
+              )}
+              {callState === "active" && (
+                <p className="text-green-400 text-sm font-semibold flex items-center justify-center gap-1.5">
+                  <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse inline-block" />
+                  {formatElapsed(elapsed)} — En appel
+                </p>
+              )}
+              {callState === "ended" && (
+                <p className="text-slate-400 text-sm">Appel terminé</p>
+              )}
+            </div>
+
+            {isMuted && callState === "active" && (
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold"
+                style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", color: "#f87171" }}>
+                <MicOff className="w-3.5 h-3.5" /> Micro coupé
               </div>
             )}
           </div>
 
-          {/* Avertissement confidentialité */}
-          {callState === "connecting" && (
-            <div className="flex-shrink-0 mx-4 mt-3 px-4 py-2.5 rounded-2xl text-center"
-              style={{ background: "rgba(6,182,212,0.12)", border: "1px solid rgba(6,182,212,0.3)" }}>
-              <p className="text-cyan-300 text-xs font-medium">
-                🔒 Votre interlocuteur apparaîtra uniquement comme <strong>« Superviseur ADMIN »</strong>
-              </p>
-            </div>
-          )}
-
-          {/* Conteneur Jitsi */}
-          <div
-            ref={jitsiContainerRef}
-            className="flex-1 w-full"
-            style={{ minHeight: 0 }}
-          />
+          {/* Boutons bas */}
+          <div className="flex items-center gap-6">
+            {(callState === "waiting" || callState === "active") && (
+              <>
+                <button
+                  onClick={toggleMute}
+                  data-testid="button-toggle-mute"
+                  className="w-16 h-16 rounded-full flex items-center justify-center transition-all active:scale-90"
+                  style={{ background: isMuted ? "#374151" : "rgba(255,255,255,0.1)" }}
+                >
+                  {isMuted
+                    ? <MicOff className="w-7 h-7 text-white" />
+                    : <Mic className="w-7 h-7 text-white" />}
+                </button>
+                <button
+                  onClick={hangUp}
+                  data-testid="button-hang-up"
+                  className="w-20 h-20 rounded-full flex items-center justify-center transition-all active:scale-90"
+                  style={{ background: "linear-gradient(135deg, #dc2626 0%, #ef4444 100%)" }}
+                >
+                  <PhoneOff className="w-8 h-8 text-white" />
+                </button>
+              </>
+            )}
+            {callState === "connecting" && (
+              <button
+                onClick={hangUp}
+                data-testid="button-cancel-call"
+                className="px-6 py-3 rounded-2xl text-white text-sm font-semibold transition-all active:scale-95"
+                style={{ background: "#374151" }}
+              >
+                Annuler
+              </button>
+            )}
+            {callState === "ended" && (
+              <p className="text-slate-500 text-sm">Fermeture…</p>
+            )}
+          </div>
         </div>
       )}
 
