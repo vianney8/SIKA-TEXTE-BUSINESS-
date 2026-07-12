@@ -3,7 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppSetting } from "@/hooks/useAppSettings";
 import {
-  Send, Loader2, ChevronLeft, RotateCcw, Trash2, Phone, PhoneOff, Mic, MicOff, AlertCircle,
+  Send, Loader2, ChevronLeft, RotateCcw, Trash2, Phone, PhoneOff, Mic, MicOff,
 } from "lucide-react";
 import { FaTelegram } from "react-icons/fa";
 import { Link } from "wouter";
@@ -69,7 +69,53 @@ function saveMessages(msgs: Message[]) {
   }
 }
 
-type CallState = "idle" | "connecting" | "active" | "ended";
+// ── Sonnerie (425 Hz, standard RTC français, 0.85 s ON / 2.15 s OFF) ───────
+class DialTone {
+  private ctx: AudioContext | null = null;
+  private stopped = false;
+  private tid: ReturnType<typeof setTimeout> | null = null;
+
+  start() {
+    this.stopped = false;
+    try {
+      this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      this.tick(0);
+    } catch { /* AudioContext peut nécessiter un geste utilisateur */ }
+  }
+
+  private tick(delay: number) {
+    this.tid = setTimeout(() => {
+      if (this.stopped || !this.ctx) return;
+      this.tone(0.85);
+      this.tick(3000);
+    }, delay);
+  }
+
+  private tone(dur: number) {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const g   = this.ctx.createGain();
+    osc.connect(g);
+    g.connect(this.ctx.destination);
+    osc.frequency.value = 425;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.09, t + 0.02);
+    g.gain.setValueAtTime(0.09, t + dur - 0.05);
+    g.gain.linearRampToValueAtTime(0, t + dur);
+    osc.start(t);
+    osc.stop(t + dur);
+  }
+
+  stop() {
+    this.stopped = true;
+    if (this.tid) clearTimeout(this.tid);
+    try { this.ctx?.close(); } catch {}
+    this.ctx = null;
+  }
+}
+
+type CallState = "idle" | "dialing" | "ringing" | "active" | "ended" | "timeout" | "busy" | "error";
 
 export default function Assistance() {
   const { isAuthenticated } = useAuth();
@@ -81,27 +127,25 @@ export default function Assistance() {
   const [messages, setMessages]         = useState<Message[]>(loadMessages);
   const [confirmReset, setConfirmReset] = useState(false);
 
-  // Appel Agora
-  const [callState, setCallState]             = useState<CallState>("idle");
-  const [callError, setCallError]             = useState<string | null>(null);
-  const [isMuted, setIsMuted]                 = useState(false);
-  const [elapsed, setElapsed]                 = useState(0);
+  // ── ÉTAT APPEL ─────────────────────────────────────────────────────────
+  const [callState, setCallState]       = useState<CallState>("idle");
+  const [isMuted, setIsMuted]           = useState(false);
+  const [elapsed, setElapsed]           = useState(0);
+  const [countdown, setCountdown]       = useState(900);
+  const [callErrorMsg, setCallErrorMsg] = useState<string | null>(null);
   const agoraClientRef = useRef<IAgoraRTCClient | null>(null);
   const micTrackRef    = useRef<IMicrophoneAudioTrack | null>(null);
+  const dialToneRef    = useRef<DialTone | null>(null);
   const timerRef       = useRef<any>(null);
+  const cdRef          = useRef<any>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+  useEffect(() => { saveMessages(messages); }, [messages]);
 
-  useEffect(() => {
-    saveMessages(messages);
-  }, [messages]);
-
-  // Timer de durée d'appel
+  // Chrono durée d'appel actif
   useEffect(() => {
     if (callState === "active") {
       timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
@@ -112,7 +156,29 @@ export default function Assistance() {
     return () => clearInterval(timerRef.current);
   }, [callState]);
 
-  // ── APPEL AGORA ───────────────────────────────────────────────────────────
+  // Décompte 15 min pendant la sonnerie
+  useEffect(() => {
+    if (callState === "ringing") {
+      setCountdown(900);
+      cdRef.current = setInterval(() => {
+        setCountdown(c => {
+          if (c <= 1) { doTimeout(); return 0; }
+          return c - 1;
+        });
+      }, 1000);
+    } else {
+      clearInterval(cdRef.current);
+    }
+    return () => clearInterval(cdRef.current);
+  }, [callState]);
+
+  // Nettoyage au démontage du composant
+  useEffect(() => () => {
+    dialToneRef.current?.stop();
+    cleanupAgora();
+  }, []);
+
+  // ── APPEL AGORA ──────────────────────────────────────────────────────────
 
   const initiateMutation = useMutation({
     mutationFn: async () => {
@@ -124,17 +190,20 @@ export default function Assistance() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Erreur serveur");
-      return data as { channelName: string; userToken: string; agoraAppId: string; userDisplayName: string };
+      return data as { busy?: boolean; channelName?: string; userToken?: string; agoraAppId?: string };
     },
     onSuccess: async (data) => {
-      setCallError(null);
-      setCallState("connecting");
-      await joinAgora(data.agoraAppId, data.channelName, data.userToken);
+      if (data.busy) {
+        setCallState("busy");
+        setTimeout(() => setCallState("idle"), 5000);
+        return;
+      }
+      await joinAgora(data.agoraAppId!, data.channelName!, data.userToken!);
     },
     onError: (err: any) => {
-      setCallState("idle");
-      setCallError(err?.message || "Impossible de démarrer l'appel. Réessayez.");
-      setTimeout(() => setCallError(null), 5000);
+      setCallErrorMsg(err?.message || "Impossible de démarrer l'appel.");
+      setCallState("error");
+      setTimeout(() => setCallState("idle"), 5000);
     },
   });
 
@@ -143,36 +212,35 @@ export default function Assistance() {
       const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
       agoraClientRef.current = client;
 
-      // Quand l'admin rejoint et publie son audio
       client.on("user-published", async (remoteUser, mediaType) => {
         await client.subscribe(remoteUser, mediaType);
         if (mediaType === "audio") {
           remoteUser.audioTrack?.play();
+          dialToneRef.current?.stop();
+          dialToneRef.current = null;
           setCallState("active");
         }
       });
-      client.on("user-left", () => {
-        // admin a raccroché de son côté, on reste en attente
-      });
 
-      // Rejoindre le canal (uid 1 = utilisateur)
       await client.join(appId, channelName, token, 1);
+      const mic = await AgoraRTC.createMicrophoneAudioTrack();
+      micTrackRef.current = mic;
+      await client.publish([mic]);
 
-      // Créer et publier le micro
-      const micTrack = await AgoraRTC.createMicrophoneAudioTrack();
-      micTrackRef.current = micTrack;
-      await client.publish([micTrack]);
-
-      setCallState("waiting");
+      dialToneRef.current = new DialTone();
+      dialToneRef.current.start();
+      setCallState("ringing");
     } catch (err: any) {
-      console.error("Agora join error:", err);
-      setCallError(err?.message || "Erreur de connexion audio. Vérifiez votre micro.");
-      setCallState("idle");
+      setCallErrorMsg(err?.message || "Erreur de connexion audio.");
+      setCallState("error");
+      setTimeout(() => setCallState("idle"), 5000);
       await cleanupAgora();
     }
   }
 
   async function cleanupAgora() {
+    dialToneRef.current?.stop();
+    dialToneRef.current = null;
     if (micTrackRef.current) {
       micTrackRef.current.stop();
       micTrackRef.current.close();
@@ -187,29 +255,30 @@ export default function Assistance() {
   async function hangUp() {
     setCallState("ended");
     await cleanupAgora();
-    // Notifier le serveur
     fetch("/api/calls/end", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(() => {});
-    setTimeout(() => {
-      setCallState("idle");
-      setAdminJoined(false);
-      setIsMuted(false);
-    }, 2000);
+    setTimeout(() => { setCallState("idle"); setIsMuted(false); }, 2500);
+  }
+
+  async function doTimeout() {
+    setCallState("timeout");
+    await cleanupAgora();
+    fetch("/api/calls/end", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(() => {});
+    setTimeout(() => setCallState("idle"), 5000);
   }
 
   async function toggleMute() {
     if (!micTrackRef.current) return;
     await micTrackRef.current.setMuted(!isMuted);
-    setIsMuted(!isMuted);
+    setIsMuted(m => !m);
   }
 
-  function formatElapsed(s: number) {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  function fmtTime(s: number) {
+    return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
   }
 
   function startCall() {
     if (callState !== "idle") return;
+    setCallState("dialing");
     initiateMutation.mutate();
   }
 
@@ -340,135 +409,179 @@ export default function Assistance() {
               boxShadow: "0 4px 14px rgba(5,150,105,0.35)",
             }}
           >
-            {initiateMutation.isPending ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Connexion en cours…
-              </>
-            ) : (
-              <>
-                <Phone className="w-5 h-5" />
-                Appeler le Superviseur ADMIN
-              </>
-            )}
+            <Phone className="w-5 h-5" />
+            Appeler Administration SIKA
           </button>
-
-          {callError && (
-            <div className="mt-2 flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium"
-              style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626" }}>
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              {callError}
-            </div>
-          )}
         </div>
       )}
 
       {/* ── OVERLAY APPEL AGORA ─────────────────────────────── */}
       {callState !== "idle" && (
         <div
-          className="fixed inset-0 z-50 flex flex-col items-center justify-between py-10 px-6"
-          style={{ background: "linear-gradient(160deg, #0f172a 0%, #1e293b 100%)" }}
+          className="fixed inset-0 z-50 flex flex-col items-center justify-between select-none overflow-hidden"
+          style={{ background: "linear-gradient(155deg, #07101e 0%, #0d1b30 55%, #091520 100%)" }}
         >
-          {/* Logo haut */}
-          <div className="flex flex-col items-center gap-2 mt-2">
-            <div
-              className="w-12 h-12 rounded-2xl flex items-center justify-center"
-              style={{ background: "linear-gradient(135deg, #1a237e 0%, #1565c0 100%)" }}
-            >
-              <span className="text-white font-black text-sm">SI</span>
+          {/* ── TOP : identité SIKA ── */}
+          <div className="flex flex-col items-center gap-2 pt-14">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg"
+              style={{ background: "linear-gradient(135deg, #1a237e 0%, #283593 50%, #1565c0 100%)" }}>
+              <span className="text-white font-black text-base tracking-tighter">ST</span>
             </div>
-            <p className="text-slate-500 text-xs tracking-wide">SIKA TEXTE — Appel vocal</p>
+            <div className="text-center">
+              <p className="text-slate-400 font-bold text-xs tracking-[0.22em] uppercase">SIKA TEXTE</p>
+              <p className="text-slate-600 text-[10px] mt-0.5">Ligne chiffrée sécurisée</p>
+            </div>
           </div>
 
-          {/* Centre — avatar + statut */}
-          <div className="flex flex-col items-center gap-5">
-            <div className="relative">
-              <div
-                className="w-28 h-28 rounded-full flex items-center justify-center"
-                style={{ background: "linear-gradient(135deg, #059669 0%, #10b981 100%)" }}
-              >
-                <Phone className="w-12 h-12 text-white" />
-              </div>
+          {/* ── CENTRE : avatar animé + statut ── */}
+          <div className="flex flex-col items-center gap-7">
+
+            {/* Anneaux + avatar */}
+            <div className="relative flex items-center justify-center" style={{ width: 230, height: 230 }}>
+              {callState === "ringing" && (
+                <>
+                  <div className="absolute rounded-full" style={{ width: 230, height: 230, background: "rgba(37,99,235,0.07)", animation: "ring-out 2.2s ease-out infinite" }} />
+                  <div className="absolute rounded-full" style={{ width: 194, height: 194, background: "rgba(37,99,235,0.11)", animation: "ring-out 2.2s ease-out infinite 0.45s" }} />
+                  <div className="absolute rounded-full" style={{ width: 162, height: 162, background: "rgba(37,99,235,0.17)", animation: "ring-out 2.2s ease-out infinite 0.9s" }} />
+                </>
+              )}
               {callState === "active" && (
-                <span className="absolute inset-0 rounded-full animate-ping opacity-20"
-                  style={{ background: "#10b981" }} />
+                <>
+                  <div className="absolute rounded-full animate-ping" style={{ width: 180, height: 180, background: "rgba(34,197,94,0.12)", animationDuration: "1.8s" }} />
+                  <div className="absolute rounded-full" style={{ width: 156, height: 156, background: "rgba(34,197,94,0.07)", animation: "ring-out 3s ease-out infinite 0.6s" }} />
+                </>
               )}
-              {(callState === "connecting" || callState === "waiting") && (
-                <span className="absolute inset-0 rounded-full animate-pulse opacity-25"
-                  style={{ background: "#f59e0b" }} />
-              )}
+
+              {/* Avatar principal */}
+              <div className="relative flex items-center justify-center rounded-full transition-all duration-700"
+                style={{
+                  width: 134, height: 134,
+                  background: callState === "active"
+                    ? "linear-gradient(135deg, #14532d 0%, #166534 50%, #15803d 100%)"
+                    : (callState === "ringing" || callState === "dialing")
+                      ? "linear-gradient(135deg, #1e3a5f 0%, #1d4ed8 50%, #2563eb 100%)"
+                      : "linear-gradient(135deg, #1e293b 0%, #334155 100%)",
+                  boxShadow: callState === "active"
+                    ? "0 0 80px rgba(34,197,94,0.3), 0 0 30px rgba(34,197,94,0.15)"
+                    : (callState === "ringing" || callState === "dialing")
+                      ? "0 0 80px rgba(37,99,235,0.3), 0 0 30px rgba(37,99,235,0.15)"
+                      : "0 0 40px rgba(0,0,0,0.6)",
+                }}>
+                <span className="text-white font-black text-[32px] tracking-tighter select-none">ST</span>
+              </div>
             </div>
 
-            <div className="text-center space-y-1.5">
-              <p className="text-white font-black text-2xl">Superviseur ADMIN</p>
-              {callState === "connecting" && (
-                <p className="text-amber-400 text-sm font-medium flex items-center justify-center gap-1.5">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Connexion audio…
+            {/* Nom + état */}
+            <div className="text-center space-y-2.5 px-6">
+              <p className="text-white font-black text-[26px] tracking-tight leading-none">Administration SIKA</p>
+
+              {callState === "dialing" && (
+                <p className="text-slate-400 text-sm flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Initialisation…
                 </p>
               )}
-              {callState === "waiting" && (
-                <p className="text-amber-400 text-sm font-medium flex items-center justify-center gap-1.5">
-                  <span className="w-2 h-2 bg-amber-400 rounded-full animate-pulse inline-block" />
-                  En attente du superviseur…
-                </p>
+              {callState === "ringing" && (
+                <div className="space-y-1.5">
+                  <p className="text-blue-400 text-sm font-semibold flex items-center justify-center gap-2">
+                    <span className="flex gap-1">
+                      {[0, 160, 320].map(d => (
+                        <span key={d} className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce"
+                          style={{ animationDelay: `${d}ms` }} />
+                      ))}
+                    </span>
+                    Appel en cours…
+                  </p>
+                  <p className="text-slate-500 text-xs">
+                    Temps restant :{" "}
+                    <span className="text-slate-300 font-mono font-semibold tabular-nums">{fmtTime(countdown)}</span>
+                  </p>
+                </div>
               )}
               {callState === "active" && (
                 <p className="text-green-400 text-sm font-semibold flex items-center justify-center gap-1.5">
-                  <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse inline-block" />
-                  {formatElapsed(elapsed)} — En appel
+                  <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                  En appel · <span className="font-mono tabular-nums">{fmtTime(elapsed)}</span>
                 </p>
               )}
               {callState === "ended" && (
-                <p className="text-slate-400 text-sm">Appel terminé</p>
+                <p className="text-slate-500 text-sm">Appel terminé</p>
+              )}
+              {callState === "timeout" && (
+                <div className="space-y-1">
+                  <p className="text-orange-400 text-sm font-semibold">Aucune réponse</p>
+                  <p className="text-slate-500 text-xs max-w-[240px] mx-auto leading-relaxed">
+                    Aucun agent disponible pour le moment.<br />Réessayez dans quelques instants.
+                  </p>
+                </div>
+              )}
+              {callState === "busy" && (
+                <div className="space-y-1">
+                  <p className="text-red-400 text-sm font-semibold">Service momentanément occupé</p>
+                  <p className="text-slate-500 text-xs max-w-[240px] mx-auto leading-relaxed">
+                    Tous les agents sont en communication.<br />Veuillez réessayer dans quelques instants.
+                  </p>
+                </div>
+              )}
+              {callState === "error" && (
+                <p className="text-red-400 text-xs text-center max-w-[240px] mx-auto">{callErrorMsg}</p>
               )}
             </div>
 
+            {/* Badge muet */}
             {isMuted && callState === "active" && (
-              <div className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold"
-                style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", color: "#f87171" }}>
-                <MicOff className="w-3.5 h-3.5" /> Micro coupé
+              <div className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium"
+                style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.22)", color: "#f87171" }}>
+                <MicOff className="w-3 h-3" /> Micro désactivé
               </div>
             )}
           </div>
 
-          {/* Boutons bas */}
-          <div className="flex items-center gap-6">
-            {(callState === "waiting" || callState === "active") && (
+          {/* ── BAS : boutons d'action ── */}
+          <div className="flex items-end justify-center gap-10 pb-16">
+            {(callState === "ringing" || callState === "active") && (
               <>
-                <button
-                  onClick={toggleMute}
-                  data-testid="button-toggle-mute"
-                  className="w-16 h-16 rounded-full flex items-center justify-center transition-all active:scale-90"
-                  style={{ background: isMuted ? "#374151" : "rgba(255,255,255,0.1)" }}
-                >
-                  {isMuted
-                    ? <MicOff className="w-7 h-7 text-white" />
-                    : <Mic className="w-7 h-7 text-white" />}
-                </button>
-                <button
-                  onClick={hangUp}
-                  data-testid="button-hang-up"
-                  className="w-20 h-20 rounded-full flex items-center justify-center transition-all active:scale-90"
-                  style={{ background: "linear-gradient(135deg, #dc2626 0%, #ef4444 100%)" }}
-                >
-                  <PhoneOff className="w-8 h-8 text-white" />
-                </button>
+                <div className="flex flex-col items-center gap-2">
+                  <button onClick={toggleMute} data-testid="button-toggle-mute"
+                    className="w-16 h-16 rounded-full flex items-center justify-center transition-all active:scale-90"
+                    style={{
+                      background: isMuted ? "rgba(239,68,68,0.18)" : "rgba(255,255,255,0.07)",
+                      border: `1px solid ${isMuted ? "rgba(239,68,68,0.35)" : "rgba(255,255,255,0.1)"}`,
+                    }}>
+                    {isMuted ? <MicOff className="w-6 h-6 text-red-400" /> : <Mic className="w-6 h-6 text-white" />}
+                  </button>
+                  <span className="text-slate-600 text-[11px]">{isMuted ? "Activer" : "Couper"}</span>
+                </div>
+
+                <div className="flex flex-col items-center gap-2">
+                  <button onClick={hangUp} data-testid="button-hang-up"
+                    className="w-20 h-20 rounded-full flex items-center justify-center transition-all active:scale-90"
+                    style={{
+                      background: "linear-gradient(135deg, #b91c1c 0%, #dc2626 60%, #ef4444 100%)",
+                      boxShadow: "0 8px 32px rgba(185,28,28,0.5), 0 2px 8px rgba(0,0,0,0.4)",
+                    }}>
+                    <PhoneOff className="w-8 h-8 text-white" />
+                  </button>
+                  <span className="text-slate-600 text-[11px]">Raccrocher</span>
+                </div>
               </>
             )}
-            {callState === "connecting" && (
-              <button
-                onClick={hangUp}
-                data-testid="button-cancel-call"
-                className="px-6 py-3 rounded-2xl text-white text-sm font-semibold transition-all active:scale-95"
-                style={{ background: "#374151" }}
-              >
+
+            {callState === "dialing" && (
+              <button onClick={hangUp} data-testid="button-cancel-call"
+                className="px-8 py-3 rounded-2xl text-slate-400 text-sm font-medium transition-all active:scale-95"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
                 Annuler
               </button>
             )}
-            {callState === "ended" && (
-              <p className="text-slate-500 text-sm">Fermeture…</p>
-            )}
           </div>
+
+          <style>{`
+            @keyframes ring-out {
+              0%   { transform: scale(0.88); opacity: 0.7; }
+              75%  { transform: scale(1.55); opacity: 0; }
+              100% { transform: scale(1.55); opacity: 0; }
+            }
+          `}</style>
         </div>
       )}
 

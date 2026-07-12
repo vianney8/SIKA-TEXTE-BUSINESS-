@@ -8232,6 +8232,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         WHERE user_id = ${userId} AND status IN ('pending', 'active')
       `);
 
+      // Vérifier si l'admin est déjà en appel avec quelqu'un d'autre
+      const busyCheck = await db.execute(sql`
+        SELECT COUNT(*) AS cnt FROM calls
+        WHERE status IN ('pending', 'active')
+          AND created_at > NOW() - INTERVAL '15 minutes'
+      `);
+      const busyCnt = parseInt(
+        (busyCheck as any).rows?.[0]?.cnt ?? (busyCheck as any)[0]?.cnt ?? '0', 10
+      );
+      if (busyCnt > 0) {
+        return res.json({ busy: true });
+      }
+
       // Générer un nom de canal unique (alphanumérique uniquement)
       const rand = Math.random().toString(36).substring(2, 10);
       const channelName = `sika${rand}`;
