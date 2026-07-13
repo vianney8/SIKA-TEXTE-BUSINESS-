@@ -8251,7 +8251,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const expireTs = Math.floor(Date.now() / 1000) + 7200; // 2 heures
 
       // Générer les tokens Agora
-      const { RtcTokenBuilder, RtcRole } = await import('agora-access-token');
+      const agoraTokenMod: any = await import('agora-access-token');
+      const RtcTokenBuilder = agoraTokenMod.RtcTokenBuilder ?? agoraTokenMod.default?.RtcTokenBuilder;
+      const RtcRole = agoraTokenMod.RtcRole ?? agoraTokenMod.default?.RtcRole;
+      if (!RtcTokenBuilder || !RtcRole) {
+        throw new Error('Module agora-access-token invalide (exports manquants)');
+      }
       const userToken  = RtcTokenBuilder.buildTokenWithUid(AGORA_APP_ID, AGORA_APP_CERT, channelName, 1, RtcRole.PUBLISHER, expireTs);
       const adminToken = RtcTokenBuilder.buildTokenWithUid(AGORA_APP_ID, AGORA_APP_CERT, channelName, 2, RtcRole.PUBLISHER, expireTs);
 
