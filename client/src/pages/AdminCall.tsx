@@ -19,6 +19,22 @@ interface CallMsg {
 // légère modulation en anneau à très basse fréquence (texture robotique
 // sans garbling) + un chorus subtil (résonance futuriste) + un renforcement
 // des graves (registre masculin) + compression (puissance et clarté).
+// Génère une petite réponse impulsionnelle synthétique (pas de fichier audio
+// externe requis) pour un effet de réverbération légère et discrète.
+function buildReverbImpulse(ctx: AudioContext): AudioBuffer {
+  const duration = 0.9;
+  const rate = ctx.sampleRate;
+  const length = Math.floor(rate * duration);
+  const buffer = ctx.createBuffer(2, length, rate);
+  for (let ch = 0; ch < 2; ch++) {
+    const data = buffer.getChannelData(ch);
+    for (let i = 0; i < length; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, 2.6);
+    }
+  }
+  return buffer;
+}
+
 function buildRobotAudioTrack(rawStream: MediaStream): { track: MediaStreamTrack; ctx: AudioContext } {
   const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
   const source = ctx.createMediaStreamSource(rawStream);
@@ -37,7 +53,7 @@ function buildRobotAudioTrack(rawStream: MediaStream): { track: MediaStreamTrack
   ringDepth.gain.value = 0;
   carrier.connect(ringDepth.gain);
   const ringOut = ctx.createGain();
-  ringOut.gain.value = 0.42;
+  ringOut.gain.value = 0.36; // grain robotique réduit (35–38%) pour un rendu plus naturel
   source.connect(ringDepth);
   ringDepth.connect(ringOut);
 
@@ -57,11 +73,20 @@ function buildRobotAudioTrack(rawStream: MediaStream): { track: MediaStreamTrack
   source.connect(chorusDelay);
   chorusDelay.connect(chorusOut);
 
-  // Mixage des trois couches (voix nette + grain robotique + résonance)
+  // Légère réverbération (5–8%) pour donner de la profondeur, sans "noyer" la voix
+  const reverb = ctx.createConvolver();
+  reverb.buffer = buildReverbImpulse(ctx);
+  const reverbOut = ctx.createGain();
+  reverbOut.gain.value = 0.065;
+  source.connect(reverb);
+  reverb.connect(reverbOut);
+
+  // Mixage des couches (voix nette + grain robotique + résonance + réverbération)
   const mix = ctx.createGain();
   dryGain.connect(mix);
   ringOut.connect(mix);
   chorusOut.connect(mix);
+  reverbOut.connect(mix);
   source.connect(dryGain);
 
   // Renforcement des graves : registre masculin, voix "puissante"
