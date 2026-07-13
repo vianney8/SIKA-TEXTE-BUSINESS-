@@ -3,7 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppSetting } from "@/hooks/useAppSettings";
 import {
-  Send, Loader2, ChevronLeft, RotateCcw, Trash2, Phone, PhoneOff, Mic, MicOff, Link2,
+  Send, Loader2, ChevronLeft, RotateCcw, Trash2, Phone, PhoneOff, Mic, MicOff, Link2, Copy, Check, Image as ImageIcon,
 } from "lucide-react";
 import { FaTelegram } from "react-icons/fa";
 import { Link } from "wouter";
@@ -121,6 +121,7 @@ interface CallMsg {
   id: string;
   sender: "user" | "admin";
   text: string;
+  image_url?: string | null;
   created_at: string;
 }
 
@@ -152,7 +153,7 @@ export default function Assistance() {
   const [callState, setCallState]       = useState<CallState>("idle");
   const [isMuted, setIsMuted]           = useState(false);
   const [elapsed, setElapsed]           = useState(0);
-  const [countdown, setCountdown]       = useState(900);
+  const [countdown, setCountdown]       = useState(360);
   const [callErrorMsg, setCallErrorMsg] = useState<string | null>(null);
   // Micro désactivé à distance par l'administrateur (l'utilisateur ne peut pas le réactiver lui-même)
   const [forceMuted, setForceMuted]     = useState(false);
@@ -168,8 +169,13 @@ export default function Assistance() {
   const [callMessages, setCallMessages] = useState<CallMsg[]>([]);
   const [chatInput, setChatInput]   = useState("");
   const [unread, setUnread]         = useState(0);
+  const [newMsgToast, setNewMsgToast] = useState(false);
+  const [copiedId, setCopiedId]     = useState<string | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
   const chatPollRef = useRef<any>(null);
   const chatEndRef  = useRef<HTMLDivElement>(null);
+  const toastTimerRef = useRef<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
@@ -188,10 +194,10 @@ export default function Assistance() {
     return () => clearInterval(timerRef.current);
   }, [callState]);
 
-  // Décompte 15 min pendant la sonnerie
+  // Décompte 6 min pendant la sonnerie
   useEffect(() => {
     if (callState === "ringing") {
-      setCountdown(900);
+      setCountdown(360);
       cdRef.current = setInterval(() => {
         setCountdown(c => {
           if (c <= 1) { doTimeout(); return 0; }
@@ -333,7 +339,8 @@ export default function Assistance() {
   useEffect(() => {
     if (callState === "ringing" || callState === "active") {
       pollCallMessages();
-      chatPollRef.current = setInterval(pollCallMessages, 2000);
+      // Intervalle court pour un ressenti proche d'une messagerie instantanée.
+      chatPollRef.current = setInterval(pollCallMessages, 1000);
     } else {
       clearInterval(chatPollRef.current);
       setCallMessages([]);
@@ -360,7 +367,13 @@ export default function Assistance() {
       const list: CallMsg[] = data.messages || [];
       setCallMessages(prev => {
         if (list.length > prev.length && !chatOpen) {
-          setUnread(u => u + (list.length - prev.length));
+          const newOnes = list.slice(prev.length);
+          if (newOnes.some(m => m.sender === "admin")) {
+            setUnread(u => u + newOnes.filter(m => m.sender === "admin").length);
+            setNewMsgToast(true);
+            if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+            toastTimerRef.current = setTimeout(() => setNewMsgToast(false), 5000);
+          }
         }
         return list;
       });
@@ -381,6 +394,37 @@ export default function Assistance() {
       });
       pollCallMessages();
     } catch { /* ignore */ }
+  }
+
+  function copyCallMessage(m: CallMsg) {
+    if (!m.text) return;
+    navigator.clipboard?.writeText(m.text).then(() => {
+      setCopiedId(m.id);
+      setTimeout(() => setCopiedId(prev => (prev === m.id ? null : prev)), 1500);
+    }).catch(() => {});
+  }
+
+  async function handlePickCallScreenshot(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (!file) return;
+    setImageUploading(true);
+    try {
+      const dataUrl: string = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      await fetch("/api/calls/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ imageUrl: dataUrl }),
+      });
+      pollCallMessages();
+    } catch { /* ignore */ }
+    finally { setImageUploading(false); }
   }
 
   function fmtTime(s: number) {
@@ -672,7 +716,7 @@ export default function Assistance() {
                 </div>
 
                 <div className="flex flex-col items-center gap-2 relative">
-                  <button onClick={() => setChatOpen(v => !v)} data-testid="button-toggle-chat"
+                  <button onClick={() => { setChatOpen(v => !v); setNewMsgToast(false); }} data-testid="button-toggle-chat"
                     className="w-16 h-16 rounded-full flex items-center justify-center transition-all active:scale-90"
                     style={{
                       background: chatOpen ? "rgba(59,130,246,0.22)" : "rgba(255,255,255,0.07)",
@@ -711,6 +755,20 @@ export default function Assistance() {
             )}
           </div>
 
+          {/* ── TOAST "nouveau message" (cliquer pour répondre) ─────────────── */}
+          {newMsgToast && !chatOpen && (callState === "ringing" || callState === "active") && (
+            <button
+              onClick={() => { setChatOpen(true); setNewMsgToast(false); }}
+              className="fixed left-1/2 top-6 z-20 -translate-x-1/2 flex items-center gap-2.5 px-4 py-3 rounded-2xl active:scale-95 transition-all"
+              style={{ background: "#1565c0", boxShadow: "0 8px 28px rgba(21,101,192,0.5)" }}
+            >
+              <Send className="w-4 h-4 text-white flex-shrink-0" />
+              <span className="text-white text-xs font-semibold text-left">
+                Nouveau message de l'administration<br /><span className="font-normal text-blue-100">Cliquez pour répondre</span>
+              </span>
+            </button>
+          )}
+
           {/* ── PANNEAU CHAT (messages + liens pendant l'appel) ─────────────── */}
           {chatOpen && (callState === "ringing" || callState === "active") && (
             <div
@@ -733,12 +791,23 @@ export default function Assistance() {
                 {callMessages.map((m) => (
                   <div key={m.id} className={`flex ${m.sender === "user" ? "justify-end" : "justify-start"}`}>
                     <div
-                      className="max-w-[80%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed break-words"
+                      onClick={() => copyCallMessage(m)}
+                      title="Cliquer pour copier"
+                      className="max-w-[80%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed break-words cursor-pointer"
                       style={m.sender === "user"
                         ? { background: "linear-gradient(135deg, #1a237e, #1565c0)", color: "#fff", borderRadius: "16px 16px 4px 16px" }
                         : { background: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderRadius: "16px 16px 16px 4px" }}
                     >
-                      {linkifyCallMsg(m.text)}
+                      {m.image_url ? (
+                        <img src={m.image_url} alt="Capture d'écran" className="rounded-lg max-w-full max-h-64 object-contain" />
+                      ) : (
+                        <>
+                          {linkifyCallMsg(m.text)}
+                          <span className="inline-flex align-middle ml-1.5 opacity-50">
+                            {copiedId === m.id ? <Check className="w-3 h-3 inline" /> : <Copy className="w-3 h-3 inline" />}
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -746,6 +815,23 @@ export default function Assistance() {
               </div>
 
               <div className="flex items-center gap-2 px-4 py-3 border-t border-white/5 flex-shrink-0">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={handlePickCallScreenshot}
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={imageUploading}
+                  title="Envoyer une capture d'écran"
+                  className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 disabled:opacity-40"
+                  style={{ background: "rgba(255,255,255,0.07)" }}
+                >
+                  {imageUploading ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <ImageIcon className="w-4 h-4 text-white" />}
+                </button>
                 <input
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}

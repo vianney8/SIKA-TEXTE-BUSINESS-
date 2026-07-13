@@ -37,3 +37,15 @@ raw + processed audio:
   processing) — plan for a few seconds of added call latency; this is inherent to chunk-based
   cloud STS, not a bug. True sub-300ms full-duplex conversion would need a self-hosted
   GPU-based neural VC model, which isn't available as a simple hosted API.
+
+## "Speaks in a random/mixed language" artifact on eleven_multilingual_sts_v2
+The STS `convert` endpoint has no `language_code`/language-pinning parameter (checked official
+docs) — a fix cannot force the output language directly. The real cause of a chunked pipeline
+producing speech in the wrong/mixed language is near-silent or noise-only chunks: with no prior
+context, the multilingual model hallucinates a full phrase in a random language rather than
+staying silent. **Fix:** compute RMS volume of the raw mic stream (Web Audio `AnalyserNode`,
+sampled every ~30ms) over each recording cycle, and simply never send a chunk to the STS API if
+its peak RMS stays below a small threshold (e.g. ~0.012) — skip it client-side instead of relying
+on any server-side/API parameter. Also pairs well with slightly longer chunks (~1.5s instead of
+1.2s) to reduce mid-word cutoffs, and sending an explicit `voice_settings` (higher `stability`/
+`similarity_boost`) to reduce output variability.

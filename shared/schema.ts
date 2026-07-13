@@ -617,6 +617,7 @@ export const callMessages = pgTable("call_messages", {
   roomName: varchar("room_name").notNull(),
   sender: varchar("sender").notNull(), // 'user' | 'admin'
   text: varchar("text").notNull(),
+  imageUrl: text("image_url"), // capture d'écran envoyée depuis le téléphone (data URL base64)
   createdAt: timestamp("created_at").defaultNow(),
 });
 export type CallMessage = typeof callMessages.$inferSelect;

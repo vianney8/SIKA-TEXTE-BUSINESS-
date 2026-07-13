@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useRoute } from "wouter";
-import { Mic, MicOff, PhoneOff, Loader2, Bot, Send, Link2, UserX, UserCheck } from "lucide-react";
+import { Mic, MicOff, PhoneOff, Loader2, Bot, Send, Link2, UserX, UserCheck, Copy, Check, Image as ImageIcon, User, Phone, Mail } from "lucide-react";
 import AgoraRTC, { IAgoraRTCClient, ILocalAudioTrack } from "agora-rtc-sdk-ng";
 
 type AdminCallState = "connecting" | "waiting" | "active" | "ended" | "error";
@@ -9,7 +9,14 @@ interface CallMsg {
   id: string;
   sender: "user" | "admin";
   text: string;
+  image_url?: string | null;
   created_at: string;
+}
+
+interface CallerInfo {
+  fullName: string | null;
+  phone: string | null;
+  email: string | null;
 }
 
 // ── Conversion vocale IA temps réel (ElevenLabs Speech-to-Speech) ──────────
@@ -18,7 +25,15 @@ interface CallMsg {
 // convertie. Le micro est découpé en courts segments (~1.2s) envoyés au
 // serveur, qui les transmet à ElevenLabs ; l'audio reconstruit — une voix IA
 // entièrement distincte — est le seul flux joué dans le track publié.
-const VOICE_CHUNK_MS = 1200;
+const VOICE_CHUNK_MS = 1500;
+
+// Un segment quasi silencieux (l'administrateur ne parle pas, juste du bruit
+// de fond) envoyé tel quel au modèle multilingue peut halluciner une phrase
+// entière dans une langue aléatoire au lieu de ne rien produire — c'est la
+// cause principale du symptôme "le robot dit ça dans toutes les langues".
+// On mesure le volume du micro brut pendant l'enregistrement et on abandonne
+// silencieusement les segments sous ce seuil, sans jamais les envoyer.
+const SILENCE_RMS_THRESHOLD = 0.012;
 
 interface VoicePipeline {
   outputTrack: MediaStreamTrack;
@@ -64,6 +79,23 @@ function startVoiceConversionPipeline(rawStream: MediaStream, channelName: strin
   const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
   ctx.resume().catch(() => {}); // évite un AudioContext suspendu (politique autoplay) sans geste utilisateur
   const destination = ctx.createMediaStreamDestination();
+
+  // Détection de silence : analyse le micro brut en continu pour savoir si
+  // l'administrateur parle réellement pendant chaque segment enregistré.
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 512;
+  const sourceNode = ctx.createMediaStreamSource(rawStream);
+  sourceNode.connect(analyser);
+  const analyserBuf = new Float32Array(analyser.fftSize);
+  let peakRmsThisCycle = 0;
+  let rmsSampler: ReturnType<typeof setInterval> | null = null;
+  function sampleRms() {
+    analyser.getFloatTimeDomainData(analyserBuf);
+    let sumSquares = 0;
+    for (let i = 0; i < analyserBuf.length; i++) sumSquares += analyserBuf[i] * analyserBuf[i];
+    const rms = Math.sqrt(sumSquares / analyserBuf.length);
+    if (rms > peakRmsThisCycle) peakRmsThisCycle = rms;
+  }
 
   const mimeType = pickRecorderMimeType();
   let stopped = false;
@@ -162,11 +194,17 @@ function startVoiceConversionPipeline(rawStream: MediaStream, channelName: strin
       return; // navigateur incapable de créer le recorder : on abandonne ce cycle
     }
     activeRecorder = rec;
+    peakRmsThisCycle = 0;
+    rmsSampler = setInterval(sampleRms, 30);
     rec.ondataavailable = (e) => {
       if (e.data && e.data.size > 0) chunks.push(e.data);
     };
     rec.onstop = () => {
-      if (chunks.length > 0 && !stopped) {
+      if (rmsSampler) { clearInterval(rmsSampler); rmsSampler = null; }
+      // Segment sans voix détectable (silence/bruit de fond) : on ne l'envoie
+      // jamais à ElevenLabs, ce qui évite les hallucinations en langue
+      // aléatoire sur des fragments sans contenu réel à convertir.
+      if (chunks.length > 0 && !stopped && peakRmsThisCycle >= SILENCE_RMS_THRESHOLD) {
         enqueueChunk(new Blob(chunks, { type: mimeType || "audio/webm" }));
       }
       if (!stopped && !paused) cycleTimer = setTimeout(recordOneCycle, 0);
@@ -174,6 +212,7 @@ function startVoiceConversionPipeline(rawStream: MediaStream, channelName: strin
     try {
       rec.start();
     } catch {
+      if (rmsSampler) { clearInterval(rmsSampler); rmsSampler = null; }
       return;
     }
     cycleTimer = setTimeout(() => {
@@ -189,6 +228,7 @@ function startVoiceConversionPipeline(rawStream: MediaStream, channelName: strin
     stop: () => {
       stopped = true;
       if (cycleTimer) clearTimeout(cycleTimer);
+      if (rmsSampler) { clearInterval(rmsSampler); rmsSampler = null; }
       pendingBlobs.length = 0;
       readyResults.clear();
       try { activeRecorder?.stop(); } catch {}
@@ -196,6 +236,7 @@ function startVoiceConversionPipeline(rawStream: MediaStream, channelName: strin
     pause: () => {
       paused = true;
       if (cycleTimer) clearTimeout(cycleTimer);
+      if (rmsSampler) { clearInterval(rmsSampler); rmsSampler = null; }
       // Coupé (muet) : on vide le retard en attente pour ne pas jouer, une
       // fois réactivé, des segments enregistrés juste avant la coupure.
       pendingBlobs.length = 0;
@@ -243,6 +284,10 @@ export default function AdminCall() {
   const [messages, setMessages] = useState<CallMsg[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [unread, setUnread]     = useState(0);
+  const [newMsgToast, setNewMsgToast] = useState(false);
+  const [caller, setCaller]     = useState<CallerInfo | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
 
   const hasJoined = useRef(false);
   const clientRef = useRef<IAgoraRTCClient | null>(null);
@@ -252,6 +297,8 @@ export default function AdminCall() {
   const timerRef  = useRef<any>(null);
   const chatPollRef = useRef<any>(null);
   const chatEndRef  = useRef<HTMLDivElement>(null);
+  const toastTimerRef = useRef<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!channelName || !token || !appId) {
@@ -276,7 +323,9 @@ export default function AdminCall() {
   useEffect(() => {
     if ((state === "waiting" || state === "active") && channelName) {
       pollMessages();
-      chatPollRef.current = setInterval(pollMessages, 2000);
+      // Intervalle court pour que les messages/notifications arrivent vite,
+      // comme sur une messagerie instantanée.
+      chatPollRef.current = setInterval(pollMessages, 1000);
     } else {
       clearInterval(chatPollRef.current);
     }
@@ -298,12 +347,49 @@ export default function AdminCall() {
       const list: CallMsg[] = data.messages || [];
       setMessages(prev => {
         if (list.length > prev.length && !chatOpen) {
-          setUnread(u => u + (list.length - prev.length));
+          const newOnes = list.slice(prev.length);
+          if (newOnes.some(m => m.sender === "user")) {
+            setUnread(u => u + newOnes.filter(m => m.sender === "user").length);
+            setNewMsgToast(true);
+            if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+            toastTimerRef.current = setTimeout(() => setNewMsgToast(false), 5000);
+          }
         }
         return list;
       });
+      if (data.caller) setCaller(data.caller);
       setUserMicMuted(!!data.userMicMuted);
     } catch { /* silencieux : simple polling */ }
+  }
+
+  function copyMessage(m: CallMsg) {
+    if (!m.text) return;
+    navigator.clipboard?.writeText(m.text).then(() => {
+      setCopiedId(m.id);
+      setTimeout(() => setCopiedId(prev => (prev === m.id ? null : prev)), 1500);
+    }).catch(() => {});
+  }
+
+  async function handlePickScreenshot(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (!file) return;
+    setImageUploading(true);
+    try {
+      const dataUrl: string = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      await fetch(`/api/admin-call/${encodeURIComponent(channelName)}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageUrl: dataUrl }),
+      });
+      pollMessages();
+    } catch { /* ignore */ }
+    finally { setImageUploading(false); }
   }
 
   // Seul l'administrateur peut désactiver/réactiver le micro de l'utilisateur.
@@ -350,15 +436,17 @@ export default function AdminCall() {
         leave();
       });
 
-      await client.join(appId, channelName, token, 2);
-      hasJoined.current = true;
-
-      // Micro brut (jamais de vidéo : uniquement le flux audio), avec réduction
-      // de bruit / écho / gain automatique côté navigateur.
-      const rawStream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-        video: false,
-      });
+      // La connexion au canal Agora et la demande d'accès au micro sont
+      // indépendantes : les lancer en parallèle (au lieu de l'une après
+      // l'autre) réduit d'autant le délai avant que l'appel soit prêt côté
+      // administrateur, pour un décroché aussi rapide qu'un appel WhatsApp.
+      const [, rawStream] = await Promise.all([
+        client.join(appId, channelName, token, 2).then(() => { hasJoined.current = true; }),
+        navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          video: false,
+        }),
+      ]);
       rawStreamRef.current = rawStream;
 
       // Le micro démarre désactivé : l'administrateur doit l'activer lui-même.
@@ -513,6 +601,33 @@ export default function AdminCall() {
           )}
         </div>
 
+        {/* Coordonnées de l'appelant — nom, téléphone, e-mail */}
+        {(isWaiting || isActive) && caller && (
+          <div
+            className="flex flex-col gap-1.5 px-4 py-3 rounded-2xl w-[260px]"
+            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+          >
+            {caller.fullName && (
+              <div className="flex items-center gap-2 text-slate-300 text-xs">
+                <User className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+                <span className="truncate font-semibold">{caller.fullName}</span>
+              </div>
+            )}
+            {caller.phone && (
+              <div className="flex items-center gap-2 text-slate-300 text-xs">
+                <Phone className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+                <span className="truncate">{caller.phone}</span>
+              </div>
+            )}
+            {caller.email && (
+              <div className="flex items-center gap-2 text-slate-300 text-xs">
+                <Mail className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+                <span className="truncate">{caller.email}</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Badge muet */}
         {isMuted && isActive && (
           <div
@@ -573,7 +688,7 @@ export default function AdminCall() {
 
             <div className="flex flex-col items-center gap-2 relative">
               <button
-                onClick={() => setChatOpen(v => !v)}
+                onClick={() => { setChatOpen(v => !v); setNewMsgToast(false); }}
                 className="w-16 h-16 rounded-full flex items-center justify-center transition-all active:scale-90"
                 style={{
                   background: chatOpen ? "rgba(59,130,246,0.22)" : "rgba(255,255,255,0.07)",
@@ -617,6 +732,20 @@ export default function AdminCall() {
         )}
       </div>
 
+      {/* ── TOAST "nouveau message" (cliquer pour répondre) ─────────────── */}
+      {newMsgToast && !chatOpen && (isWaiting || isActive) && (
+        <button
+          onClick={() => { setChatOpen(true); setNewMsgToast(false); }}
+          className="fixed left-1/2 top-6 z-20 -translate-x-1/2 flex items-center gap-2.5 px-4 py-3 rounded-2xl active:scale-95 transition-all"
+          style={{ background: "#1565c0", boxShadow: "0 8px 28px rgba(21,101,192,0.5)" }}
+        >
+          <Send className="w-4 h-4 text-white flex-shrink-0" />
+          <span className="text-white text-xs font-semibold text-left">
+            Nouveau message du client<br /><span className="font-normal text-blue-100">Cliquez pour répondre</span>
+          </span>
+        </button>
+      )}
+
       {/* ── PANNEAU CHAT (messages + liens pendant l'appel) ─────────────── */}
       {chatOpen && (isWaiting || isActive) && (
         <div
@@ -639,12 +768,23 @@ export default function AdminCall() {
             {messages.map((m) => (
               <div key={m.id} className={`flex ${m.sender === "admin" ? "justify-end" : "justify-start"}`}>
                 <div
-                  className="max-w-[80%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed break-words"
+                  onClick={() => copyMessage(m)}
+                  className="max-w-[80%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed break-words cursor-pointer relative group"
+                  title="Cliquer pour copier"
                   style={m.sender === "admin"
                     ? { background: "linear-gradient(135deg, #1a237e, #1565c0)", color: "#fff", borderRadius: "16px 16px 4px 16px" }
                     : { background: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderRadius: "16px 16px 16px 4px" }}
                 >
-                  {linkify(m.text)}
+                  {m.image_url ? (
+                    <img src={m.image_url} alt="Capture d'écran" className="rounded-lg max-w-full max-h-64 object-contain" />
+                  ) : (
+                    <>
+                      {linkify(m.text)}
+                      <span className="inline-flex align-middle ml-1.5 opacity-50">
+                        {copiedId === m.id ? <Check className="w-3 h-3 inline" /> : <Copy className="w-3 h-3 inline" />}
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
             ))}
@@ -652,6 +792,23 @@ export default function AdminCall() {
           </div>
 
           <div className="flex items-center gap-2 px-4 py-3 border-t border-white/5 flex-shrink-0">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handlePickScreenshot}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={imageUploading}
+              title="Envoyer une capture d'écran"
+              className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 disabled:opacity-40"
+              style={{ background: "rgba(255,255,255,0.07)" }}
+            >
+              {imageUploading ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <ImageIcon className="w-4 h-4 text-white" />}
+            </button>
             <input
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}

@@ -7,6 +7,7 @@ import { sql } from "drizzle-orm";
 
 const app = express();
 app.use(express.json({
+  limit: "10mb", // captures d'écran envoyées en base64 depuis le chat d'appel
   verify: (req: any, _res, buf) => {
     req.rawBody = buf;
   }
@@ -303,6 +304,14 @@ app.use((req, res, next) => {
     log('call_messages table ready');
   } catch (err) {
     log('call_messages table skipped: ' + (err as Error).message);
+  }
+
+  // Add image_url column to call_messages (captures d'écran envoyées pendant l'appel)
+  try {
+    await db.execute(sql`ALTER TABLE call_messages ADD COLUMN IF NOT EXISTS image_url text`);
+    log('call_messages.image_url column ready');
+  } catch (err) {
+    log('call_messages.image_url column skipped: ' + (err as Error).message);
   }
 
   // Add telegram_notify column to payment_links if missing

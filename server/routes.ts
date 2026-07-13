@@ -8234,10 +8234,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `);
 
       // Vérifier si l'admin est déjà en appel avec quelqu'un d'autre
+      // (fenêtre alignée sur la durée de sonnerie côté client : 6 minutes)
       const busyCheck = await db.execute(sql`
         SELECT COUNT(*) AS cnt FROM calls
         WHERE status IN ('pending', 'active')
-          AND created_at > NOW() - INTERVAL '15 minutes'
+          AND created_at > NOW() - INTERVAL '6 minutes'
       `);
       const busyCnt = parseInt(
         (busyCheck as any).rows?.[0]?.cnt ?? (busyCheck as any)[0]?.cnt ?? '0', 10
@@ -8346,6 +8347,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return !!row;
   }
 
+  // Une image (capture d'écran) est envoyée en data URL base64 — on borne sa
+  // taille pour éviter d'alourdir la table et le polling (~4.5 Mo décodés).
+  const MAX_IMAGE_DATA_URL_LENGTH = 6 * 1024 * 1024;
+  function sanitizeImageUrl(raw: any): string | null {
+    const s = (raw || '').toString().trim();
+    if (!s) return null;
+    if (!/^data:image\/(png|jpe?g|webp|gif);base64,/.test(s)) return null;
+    if (s.length > MAX_IMAGE_DATA_URL_LENGTH) return null;
+    return s;
+  }
+
   app.get('/api/calls/messages', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session?.userId;
@@ -8353,7 +8365,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const roomName = await getActiveRoomForUser(userId);
       if (!roomName) return res.json({ messages: [], userMicMuted: false });
       const rows = await db.execute(sql`
-        SELECT id, sender, text, created_at FROM call_messages
+        SELECT id, sender, text, image_url, created_at FROM call_messages
         WHERE room_name = ${roomName} ORDER BY created_at ASC LIMIT 200
       `);
       const list = (rows as any).rows ?? (rows as any) ?? [];
@@ -8370,11 +8382,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.session?.userId;
       if (!userId) return res.status(401).json({ message: 'Non authentifié' });
       const text = (req.body?.text || '').toString().trim().slice(0, 2000);
-      if (!text) return res.status(400).json({ message: 'Message vide' });
+      const imageUrl = sanitizeImageUrl(req.body?.imageUrl);
+      if (!text && !imageUrl) return res.status(400).json({ message: 'Message vide' });
       const roomName = await getActiveRoomForUser(userId);
       if (!roomName) return res.status(404).json({ message: 'Aucun appel en cours' });
       await db.execute(sql`
-        INSERT INTO call_messages (room_name, sender, text) VALUES (${roomName}, 'user', ${text})
+        INSERT INTO call_messages (room_name, sender, text, image_url)
+        VALUES (${roomName}, 'user', ${text || (imageUrl ? '📷 Capture d\'écran' : '')}, ${imageUrl})
       `);
       res.json({ success: true });
     } catch (err) {
@@ -8387,13 +8401,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { channelName } = req.params;
       if (!(await roomExists(channelName))) return res.status(404).json({ message: 'Appel introuvable' });
       const rows = await db.execute(sql`
-        SELECT id, sender, text, created_at FROM call_messages
+        SELECT id, sender, text, image_url, created_at FROM call_messages
         WHERE room_name = ${channelName} ORDER BY created_at ASC LIMIT 200
       `);
       const list = (rows as any).rows ?? (rows as any) ?? [];
       const muteRows = await db.execute(sql`SELECT user_mic_muted FROM calls WHERE room_name = ${channelName} LIMIT 1`);
       const muteRow: any = (muteRows as any).rows?.[0] ?? (muteRows as any)[0] ?? null;
-      res.json({ messages: list, userMicMuted: !!muteRow?.user_mic_muted });
+      // Coordonnées complètes de l'appelant (nom, prénom, téléphone, e-mail) —
+      // affichées dans le panneau d'appel côté administrateur.
+      const callerRows = await db.execute(sql`
+        SELECT u.first_name, u.last_name, u.full_name, u.phone, u.email
+        FROM calls c JOIN users u ON u.id = c.user_id
+        WHERE c.room_name = ${channelName} LIMIT 1
+      `);
+      const callerRow: any = (callerRows as any).rows?.[0] ?? (callerRows as any)[0] ?? null;
+      const caller = callerRow ? {
+        fullName: callerRow.full_name || `${callerRow.first_name || ''} ${callerRow.last_name || ''}`.trim() || null,
+        phone: callerRow.phone || null,
+        email: callerRow.email || null,
+      } : null;
+      res.json({ messages: list, userMicMuted: !!muteRow?.user_mic_muted, caller });
     } catch (err) {
       res.status(500).json({ message: 'Erreur' });
     }
@@ -8420,10 +8447,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { channelName } = req.params;
       const text = (req.body?.text || '').toString().trim().slice(0, 2000);
-      if (!text) return res.status(400).json({ message: 'Message vide' });
+      const imageUrl = sanitizeImageUrl(req.body?.imageUrl);
+      if (!text && !imageUrl) return res.status(400).json({ message: 'Message vide' });
       if (!(await roomExists(channelName))) return res.status(404).json({ message: 'Appel introuvable' });
       await db.execute(sql`
-        INSERT INTO call_messages (room_name, sender, text) VALUES (${channelName}, 'admin', ${text})
+        INSERT INTO call_messages (room_name, sender, text, image_url)
+        VALUES (${channelName}, 'admin', ${text || (imageUrl ? '📷 Capture d\'écran' : '')}, ${imageUrl})
       `);
       res.json({ success: true });
     } catch (err) {
@@ -8455,6 +8484,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       form.append('model_id', 'eleven_multilingual_sts_v2');
       form.append('output_format', 'mp3_44100_128');
       form.append('remove_background_noise', 'true');
+      // Stabilité renforcée : un modèle multilingue à qui on envoie de très
+      // courts segments a tendance, sur un fragment quasi silencieux ou
+      // ambigu, à halluciner une phrase entière dans une langue aléatoire au
+      // lieu de reproduire fidèlement ce que dit l'administrateur. Monter la
+      // stabilité et la similarité réduit cette variabilité (le client filtre
+      // aussi désormais les segments silencieux avant même de les envoyer).
+      form.append('voice_settings', JSON.stringify({ stability: 0.75, similarity_boost: 0.85, style: 0, use_speaker_boost: true }));
 
       const elResp = await fetch(`https://api.elevenlabs.io/v1/speech-to-speech/${ELEVENLABS_VOICE_ID}`, {
         method: 'POST',
