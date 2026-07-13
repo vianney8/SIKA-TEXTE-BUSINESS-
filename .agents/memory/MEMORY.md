@@ -1,0 +1,1 @@
+- [ElevenLabs voice conversion](elevenlabs-voice-conversion.md) — why DSP filters can't replace voice identity, ElevenLabs API key scopes, and the chunked STS pipeline pattern/latency used for admin call voice.

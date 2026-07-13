@@ -24,3 +24,9 @@ id = "vvtQ30tvX74RZxcZ4Dqz3"
 uri = "file://attached_assets/voice_samples/charlie.mp3"
 type = "audio"
 title = "Voix candidate : Charlie (jeune, grave, confiant, énergique)"
+
+[[outputs]]
+id = "D50VS0l_cD2_Nu0QnlPEc"
+uri = "file://attached_assets/voice_samples/converted_test_charlie.mp3"
+type = "audio"
+title = "Test réel de conversion vocale (via l'endpoint /voice-convert)"

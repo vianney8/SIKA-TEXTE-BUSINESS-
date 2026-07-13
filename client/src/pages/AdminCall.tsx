@@ -12,118 +12,91 @@ interface CallMsg {
   created_at: string;
 }
 
-// ── Effet "voix robot IA" — masculine, jeune adulte, claire et puissante ───
-// Cahier des charges : voix robotique nette et intelligible, ton calme et
-// confiant, résonance électronique futuriste discrète, sans distorsion qui
-// nuise à la compréhension. On privilégie donc un mélange voix propre +
-// légère modulation en anneau à très basse fréquence (texture robotique
-// sans garbling) + un chorus subtil (résonance futuriste) + un renforcement
-// des graves (registre masculin) + compression (puissance et clarté).
-// Génère une petite réponse impulsionnelle synthétique (pas de fichier audio
-// externe requis) pour un effet de réverbération légère et discrète.
-function buildReverbImpulse(ctx: AudioContext): AudioBuffer {
-  const duration = 0.9;
-  const rate = ctx.sampleRate;
-  const length = Math.floor(rate * duration);
-  const buffer = ctx.createBuffer(2, length, rate);
-  for (let ch = 0; ch < 2; ch++) {
-    const data = buffer.getChannelData(ch);
-    for (let i = 0; i < length; i++) {
-      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, 2.6);
-    }
-  }
-  return buffer;
+// ── Conversion vocale IA temps réel (ElevenLabs Speech-to-Speech) ──────────
+// Remplace intégralement l'identité vocale de l'administrateur : la voix
+// brute n'est JAMAIS publiée sur le canal, ni mélangée avec la sortie
+// convertie. Le micro est découpé en courts segments (~1.2s) envoyés au
+// serveur, qui les transmet à ElevenLabs ; l'audio reconstruit — une voix IA
+// entièrement distincte — est le seul flux joué dans le track publié.
+const VOICE_CHUNK_MS = 1200;
+
+interface VoicePipeline {
+  outputTrack: MediaStreamTrack;
+  ctx: AudioContext;
+  recorder: MediaRecorder;
+  stop: () => void;
+  pause: () => void;
+  resume: () => void;
 }
 
-function buildRobotAudioTrack(rawStream: MediaStream): { track: MediaStreamTrack; ctx: AudioContext } {
+function pickRecorderMimeType(): string {
+  const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"];
+  for (const type of candidates) {
+    if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported?.(type)) return type;
+  }
+  return "";
+}
+
+function startVoiceConversionPipeline(rawStream: MediaStream, channelName: string): VoicePipeline {
   const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-  const source = ctx.createMediaStreamSource(rawStream);
-
-  // Voix "sèche" conservée en majorité pour garder une prononciation nette
-  const dryGain = ctx.createGain();
-  dryGain.gain.value = 0.62;
-
-  // Modulation en anneau à très basse fréquence : ajoute un grain robotique
-  // sans casser l'intelligibilité de la voix (contrairement à un carrier élevé)
-  const carrier = ctx.createOscillator();
-  carrier.type = "sine";
-  carrier.frequency.value = 32;
-  carrier.start();
-  const ringDepth = ctx.createGain();
-  ringDepth.gain.value = 0;
-  carrier.connect(ringDepth.gain);
-  const ringOut = ctx.createGain();
-  ringOut.gain.value = 0.36; // grain robotique réduit (35–38%) pour un rendu plus naturel
-  source.connect(ringDepth);
-  ringDepth.connect(ringOut);
-
-  // Résonance électronique futuriste : chorus léger via un délai modulé
-  const chorusDelay = ctx.createDelay();
-  chorusDelay.delayTime.value = 0.014;
-  const chorusLfo = ctx.createOscillator();
-  chorusLfo.type = "sine";
-  chorusLfo.frequency.value = 3.2;
-  const chorusLfoDepth = ctx.createGain();
-  chorusLfoDepth.gain.value = 0.0035;
-  chorusLfo.connect(chorusLfoDepth);
-  chorusLfoDepth.connect(chorusDelay.delayTime);
-  chorusLfo.start();
-  const chorusOut = ctx.createGain();
-  chorusOut.gain.value = 0.3;
-  source.connect(chorusDelay);
-  chorusDelay.connect(chorusOut);
-
-  // Légère réverbération (5–8%) pour donner de la profondeur, sans "noyer" la voix
-  const reverb = ctx.createConvolver();
-  reverb.buffer = buildReverbImpulse(ctx);
-  const reverbOut = ctx.createGain();
-  reverbOut.gain.value = 0.065;
-  source.connect(reverb);
-  reverb.connect(reverbOut);
-
-  // Mixage des couches (voix nette + grain robotique + résonance + réverbération)
-  const mix = ctx.createGain();
-  dryGain.connect(mix);
-  ringOut.connect(mix);
-  chorusOut.connect(mix);
-  reverbOut.connect(mix);
-  source.connect(dryGain);
-
-  // Renforcement des graves : registre masculin, voix "puissante"
-  const bass = ctx.createBiquadFilter();
-  bass.type = "lowshelf";
-  bass.frequency.value = 190;
-  bass.gain.value = 5;
-
-  // Légère bosse de présence pour garder la voix claire et nette
-  const presence = ctx.createBiquadFilter();
-  presence.type = "peaking";
-  presence.frequency.value = 2200;
-  presence.Q.value = 1;
-  presence.gain.value = 3;
-
-  // Coupe douce des aigus extrêmes : évite un son numérique agressif
-  const smooth = ctx.createBiquadFilter();
-  smooth.type = "lowpass";
-  smooth.frequency.value = 7000;
-
-  // Compression : voix ferme, calme et confiante, niveau constant
-  const comp = ctx.createDynamicsCompressor();
-  comp.threshold.value = -20;
-  comp.knee.value = 10;
-  comp.ratio.value = 4;
-  comp.attack.value = 0.004;
-  comp.release.value = 0.18;
-
   const destination = ctx.createMediaStreamDestination();
 
-  mix.connect(bass);
-  bass.connect(presence);
-  presence.connect(smooth);
-  smooth.connect(comp);
-  comp.connect(destination);
+  let nextPlayTime = 0;
+  let stopped = false;
+  const queue: Blob[] = [];
+  let processing = false;
 
-  return { track: destination.stream.getAudioTracks()[0], ctx };
+  async function processQueue() {
+    if (processing || stopped) return;
+    processing = true;
+    while (queue.length > 0 && !stopped) {
+      const chunk = queue.shift()!;
+      try {
+        const form = new FormData();
+        form.append("audio", chunk, "chunk.webm");
+        const res = await fetch(`/api/admin-call/${encodeURIComponent(channelName)}/voice-convert`, {
+          method: "POST",
+          body: form,
+        });
+        if (!res.ok || stopped) continue;
+        const arrayBuf = await res.arrayBuffer();
+        const audioBuf = await ctx.decodeAudioData(arrayBuf);
+        if (stopped) continue;
+        const src = ctx.createBufferSource();
+        src.buffer = audioBuf;
+        src.connect(destination);
+        const startAt = Math.max(ctx.currentTime + 0.05, nextPlayTime);
+        src.start(startAt);
+        nextPlayTime = startAt + audioBuf.duration;
+      } catch {
+        // segment perdu : on continue avec le suivant (jamais de repli sur la voix brute)
+      }
+    }
+    processing = false;
+  }
+
+  const mimeType = pickRecorderMimeType();
+  const recorder = new MediaRecorder(rawStream, mimeType ? { mimeType } : undefined);
+  recorder.ondataavailable = (e) => {
+    if (e.data && e.data.size > 0 && !stopped) {
+      queue.push(e.data);
+      processQueue();
+    }
+  };
+  recorder.start(VOICE_CHUNK_MS);
+
+  return {
+    outputTrack: destination.stream.getAudioTracks()[0],
+    ctx,
+    recorder,
+    stop: () => {
+      stopped = true;
+      queue.length = 0;
+      try { recorder.stop(); } catch {}
+    },
+    pause: () => { try { if (recorder.state === "recording") recorder.pause(); } catch {} },
+    resume: () => { try { if (recorder.state === "paused") recorder.resume(); } catch {} },
+  };
 }
 
 // Rend les URLs cliquables dans un message de chat
@@ -159,8 +132,8 @@ export default function AdminCall() {
   const hasJoined = useRef(false);
   const clientRef = useRef<IAgoraRTCClient | null>(null);
   const rawStreamRef      = useRef<MediaStream | null>(null);
-  const robotTrackRef     = useRef<ILocalAudioTrack | null>(null);
-  const robotCtxRef       = useRef<AudioContext | null>(null);
+  const voiceTrackRef     = useRef<ILocalAudioTrack | null>(null);
+  const voicePipelineRef  = useRef<VoicePipeline | null>(null);
   const timerRef  = useRef<any>(null);
   const chatPollRef = useRef<any>(null);
   const chatEndRef  = useRef<HTMLDivElement>(null);
@@ -255,14 +228,15 @@ export default function AdminCall() {
       const rawStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       rawStreamRef.current = rawStream;
 
-      // La voix de l'administrateur est TOUJOURS transformée en voix robot avant
-      // d'être publiée : le client n'entend jamais la vraie voix de l'administrateur.
-      const { track: robotMediaTrack, ctx } = buildRobotAudioTrack(rawStream);
-      robotCtxRef.current = ctx;
-      const robotTrack = AgoraRTC.createCustomAudioTrack({ mediaStreamTrack: robotMediaTrack });
-      robotTrackRef.current = robotTrack;
+      // La voix de l'administrateur est TOUJOURS convertie via ElevenLabs avant
+      // d'être publiée : le client n'entend jamais la vraie voix de l'administrateur,
+      // ni un mélange voix réelle + effet — uniquement la voix IA reconstruite.
+      const pipeline = startVoiceConversionPipeline(rawStream, channelName);
+      voicePipelineRef.current = pipeline;
+      const voiceTrack = AgoraRTC.createCustomAudioTrack({ mediaStreamTrack: pipeline.outputTrack });
+      voiceTrackRef.current = voiceTrack;
 
-      await client.publish([robotTrack]);
+      await client.publish([voiceTrack]);
       setState("waiting");
     } catch (e: any) {
       setError(e?.message || "Impossible de rejoindre l'appel.");
@@ -272,10 +246,11 @@ export default function AdminCall() {
 
   async function leave() {
     clearInterval(timerRef.current);
-    try { robotTrackRef.current?.close(); } catch {}
-    robotTrackRef.current = null;
-    try { robotCtxRef.current?.close(); } catch {}
-    robotCtxRef.current = null;
+    try { voiceTrackRef.current?.close(); } catch {}
+    voiceTrackRef.current = null;
+    try { voicePipelineRef.current?.stop(); } catch {}
+    try { voicePipelineRef.current?.ctx.close(); } catch {}
+    voicePipelineRef.current = null;
     rawStreamRef.current?.getTracks().forEach(t => t.stop());
     rawStreamRef.current = null;
     if (clientRef.current && hasJoined.current) {
@@ -294,8 +269,12 @@ export default function AdminCall() {
   async function toggleMute() {
     const rawTrack = rawStreamRef.current?.getAudioTracks()[0];
     if (!rawTrack) return;
-    rawTrack.enabled = isMuted; // isMuted actuel -> on inverse
-    setIsMuted(m => !m);
+    const willMute = !isMuted;
+    rawTrack.enabled = !willMute;
+    // Coupe aussi la capture/conversion : aucun segment n'est envoyé pendant le mute.
+    if (willMute) voicePipelineRef.current?.pause();
+    else voicePipelineRef.current?.resume();
+    setIsMuted(willMute);
   }
 
   function fmt(s: number) {
@@ -407,13 +386,13 @@ export default function AdminCall() {
           </div>
         )}
 
-        {/* Badge voix robot (toujours active pendant l'appel) */}
+        {/* Badge voix IA (toujours active pendant l'appel) */}
         {(isWaiting || isActive) && (
           <div
             className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium"
             style={{ background: "rgba(139,92,246,0.14)", border: "1px solid rgba(139,92,246,0.3)", color: "#c4b5fd" }}
           >
-            <Bot className="w-3 h-3" /> Voix robot activée
+            <Bot className="w-3 h-3" /> Voix IA activée
           </div>
         )}
       </div>

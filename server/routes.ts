@@ -8409,6 +8409,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Conversion vocale temps réel (ElevenLabs Speech-to-Speech) ──────────
+  // Remplace intégralement la voix brute de l'administrateur par une voix IA
+  // (jamais de mélange voix réelle + effet : la sortie ElevenLabs est publiée
+  // seule sur le canal Agora). Le client envoie de courts segments audio
+  // (~1.2s), le serveur les transmet à ElevenLabs et renvoie l'audio converti.
+  const ELEVENLABS_VOICE_ID = "IKne3meq5aSn9XLyUdCD"; // Charlie — jeune, grave, confiant
+  const voiceChunkUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 8 * 1024 * 1024 },
+  });
+  app.post('/api/admin-call/:channelName/voice-convert', voiceChunkUpload.single('audio'), async (req, res) => {
+    try {
+      const { channelName } = req.params;
+      if (!(await roomExists(channelName))) return res.status(404).json({ message: 'Appel introuvable' });
+      if (!req.file) return res.status(400).json({ message: 'Audio manquant' });
+      const apiKey = process.env.ELEVENLABS_API_KEY;
+      if (!apiKey) return res.status(503).json({ message: 'Conversion vocale non configurée' });
+
+      const form = new FormData();
+      form.append('audio', new Blob([req.file.buffer], { type: req.file.mimetype || 'audio/webm' }), 'chunk.webm');
+      form.append('model_id', 'eleven_multilingual_sts_v2');
+      form.append('output_format', 'mp3_44100_128');
+      form.append('remove_background_noise', 'true');
+
+      const elResp = await fetch(`https://api.elevenlabs.io/v1/speech-to-speech/${ELEVENLABS_VOICE_ID}`, {
+        method: 'POST',
+        headers: { 'xi-api-key': apiKey },
+        body: form as any,
+      });
+
+      if (!elResp.ok) {
+        const errText = await elResp.text().catch(() => '');
+        console.error('[VOICE-CONVERT] ElevenLabs error:', elResp.status, errText.slice(0, 500));
+        return res.status(502).json({ message: 'Erreur conversion vocale' });
+      }
+
+      const audioBuffer = Buffer.from(await elResp.arrayBuffer());
+      res.setHeader('Content-Type', 'audio/mpeg');
+      res.send(audioBuffer);
+    } catch (err) {
+      console.error('[VOICE-CONVERT] error:', err);
+      res.status(500).json({ message: 'Erreur conversion vocale' });
+    }
+  });
+
   // Terminer un appel côté administrateur (raccrocher côté admin doit aussi
   // couper l'appel côté utilisateur — Agora déclenche déjà "user-left" pour
   // le pair distant ; ceci marque en plus l'appel comme terminé en base).
