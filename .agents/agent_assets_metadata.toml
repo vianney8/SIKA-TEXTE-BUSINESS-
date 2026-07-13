@@ -1,0 +1,26 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "4waqn_PP6e6Caoabnpvuu"
+uri = "file://attached_assets/voice_samples/brian.mp3"
+type = "audio"
+title = "Voix candidate : Brian (grave, apaisant, réconfortant)"
+
+[[outputs]]
+id = "3WFjUl8tBysNeVTLbjbqU"
+uri = "file://attached_assets/voice_samples/adam.mp3"
+type = "audio"
+title = "Voix candidate : Adam (dominant, ferme, autoritaire)"
+
+[[outputs]]
+id = "SK437N5rjHWBwh92ESR8b"
+uri = "file://attached_assets/voice_samples/eric.mp3"
+type = "audio"
+title = "Voix candidate : Eric (posé, digne de confiance)"
+
+[[outputs]]
+id = "vvtQ30tvX74RZxcZ4Dqz3"
+uri = "file://attached_assets/voice_samples/charlie.mp3"
+type = "audio"
+title = "Voix candidate : Charlie (jeune, grave, confiant, énergique)"
