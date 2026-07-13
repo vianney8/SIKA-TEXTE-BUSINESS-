@@ -8314,12 +8314,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.session?.userId;
       if (!userId) return res.status(401).json({ message: 'Non authentifié' });
       const rows = await db.execute(sql`
-        SELECT room_name, status FROM calls
+        SELECT room_name, status, user_mic_muted FROM calls
         WHERE user_id = ${userId} AND status IN ('pending', 'active')
         ORDER BY created_at DESC LIMIT 1
       `);
       const row: any = (rows as any).rows?.[0] ?? (rows as any)[0] ?? null;
-      res.json({ call: row || null });
+      res.json({ call: row || null, userMicMuted: !!row?.user_mic_muted });
     } catch (err) {
       res.status(500).json({ message: 'Erreur' });
     }
@@ -8350,13 +8350,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.session?.userId;
       if (!userId) return res.status(401).json({ message: 'Non authentifié' });
       const roomName = await getActiveRoomForUser(userId);
-      if (!roomName) return res.json({ messages: [] });
+      if (!roomName) return res.json({ messages: [], userMicMuted: false });
       const rows = await db.execute(sql`
         SELECT id, sender, text, created_at FROM call_messages
         WHERE room_name = ${roomName} ORDER BY created_at ASC LIMIT 200
       `);
       const list = (rows as any).rows ?? (rows as any) ?? [];
-      res.json({ messages: list });
+      const muteRows = await db.execute(sql`SELECT user_mic_muted FROM calls WHERE room_name = ${roomName} LIMIT 1`);
+      const muteRow: any = (muteRows as any).rows?.[0] ?? (muteRows as any)[0] ?? null;
+      res.json({ messages: list, userMicMuted: !!muteRow?.user_mic_muted });
     } catch (err) {
       res.status(500).json({ message: 'Erreur' });
     }
@@ -8388,7 +8390,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         WHERE room_name = ${channelName} ORDER BY created_at ASC LIMIT 200
       `);
       const list = (rows as any).rows ?? (rows as any) ?? [];
-      res.json({ messages: list });
+      const muteRows = await db.execute(sql`SELECT user_mic_muted FROM calls WHERE room_name = ${channelName} LIMIT 1`);
+      const muteRow: any = (muteRows as any).rows?.[0] ?? (muteRows as any)[0] ?? null;
+      res.json({ messages: list, userMicMuted: !!muteRow?.user_mic_muted });
+    } catch (err) {
+      res.status(500).json({ message: 'Erreur' });
+    }
+  });
+
+  // L'administrateur désactive/réactive à distance le micro de l'utilisateur.
+  // L'utilisateur ne peut jamais le réactiver lui-même : seul l'admin le peut.
+  app.post('/api/admin-call/:channelName/mute-user', async (req, res) => {
+    try {
+      const { channelName } = req.params;
+      const muted = !!req.body?.muted;
+      if (!(await roomExists(channelName))) return res.status(404).json({ message: 'Appel introuvable' });
+      await db.execute(sql`
+        UPDATE calls SET user_mic_muted = ${muted}
+        WHERE room_name = ${channelName} AND status IN ('pending', 'active')
+      `);
+      res.json({ success: true, muted });
     } catch (err) {
       res.status(500).json({ message: 'Erreur' });
     }

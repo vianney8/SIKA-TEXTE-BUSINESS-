@@ -281,6 +281,14 @@ app.use((req, res, next) => {
     log('calls table skipped: ' + (err as Error).message);
   }
 
+  // Micro utilisateur contrôlé par l'administrateur (désactivé/réactivé à distance)
+  try {
+    await db.execute(sql`ALTER TABLE calls ADD COLUMN IF NOT EXISTS user_mic_muted boolean DEFAULT false`);
+    log('calls.user_mic_muted column ready');
+  } catch (err) {
+    log('calls.user_mic_muted column skipped: ' + (err as Error).message);
+  }
+
   // Create call_messages table (chat + liens échangés pendant un appel)
   try {
     await db.execute(sql`

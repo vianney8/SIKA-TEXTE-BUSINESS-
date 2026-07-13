@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useRoute } from "wouter";
-import { Mic, MicOff, PhoneOff, Loader2, Bot, Send, Link2 } from "lucide-react";
+import { Mic, MicOff, PhoneOff, Loader2, Bot, Send, Link2, UserX, UserCheck } from "lucide-react";
 import AgoraRTC, { IAgoraRTCClient, ILocalAudioTrack } from "agora-rtc-sdk-ng";
 
 type AdminCallState = "connecting" | "waiting" | "active" | "ended" | "error";
@@ -121,7 +121,10 @@ export default function AdminCall() {
   const appId       = new URLSearchParams(window.location.search).get("appId") || "";
 
   const [state, setState]       = useState<AdminCallState>("connecting");
-  const [isMuted, setIsMuted]   = useState(false);
+  // Le micro de l'administrateur démarre TOUJOURS désactivé : c'est lui qui l'active.
+  const [isMuted, setIsMuted]   = useState(true);
+  // État (côté admin) du micro distant de l'utilisateur — l'admin seul peut le changer.
+  const [userMicMuted, setUserMicMuted] = useState(false);
   const [elapsed, setElapsed]   = useState(0);
   const [error, setError]       = useState("");
   const [chatOpen, setChatOpen] = useState(false);
@@ -187,7 +190,21 @@ export default function AdminCall() {
         }
         return list;
       });
+      setUserMicMuted(!!data.userMicMuted);
     } catch { /* silencieux : simple polling */ }
+  }
+
+  // Seul l'administrateur peut désactiver/réactiver le micro de l'utilisateur.
+  async function toggleUserMic() {
+    const next = !userMicMuted;
+    setUserMicMuted(next); // optimiste, confirmé ensuite par le polling
+    try {
+      await fetch(`/api/admin-call/${encodeURIComponent(channelName)}/mute-user`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ muted: next }),
+      });
+    } catch { /* ignore, le polling resynchronisera */ }
   }
 
   async function sendChatMessage() {
@@ -224,14 +241,22 @@ export default function AdminCall() {
       await client.join(appId, channelName, token, 2);
       hasJoined.current = true;
 
-      // Micro brut (jamais de vidéo : uniquement le flux audio)
-      const rawStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      // Micro brut (jamais de vidéo : uniquement le flux audio), avec réduction
+      // de bruit / écho / gain automatique côté navigateur.
+      const rawStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        video: false,
+      });
       rawStreamRef.current = rawStream;
+
+      // Le micro démarre désactivé : l'administrateur doit l'activer lui-même.
+      rawStream.getAudioTracks().forEach(t => { t.enabled = false; });
 
       // La voix de l'administrateur est TOUJOURS convertie via ElevenLabs avant
       // d'être publiée : le client n'entend jamais la vraie voix de l'administrateur,
       // ni un mélange voix réelle + effet — uniquement la voix IA reconstruite.
       const pipeline = startVoiceConversionPipeline(rawStream, channelName);
+      pipeline.pause(); // aucune capture tant que l'admin n'a pas activé son micro
       voicePipelineRef.current = pipeline;
       const voiceTrack = AgoraRTC.createCustomAudioTrack({ mediaStreamTrack: pipeline.outputTrack });
       voiceTrackRef.current = voiceTrack;
@@ -415,6 +440,23 @@ export default function AdminCall() {
                   : <Mic className="w-6 h-6 text-white" />}
               </button>
               <span className="text-slate-600 text-[11px]">{isMuted ? "Activer" : "Couper"}</span>
+            </div>
+
+            <div className="flex flex-col items-center gap-2">
+              <button
+                onClick={toggleUserMic}
+                title="Activer/désactiver le micro du client"
+                className="w-16 h-16 rounded-full flex items-center justify-center transition-all active:scale-90"
+                style={{
+                  background: userMicMuted ? "rgba(245,158,11,0.18)" : "rgba(255,255,255,0.07)",
+                  border: `1px solid ${userMicMuted ? "rgba(245,158,11,0.35)" : "rgba(255,255,255,0.1)"}`,
+                }}
+              >
+                {userMicMuted
+                  ? <UserX className="w-6 h-6 text-amber-400" />
+                  : <UserCheck className="w-6 h-6 text-white" />}
+              </button>
+              <span className="text-slate-600 text-[11px]">{userMicMuted ? "Micro client OFF" : "Micro client ON"}</span>
             </div>
 
             <div className="flex flex-col items-center gap-2 relative">

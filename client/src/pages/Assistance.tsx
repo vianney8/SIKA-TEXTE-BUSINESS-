@@ -154,6 +154,9 @@ export default function Assistance() {
   const [elapsed, setElapsed]           = useState(0);
   const [countdown, setCountdown]       = useState(900);
   const [callErrorMsg, setCallErrorMsg] = useState<string | null>(null);
+  // Micro désactivé à distance par l'administrateur (l'utilisateur ne peut pas le réactiver lui-même)
+  const [forceMuted, setForceMuted]     = useState(false);
+  const prevForceMutedRef = useRef(false);
   const agoraClientRef = useRef<IAgoraRTCClient | null>(null);
   const micTrackRef    = useRef<IMicrophoneAudioTrack | null>(null);
   const dialToneRef    = useRef<DialTone | null>(null);
@@ -260,7 +263,8 @@ export default function Assistance() {
       });
 
       await client.join(appId, channelName, token, 1);
-      const mic = await AgoraRTC.createMicrophoneAudioTrack();
+      // Réduction de bruit / écho / gain automatique côté utilisateur
+      const mic = await AgoraRTC.createMicrophoneAudioTrack({ AEC: true, AGC: true, ANS: true });
       micTrackRef.current = mic;
       await client.publish([mic]);
 
@@ -305,9 +309,25 @@ export default function Assistance() {
 
   async function toggleMute() {
     if (!micTrackRef.current) return;
+    if (forceMuted) return; // seul l'administrateur peut réactiver le micro dans ce cas
     await micTrackRef.current.setMuted(!isMuted);
     setIsMuted(m => !m);
   }
+
+  // Applique l'état "micro désactivé par l'administrateur" dès qu'il change,
+  // y compris la réactivation automatique quand l'admin le réactive lui-même.
+  useEffect(() => {
+    if (prevForceMutedRef.current === forceMuted) return;
+    prevForceMutedRef.current = forceMuted;
+    if (!micTrackRef.current) return;
+    if (forceMuted) {
+      micTrackRef.current.setMuted(true);
+      setIsMuted(true);
+    } else {
+      micTrackRef.current.setMuted(false);
+      setIsMuted(false);
+    }
+  }, [forceMuted]);
 
   // ── CHAT PENDANT L'APPEL ─────────────────────────────────────────────────
   useEffect(() => {
@@ -319,6 +339,8 @@ export default function Assistance() {
       setCallMessages([]);
       setChatOpen(false);
       setUnread(0);
+      setForceMuted(false);
+      prevForceMutedRef.current = false;
     }
     return () => clearInterval(chatPollRef.current);
   }, [callState]);
@@ -342,6 +364,7 @@ export default function Assistance() {
         }
         return list;
       });
+      setForceMuted(!!data.userMicMuted);
     } catch { /* silencieux : simple polling */ }
   }
 
@@ -616,10 +639,16 @@ export default function Assistance() {
             </div>
 
             {/* Badge muet */}
-            {isMuted && callState === "active" && (
+            {isMuted && callState === "active" && !forceMuted && (
               <div className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium"
                 style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.22)", color: "#f87171" }}>
                 <MicOff className="w-3 h-3" /> Micro désactivé
+              </div>
+            )}
+            {forceMuted && (callState === "active" || callState === "ringing") && (
+              <div className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium"
+                style={{ background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.25)", color: "#fbbf24" }}>
+                <MicOff className="w-3 h-3" /> Micro désactivé par l'administrateur
               </div>
             )}
           </div>
@@ -629,15 +658,17 @@ export default function Assistance() {
             {(callState === "ringing" || callState === "active") && (
               <>
                 <div className="flex flex-col items-center gap-2">
-                  <button onClick={toggleMute} data-testid="button-toggle-mute"
-                    className="w-16 h-16 rounded-full flex items-center justify-center transition-all active:scale-90"
+                  <button onClick={toggleMute} disabled={forceMuted} data-testid="button-toggle-mute"
+                    className="w-16 h-16 rounded-full flex items-center justify-center transition-all active:scale-90 disabled:opacity-50 disabled:active:scale-100"
                     style={{
                       background: isMuted ? "rgba(239,68,68,0.18)" : "rgba(255,255,255,0.07)",
                       border: `1px solid ${isMuted ? "rgba(239,68,68,0.35)" : "rgba(255,255,255,0.1)"}`,
                     }}>
                     {isMuted ? <MicOff className="w-6 h-6 text-red-400" /> : <Mic className="w-6 h-6 text-white" />}
                   </button>
-                  <span className="text-slate-600 text-[11px]">{isMuted ? "Activer" : "Couper"}</span>
+                  <span className="text-slate-600 text-[11px]">
+                    {forceMuted ? "Verrouillé" : isMuted ? "Activer" : "Couper"}
+                  </span>
                 </div>
 
                 <div className="flex flex-col items-center gap-2 relative">
