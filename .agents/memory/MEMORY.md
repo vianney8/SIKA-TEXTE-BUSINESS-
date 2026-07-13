@@ -1,1 +1,2 @@
 - [ElevenLabs voice conversion](elevenlabs-voice-conversion.md) — why DSP filters can't replace voice identity, ElevenLabs API key scopes, and the chunked STS pipeline pattern/latency used for admin call voice.
+- [MediaRecorder chunked streaming](mediarecorder-chunked-streaming.md) — timeslice chunks after the first are corrupt/undecodable; restart-per-chunk if posting each as a standalone file to an API.

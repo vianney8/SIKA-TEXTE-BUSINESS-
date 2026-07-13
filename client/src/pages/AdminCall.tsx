@@ -23,7 +23,6 @@ const VOICE_CHUNK_MS = 1200;
 interface VoicePipeline {
   outputTrack: MediaStreamTrack;
   ctx: AudioContext;
-  recorder: MediaRecorder;
   stop: () => void;
   pause: () => void;
   resume: () => void;
@@ -37,28 +36,45 @@ function pickRecorderMimeType(): string {
   return "";
 }
 
+// IMPORTANT : un MediaRecorder démarré avec un timeslice (`recorder.start(ms)`)
+// ne produit qu'UN SEUL fichier conteneur valide (le tout premier blob) ; tous
+// les blobs suivants ne sont que des fragments bruts sans en-tête WebM, donc
+// illisibles individuellement (ElevenLabs renvoyait "File is corrupted" pour
+// quasiment chaque segment). La solution : redémarrer un MediaRecorder à
+// chaque cycle (start → stop après ~1.2s → nouveau start), ce qui garantit
+// que CHAQUE blob envoyé est un fichier autonome et valide.
 function startVoiceConversionPipeline(rawStream: MediaStream, channelName: string): VoicePipeline {
   const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+  ctx.resume().catch(() => {}); // évite un AudioContext suspendu (politique autoplay) sans geste utilisateur
   const destination = ctx.createMediaStreamDestination();
 
-  let nextPlayTime = 0;
+  const mimeType = pickRecorderMimeType();
   let stopped = false;
-  const queue: Blob[] = [];
-  let processing = false;
+  let paused = false;
+  let activeRecorder: MediaRecorder | null = null;
+  let cycleTimer: ReturnType<typeof setTimeout> | null = null;
 
-  async function processQueue() {
-    if (processing || stopped) return;
-    processing = true;
-    while (queue.length > 0 && !stopped) {
-      const chunk = queue.shift()!;
+  let nextPlayTime = 0;
+  const sendQueue: Blob[] = [];
+  let sending = false;
+
+  async function drainQueue() {
+    if (sending || stopped) return;
+    sending = true;
+    while (sendQueue.length > 0 && !stopped) {
+      const blob = sendQueue.shift()!;
       try {
         const form = new FormData();
-        form.append("audio", chunk, "chunk.webm");
+        form.append("audio", blob, `chunk.${mimeType.includes("ogg") ? "ogg" : "webm"}`);
         const res = await fetch(`/api/admin-call/${encodeURIComponent(channelName)}/voice-convert`, {
           method: "POST",
           body: form,
         });
-        if (!res.ok || stopped) continue;
+        if (!res.ok) {
+          console.warn("[voix IA] segment rejeté par le serveur, ignoré :", res.status);
+          continue;
+        }
+        if (stopped) continue;
         const arrayBuf = await res.arrayBuffer();
         const audioBuf = await ctx.decodeAudioData(arrayBuf);
         if (stopped) continue;
@@ -68,34 +84,65 @@ function startVoiceConversionPipeline(rawStream: MediaStream, channelName: strin
         const startAt = Math.max(ctx.currentTime + 0.05, nextPlayTime);
         src.start(startAt);
         nextPlayTime = startAt + audioBuf.duration;
-      } catch {
+      } catch (err) {
         // segment perdu : on continue avec le suivant (jamais de repli sur la voix brute)
+        console.warn("[voix IA] segment perdu :", err);
       }
     }
-    processing = false;
+    sending = false;
   }
 
-  const mimeType = pickRecorderMimeType();
-  const recorder = new MediaRecorder(rawStream, mimeType ? { mimeType } : undefined);
-  recorder.ondataavailable = (e) => {
-    if (e.data && e.data.size > 0 && !stopped) {
-      queue.push(e.data);
-      processQueue();
+  function recordOneCycle() {
+    if (stopped || paused) return;
+    const chunks: Blob[] = [];
+    let rec: MediaRecorder;
+    try {
+      rec = new MediaRecorder(rawStream, mimeType ? { mimeType } : undefined);
+    } catch {
+      return; // navigateur incapable de créer le recorder : on abandonne ce cycle
     }
-  };
-  recorder.start(VOICE_CHUNK_MS);
+    activeRecorder = rec;
+    rec.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) chunks.push(e.data);
+    };
+    rec.onstop = () => {
+      if (chunks.length > 0 && !stopped) {
+        sendQueue.push(new Blob(chunks, { type: mimeType || "audio/webm" }));
+        drainQueue();
+      }
+      if (!stopped && !paused) cycleTimer = setTimeout(recordOneCycle, 0);
+    };
+    try {
+      rec.start();
+    } catch {
+      return;
+    }
+    cycleTimer = setTimeout(() => {
+      try { if (rec.state === "recording") rec.stop(); } catch {}
+    }, VOICE_CHUNK_MS);
+  }
+
+  recordOneCycle();
 
   return {
     outputTrack: destination.stream.getAudioTracks()[0],
     ctx,
-    recorder,
     stop: () => {
       stopped = true;
-      queue.length = 0;
-      try { recorder.stop(); } catch {}
+      if (cycleTimer) clearTimeout(cycleTimer);
+      sendQueue.length = 0;
+      try { activeRecorder?.stop(); } catch {}
     },
-    pause: () => { try { if (recorder.state === "recording") recorder.pause(); } catch {} },
-    resume: () => { try { if (recorder.state === "paused") recorder.resume(); } catch {} },
+    pause: () => {
+      paused = true;
+      if (cycleTimer) clearTimeout(cycleTimer);
+      try { if (activeRecorder?.state === "recording") activeRecorder.stop(); } catch {}
+    },
+    resume: () => {
+      if (!paused) return;
+      paused = false;
+      recordOneCycle();
+    },
   };
 }
 

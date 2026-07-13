@@ -8448,8 +8448,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const apiKey = process.env.ELEVENLABS_API_KEY;
       if (!apiKey) return res.status(503).json({ message: 'Conversion vocale non configurée' });
 
+      const ext = (req.file.mimetype || '').includes('ogg') ? 'ogg' : 'webm';
       const form = new FormData();
-      form.append('audio', new Blob([req.file.buffer], { type: req.file.mimetype || 'audio/webm' }), 'chunk.webm');
+      form.append('audio', new Blob([req.file.buffer], { type: req.file.mimetype || 'audio/webm' }), `chunk.${ext}`);
       form.append('model_id', 'eleven_multilingual_sts_v2');
       form.append('output_format', 'mp3_44100_128');
       form.append('remove_background_noise', 'true');
