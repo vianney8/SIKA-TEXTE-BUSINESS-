@@ -28,6 +28,23 @@ interface VoicePipeline {
   resume: () => void;
 }
 
+// L'API ElevenLabs Speech-to-Speech répond en ~1.5-1.9s pour un segment de
+// 1.2s (mesuré en production) : plus lent que le débit d'enregistrement.
+// Envoyer les segments un par un et attendre chaque réponse avant d'envoyer
+// le suivant (file d'attente strictement séquentielle) fait grossir le
+// retard sans limite pendant tout l'appel — au bout de quelques dizaines de
+// secondes, la voix IA joue des paroles vieilles de plusieurs secondes,
+// donnant l'impression que l'administrateur "répète" ses phrases en différé
+// (effet haut-parleur/écho). Deux mesures corrigent ça :
+//   1. Plusieurs conversions en vol en parallèle (MAX_CONCURRENT) pour que
+//      le débit de traitement suive le débit d'enregistrement.
+//   2. Une limite sur le nombre de segments en attente : si le retard
+//      dépasse ce seuil malgré la parallélisation, les segments les plus
+//      anciens sont abandonnés plutôt que joués très en retard — on préfère
+//      perdre quelques mots que dérailler complètement du direct.
+const MAX_CONCURRENT_CONVERSIONS = 3;
+const MAX_PENDING_CHUNKS = 4;
+
 function pickRecorderMimeType(): string {
   const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"];
   for (const type of candidates) {
@@ -55,41 +72,84 @@ function startVoiceConversionPipeline(rawStream: MediaStream, channelName: strin
   let cycleTimer: ReturnType<typeof setTimeout> | null = null;
 
   let nextPlayTime = 0;
-  const sendQueue: Blob[] = [];
-  let sending = false;
 
-  async function drainQueue() {
-    if (sending || stopped) return;
-    sending = true;
-    while (sendQueue.length > 0 && !stopped) {
-      const blob = sendQueue.shift()!;
-      try {
-        const form = new FormData();
-        form.append("audio", blob, `chunk.${mimeType.includes("ogg") ? "ogg" : "webm"}`);
-        const res = await fetch(`/api/admin-call/${encodeURIComponent(channelName)}/voice-convert`, {
-          method: "POST",
-          body: form,
-        });
-        if (!res.ok) {
-          console.warn("[voix IA] segment rejeté par le serveur, ignoré :", res.status);
-          continue;
-        }
-        if (stopped) continue;
-        const arrayBuf = await res.arrayBuffer();
-        const audioBuf = await ctx.decodeAudioData(arrayBuf);
-        if (stopped) continue;
-        const src = ctx.createBufferSource();
-        src.buffer = audioBuf;
-        src.connect(destination);
-        const startAt = Math.max(ctx.currentTime + 0.05, nextPlayTime);
-        src.start(startAt);
-        nextPlayTime = startAt + audioBuf.duration;
-      } catch (err) {
-        // segment perdu : on continue avec le suivant (jamais de repli sur la voix brute)
-        console.warn("[voix IA] segment perdu :", err);
-      }
+  // File d'attente à concurrence bornée + rejeu strictement ordonné : chaque
+  // segment reçoit un numéro de séquence à l'enregistrement ; les conversions
+  // peuvent se terminer dans le désordre (requêtes en parallèle), mais la
+  // lecture attend toujours son tour (nextToPlay) pour rester dans l'ordre
+  // d'origine sans jamais avancer/rejouer un segment plus tôt que le précédent.
+  const pendingBlobs: { seq: number; blob: Blob }[] = [];
+  const readyResults = new Map<number, AudioBuffer | null>(); // null = segment perdu/abandonné
+  let nextSeq = 0;
+  let nextToPlay = 0;
+  let inFlight = 0;
+
+  function totalBacklog() {
+    return pendingBlobs.length + inFlight;
+  }
+
+  function enqueueChunk(blob: Blob) {
+    const seq = nextSeq++;
+    pendingBlobs.push({ seq, blob });
+    // Retard trop important malgré la parallélisation : on abandonne les
+    // segments les plus anciens en attente (pas encore envoyés) pour éviter
+    // que l'appel dérive de plus en plus du direct.
+    while (pendingBlobs.length > 0 && totalBacklog() > MAX_PENDING_CHUNKS) {
+      const dropped = pendingBlobs.shift()!;
+      readyResults.set(dropped.seq, null);
     }
-    sending = false;
+    pumpQueue();
+    playReadyInOrder();
+  }
+
+  function pumpQueue() {
+    while (!stopped && inFlight < MAX_CONCURRENT_CONVERSIONS && pendingBlobs.length > 0) {
+      const item = pendingBlobs.shift()!;
+      inFlight++;
+      sendChunk(item.seq, item.blob).finally(() => {
+        inFlight--;
+        pumpQueue();
+        playReadyInOrder();
+      });
+    }
+  }
+
+  async function sendChunk(seq: number, blob: Blob) {
+    try {
+      const form = new FormData();
+      form.append("audio", blob, `chunk.${mimeType.includes("ogg") ? "ogg" : "webm"}`);
+      const res = await fetch(`/api/admin-call/${encodeURIComponent(channelName)}/voice-convert`, {
+        method: "POST",
+        body: form,
+      });
+      if (!res.ok || stopped) {
+        if (!res.ok) console.warn("[voix IA] segment rejeté par le serveur, ignoré :", res.status);
+        readyResults.set(seq, null);
+        return;
+      }
+      const arrayBuf = await res.arrayBuffer();
+      const audioBuf = await ctx.decodeAudioData(arrayBuf);
+      readyResults.set(seq, stopped ? null : audioBuf);
+    } catch (err) {
+      // segment perdu : jamais de repli sur la voix brute, on marque juste comme abandonné
+      console.warn("[voix IA] segment perdu :", err);
+      readyResults.set(seq, null);
+    }
+  }
+
+  function playReadyInOrder() {
+    while (readyResults.has(nextToPlay)) {
+      const audioBuf = readyResults.get(nextToPlay)!;
+      readyResults.delete(nextToPlay);
+      nextToPlay++;
+      if (!audioBuf || stopped) continue;
+      const src = ctx.createBufferSource();
+      src.buffer = audioBuf;
+      src.connect(destination);
+      const startAt = Math.max(ctx.currentTime + 0.05, nextPlayTime);
+      src.start(startAt);
+      nextPlayTime = startAt + audioBuf.duration;
+    }
   }
 
   function recordOneCycle() {
@@ -107,8 +167,7 @@ function startVoiceConversionPipeline(rawStream: MediaStream, channelName: strin
     };
     rec.onstop = () => {
       if (chunks.length > 0 && !stopped) {
-        sendQueue.push(new Blob(chunks, { type: mimeType || "audio/webm" }));
-        drainQueue();
+        enqueueChunk(new Blob(chunks, { type: mimeType || "audio/webm" }));
       }
       if (!stopped && !paused) cycleTimer = setTimeout(recordOneCycle, 0);
     };
@@ -130,12 +189,18 @@ function startVoiceConversionPipeline(rawStream: MediaStream, channelName: strin
     stop: () => {
       stopped = true;
       if (cycleTimer) clearTimeout(cycleTimer);
-      sendQueue.length = 0;
+      pendingBlobs.length = 0;
+      readyResults.clear();
       try { activeRecorder?.stop(); } catch {}
     },
     pause: () => {
       paused = true;
       if (cycleTimer) clearTimeout(cycleTimer);
+      // Coupé (muet) : on vide le retard en attente pour ne pas jouer, une
+      // fois réactivé, des segments enregistrés juste avant la coupure.
+      pendingBlobs.length = 0;
+      readyResults.clear();
+      nextToPlay = nextSeq;
       try { if (activeRecorder?.state === "recording") activeRecorder.stop(); } catch {}
     },
     resume: () => {
