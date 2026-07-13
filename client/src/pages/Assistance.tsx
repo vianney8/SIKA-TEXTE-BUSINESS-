@@ -3,7 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppSetting } from "@/hooks/useAppSettings";
 import {
-  Send, Loader2, ChevronLeft, RotateCcw, Trash2, Phone, PhoneOff, Mic, MicOff,
+  Send, Loader2, ChevronLeft, RotateCcw, Trash2, Phone, PhoneOff, Mic, MicOff, Link2,
 } from "lucide-react";
 import { FaTelegram } from "react-icons/fa";
 import { Link } from "wouter";
@@ -117,6 +117,27 @@ class DialTone {
 
 type CallState = "idle" | "dialing" | "ringing" | "active" | "ended" | "timeout" | "busy" | "error";
 
+interface CallMsg {
+  id: string;
+  sender: "user" | "admin";
+  text: string;
+  created_at: string;
+}
+
+// Rend les URLs cliquables dans un message de chat
+function linkifyCallMsg(text: string) {
+  const parts = text.split(/(https?:\/\/[^\s]+)/g);
+  return parts.map((part, i) =>
+    /^https?:\/\//.test(part) ? (
+      <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="underline break-all text-blue-600">
+        {part}
+      </a>
+    ) : (
+      <span key={i}>{part}</span>
+    )
+  );
+}
+
 export default function Assistance() {
   const { isAuthenticated } = useAuth();
   const { data: telegramUrl } = useAppSetting("telegram_supervisor");
@@ -138,6 +159,14 @@ export default function Assistance() {
   const dialToneRef    = useRef<DialTone | null>(null);
   const timerRef       = useRef<any>(null);
   const cdRef          = useRef<any>(null);
+
+  // ── CHAT PENDANT L'APPEL (messages + liens) ─────────────────────────────
+  const [chatOpen, setChatOpen]     = useState(false);
+  const [callMessages, setCallMessages] = useState<CallMsg[]>([]);
+  const [chatInput, setChatInput]   = useState("");
+  const [unread, setUnread]         = useState(0);
+  const chatPollRef = useRef<any>(null);
+  const chatEndRef  = useRef<HTMLDivElement>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
@@ -222,6 +251,14 @@ export default function Assistance() {
         }
       });
 
+      // Si l'administrateur raccroche de son côté, Agora déclenche "user-left" :
+      // on termine l'appel côté utilisateur automatiquement, sans clic requis.
+      client.on("user-left", () => {
+        setCallState("ended");
+        cleanupAgora();
+        setTimeout(() => { setCallState("idle"); setIsMuted(false); }, 2500);
+      });
+
       await client.join(appId, channelName, token, 1);
       const mic = await AgoraRTC.createMicrophoneAudioTrack();
       micTrackRef.current = mic;
@@ -270,6 +307,57 @@ export default function Assistance() {
     if (!micTrackRef.current) return;
     await micTrackRef.current.setMuted(!isMuted);
     setIsMuted(m => !m);
+  }
+
+  // ── CHAT PENDANT L'APPEL ─────────────────────────────────────────────────
+  useEffect(() => {
+    if (callState === "ringing" || callState === "active") {
+      pollCallMessages();
+      chatPollRef.current = setInterval(pollCallMessages, 2000);
+    } else {
+      clearInterval(chatPollRef.current);
+      setCallMessages([]);
+      setChatOpen(false);
+      setUnread(0);
+    }
+    return () => clearInterval(chatPollRef.current);
+  }, [callState]);
+
+  useEffect(() => {
+    if (chatOpen) {
+      setUnread(0);
+      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [callMessages, chatOpen]);
+
+  async function pollCallMessages() {
+    try {
+      const res = await fetch("/api/calls/messages", { credentials: "include" });
+      if (!res.ok) return;
+      const data = await res.json();
+      const list: CallMsg[] = data.messages || [];
+      setCallMessages(prev => {
+        if (list.length > prev.length && !chatOpen) {
+          setUnread(u => u + (list.length - prev.length));
+        }
+        return list;
+      });
+    } catch { /* silencieux : simple polling */ }
+  }
+
+  async function sendCallMessage() {
+    const text = chatInput.trim();
+    if (!text) return;
+    setChatInput("");
+    try {
+      await fetch("/api/calls/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ text }),
+      });
+      pollCallMessages();
+    } catch { /* ignore */ }
   }
 
   function fmtTime(s: number) {
@@ -552,6 +640,23 @@ export default function Assistance() {
                   <span className="text-slate-600 text-[11px]">{isMuted ? "Activer" : "Couper"}</span>
                 </div>
 
+                <div className="flex flex-col items-center gap-2 relative">
+                  <button onClick={() => setChatOpen(v => !v)} data-testid="button-toggle-chat"
+                    className="w-16 h-16 rounded-full flex items-center justify-center transition-all active:scale-90"
+                    style={{
+                      background: chatOpen ? "rgba(59,130,246,0.22)" : "rgba(255,255,255,0.07)",
+                      border: `1px solid ${chatOpen ? "rgba(59,130,246,0.4)" : "rgba(255,255,255,0.1)"}`,
+                    }}>
+                    <Send className={`w-6 h-6 ${chatOpen ? "text-blue-300" : "text-white"}`} />
+                    {unread > 0 && !chatOpen && (
+                      <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                        {unread}
+                      </span>
+                    )}
+                  </button>
+                  <span className="text-slate-600 text-[11px]">Messages</span>
+                </div>
+
                 <div className="flex flex-col items-center gap-2">
                   <button onClick={hangUp} data-testid="button-hang-up"
                     className="w-20 h-20 rounded-full flex items-center justify-center transition-all active:scale-90"
@@ -574,6 +679,61 @@ export default function Assistance() {
               </button>
             )}
           </div>
+
+          {/* ── PANNEAU CHAT (messages + liens pendant l'appel) ─────────────── */}
+          {chatOpen && (callState === "ringing" || callState === "active") && (
+            <div
+              className="fixed inset-x-0 bottom-0 z-10 flex flex-col rounded-t-3xl overflow-hidden"
+              style={{ height: "58%", background: "#0b1420", boxShadow: "0 -12px 40px rgba(0,0,0,0.5)" }}
+            >
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/5 flex-shrink-0">
+                <p className="text-white font-bold text-sm flex items-center gap-2">
+                  <Link2 className="w-4 h-4 text-blue-300" /> Messages de l'appel
+                </p>
+                <button onClick={() => setChatOpen(false)} className="text-slate-400 text-xs font-semibold">
+                  Fermer
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5">
+                {callMessages.length === 0 && (
+                  <p className="text-slate-600 text-xs text-center mt-6">Aucun message pour l'instant.</p>
+                )}
+                {callMessages.map((m) => (
+                  <div key={m.id} className={`flex ${m.sender === "user" ? "justify-end" : "justify-start"}`}>
+                    <div
+                      className="max-w-[80%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed break-words"
+                      style={m.sender === "user"
+                        ? { background: "linear-gradient(135deg, #1a237e, #1565c0)", color: "#fff", borderRadius: "16px 16px 4px 16px" }
+                        : { background: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderRadius: "16px 16px 16px 4px" }}
+                    >
+                      {linkifyCallMsg(m.text)}
+                    </div>
+                  </div>
+                ))}
+                <div ref={chatEndRef} />
+              </div>
+
+              <div className="flex items-center gap-2 px-4 py-3 border-t border-white/5 flex-shrink-0">
+                <input
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") sendCallMessage(); }}
+                  placeholder="Écrire un message ou coller un lien…"
+                  className="flex-1 px-4 py-2.5 rounded-xl text-sm outline-none"
+                  style={{ background: "rgba(255,255,255,0.07)", color: "#fff" }}
+                />
+                <button
+                  onClick={sendCallMessage}
+                  disabled={!chatInput.trim()}
+                  className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 disabled:opacity-40"
+                  style={{ background: "linear-gradient(135deg, #1a237e, #1565c0)" }}
+                >
+                  <Send className="w-4 h-4 text-white" />
+                </button>
+              </div>
+            </div>
+          )}
 
           <style>{`
             @keyframes ring-out {

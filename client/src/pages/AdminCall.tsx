@@ -1,62 +1,119 @@
 import { useState, useEffect, useRef } from "react";
 import { useRoute } from "wouter";
-import { Mic, MicOff, PhoneOff, Loader2, Bot } from "lucide-react";
+import { Mic, MicOff, PhoneOff, Loader2, Bot, Send, Link2 } from "lucide-react";
 import AgoraRTC, { IAgoraRTCClient, ILocalAudioTrack } from "agora-rtc-sdk-ng";
 
 type AdminCallState = "connecting" | "waiting" | "active" | "ended" | "error";
 
-// ── Effet "voix robot aiguë et synthétique" (façon assistant vocal) ────────
-// Transforme le flux micro brut en une voix robotique haut perchée en temps
-// réel via Web Audio API, sans dépendance externe : modulation en anneau à
-// fréquence élevée (déplace le timbre vers l'aigu), léger "bitcrush" pour
-// un rendu numérique, puis filtrage passe-bande centré sur les aigus pour
-// accentuer le côté synthétique/assistant vocal.
+interface CallMsg {
+  id: string;
+  sender: "user" | "admin";
+  text: string;
+  created_at: string;
+}
+
+// ── Effet "voix robot IA" — masculine, jeune adulte, claire et puissante ───
+// Cahier des charges : voix robotique nette et intelligible, ton calme et
+// confiant, résonance électronique futuriste discrète, sans distorsion qui
+// nuise à la compréhension. On privilégie donc un mélange voix propre +
+// légère modulation en anneau à très basse fréquence (texture robotique
+// sans garbling) + un chorus subtil (résonance futuriste) + un renforcement
+// des graves (registre masculin) + compression (puissance et clarté).
 function buildRobotAudioTrack(rawStream: MediaStream): { track: MediaStreamTrack; ctx: AudioContext } {
   const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
   const source = ctx.createMediaStreamSource(rawStream);
 
-  // Porteuse de modulation en anneau à fréquence élevée : déplace le spectre
-  // vocal vers l'aigu et crée des harmoniques métalliques bien perceptibles.
+  // Voix "sèche" conservée en majorité pour garder une prononciation nette
+  const dryGain = ctx.createGain();
+  dryGain.gain.value = 0.62;
+
+  // Modulation en anneau à très basse fréquence : ajoute un grain robotique
+  // sans casser l'intelligibilité de la voix (contrairement à un carrier élevé)
   const carrier = ctx.createOscillator();
   carrier.type = "sine";
-  carrier.frequency.value = 320;
+  carrier.frequency.value = 32;
   carrier.start();
+  const ringDepth = ctx.createGain();
+  ringDepth.gain.value = 0;
+  carrier.connect(ringDepth.gain);
+  const ringOut = ctx.createGain();
+  ringOut.gain.value = 0.42;
+  source.connect(ringDepth);
+  ringDepth.connect(ringOut);
 
-  const ringGain = ctx.createGain();
-  ringGain.gain.value = 0;
-  carrier.connect(ringGain.gain);
+  // Résonance électronique futuriste : chorus léger via un délai modulé
+  const chorusDelay = ctx.createDelay();
+  chorusDelay.delayTime.value = 0.014;
+  const chorusLfo = ctx.createOscillator();
+  chorusLfo.type = "sine";
+  chorusLfo.frequency.value = 3.2;
+  const chorusLfoDepth = ctx.createGain();
+  chorusLfoDepth.gain.value = 0.0035;
+  chorusLfo.connect(chorusLfoDepth);
+  chorusLfoDepth.connect(chorusDelay.delayTime);
+  chorusLfo.start();
+  const chorusOut = ctx.createGain();
+  chorusOut.gain.value = 0.3;
+  source.connect(chorusDelay);
+  chorusDelay.connect(chorusOut);
 
-  // Distorsion numérique ("bitcrush" léger) pour un rendu synthétique
-  const shaper = ctx.createWaveShaper();
-  const curve = new Float32Array(1024);
-  for (let i = 0; i < 1024; i++) {
-    const x = (i * 2) / 1024 - 1;
-    curve[i] = ((3 + 22) * x * 20 * Math.PI / 180) / (Math.PI + 22 * Math.abs(x));
-  }
-  shaper.curve = curve;
-  shaper.oversample = "4x";
+  // Mixage des trois couches (voix nette + grain robotique + résonance)
+  const mix = ctx.createGain();
+  dryGain.connect(mix);
+  ringOut.connect(mix);
+  chorusOut.connect(mix);
+  source.connect(dryGain);
 
-  // Coupe les graves pour alléger la voix (effet "aigu")
-  const highpass = ctx.createBiquadFilter();
-  highpass.type = "highpass";
-  highpass.frequency.value = 400;
+  // Renforcement des graves : registre masculin, voix "puissante"
+  const bass = ctx.createBiquadFilter();
+  bass.type = "lowshelf";
+  bass.frequency.value = 190;
+  bass.gain.value = 5;
 
-  // Bande passante centrée sur les fréquences hautes de la voix, façon
-  // haut-parleur d'assistant vocal synthétique
-  const bandpass = ctx.createBiquadFilter();
-  bandpass.type = "bandpass";
-  bandpass.frequency.value = 2600;
-  bandpass.Q.value = 0.7;
+  // Légère bosse de présence pour garder la voix claire et nette
+  const presence = ctx.createBiquadFilter();
+  presence.type = "peaking";
+  presence.frequency.value = 2200;
+  presence.Q.value = 1;
+  presence.gain.value = 3;
+
+  // Coupe douce des aigus extrêmes : évite un son numérique agressif
+  const smooth = ctx.createBiquadFilter();
+  smooth.type = "lowpass";
+  smooth.frequency.value = 7000;
+
+  // Compression : voix ferme, calme et confiante, niveau constant
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -20;
+  comp.knee.value = 10;
+  comp.ratio.value = 4;
+  comp.attack.value = 0.004;
+  comp.release.value = 0.18;
 
   const destination = ctx.createMediaStreamDestination();
 
-  source.connect(ringGain);
-  ringGain.connect(shaper);
-  shaper.connect(highpass);
-  highpass.connect(bandpass);
-  bandpass.connect(destination);
+  mix.connect(bass);
+  bass.connect(presence);
+  presence.connect(smooth);
+  smooth.connect(comp);
+  comp.connect(destination);
 
   return { track: destination.stream.getAudioTracks()[0], ctx };
+}
+
+// Rend les URLs cliquables dans un message de chat
+function linkify(text: string) {
+  const parts = text.split(/(https?:\/\/[^\s]+)/g);
+  return parts.map((part, i) =>
+    /^https?:\/\//.test(part) ? (
+      <a key={i} href={part} target="_blank" rel="noopener noreferrer"
+        className="underline break-all" style={{ color: "#93c5fd" }}>
+        {part}
+      </a>
+    ) : (
+      <span key={i}>{part}</span>
+    )
+  );
 }
 
 export default function AdminCall() {
@@ -69,6 +126,10 @@ export default function AdminCall() {
   const [isMuted, setIsMuted]   = useState(false);
   const [elapsed, setElapsed]   = useState(0);
   const [error, setError]       = useState("");
+  const [chatOpen, setChatOpen] = useState(false);
+  const [messages, setMessages] = useState<CallMsg[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [unread, setUnread]     = useState(0);
 
   const hasJoined = useRef(false);
   const clientRef = useRef<IAgoraRTCClient | null>(null);
@@ -76,6 +137,8 @@ export default function AdminCall() {
   const robotTrackRef     = useRef<ILocalAudioTrack | null>(null);
   const robotCtxRef       = useRef<AudioContext | null>(null);
   const timerRef  = useRef<any>(null);
+  const chatPollRef = useRef<any>(null);
+  const chatEndRef  = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!channelName || !token || !appId) {
@@ -95,6 +158,53 @@ export default function AdminCall() {
     }
     return () => clearInterval(timerRef.current);
   }, [state]);
+
+  // ── CHAT (messages + liens) pendant l'appel ─────────────────────────────
+  useEffect(() => {
+    if ((state === "waiting" || state === "active") && channelName) {
+      pollMessages();
+      chatPollRef.current = setInterval(pollMessages, 2000);
+    } else {
+      clearInterval(chatPollRef.current);
+    }
+    return () => clearInterval(chatPollRef.current);
+  }, [state, channelName]);
+
+  useEffect(() => {
+    if (chatOpen) {
+      setUnread(0);
+      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, chatOpen]);
+
+  async function pollMessages() {
+    try {
+      const res = await fetch(`/api/admin-call/${encodeURIComponent(channelName)}/messages`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const list: CallMsg[] = data.messages || [];
+      setMessages(prev => {
+        if (list.length > prev.length && !chatOpen) {
+          setUnread(u => u + (list.length - prev.length));
+        }
+        return list;
+      });
+    } catch { /* silencieux : simple polling */ }
+  }
+
+  async function sendChatMessage() {
+    const text = chatInput.trim();
+    if (!text) return;
+    setChatInput("");
+    try {
+      await fetch(`/api/admin-call/${encodeURIComponent(channelName)}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      pollMessages();
+    } catch { /* ignore */ }
+  }
 
   async function connect() {
     try {
@@ -153,6 +263,7 @@ export default function AdminCall() {
   async function hangUp() {
     await leave();
     setState("ended");
+    fetch(`/api/admin-call/${encodeURIComponent(channelName)}/end`, { method: "POST" }).catch(() => {});
   }
 
   async function toggleMute() {
@@ -302,15 +413,23 @@ export default function AdminCall() {
               <span className="text-slate-600 text-[11px]">{isMuted ? "Activer" : "Couper"}</span>
             </div>
 
-            <div className="flex flex-col items-center gap-2">
+            <div className="flex flex-col items-center gap-2 relative">
               <button
-                disabled
-                className="w-16 h-16 rounded-full flex items-center justify-center cursor-default"
-                style={{ background: "rgba(139,92,246,0.22)", border: "1px solid rgba(139,92,246,0.4)" }}
+                onClick={() => setChatOpen(v => !v)}
+                className="w-16 h-16 rounded-full flex items-center justify-center transition-all active:scale-90"
+                style={{
+                  background: chatOpen ? "rgba(59,130,246,0.22)" : "rgba(255,255,255,0.07)",
+                  border: `1px solid ${chatOpen ? "rgba(59,130,246,0.4)" : "rgba(255,255,255,0.1)"}`,
+                }}
               >
-                <Bot className="w-6 h-6 text-violet-300" />
+                <Send className={`w-6 h-6 ${chatOpen ? "text-blue-300" : "text-white"}`} />
+                {unread > 0 && !chatOpen && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    {unread}
+                  </span>
+                )}
               </button>
-              <span className="text-slate-600 text-[11px]">Voix robot</span>
+              <span className="text-slate-600 text-[11px]">Messages</span>
             </div>
 
             <div className="flex flex-col items-center gap-2">
@@ -339,6 +458,61 @@ export default function AdminCall() {
           </button>
         )}
       </div>
+
+      {/* ── PANNEAU CHAT (messages + liens pendant l'appel) ─────────────── */}
+      {chatOpen && (isWaiting || isActive) && (
+        <div
+          className="fixed inset-x-0 bottom-0 z-10 flex flex-col rounded-t-3xl overflow-hidden"
+          style={{ height: "58%", background: "#0b1420", boxShadow: "0 -12px 40px rgba(0,0,0,0.5)" }}
+        >
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/5 flex-shrink-0">
+            <p className="text-white font-bold text-sm flex items-center gap-2">
+              <Link2 className="w-4 h-4 text-blue-300" /> Messages de l'appel
+            </p>
+            <button onClick={() => setChatOpen(false)} className="text-slate-400 text-xs font-semibold">
+              Fermer
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5">
+            {messages.length === 0 && (
+              <p className="text-slate-600 text-xs text-center mt-6">Aucun message pour l'instant.</p>
+            )}
+            {messages.map((m) => (
+              <div key={m.id} className={`flex ${m.sender === "admin" ? "justify-end" : "justify-start"}`}>
+                <div
+                  className="max-w-[80%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed break-words"
+                  style={m.sender === "admin"
+                    ? { background: "linear-gradient(135deg, #1a237e, #1565c0)", color: "#fff", borderRadius: "16px 16px 4px 16px" }
+                    : { background: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderRadius: "16px 16px 16px 4px" }}
+                >
+                  {linkify(m.text)}
+                </div>
+              </div>
+            ))}
+            <div ref={chatEndRef} />
+          </div>
+
+          <div className="flex items-center gap-2 px-4 py-3 border-t border-white/5 flex-shrink-0">
+            <input
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") sendChatMessage(); }}
+              placeholder="Écrire un message ou coller un lien…"
+              className="flex-1 px-4 py-2.5 rounded-xl text-sm outline-none"
+              style={{ background: "rgba(255,255,255,0.07)", color: "#fff" }}
+            />
+            <button
+              onClick={sendChatMessage}
+              disabled={!chatInput.trim()}
+              className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 disabled:opacity-40"
+              style={{ background: "linear-gradient(135deg, #1a237e, #1565c0)" }}
+            >
+              <Send className="w-4 h-4 text-white" />
+            </button>
+          </div>
+        </div>
+      )}
 
       <style>{`
         @keyframes ring-out {

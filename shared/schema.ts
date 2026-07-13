@@ -610,3 +610,14 @@ export const calls = pgTable("calls", {
   endedAt: timestamp("ended_at"),
 });
 export type Call = typeof calls.$inferSelect;
+
+// Table messages échangés pendant un appel (texte + liens)
+export const callMessages = pgTable("call_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  roomName: varchar("room_name").notNull(),
+  sender: varchar("sender").notNull(), // 'user' | 'admin'
+  text: varchar("text").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type CallMessage = typeof callMessages.$inferSelect;
+export type InsertCallMessage = typeof callMessages.$inferInsert;

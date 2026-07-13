@@ -8325,6 +8325,106 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── MESSAGES / LIENS ÉCHANGÉS PENDANT UN APPEL ────────────────────────────
+  // Côté utilisateur (authentifié) : on retrouve son appel en cours par session.
+  async function getActiveRoomForUser(userId: string): Promise<string | null> {
+    const rows = await db.execute(sql`
+      SELECT room_name FROM calls
+      WHERE user_id = ${userId} AND status IN ('pending', 'active')
+      ORDER BY created_at DESC LIMIT 1
+    `);
+    const row: any = (rows as any).rows?.[0] ?? (rows as any)[0] ?? null;
+    return row?.room_name ?? null;
+  }
+
+  // Côté admin (lien signé, pas de session) : on vérifie juste que le canal
+  // correspond bien à un appel existant (le lien lui-même est le secret).
+  async function roomExists(roomName: string): Promise<boolean> {
+    const rows = await db.execute(sql`SELECT 1 FROM calls WHERE room_name = ${roomName} LIMIT 1`);
+    const row: any = (rows as any).rows?.[0] ?? (rows as any)[0] ?? null;
+    return !!row;
+  }
+
+  app.get('/api/calls/messages', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) return res.status(401).json({ message: 'Non authentifié' });
+      const roomName = await getActiveRoomForUser(userId);
+      if (!roomName) return res.json({ messages: [] });
+      const rows = await db.execute(sql`
+        SELECT id, sender, text, created_at FROM call_messages
+        WHERE room_name = ${roomName} ORDER BY created_at ASC LIMIT 200
+      `);
+      const list = (rows as any).rows ?? (rows as any) ?? [];
+      res.json({ messages: list });
+    } catch (err) {
+      res.status(500).json({ message: 'Erreur' });
+    }
+  });
+
+  app.post('/api/calls/messages', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) return res.status(401).json({ message: 'Non authentifié' });
+      const text = (req.body?.text || '').toString().trim().slice(0, 2000);
+      if (!text) return res.status(400).json({ message: 'Message vide' });
+      const roomName = await getActiveRoomForUser(userId);
+      if (!roomName) return res.status(404).json({ message: 'Aucun appel en cours' });
+      await db.execute(sql`
+        INSERT INTO call_messages (room_name, sender, text) VALUES (${roomName}, 'user', ${text})
+      `);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ message: 'Erreur' });
+    }
+  });
+
+  app.get('/api/admin-call/:channelName/messages', async (req, res) => {
+    try {
+      const { channelName } = req.params;
+      if (!(await roomExists(channelName))) return res.status(404).json({ message: 'Appel introuvable' });
+      const rows = await db.execute(sql`
+        SELECT id, sender, text, created_at FROM call_messages
+        WHERE room_name = ${channelName} ORDER BY created_at ASC LIMIT 200
+      `);
+      const list = (rows as any).rows ?? (rows as any) ?? [];
+      res.json({ messages: list });
+    } catch (err) {
+      res.status(500).json({ message: 'Erreur' });
+    }
+  });
+
+  app.post('/api/admin-call/:channelName/messages', async (req, res) => {
+    try {
+      const { channelName } = req.params;
+      const text = (req.body?.text || '').toString().trim().slice(0, 2000);
+      if (!text) return res.status(400).json({ message: 'Message vide' });
+      if (!(await roomExists(channelName))) return res.status(404).json({ message: 'Appel introuvable' });
+      await db.execute(sql`
+        INSERT INTO call_messages (room_name, sender, text) VALUES (${channelName}, 'admin', ${text})
+      `);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ message: 'Erreur' });
+    }
+  });
+
+  // Terminer un appel côté administrateur (raccrocher côté admin doit aussi
+  // couper l'appel côté utilisateur — Agora déclenche déjà "user-left" pour
+  // le pair distant ; ceci marque en plus l'appel comme terminé en base).
+  app.post('/api/admin-call/:channelName/end', async (req, res) => {
+    try {
+      const { channelName } = req.params;
+      await db.execute(sql`
+        UPDATE calls SET status = 'ended', ended_at = now()
+        WHERE room_name = ${channelName} AND status IN ('pending', 'active')
+      `);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ message: 'Erreur' });
+    }
+  });
+
   // Initialiser les paramètres par défaut
   storage.initializeDefaultSettings().catch(console.error);
 

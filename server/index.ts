@@ -281,6 +281,22 @@ app.use((req, res, next) => {
     log('calls table skipped: ' + (err as Error).message);
   }
 
+  // Create call_messages table (chat + liens échangés pendant un appel)
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS call_messages (
+        id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        room_name varchar NOT NULL,
+        sender varchar NOT NULL,
+        text varchar NOT NULL,
+        created_at timestamp DEFAULT now()
+      )
+    `);
+    log('call_messages table ready');
+  } catch (err) {
+    log('call_messages table skipped: ' + (err as Error).message);
+  }
+
   // Add telegram_notify column to payment_links if missing
   try {
     await db.execute(sql`ALTER TABLE payment_links ADD COLUMN IF NOT EXISTS telegram_notify boolean NOT NULL DEFAULT true`);
