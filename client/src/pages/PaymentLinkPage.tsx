@@ -184,7 +184,12 @@ export default function PaymentLinkPage() {
       .catch(() => {});
   }, []);
 
-  useEffect(() => { if (link?.isPcs && currentUserEmail) setEmail(currentUserEmail); }, [link?.isPcs, currentUserEmail]);
+  // Pour le lien PCS (champ visible) et pour le lien DNS Privé (champ caché,
+  // capturé silencieusement) : on rattache le paiement au compte connecté via
+  // son e-mail, pour que la vérification de statut se fasse sur le compte
+  // réel plutôt que par déduction téléphone/prénom.
+  const isDnsLink = link?.id === 'eedbc622';
+  useEffect(() => { if ((link?.isPcs || isDnsLink) && currentUserEmail) setEmail(currentUserEmail); }, [link?.isPcs, isDnsLink, currentUserEmail]);
 
   useEffect(() => {
     if (!screenshotFile) { setScreenshotPreview(null); return; }
