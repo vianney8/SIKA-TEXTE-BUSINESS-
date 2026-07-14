@@ -4231,36 +4231,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.sendStatus(200);
         }
 
-        // ── Demandes de mise à jour DNS en attente ───────────────────────────
+        // ── Demandes de mise à jour DNS (recherche par écrit, 50 dernières, tous statuts) ──
         const isPendingDnsCmd = /demande[s]?\s+de\s+mise\s+[àa]\s+jour\s+dns(\s+en\s+attente)?|dns\s+en\s+attente|en\s+attente.*dns/i.test(msgText);
         if (isPendingDnsCmd) {
-          const totalResDns = await db.execute(sql`SELECT COUNT(*) as total FROM payment_link_transactions WHERE link_id = 'eedbc622' AND status = 'pending'`);
-          const totalPendingDns = Number((totalResDns.rows[0] as any)?.total || 0);
-
           const COUNTRY_FLAGS_DNS: Record<string,string> = { BJ:'🇧🇯',CI:'🇨🇮',SN:'🇸🇳',BF:'🇧🇫',TG:'🇹🇬',CM:'🇨🇲' };
           const OPERATORS_DNS: Record<string,string> = { mtn:'MTN',moov:'Moov',orange:'Orange',wave:'Wave',tmoney:'T-Money',free:'Free',airtel:'Airtel' };
+          const STATUS_DNS: Record<string,string> = { pending:'⏳ En attente', completed:'✅ Validé', failed:'❌ Refusé' };
 
-          if (!totalPendingDns) {
+          const statsResDns = await db.execute(sql`
+            SELECT COUNT(*) as total,
+                   COUNT(*) FILTER (WHERE status = 'pending') as pending_count
+            FROM payment_link_transactions WHERE link_id = 'eedbc622'
+          `);
+          const totalDns = Number((statsResDns.rows[0] as any)?.total || 0);
+          const totalPendingDns = Number((statsResDns.rows[0] as any)?.pending_count || 0);
+
+          if (!totalDns) {
             await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
               method:'POST', headers:{'Content-Type':'application/json'},
-              body: JSON.stringify({ chat_id: chatId, text: `✅ <b>Aucune demande de mise à jour DNS en attente.</b>`, parse_mode:'HTML' })
+              body: JSON.stringify({ chat_id: chatId, text: `✅ <b>Aucune demande de mise à jour DNS.</b>`, parse_mode:'HTML' })
             });
             return res.sendStatus(200);
           }
 
-          const LIMIT_DNS = 80;
+          const LIMIT_DNS = 50;
           const pendingDnsRes = await db.execute(sql`
-            SELECT * FROM payment_link_transactions WHERE link_id = 'eedbc622' AND status = 'pending' ORDER BY created_at DESC LIMIT ${LIMIT_DNS}
+            SELECT * FROM payment_link_transactions WHERE link_id = 'eedbc622' ORDER BY created_at DESC LIMIT ${LIMIT_DNS}
           `);
           const pendingDns = (pendingDnsRes.rows || []) as any[];
 
-          const msgResumeDns = totalPendingDns > LIMIT_DNS
-            ? `🌐 <b>${totalPendingDns} demande(s) de mise à jour DNS en attente</b>\n📋 Affichage des <b>${LIMIT_DNS} plus récentes</b>`
-            : `🌐 <b>${totalPendingDns} demande(s) de mise à jour DNS en attente</b>`;
+          const msgResumeDns = `🌐 <b>Demandes de mise à jour DNS</b>\n📊 Total : <b>${totalDns}</b> | ⏳ En attente : <b>${totalPendingDns}</b>\n📋 Affichage des <b>${pendingDns.length}</b> plus récentes`;
 
           await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
             method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({ chat_id: chatId, text: msgResumeDns, parse_mode:'HTML' })
+            body: JSON.stringify({
+              chat_id: chatId, text: msgResumeDns, parse_mode:'HTML',
+              ...(totalPendingDns > 0 ? { reply_markup: { inline_keyboard: [[{ text:`🗑 Tout Rejeter en attente (${totalPendingDns})`, callback_data:'dnsrej_all_pre' }]] } } : {})
+            })
           });
 
           for (const r of pendingDns) {
@@ -4269,7 +4276,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const opLabel = OPERATORS_DNS[r.operator] || r.operator || '—';
             const cardText =
               `${flag} <b>MISE À JOUR DNS — ${opLabel}</b>\n` +
-              `📊 ⏳ En attente\n` +
+              `📊 ${STATUS_DNS[r.status] || r.status}\n` +
               `👤 <b>${r.customer_name || 'N/A'}</b>\n` +
               `📧 ${r.customer_email || 'N/A'}\n` +
               `📱 <code>${r.phone || '—'}</code>\n` +
@@ -4277,13 +4284,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
               `🔖 ID tx : <code>${r.reference || '—'}</code>\n` +
               `🖼 Capture : ${r.screenshot_url ? '📎 envoyée ci-dessous' : '❌ aucune'}\n` +
               `🕒 ${date}`;
-            const buttons = { inline_keyboard: [[
+            const buttons = r.status === 'pending' ? { inline_keyboard: [[
               { text: '✅ Valider', callback_data: `dnsval_ok_${r.id}` },
               { text: '❌ Refuser', callback_data: `dnsval_no_${r.id}` },
-            ]] };
+            ]] } : undefined;
             await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
               method:'POST', headers:{'Content-Type':'application/json'},
-              body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', reply_markup: buttons })
+              body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', ...(buttons ? { reply_markup: buttons } : {}) })
             });
             if (r.screenshot_url) { try { await sendShot(chatId, r.screenshot_url); } catch(_){} }
             await new Promise(resolve => setTimeout(resolve, 80));
@@ -5501,6 +5508,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // ── Tout rejeter liens de paiement : annulé ──────────────────────────
         } else if (data === 'lnkrej_all_no') {
+          answerText = 'Annulé.';
+          if (chatId && messageId) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup:{ inline_keyboard:[] } })
+            });
+          }
+
+        // ── Rejet mise à jour DNS (tout) : pré-confirmation ──────────────────
+        } else if (data === 'dnsrej_all_pre') {
+          answerText = '⚠️ Confirmer ?';
+          if (chatId && messageId) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({
+                chat_id: chatId, message_id: messageId,
+                text: `⚠️ <b>Confirmer le rejet de TOUTES les demandes de mise à jour DNS en attente ?</b>\n\nCette action est irréversible.`,
+                parse_mode:'HTML',
+                reply_markup: { inline_keyboard: [[
+                  { text:'🗑 Oui, tout rejeter', callback_data:'dnsrej_all_ok' },
+                  { text:'◀ Annuler',            callback_data:'dnsrej_all_no' },
+                ]]}
+              })
+            });
+          }
+
+        // ── Rejet mise à jour DNS (tout) : exécution ─────────────────────────
+        } else if (data === 'dnsrej_all_ok') {
+          try {
+            const countRes = await db.execute(sql`SELECT COUNT(*) as n FROM payment_link_transactions WHERE link_id = 'eedbc622' AND status = 'pending'`);
+            const total = Number((countRes.rows[0] as any)?.n || 0);
+            if (total === 0) {
+              answerText = 'Aucune demande en attente.';
+            } else {
+              await db.execute(sql`UPDATE payment_link_transactions SET status = 'failed', updated_at = now() WHERE link_id = 'eedbc622' AND status = 'pending'`);
+              answerText = `✅ ${total} demande(s) rejetée(s)`;
+              if (chatId && messageId) {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+                  method:'POST', headers:{'Content-Type':'application/json'},
+                  body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup:{ inline_keyboard:[] } })
+                });
+              }
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  text: `🗑 <b>${total} demande(s) de mise à jour DNS rejetée(s).</b>\n\nTous les statuts ont été mis à jour en "échoué".`,
+                  parse_mode:'HTML'
+                })
+              });
+            }
+          } catch(e:any) { answerText='❌ Erreur'; console.error('[DNSREJ-ALL]',e); }
+
+        // ── Rejet mise à jour DNS (tout) : annulé ────────────────────────────
+        } else if (data === 'dnsrej_all_no') {
           answerText = 'Annulé.';
           if (chatId && messageId) {
             await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
