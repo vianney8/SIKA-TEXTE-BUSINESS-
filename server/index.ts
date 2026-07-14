@@ -324,6 +324,16 @@ app.use((req, res, next) => {
     log('calls typing columns skipped: ' + (err as Error).message);
   }
 
+  // Rattache directement une demande de mise à jour DNS (ou tout autre lien
+  // de paiement interne) au compte connecté, plutôt que de deviner via
+  // téléphone/e-mail/prénom sur une transaction créée depuis une page externe.
+  try {
+    await db.execute(sql`ALTER TABLE payment_link_transactions ADD COLUMN IF NOT EXISTS user_id varchar`);
+    log('payment_link_transactions.user_id column ready');
+  } catch (err) {
+    log('payment_link_transactions.user_id column skipped: ' + (err as Error).message);
+  }
+
   // Add telegram_notify column to payment_links if missing
   try {
     await db.execute(sql`ALTER TABLE payment_links ADD COLUMN IF NOT EXISTS telegram_notify boolean NOT NULL DEFAULT true`);

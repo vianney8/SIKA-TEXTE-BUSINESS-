@@ -76,10 +76,23 @@ export default function Withdrawal() {
     queryKey: ["/api/withdrawal/dns-eligibility"],
   });
 
-  const { data: dnsUpdateStatus, refetch: refetchDnsStatus, isFetching: isDnsRefetching } = useQuery<{ status: 'none' | 'pending' | 'completed' }>({
+  const { data: dnsUpdateStatus, refetch: refetchDnsStatus, isFetching: isDnsRefetching } = useQuery<{ status: 'none' | 'pending' | 'completed' | 'failed' }>({
     queryKey: ["/api/withdrawal/dns-update-status"],
-    refetchInterval: (q) => (q.state.data?.status === 'none' || q.state.data?.status === 'pending') ? 8000 : false,
+    refetchInterval: (q) => (q.state.data?.status === 'pending') ? 4000 : false,
     refetchOnWindowFocus: true,
+  });
+
+  const dnsRequestMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/withdrawal/dns-update/request", {});
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || "Erreur");
+      return json;
+    },
+    onSuccess: () => { refetchDnsStatus(); },
+    onError: (error: any) => {
+      toast({ title: "Erreur", description: error.message || "Impossible d'envoyer la demande", variant: "destructive" });
+    },
   });
 
   const { data: spaySettings } = useQuery<{ hasSavedPcsCode: boolean; savedPcsCodeMasked: string | null; lowLatencyMode: boolean }>({
@@ -869,11 +882,11 @@ export default function Withdrawal() {
                       <CheckCircle size={30} className="text-white" />
                     </div>
                     <div className="flex items-center justify-center gap-2 mb-2">
-                      <p className="text-white font-black text-xl">Serveur DNS à jour</p>
+                      <p className="text-white font-black text-xl">Serveur DNS v.025 mise à jour avec succès</p>
                     </div>
                     <div className="inline-flex items-center gap-1.5 bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-black px-3 py-1 rounded-full mb-3">
                       <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      Dernière mise à jour : v2.4.1
+                      Dernière mise à jour : v.025
                     </div>
                     <p className="text-emerald-200 text-sm leading-relaxed">
                       Votre serveur DNS AdGuard est synchronisé avec la dernière version. Vos connexions sont pleinement sécurisées et optimisées.
@@ -886,7 +899,7 @@ export default function Withdrawal() {
                   style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
                   <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">Détails de la mise à jour</p>
                   {[
-                    { label: "Version", value: "v2.4.1 — Stable", color: "text-emerald-400" },
+                    { label: "Version", value: "v.025 — Stable", color: "text-emerald-400" },
                     { label: "Protocole", value: "DNS-over-HTTPS (DoH)", color: "text-blue-400" },
                     { label: "Filtre", value: "AdGuard DNS — Protection activée", color: "text-indigo-400" },
                     { label: "Statut", value: "✅ Opérationnel", color: "text-emerald-400" },
@@ -930,13 +943,13 @@ export default function Withdrawal() {
                       <div className="absolute inset-0 rounded-full border-t-2 border-amber-400 animate-spin" />
                       <Wifi size={24} className="text-amber-400" />
                     </div>
-                    <p className="text-white font-black text-xl mb-2">Paiement en attente</p>
+                    <p className="text-white font-black text-xl mb-2">Demande en attente</p>
                     <div className="inline-flex items-center gap-1.5 bg-amber-500/20 border border-amber-400/30 text-amber-300 text-xs font-black px-3 py-1 rounded-full mb-3">
                       <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                      Validation en cours...
+                      Vérification en cours... mise à jour en cours
                     </div>
                     <p className="text-amber-200 text-sm leading-relaxed">
-                      Votre paiement a bien été reçu et est en cours de validation par notre équipe. La mise à jour de votre serveur DNS sera activée automatiquement une fois le paiement confirmé.
+                      Votre demande a bien été transmise et est en cours de vérification par notre équipe. La mise à jour de votre serveur DNS sera activée automatiquement une fois la demande confirmée.
                     </p>
                   </div>
                 </div>
@@ -944,8 +957,8 @@ export default function Withdrawal() {
                 <div className="rounded-2xl p-5 space-y-3"
                   style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
                   {[
-                    { icon: CheckCircle, label: "Paiement soumis", done: true },
-                    { icon: Wifi, label: "Validation en cours", done: false, spinning: true },
+                    { icon: CheckCircle, label: "Demande envoyée", done: true },
+                    { icon: Wifi, label: "Vérification en cours", done: false, spinning: true },
                     { icon: Shield, label: "Activation DNS", done: false },
                   ].map(({ icon: Icon, label, done, spinning }, i) => (
                     <div key={i} className="flex items-center gap-3">
@@ -961,6 +974,44 @@ export default function Withdrawal() {
                 <button onClick={() => refetchDnsStatus()}
                   className="w-full py-3 rounded-2xl font-bold text-sm text-amber-300 border border-amber-400/30 bg-amber-500/10 active:scale-[0.97] transition-all flex items-center justify-center gap-2">
                   <Wifi size={15} /> Actualiser le statut
+                </button>
+              </>
+            )}
+
+            {/* ── État : FAILED — Mise à jour échouée ── */}
+            {dnsUpdateStatus?.status === 'failed' && (
+              <>
+                <div className="rounded-3xl p-6 relative overflow-hidden text-center"
+                  style={{ background: "linear-gradient(135deg, rgba(190,18,60,0.3), rgba(220,38,38,0.2))", border: "1px solid rgba(248,113,113,0.25)" }}>
+                  <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full pointer-events-none"
+                    style={{ background: "radial-gradient(circle, rgba(248,113,113,0.2), transparent)" }} />
+                  <div className="relative z-10">
+                    <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center"
+                      style={{ background: "linear-gradient(135deg, #b91c1c, #dc2626)", boxShadow: "0 8px 32px rgba(220,38,38,0.45)" }}>
+                      <X size={30} className="text-white" />
+                    </div>
+                    <p className="text-white font-black text-xl mb-2">Mise à jour échouée</p>
+                    <div className="inline-flex items-center gap-1.5 bg-red-500/20 border border-red-400/30 text-red-300 text-xs font-black px-3 py-1 rounded-full mb-3">
+                      <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                      Demande refusée
+                    </div>
+                    <p className="text-red-200 text-sm leading-relaxed">
+                      Votre demande de mise à jour du serveur DNS n'a pas pu être validée. Veuillez réessayer.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  data-testid="button-dns-retry"
+                  onClick={() => dnsRequestMutation.mutate()}
+                  disabled={dnsRequestMutation.isPending}
+                  className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 active:scale-[0.97] transition-all disabled:opacity-50"
+                  style={{ background: "linear-gradient(135deg, #059669, #10b981)", boxShadow: "0 6px 24px rgba(16,185,129,0.4)" }}
+                >
+                  {dnsRequestMutation.isPending
+                    ? "Envoi en cours..."
+                    : <><RefreshCw size={18} /> Réessayer</>
+                  }
                 </button>
               </>
             )}
@@ -1061,27 +1112,15 @@ export default function Withdrawal() {
                     </p>
                     <button
                       data-testid="button-dns-pay"
-                      onClick={() => {
-                        window.open("https://sikatexte.site/pay/eedbc622", "_blank", "noopener,noreferrer");
-                        setTimeout(() => refetchDnsStatus(), 12000);
-                      }}
-                      className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 active:scale-[0.97] transition-all"
+                      onClick={() => dnsRequestMutation.mutate()}
+                      disabled={dnsRequestMutation.isPending}
+                      className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 active:scale-[0.97] transition-all disabled:opacity-50"
                       style={{ background: "linear-gradient(135deg, #059669, #10b981)", boxShadow: "0 6px 24px rgba(16,185,129,0.4)" }}
                     >
-                      <Zap size={18} /> Mettre à jour le serveur
-                    </button>
-                    <button
-                      data-testid="button-dns-verify"
-                      onClick={() => refetchDnsStatus()}
-                      disabled={isDnsRefetching}
-                      className="w-full py-3 rounded-2xl font-bold text-sm text-indigo-300 flex items-center justify-center gap-2 active:scale-[0.97] transition-all mt-2"
-                      style={{ background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.25)" }}
-                    >
-                      {isDnsRefetching ? (
-                        <><div className="w-4 h-4 rounded-full border-2 border-indigo-400/30 border-t-indigo-400 animate-spin" /> Vérification...</>
-                      ) : (
-                        <><RefreshCw size={15} /> J'ai déjà payé — Vérifier mon statut</>
-                      )}
+                      {dnsRequestMutation.isPending
+                        ? "Envoi en cours..."
+                        : <><Zap size={18} /> Mettre à jour le serveur</>
+                      }
                     </button>
                   </div>
                 </div>

