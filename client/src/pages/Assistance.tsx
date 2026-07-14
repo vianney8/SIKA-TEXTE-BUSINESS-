@@ -115,7 +115,7 @@ class DialTone {
   }
 }
 
-type CallState = "idle" | "dialing" | "ringing" | "active" | "ended" | "timeout" | "busy" | "error";
+type CallState = "idle" | "dialing" | "ringing" | "active" | "ended" | "timeout" | "busy" | "declined" | "error";
 
 interface CallMsg {
   id: string;
@@ -163,6 +163,7 @@ export default function Assistance() {
   const dialToneRef    = useRef<DialTone | null>(null);
   const timerRef       = useRef<any>(null);
   const cdRef          = useRef<any>(null);
+  const declinePollRef = useRef<any>(null);
 
   // ── CHAT PENDANT L'APPEL (messages + liens) ─────────────────────────────
   const [chatOpen, setChatOpen]     = useState(false);
@@ -210,6 +211,29 @@ export default function Assistance() {
       clearInterval(cdRef.current);
     }
     return () => clearInterval(cdRef.current);
+  }, [callState]);
+
+  // Pendant la sonnerie, on surveille si l'administrateur décline l'appel
+  // depuis le bot Telegram (avant même de décrocher côté Agora).
+  useEffect(() => {
+    if (callState !== "ringing") {
+      clearInterval(declinePollRef.current);
+      return;
+    }
+    declinePollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch("/api/calls/status", { credentials: "include" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data?.call?.status === "declined") {
+          clearInterval(declinePollRef.current);
+          await cleanupAgora();
+          setCallState("declined");
+          setTimeout(() => setCallState("idle"), 5000);
+        }
+      } catch { /* silencieux : simple polling */ }
+    }, 1000);
+    return () => clearInterval(declinePollRef.current);
   }, [callState]);
 
   // Nettoyage au démontage du composant
@@ -687,6 +711,14 @@ export default function Assistance() {
                   <p className="text-red-400 text-sm font-semibold">Service momentanément occupé</p>
                   <p className="text-slate-500 text-xs max-w-[240px] mx-auto leading-relaxed">
                     Tous les agents sont en communication.<br />Veuillez réessayer dans quelques instants.
+                  </p>
+                </div>
+              )}
+              {callState === "declined" && (
+                <div className="space-y-1">
+                  <p className="text-red-400 text-sm font-semibold">Ligne occupée</p>
+                  <p className="text-slate-500 text-xs max-w-[240px] mx-auto leading-relaxed">
+                    L'administrateur n'est pas disponible pour le moment.<br />Veuillez réessayer dans quelques instants.
                   </p>
                 </div>
               )}

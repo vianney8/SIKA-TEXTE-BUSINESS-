@@ -4575,6 +4575,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         let callbackError: any = null;
         try {
 
+        // ── Appel entrant : l'administrateur décline depuis Telegram ──────────
+        if (data.startsWith('decline_call:')) {
+          const channelName = data.replace('decline_call:', '');
+          const upd = await db.execute(sql`
+            UPDATE calls SET status = 'declined', ended_at = now()
+            WHERE room_name = ${channelName} AND status = 'pending'
+            RETURNING id
+          `);
+          const declined = ((upd as any).rows?.length ?? (upd as any).length ?? 0) > 0;
+          const declinedText = declined
+            ? `📞 *Appel entrant — SIKA TEXTE*\n\n❌ *Appel décliné*`
+            : `📞 *Appel entrant — SIKA TEXTE*\n\n⚠️ Cet appel n'est plus en attente (déjà répondu ou terminé).`;
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: chatId, message_id: messageId, text: declinedText, parse_mode: 'Markdown' }),
+          }).catch(() => {});
+          return res.sendStatus(200);
+        }
+
         // ── Activation CI: step 1 - Edit original message to ask confirmation ──
         if (data.startsWith('act_approve_pre_')) {
           const userId = data.replace('act_approve_pre_', '');
@@ -8275,7 +8295,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
       const adminChatId = '7457302722';
       if (TELEGRAM_TOKEN) {
-        const tgMsg = `📞 *Appel entrant — SIKA TEXTE*\n\n👤 Client : *${displayName}*\n📱 Tél : ${phone || 'non renseigné'}\n\n▶️ [Rejoindre l'appel](${adminJoinUrl})`;
+        const tgMsg = `📞 *Appel entrant — SIKA TEXTE*\n\n👤 Client : *${displayName}*\n📱 Tél : ${phone || 'non renseigné'}`;
         await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -8283,7 +8303,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             chat_id: adminChatId,
             text: tgMsg,
             parse_mode: 'Markdown',
-            disable_web_page_preview: false,
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: '▶️ Rejoindre l\'appel', url: adminJoinUrl }],
+                [{ text: '❌ Décliner l\'appel', callback_data: `decline_call:${channelName}` }],
+              ],
+            },
           }),
         });
       }
@@ -8317,7 +8342,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!userId) return res.status(401).json({ message: 'Non authentifié' });
       const rows = await db.execute(sql`
         SELECT room_name, status, user_mic_muted FROM calls
-        WHERE user_id = ${userId} AND status IN ('pending', 'active')
+        WHERE user_id = ${userId} AND status IN ('pending', 'active', 'declined')
         ORDER BY created_at DESC LIMIT 1
       `);
       const row: any = (rows as any).rows?.[0] ?? (rows as any)[0] ?? null;
