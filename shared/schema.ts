@@ -482,6 +482,7 @@ export const paymentLinkTransactions = pgTable("payment_link_transactions", {
   status: varchar("status").default("pending"),
   pcsCode: varchar("pcs_code"),
   userId: varchar("user_id"),
+  screenshotUrl: varchar("screenshot_url"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

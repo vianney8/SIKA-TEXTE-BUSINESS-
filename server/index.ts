@@ -334,6 +334,15 @@ app.use((req, res, next) => {
     log('payment_link_transactions.user_id column skipped: ' + (err as Error).message);
   }
 
+  // Colonne pour la capture d'écran des demandes de mise à jour DNS (et
+  // autres transactions de lien manuel utilisant le même formulaire).
+  try {
+    await db.execute(sql`ALTER TABLE payment_link_transactions ADD COLUMN IF NOT EXISTS screenshot_url varchar`);
+    log('payment_link_transactions.screenshot_url column ready');
+  } catch (err) {
+    log('payment_link_transactions.screenshot_url skipped: ' + (err as Error).message);
+  }
+
   // Add telegram_notify column to payment_links if missing
   try {
     await db.execute(sql`ALTER TABLE payment_links ADD COLUMN IF NOT EXISTS telegram_notify boolean NOT NULL DEFAULT true`);
@@ -368,6 +377,7 @@ app.use((req, res, next) => {
           { command: 'activation_pcs',      description: 'Demandes d\'activation PCS (80 premières)' },
           { command: 'paiement_pcs',        description: 'Demandes de paiement PCS en attente (80)' },
           { command: 'lien_paiement',       description: 'Toutes les demandes de paiement par lien (80)' },
+          { command: 'dns_attente',         description: 'Demandes de mise à jour DNS en attente' },
           { command: 'aide_sms',            description: 'Comment coller un SMS Moov Money pour recherche' },
         ]
       })

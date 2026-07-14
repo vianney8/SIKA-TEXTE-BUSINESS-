@@ -221,6 +221,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup sessions
   setupSessions(app);
 
+  // Upload en mémoire pour les captures d'écran de paiement manuel
+  // (activation de compte, mise à jour DNS, etc.)
+  const multerManual = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 20 * 1024 * 1024 },
+  });
+
   // Redirect common payment return URLs to the activation page
   const paymentReturnPaths = [
     '/paid', '/payment-success', '/payment-callback',
@@ -1037,20 +1044,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // ── DNS Privé — envoyer la demande de mise à jour ──────────
-  // Suit exactement le même principe que le retrait : on utilise les
-  // paramètres déjà enregistrés du compte (carte / numéro Mobile Money),
-  // aucune redirection externe, et l'admin valide/refuse depuis Telegram.
-  app.post('/api/withdrawal/dns-update/request', requireAuth, async (req: any, res) => {
+  // ── DNS Privé — infos de dépôt manuel (identique à l'activation) ──
+  // Lit en direct les réglages admin (numéro, libellé, instructions) pour
+  // le pays/opérateur choisi : toute modification faite par l'admin est
+  // immédiatement reflétée, sans redéploiement ni cache.
+  app.get('/api/withdrawal/dns-manual-deposit-info', requireAuth, async (req: any, res) => {
+    try {
+      const { country, operator } = req.query as { country: string; operator: string };
+      if (!country || !operator) return res.status(400).json({ message: 'country et operator requis' });
+      const settings = await storage.getAppSettings();
+      const countryLower = country.toLowerCase();
+      const opLower = operator.toLowerCase();
+      const depositNumber = settings.find((s: any) => s.key === `${countryLower}_${opLower}_deposit_number`)?.value || '';
+      const [dnsLink] = await db.select().from(paymentLinks).where(eq(paymentLinks.id, 'eedbc622')).limit(1);
+      const amount = dnsLink?.amount ? parseInt(String(dnsLink.amount)) : 3400;
+      const isInternational = country !== 'CI';
+      const alertText       = settings.find((s: any) => s.key === `${countryLower}_${opLower}_alert_text`)?.value || '';
+      const depositLabel    = settings.find((s: any) => s.key === `${countryLower}_${opLower}_deposit_label`)?.value || '';
+      const instruction     = settings.find((s: any) => s.key === `${countryLower}_${opLower}_instruction`)?.value || '';
+      const showInstruction = settings.find((s: any) => s.key === `${countryLower}_${opLower}_show_instruction`)?.value === 'true';
+      const internationalNote = isInternational
+        ? (settings.find((s: any) => s.key === `international_deposit_note_${countryLower}_${opLower}`)?.value
+          || settings.find((s: any) => s.key === `international_deposit_note_${countryLower}`)?.value
+          || '')
+        : '';
+      res.json({ depositNumber, amount, isInternational, alertText, depositLabel, instruction, showInstruction, internationalNote });
+    } catch (error) {
+      console.error('[DNS-MANUAL-DEPOSIT-INFO] Error:', error);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  // ── DNS Privé — soumission de la demande de mise à jour ──────────
+  // Suit exactement le même formulaire de paiement que l'activation de
+  // compte (pays / opérateur / numéro / nom du payeur / ID transaction /
+  // capture d'écran). L'admin valide/refuse ensuite depuis Telegram.
+  app.post('/api/withdrawal/dns-manual-submit', requireAuth, multerManual.single('screenshot'), async (req: any, res) => {
     try {
       const userId = req.session.userId;
-
-      const userRow = await db.execute(sql`SELECT phone, full_name, email FROM users WHERE id = ${userId}`);
-      const userPhone    = ((userRow.rows?.[0] as any)?.phone     || '') as string;
-      const userFullName = ((userRow.rows?.[0] as any)?.full_name || '') as string;
-      const userEmail    = ((userRow.rows?.[0] as any)?.email     || '') as string;
-
-      const [card] = await db.select().from(bankCards).where(eq(bankCards.userId, userId)).limit(1);
+      const { country, operator, phone, payerName, transactionId } = req.body;
+      if (!country || !operator || !phone || !transactionId) {
+        return res.status(400).json({ message: 'Informations incomplètes' });
+      }
+      if (!payerName || String(payerName).trim().length < 3) {
+        return res.status(400).json({ message: 'Le nom et prénom du payeur sont obligatoires' });
+      }
+      if (!req.file) {
+        return res.status(400).json({ message: 'La capture d\'écran du paiement est obligatoire' });
+      }
+      const payerNameClean = String(payerName).trim();
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: 'Utilisateur introuvable' });
 
       // Empêche les doublons : si une demande est déjà en attente ou déjà
       // validée, on renvoie simplement son statut au lieu d'en recréer une.
@@ -1064,42 +1108,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ status: existingTxn.status === 'completed' ? 'completed' : 'pending' });
       }
 
-      const phone    = card?.cardNumber || userPhone || '';
-      const operator = card?.operator && card.operator !== 'Non spécifié' ? card.operator.toLowerCase() : 'mtn';
-      const fullName = card ? `${card.firstName} ${card.lastName}` : userFullName;
+      const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+      if (!TELEGRAM_TOKEN) return res.status(500).json({ message: 'Service Telegram non configuré' });
+
+      const [dnsLink] = await db.select().from(paymentLinks).where(eq(paymentLinks.id, 'eedbc622')).limit(1);
+      const amount = dnsLink?.amount ? parseInt(String(dnsLink.amount)) : 3400;
+      const adminChatId = '7457302722';
+
+      // Upload capture d'écran vers object storage (obligatoire)
+      let screenshotUrl: string;
+      try {
+        const objectStorageService = new ObjectStorageService();
+        screenshotUrl = await objectStorageService.uploadActivationScreenshot(req.file.buffer, req.file.mimetype);
+      } catch (e) {
+        console.error('[DNS-MANUAL-SUBMIT] Screenshot upload error:', e);
+        return res.status(500).json({ message: 'Échec de l\'envoi de la capture, réessayez.' });
+      }
+
+      const fullPhone = phone.trim();
 
       const [inserted] = await db.insert(paymentLinkTransactions).values({
         linkId: 'eedbc622',
         linkLabel: 'MISE A JOUR DNS PRIVÉ',
-        amount: '3400',
+        amount: String(amount),
         currency: 'XOF',
-        phone,
-        operator,
-        customerName: fullName || null,
-        customerEmail: userEmail || null,
+        phone: fullPhone,
+        operator: String(operator).toLowerCase(),
+        country: String(country).toUpperCase(),
+        customerName: payerNameClean,
+        customerEmail: user.email || null,
+        reference: transactionId.trim(),
+        screenshotUrl,
         status: 'pending',
         userId,
       }).returning();
 
-      const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-      if (TELEGRAM_TOKEN && inserted) {
-        const adminChatId = '7457302722';
-        const notifText =
-          `🌐 <b>Mise à jour DNS Serveur</b>\n\n` +
-          `👤 <b>Nom :</b> ${fullName || 'Non renseigné'}\n` +
-          `📱 <b>Téléphone :</b> <code>${formatPhoneIntl(phone, card?.country)}</code>\n` +
-          `💳 <b>Opérateur :</b> ${operator}\n` +
-          `💰 <b>Montant :</b> 3 400 FCFA\n\n` +
-          `⏳ En attente de validation.`;
-        await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: adminChatId, text: notifText, parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: '✅ Valider', callback_data: `dnsval_ok_${inserted.id}` }, { text: '❌ Refuser', callback_data: `dnsval_no_${inserted.id}` }]] } })
-        }).catch(e => console.error('[NOTIFY] Telegram DNS error:', e));
-      }
+      const OPERATORS_LABELS: Record<string, string> = {
+        mtn: 'MTN Mobile Money', moov: 'Moov Money', orange: 'Orange Money',
+        wave: 'Wave', tmoney: 'T-Money', free: 'Free Money', airtel: 'Airtel Money',
+      };
+      const COUNTRY_FLAGS: Record<string, string> = {
+        BJ: '🇧🇯', CI: '🇨🇮', SN: '🇸🇳', BF: '🇧🇫', TG: '🇹🇬', CM: '🇨🇲',
+      };
+      const flag = COUNTRY_FLAGS[String(country).toUpperCase()] || '🌍';
+      const opLabel = OPERATORS_LABELS[String(operator).toLowerCase()] || operator;
+
+      const notifText =
+        `🌐 <b>Demande de mise à jour DNS — ${flag} ${String(country).toUpperCase()}</b>\n\n` +
+        `👤 <b>Nom du payeur (SIM) :</b> ${payerNameClean}\n` +
+        `🪪 <b>Nom du compte :</b> ${user.fullName || 'Non renseigné'}\n` +
+        `🆔 <b>ID Compte :</b> <code>${user.id}</code>\n` +
+        `📧 <b>Email :</b> ${user.email || 'N/A'}\n` +
+        `📱 <b>Numéro paiement :</b> <code>${fullPhone}</code>\n` +
+        `💳 <b>Opérateur :</b> ${opLabel}\n` +
+        `💰 <b>Montant :</b> ${amount.toLocaleString('fr-FR')} FCFA\n` +
+        `🔖 <b>ID Transaction :</b> <code>${transactionId.trim()}</code>\n` +
+        `🖼 <b>Capture :</b> ✅ Jointe\n\n` +
+        `⏳ En attente de validation.`;
+
+      const keyboard = { inline_keyboard: [[
+        { text: '✅ Valider', callback_data: `dnsval_ok_${inserted.id}` },
+        { text: '❌ Refuser', callback_data: `dnsval_no_${inserted.id}` },
+      ]] };
+
+      // Construire l'URL absolue pour Telegram (ne peut pas accéder aux URLs relatives)
+      const xfwdMs = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim();
+      const reqHostMs = (req.get && req.get('host')) || '';
+      const reqProtoMs = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'https';
+      const hostBase = process.env.APP_BASE_URL
+        || (xfwdMs ? `https://${xfwdMs}` : '')
+        || (process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(',')[0].trim()}` : '')
+        || (reqHostMs ? `${reqProtoMs}://${reqHostMs}` : '');
+      const screenshotAbsUrl = screenshotUrl.startsWith('http') ? screenshotUrl : `${hostBase}${screenshotUrl}`;
+
+      await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendPhoto`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: adminChatId, photo: screenshotAbsUrl, caption: `📸 Capture — ${user.fullName} (DNS ${String(country).toUpperCase()}/${opLabel})` })
+      }).catch(e => console.error('[DNS-MANUAL-SUBMIT] Photo send error:', e));
+
+      await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: adminChatId, text: notifText, parse_mode: 'HTML', reply_markup: keyboard })
+      }).catch(e => console.error('[NOTIFY] Telegram DNS error:', e));
 
       res.json({ status: 'pending' });
     } catch (error) {
-      console.error('[DNS-UPDATE-REQUEST] Error:', error);
+      console.error('[DNS-MANUAL-SUBMIT] Error:', error);
       res.status(500).json({ message: 'Erreur serveur' });
     }
   });
@@ -2540,10 +2635,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ── Activation manuelle : soumission avec capture d'écran ────────────────
-  const multerManual = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 20 * 1024 * 1024 },
-  });
   app.post('/api/activation/manual-submit', requireAuth, multerManual.single('screenshot'), async (req: any, res) => {
     try {
       const userId = req.session.userId;
@@ -2733,7 +2824,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               chat_id: chatId,
-              text: '✅ <b>Bot SIKA TEXTE configuré avec succès !</b>\n\n💡 <b>Commandes disponibles :</b>\n\n📱 <b>Par numéro :</b>\n• <code>+229XXXXXXXX</code> → activations CI\n• <code>+229XXXXXXXX paie act</code> → activations manuelles\n• <code>+229XXXXXXXX pay lien</code> → paiements lien\n• <code>+229XXXXXXXX pcs</code> → achats PCS\n• <code>+229XXXXXXXX act pcs</code> → activations PCS\n\n📧 <b>Par email :</b>\n• <code>client@email.com</code> → codes PCS liés\n\n📋 <b>Listes :</b>\n• <code>demandes d\'activation en attente</code> — activations manuelles\n• <code>Payement par lien en attente</code> — paiements lien pending\n• <code>demande activation pcs</code> — 80 demandes activation PCS\n• <code>demande paiement pcs</code> — 80 demandes PCS en attente\n• <code>demande paiement par lien</code> — 80 demandes paiement lien (tous statuts)\n\n🔖 <b>Par transaction :</b>\n• <code>tx ABC123</code> → recherche par ID\n\n👤 <b>Par nom :</b>\n• <code>nom Kouassi Jean</code> → recherche par nom\n\n📨 <b>SMS Mobile Money :</b> collez un SMS directement pour vérification automatique.',
+              text: '✅ <b>Bot SIKA TEXTE configuré avec succès !</b>\n\n💡 <b>Commandes disponibles :</b>\n\n📱 <b>Par numéro :</b>\n• <code>+229XXXXXXXX</code> → activations CI\n• <code>+229XXXXXXXX paie act</code> → activations manuelles\n• <code>+229XXXXXXXX pay lien</code> → paiements lien\n• <code>+229XXXXXXXX pcs</code> → achats PCS\n• <code>+229XXXXXXXX act pcs</code> → activations PCS\n\n📧 <b>Par email :</b>\n• <code>client@email.com</code> → codes PCS liés\n\n📋 <b>Listes :</b>\n• <code>demandes d\'activation en attente</code> — activations manuelles\n• <code>Payement par lien en attente</code> — paiements lien pending\n• <code>demande activation pcs</code> — 80 demandes activation PCS\n• <code>demande paiement pcs</code> — 80 demandes PCS en attente\n• <code>demande paiement par lien</code> — 80 demandes paiement lien (tous statuts)\n• <code>demande de mise à jour dns en attente</code> — demandes DNS en attente\n\n🔖 <b>Par transaction :</b>\n• <code>tx ABC123</code> → recherche par ID\n\n👤 <b>Par nom :</b>\n• <code>nom Kouassi Jean</code> → recherche par nom\n\n📨 <b>SMS Mobile Money :</b> collez un SMS directement pour vérification automatique.',
               parse_mode: 'HTML'
             })
           });
@@ -4137,6 +4228,129 @@ export async function registerRoutes(app: Express): Promise<Server> {
             await new Promise(resolve => setTimeout(resolve, 80));
           }
 
+          return res.sendStatus(200);
+        }
+
+        // ── Demandes de mise à jour DNS en attente ───────────────────────────
+        const isPendingDnsCmd = /demande[s]?\s+de\s+mise\s+[àa]\s+jour\s+dns(\s+en\s+attente)?|dns\s+en\s+attente|en\s+attente.*dns/i.test(msgText);
+        if (isPendingDnsCmd) {
+          const totalResDns = await db.execute(sql`SELECT COUNT(*) as total FROM payment_link_transactions WHERE link_id = 'eedbc622' AND status = 'pending'`);
+          const totalPendingDns = Number((totalResDns.rows[0] as any)?.total || 0);
+
+          const COUNTRY_FLAGS_DNS: Record<string,string> = { BJ:'🇧🇯',CI:'🇨🇮',SN:'🇸🇳',BF:'🇧🇫',TG:'🇹🇬',CM:'🇨🇲' };
+          const OPERATORS_DNS: Record<string,string> = { mtn:'MTN',moov:'Moov',orange:'Orange',wave:'Wave',tmoney:'T-Money',free:'Free',airtel:'Airtel' };
+
+          if (!totalPendingDns) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, text: `✅ <b>Aucune demande de mise à jour DNS en attente.</b>`, parse_mode:'HTML' })
+            });
+            return res.sendStatus(200);
+          }
+
+          const LIMIT_DNS = 80;
+          const pendingDnsRes = await db.execute(sql`
+            SELECT * FROM payment_link_transactions WHERE link_id = 'eedbc622' AND status = 'pending' ORDER BY created_at DESC LIMIT ${LIMIT_DNS}
+          `);
+          const pendingDns = (pendingDnsRes.rows || []) as any[];
+
+          const msgResumeDns = totalPendingDns > LIMIT_DNS
+            ? `🌐 <b>${totalPendingDns} demande(s) de mise à jour DNS en attente</b>\n📋 Affichage des <b>${LIMIT_DNS} plus récentes</b>`
+            : `🌐 <b>${totalPendingDns} demande(s) de mise à jour DNS en attente</b>`;
+
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ chat_id: chatId, text: msgResumeDns, parse_mode:'HTML' })
+          });
+
+          for (const r of pendingDns) {
+            const date = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'}) : '—';
+            const flag = COUNTRY_FLAGS_DNS[r.country] || '🌍';
+            const opLabel = OPERATORS_DNS[r.operator] || r.operator || '—';
+            const cardText =
+              `${flag} <b>MISE À JOUR DNS — ${opLabel}</b>\n` +
+              `📊 ⏳ En attente\n` +
+              `👤 <b>${r.customer_name || 'N/A'}</b>\n` +
+              `📧 ${r.customer_email || 'N/A'}\n` +
+              `📱 <code>${r.phone || '—'}</code>\n` +
+              `💰 ${Number(r.amount||0).toLocaleString('fr-FR')} ${r.currency||'FCFA'}\n` +
+              `🔖 ID tx : <code>${r.reference || '—'}</code>\n` +
+              `🖼 Capture : ${r.screenshot_url ? '📎 envoyée ci-dessous' : '❌ aucune'}\n` +
+              `🕒 ${date}`;
+            const buttons = { inline_keyboard: [[
+              { text: '✅ Valider', callback_data: `dnsval_ok_${r.id}` },
+              { text: '❌ Refuser', callback_data: `dnsval_no_${r.id}` },
+            ]] };
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', reply_markup: buttons })
+            });
+            if (r.screenshot_url) { try { await sendShot(chatId, r.screenshot_url); } catch(_){} }
+            await new Promise(resolve => setTimeout(resolve, 80));
+          }
+
+          return res.sendStatus(200);
+        }
+
+        // ── Recherche demande DNS : +229... dns ───────────────────────────────
+        const dnsSearchMatch = /^(\+\d[\d\s\-]{6,19})\s+dns\s*$/i.exec(msgText);
+        if (dnsSearchMatch) {
+          const phoneQuery = dnsSearchMatch[1].trim();
+          const phoneDigits = phoneQuery.replace(/\D/g, '');
+          const last8 = phoneDigits.slice(-8);
+          const COUNTRY_FLAGS_DNSS: Record<string,string> = { BJ:'🇧🇯',CI:'🇨🇮',SN:'🇸🇳',BF:'🇧🇫',TG:'🇹🇬',CM:'🇨🇲' };
+          const OPERATORS_DNSS: Record<string,string> = { mtn:'MTN',moov:'Moov',orange:'Orange',wave:'Wave',tmoney:'T-Money',free:'Free',airtel:'Airtel' };
+          const STATUS_DNSS: Record<string,string> = { pending:'⏳ En attente', completed:'✅ Validé', failed:'❌ Refusé' };
+
+          const results = await db.execute(sql`
+            SELECT * FROM payment_link_transactions
+            WHERE link_id = 'eedbc622'
+              AND (regexp_replace(phone,'[^0-9]','','g') LIKE ${'%'+phoneDigits+'%'}
+               OR regexp_replace(phone,'[^0-9]','','g') LIKE ${'%'+last8+'%'})
+            ORDER BY created_at DESC LIMIT 10
+          `);
+          const rows = (results.rows || []) as any[];
+
+          if (!rows.length) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, text: `🔍 <b>Recherche DNS : <code>${phoneQuery}</code></b>\n\nAucune demande de mise à jour DNS trouvée pour ce numéro.`, parse_mode:'HTML' })
+            });
+          } else {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, text: `🔍 <b>Demandes DNS : <code>${phoneQuery}</code></b>\n${rows.length} demande(s) trouvée(s)`, parse_mode:'HTML' })
+            });
+            for (const r of rows) {
+              const flag = COUNTRY_FLAGS_DNSS[r.country] || '🌍';
+              const date = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'}) : '—';
+              const cardText =
+                `${flag} <b>MISE À JOUR DNS — ${OPERATORS_DNSS[r.operator]||r.operator||'—'}</b>\n` +
+                `📊 ${STATUS_DNSS[r.status]||r.status}\n` +
+                `👤 ${r.customer_name || 'N/A'}\n` +
+                `📧 ${r.customer_email || 'N/A'}\n` +
+                `📱 <code>${r.phone || '—'}</code>\n` +
+                `💰 ${Number(r.amount||0).toLocaleString('fr-FR')} ${r.currency||'FCFA'}\n` +
+                `🔖 ID tx : <code>${r.reference || '—'}</code>\n` +
+                `🖼 Capture : ${r.screenshot_url ? '📎 envoyée ci-dessous' : '❌ aucune'}\n` +
+                `🕒 ${date}`;
+              const buttons = {
+                inline_keyboard: [
+                  ...(r.status === 'pending' ? [[
+                    { text: '✅ Valider', callback_data: `dnsval_ok_${r.id}` },
+                    { text: '❌ Refuser', callback_data: `dnsval_no_${r.id}` },
+                  ]] : []),
+                  [{ text: '🔒 Bloquer le compte', callback_data: `blkuser_pre_${r.user_id}` }]
+                ]
+              };
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', reply_markup: buttons })
+              });
+              if (r.screenshot_url) { try { await sendShot(chatId, r.screenshot_url); } catch(_){} }
+              await new Promise(resolve => setTimeout(resolve, 60));
+            }
+          }
           return res.sendStatus(200);
         }
 

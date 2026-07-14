@@ -14,6 +14,7 @@ import { Link } from "wouter";
 import { useAppSetting } from "@/hooks/useAppSettings";
 import { FaTelegram } from "react-icons/fa";
 import { formatFCFA } from "@/lib/utils";
+import DnsPaymentForm from "@/components/DnsPaymentForm";
 
 const renderTextWithLinks = (text: string) => {
   const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -69,6 +70,7 @@ export default function Withdrawal() {
   const [animStep, setAnimStep] = useState(0); // 0=initial 1=arrow 2=done
 
   const [showDnsPage, setShowDnsPage] = useState(false);
+  const [showDnsForm, setShowDnsForm] = useState(false);
 
   const { data: telegramSupervisor } = useAppSetting("telegram_supervisor");
 
@@ -80,19 +82,6 @@ export default function Withdrawal() {
     queryKey: ["/api/withdrawal/dns-update-status"],
     refetchInterval: (q) => (q.state.data?.status === 'pending') ? 4000 : false,
     refetchOnWindowFocus: true,
-  });
-
-  const dnsRequestMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/withdrawal/dns-update/request", {});
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.message || "Erreur");
-      return json;
-    },
-    onSuccess: () => { refetchDnsStatus(); },
-    onError: (error: any) => {
-      toast({ title: "Erreur", description: error.message || "Impossible d'envoyer la demande", variant: "destructive" });
-    },
   });
 
   const { data: spaySettings } = useQuery<{ hasSavedPcsCode: boolean; savedPcsCodeMasked: string | null; lowLatencyMode: boolean }>({
@@ -1001,23 +990,28 @@ export default function Withdrawal() {
                   </div>
                 </div>
 
-                <button
-                  data-testid="button-dns-retry"
-                  onClick={() => dnsRequestMutation.mutate()}
-                  disabled={dnsRequestMutation.isPending}
-                  className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 active:scale-[0.97] transition-all disabled:opacity-50"
-                  style={{ background: "linear-gradient(135deg, #059669, #10b981)", boxShadow: "0 6px 24px rgba(16,185,129,0.4)" }}
-                >
-                  {dnsRequestMutation.isPending
-                    ? "Envoi en cours..."
-                    : <><RefreshCw size={18} /> Réessayer</>
-                  }
-                </button>
+                {!showDnsForm && (
+                  <button
+                    data-testid="button-dns-retry"
+                    onClick={() => setShowDnsForm(true)}
+                    className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 active:scale-[0.97] transition-all"
+                    style={{ background: "linear-gradient(135deg, #059669, #10b981)", boxShadow: "0 6px 24px rgba(16,185,129,0.4)" }}
+                  >
+                    <RefreshCw size={18} /> Réessayer
+                  </button>
+                )}
               </>
             )}
 
+            {(dnsUpdateStatus?.status === 'failed' || !dnsUpdateStatus || dnsUpdateStatus.status === 'none') && showDnsForm && (
+              <DnsPaymentForm
+                onCancel={() => setShowDnsForm(false)}
+                onSubmitted={() => { setShowDnsForm(false); refetchDnsStatus(); }}
+              />
+            )}
+
             {/* ── État : NONE — Bouton paiement + présentation ── */}
-            {(!dnsUpdateStatus || dnsUpdateStatus.status === 'none') && (
+            {(!dnsUpdateStatus || dnsUpdateStatus.status === 'none') && !showDnsForm && (
               <>
                 {/* Bannière principale */}
                 <div className="rounded-3xl p-6 relative overflow-hidden"
@@ -1112,15 +1106,11 @@ export default function Withdrawal() {
                     </p>
                     <button
                       data-testid="button-dns-pay"
-                      onClick={() => dnsRequestMutation.mutate()}
-                      disabled={dnsRequestMutation.isPending}
-                      className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 active:scale-[0.97] transition-all disabled:opacity-50"
+                      onClick={() => setShowDnsForm(true)}
+                      className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 active:scale-[0.97] transition-all"
                       style={{ background: "linear-gradient(135deg, #059669, #10b981)", boxShadow: "0 6px 24px rgba(16,185,129,0.4)" }}
                     >
-                      {dnsRequestMutation.isPending
-                        ? "Envoi en cours..."
-                        : <><Zap size={18} /> Mettre à jour le serveur</>
-                      }
+                      <Zap size={18} /> Mettre à jour le serveur
                     </button>
                   </div>
                 </div>

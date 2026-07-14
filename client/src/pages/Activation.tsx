@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import sikaLogo from "@assets/1764438802465_1773510898637.jpg";
 
 // ─── Config pays & opérateurs ────────────────────────────────────────────────
-const COUNTRIES = [
+export const COUNTRIES = [
   { code: "BJ",  name: "Bénin",         flag: "🇧🇯", prefix: "229", operators: ["mtn","moov"] },
   { code: "CI",  name: "Côte d'Ivoire", flag: "🇨🇮", prefix: "225", operators: ["mtn","moov","orange","wave"] },
   { code: "SN",  name: "Sénégal",       flag: "🇸🇳", prefix: "221", operators: ["orange","wave","free"] },
@@ -23,7 +23,7 @@ const COUNTRIES = [
 
 type MethodType = "ussd" | "redirect";
 
-const OPERATORS: Record<string, {
+export const OPERATORS: Record<string, {
   name: string; full: string; bg: string; text: string; border: string; initials: string;
   method: MethodType; methodLabel: string;
 }> = {
