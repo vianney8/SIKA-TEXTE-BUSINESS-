@@ -289,6 +289,10 @@ export default function AdminCall() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
   const [otherTyping, setOtherTyping] = useState(false);
+  // Coupure réseau momentanée pendant un appel actif : Agora retente seul la
+  // reconnexion, on affiche juste un indicateur plutôt que de raccrocher tout
+  // de suite un appel qui va probablement se rétablir de lui-même.
+  const [reconnecting, setReconnecting] = useState(false);
 
   const hasJoined = useRef(false);
   const clientRef = useRef<IAgoraRTCClient | null>(null);
@@ -468,6 +472,17 @@ export default function AdminCall() {
         leave();
       });
 
+      // Coupure réseau côté admin (wifi/4G qui bascule) : le SDK retente seul
+      // la reconnexion pendant plusieurs secondes. On affiche juste un
+      // indicateur pendant cette fenêtre plutôt que de couper l'appel.
+      client.on("connection-state-change", (curState) => {
+        setReconnecting(curState === "RECONNECTING");
+        if (curState === "DISCONNECTED" && hasJoined.current) {
+          setState("ended");
+          leave();
+        }
+      });
+
       // La connexion au canal Agora et la demande d'accès au micro sont
       // indépendantes : les lancer en parallèle (au lieu de l'une après
       // l'autre) réduit d'autant le délai avant que l'appel soit prêt côté
@@ -490,7 +505,9 @@ export default function AdminCall() {
       const pipeline = startVoiceConversionPipeline(rawStream, channelName);
       pipeline.pause(); // aucune capture tant que l'admin n'a pas activé son micro
       voicePipelineRef.current = pipeline;
-      const voiceTrack = AgoraRTC.createCustomAudioTrack({ mediaStreamTrack: pipeline.outputTrack });
+      // Encodage "high_quality" (mono ~48 kHz / ~128 kbps) au lieu du profil par
+      // défaut (music_standard, plus compressé) pour une voix IA plus nette.
+      const voiceTrack = AgoraRTC.createCustomAudioTrack({ mediaStreamTrack: pipeline.outputTrack, encoderConfig: "high_quality" });
       voiceTrackRef.current = voiceTrack;
 
       await client.publish([voiceTrack]);
@@ -502,6 +519,7 @@ export default function AdminCall() {
   }
 
   async function leave() {
+    setReconnecting(false);
     clearInterval(timerRef.current);
     try { voiceTrackRef.current?.close(); } catch {}
     voiceTrackRef.current = null;
@@ -630,6 +648,11 @@ export default function AdminCall() {
           )}
           {state === "error" && (
             <p className="text-red-400 text-sm text-center max-w-[240px] mx-auto">{error}</p>
+          )}
+          {reconnecting && (isWaiting || isActive) && (
+            <p className="text-amber-400 text-xs font-medium flex items-center justify-center gap-1.5">
+              <Loader2 className="w-3 h-3 animate-spin" /> Reconnexion réseau…
+            </p>
           )}
         </div>
 

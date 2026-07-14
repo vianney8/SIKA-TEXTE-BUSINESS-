@@ -155,6 +155,10 @@ export default function Assistance() {
   const [elapsed, setElapsed]           = useState(0);
   const [countdown, setCountdown]       = useState(360);
   const [callErrorMsg, setCallErrorMsg] = useState<string | null>(null);
+  // Coupure réseau détectée pendant un appel actif : Agora tente de se reconnecter
+  // automatiquement en arrière-plan, on affiche juste un indicateur pour ne pas
+  // laisser l'utilisateur croire que l'appel est mort alors qu'il se rétablit.
+  const [reconnecting, setReconnecting] = useState(false);
   // Micro désactivé à distance par l'administrateur (l'utilisateur ne peut pas le réactiver lui-même)
   const [forceMuted, setForceMuted]     = useState(false);
   const prevForceMutedRef = useRef(false);
@@ -294,9 +298,25 @@ export default function Assistance() {
         setTimeout(() => { setCallState("idle"); setIsMuted(false); }, 2500);
       });
 
+      // Coupure réseau momentanée (wifi qui bascule, tunnel 4G qui coupe, etc.) :
+      // le SDK Agora retente seul la reconnexion pendant plusieurs secondes avant
+      // d'abandonner. On se contente d'afficher un indicateur pendant cette
+      // fenêtre plutôt que de terminer l'appel immédiatement, pour ne pas
+      // raccrocher un appel qui va se rétablir de lui-même une seconde plus tard.
+      client.on("connection-state-change", (curState) => {
+        setReconnecting(curState === "RECONNECTING");
+        if (curState === "DISCONNECTED" && agoraClientRef.current) {
+          setCallState("ended");
+          cleanupAgora();
+          setTimeout(() => { setCallState("idle"); setIsMuted(false); }, 2500);
+        }
+      });
+
       await client.join(appId, channelName, token, 1);
-      // Réduction de bruit / écho / gain automatique côté utilisateur
-      const mic = await AgoraRTC.createMicrophoneAudioTrack({ AEC: true, AGC: true, ANS: true });
+      // Réduction de bruit / écho / gain automatique côté utilisateur, encodage
+      // audio "high_quality" (mono ~48 kHz / ~128 kbps) au lieu du profil par
+      // défaut du SDK (music_standard, plus compressé) pour une voix nette.
+      const mic = await AgoraRTC.createMicrophoneAudioTrack({ AEC: true, AGC: true, ANS: true, encoderConfig: "high_quality" });
       micTrackRef.current = mic;
       await client.publish([mic]);
 
@@ -312,6 +332,7 @@ export default function Assistance() {
   }
 
   async function cleanupAgora() {
+    setReconnecting(false);
     dialToneRef.current?.stop();
     dialToneRef.current = null;
     if (micTrackRef.current) {
@@ -726,6 +747,14 @@ export default function Assistance() {
                 <p className="text-red-400 text-xs text-center max-w-[240px] mx-auto">{callErrorMsg}</p>
               )}
             </div>
+
+            {/* Coupure réseau en cours de rétablissement */}
+            {reconnecting && callState === "active" && (
+              <div className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium"
+                style={{ background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.25)", color: "#fbbf24" }}>
+                <Loader2 className="w-3 h-3 animate-spin" /> Reconnexion réseau…
+              </div>
+            )}
 
             {/* Badge muet */}
             {isMuted && callState === "active" && !forceMuted && (
