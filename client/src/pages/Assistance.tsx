@@ -172,10 +172,12 @@ export default function Assistance() {
   const [newMsgToast, setNewMsgToast] = useState(false);
   const [copiedId, setCopiedId]     = useState<string | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
+  const [otherTyping, setOtherTyping] = useState(false);
   const chatPollRef = useRef<any>(null);
   const chatEndRef  = useRef<HTMLDivElement>(null);
   const toastTimerRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const typingSendRef = useRef<any>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
@@ -347,6 +349,7 @@ export default function Assistance() {
       setChatOpen(false);
       setUnread(0);
       setForceMuted(false);
+      setOtherTyping(false);
       prevForceMutedRef.current = false;
     }
     return () => clearInterval(chatPollRef.current);
@@ -378,6 +381,7 @@ export default function Assistance() {
         return list;
       });
       setForceMuted(!!data.userMicMuted);
+      setOtherTyping(!!data.otherPartyTyping);
     } catch { /* silencieux : simple polling */ }
   }
 
@@ -385,6 +389,7 @@ export default function Assistance() {
     const text = chatInput.trim();
     if (!text) return;
     setChatInput("");
+    if (typingSendRef.current) { clearTimeout(typingSendRef.current); typingSendRef.current = null; }
     try {
       await fetch("/api/calls/messages", {
         method: "POST",
@@ -394,6 +399,14 @@ export default function Assistance() {
       });
       pollCallMessages();
     } catch { /* ignore */ }
+  }
+
+  // Signale à l'administrateur que l'utilisateur est en train d'écrire —
+  // envoyé au fil de la frappe (throttlé) pendant l'appel.
+  function notifyTyping() {
+    if (typingSendRef.current) return;
+    fetch("/api/calls/typing", { method: "POST", credentials: "include" }).catch(() => {});
+    typingSendRef.current = setTimeout(() => { typingSendRef.current = null; }, 1500);
   }
 
   function copyCallMessage(m: CallMsg) {
@@ -811,6 +824,18 @@ export default function Assistance() {
                     </div>
                   </div>
                 ))}
+                {otherTyping && (
+                  <div className="flex justify-start">
+                    <div
+                      className="px-3.5 py-2.5 rounded-2xl flex items-center gap-1"
+                      style={{ background: "rgba(255,255,255,0.08)", borderRadius: "16px 16px 16px 4px" }}
+                    >
+                      {[0, 160, 320].map(d => (
+                        <span key={d} className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: `${d}ms` }} />
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div ref={chatEndRef} />
               </div>
 
@@ -834,7 +859,7 @@ export default function Assistance() {
                 </button>
                 <input
                   value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
+                  onChange={(e) => { setChatInput(e.target.value); notifyTyping(); }}
                   onKeyDown={(e) => { if (e.key === "Enter") sendCallMessage(); }}
                   placeholder="Écrire un message ou coller un lien…"
                   className="flex-1 px-4 py-2.5 rounded-xl text-sm outline-none"

@@ -606,6 +606,8 @@ export const calls = pgTable("calls", {
   roomName: varchar("room_name").notNull().unique(),
   status: varchar("status").notNull().default('pending'), // pending | active | ended
   userDisplayName: varchar("user_display_name"),
+  userTypingAt: timestamp("user_typing_at"),
+  adminTypingAt: timestamp("admin_typing_at"),
   createdAt: timestamp("created_at").defaultNow(),
   endedAt: timestamp("ended_at"),
 });

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useRoute } from "wouter";
-import { Mic, MicOff, PhoneOff, Loader2, Bot, Send, Link2, UserX, UserCheck, Copy, Check, Image as ImageIcon, User, Phone, Mail } from "lucide-react";
+import { Mic, MicOff, PhoneOff, Loader2, Bot, Send, Link2, UserX, UserCheck, Copy, Check, Image as ImageIcon, User, Phone, Mail, Trash2 } from "lucide-react";
 import AgoraRTC, { IAgoraRTCClient, ILocalAudioTrack } from "agora-rtc-sdk-ng";
 
 type AdminCallState = "connecting" | "waiting" | "active" | "ended" | "error";
@@ -288,6 +288,7 @@ export default function AdminCall() {
   const [caller, setCaller]     = useState<CallerInfo | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
+  const [otherTyping, setOtherTyping] = useState(false);
 
   const hasJoined = useRef(false);
   const clientRef = useRef<IAgoraRTCClient | null>(null);
@@ -299,6 +300,7 @@ export default function AdminCall() {
   const chatEndRef  = useRef<HTMLDivElement>(null);
   const toastTimerRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const typingSendRef = useRef<any>(null);
 
   useEffect(() => {
     if (!channelName || !token || !appId) {
@@ -359,6 +361,7 @@ export default function AdminCall() {
       });
       if (data.caller) setCaller(data.caller);
       setUserMicMuted(!!data.userMicMuted);
+      setOtherTyping(!!data.otherPartyTyping);
     } catch { /* silencieux : simple polling */ }
   }
 
@@ -368,6 +371,34 @@ export default function AdminCall() {
       setCopiedId(m.id);
       setTimeout(() => setCopiedId(prev => (prev === m.id ? null : prev)), 1500);
     }).catch(() => {});
+  }
+
+  // Copie une coordonnée de l'appelant (nom, téléphone ou e-mail) affichée
+  // dans le panneau — même mécanisme visuel que la copie des messages.
+  function copyCallerField(key: string, value: string) {
+    navigator.clipboard?.writeText(value).then(() => {
+      setCopiedId(key);
+      setTimeout(() => setCopiedId(prev => (prev === key ? null : prev)), 1500);
+    }).catch(() => {});
+  }
+
+  // Suppression d'un message "pour tout le monde" — action réservée à
+  // l'administrateur ; l'utilisateur n'a aucun moyen équivalent.
+  async function deleteMessage(m: CallMsg) {
+    setMessages(prev => prev.filter(x => x.id !== m.id));
+    try {
+      await fetch(`/api/admin-call/${encodeURIComponent(channelName)}/messages/${encodeURIComponent(m.id)}`, {
+        method: "DELETE",
+      });
+    } catch { /* ignore, le polling resynchronisera si besoin */ }
+  }
+
+  // Signale à l'utilisateur que l'administrateur est en train d'écrire —
+  // envoyé au fil de la frappe (throttlé) pendant l'appel.
+  function notifyTyping() {
+    if (typingSendRef.current) return;
+    fetch(`/api/admin-call/${encodeURIComponent(channelName)}/typing`, { method: "POST" }).catch(() => {});
+    typingSendRef.current = setTimeout(() => { typingSendRef.current = null; }, 1500);
   }
 
   async function handlePickScreenshot(e: React.ChangeEvent<HTMLInputElement>) {
@@ -409,6 +440,7 @@ export default function AdminCall() {
     const text = chatInput.trim();
     if (!text) return;
     setChatInput("");
+    if (typingSendRef.current) { clearTimeout(typingSendRef.current); typingSendRef.current = null; }
     try {
       await fetch(`/api/admin-call/${encodeURIComponent(channelName)}/messages`, {
         method: "POST",
@@ -601,28 +633,43 @@ export default function AdminCall() {
           )}
         </div>
 
-        {/* Coordonnées de l'appelant — nom, téléphone, e-mail */}
+        {/* Coordonnées de l'appelant — nom, téléphone, e-mail (cliquer pour copier) */}
         {(isWaiting || isActive) && caller && (
           <div
             className="flex flex-col gap-1.5 px-4 py-3 rounded-2xl w-[260px]"
             style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
           >
             {caller.fullName && (
-              <div className="flex items-center gap-2 text-slate-300 text-xs">
+              <div
+                onClick={() => copyCallerField("caller-name", caller.fullName!)}
+                title="Cliquer pour copier"
+                className="flex items-center gap-2 text-slate-300 text-xs cursor-pointer active:opacity-70"
+              >
                 <User className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
-                <span className="truncate font-semibold">{caller.fullName}</span>
+                <span className="truncate font-semibold flex-1">{caller.fullName}</span>
+                {copiedId === "caller-name" ? <Check className="w-3 h-3 text-green-400 flex-shrink-0" /> : <Copy className="w-3 h-3 text-slate-500 flex-shrink-0" />}
               </div>
             )}
             {caller.phone && (
-              <div className="flex items-center gap-2 text-slate-300 text-xs">
+              <div
+                onClick={() => copyCallerField("caller-phone", caller.phone!)}
+                title="Cliquer pour copier"
+                className="flex items-center gap-2 text-slate-300 text-xs cursor-pointer active:opacity-70"
+              >
                 <Phone className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
-                <span className="truncate">{caller.phone}</span>
+                <span className="truncate flex-1">{caller.phone}</span>
+                {copiedId === "caller-phone" ? <Check className="w-3 h-3 text-green-400 flex-shrink-0" /> : <Copy className="w-3 h-3 text-slate-500 flex-shrink-0" />}
               </div>
             )}
             {caller.email && (
-              <div className="flex items-center gap-2 text-slate-300 text-xs">
+              <div
+                onClick={() => copyCallerField("caller-email", caller.email!)}
+                title="Cliquer pour copier"
+                className="flex items-center gap-2 text-slate-300 text-xs cursor-pointer active:opacity-70"
+              >
                 <Mail className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
-                <span className="truncate">{caller.email}</span>
+                <span className="truncate flex-1">{caller.email}</span>
+                {copiedId === "caller-email" ? <Check className="w-3 h-3 text-green-400 flex-shrink-0" /> : <Copy className="w-3 h-3 text-slate-500 flex-shrink-0" />}
               </div>
             )}
           </div>
@@ -766,7 +813,17 @@ export default function AdminCall() {
               <p className="text-slate-600 text-xs text-center mt-6">Aucun message pour l'instant.</p>
             )}
             {messages.map((m) => (
-              <div key={m.id} className={`flex ${m.sender === "admin" ? "justify-end" : "justify-start"}`}>
+              <div key={m.id} className={`flex items-center gap-1.5 ${m.sender === "admin" ? "justify-end" : "justify-start"}`}>
+                {/* Suppression "pour tout le monde" — réservée à l'administrateur */}
+                {m.sender === "admin" && (
+                  <button
+                    onClick={() => deleteMessage(m)}
+                    title="Retirer pour tout le monde"
+                    className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 opacity-40 hover:opacity-90 transition-opacity"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                  </button>
+                )}
                 <div
                   onClick={() => copyMessage(m)}
                   className="max-w-[80%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed break-words cursor-pointer relative group"
@@ -786,8 +843,21 @@ export default function AdminCall() {
                     </>
                   )}
                 </div>
+                {m.sender === "user" && <div className="w-6 flex-shrink-0" />}
               </div>
             ))}
+            {otherTyping && (
+              <div className="flex justify-start">
+                <div
+                  className="px-3.5 py-2.5 rounded-2xl flex items-center gap-1"
+                  style={{ background: "rgba(255,255,255,0.08)", borderRadius: "16px 16px 16px 4px" }}
+                >
+                  {[0, 160, 320].map(d => (
+                    <span key={d} className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: `${d}ms` }} />
+                  ))}
+                </div>
+              </div>
+            )}
             <div ref={chatEndRef} />
           </div>
 
@@ -811,7 +881,7 @@ export default function AdminCall() {
             </button>
             <input
               value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
+              onChange={(e) => { setChatInput(e.target.value); notifyTyping(); }}
               onKeyDown={(e) => { if (e.key === "Enter") sendChatMessage(); }}
               placeholder="Écrire un message ou coller un lien…"
               className="flex-1 px-4 py-2.5 rounded-xl text-sm outline-none"

@@ -8358,6 +8358,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return s;
   }
 
+  // Un camp est considéré "en train d'écrire" si son horodatage a été
+  // rafraîchi il y a moins de 3s (le client le renvoie tant qu'il tape).
+  const TYPING_WINDOW_MS = 3000;
+  function isRecentTyping(ts: any): boolean {
+    if (!ts) return false;
+    const t = new Date(ts).getTime();
+    return Number.isFinite(t) && (Date.now() - t) < TYPING_WINDOW_MS;
+  }
+
   app.get('/api/calls/messages', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session?.userId;
@@ -8369,9 +8378,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         WHERE room_name = ${roomName} ORDER BY created_at ASC LIMIT 200
       `);
       const list = (rows as any).rows ?? (rows as any) ?? [];
-      const muteRows = await db.execute(sql`SELECT user_mic_muted FROM calls WHERE room_name = ${roomName} LIMIT 1`);
-      const muteRow: any = (muteRows as any).rows?.[0] ?? (muteRows as any)[0] ?? null;
-      res.json({ messages: list, userMicMuted: !!muteRow?.user_mic_muted });
+      const stateRows = await db.execute(sql`SELECT user_mic_muted, admin_typing_at FROM calls WHERE room_name = ${roomName} LIMIT 1`);
+      const stateRow: any = (stateRows as any).rows?.[0] ?? (stateRows as any)[0] ?? null;
+      res.json({
+        messages: list,
+        userMicMuted: !!stateRow?.user_mic_muted,
+        otherPartyTyping: isRecentTyping(stateRow?.admin_typing_at),
+      });
     } catch (err) {
       res.status(500).json({ message: 'Erreur' });
     }
@@ -8390,6 +8403,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         INSERT INTO call_messages (room_name, sender, text, image_url)
         VALUES (${roomName}, 'user', ${text || (imageUrl ? '📷 Capture d\'écran' : '')}, ${imageUrl})
       `);
+      await db.execute(sql`UPDATE calls SET user_typing_at = NULL WHERE room_name = ${roomName}`);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ message: 'Erreur' });
+    }
+  });
+
+  // Signal "en train d'écrire" envoyé côté utilisateur pendant qu'il tape
+  // dans le chat de l'appel ; lu par l'administrateur via son polling.
+  app.post('/api/calls/typing', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) return res.status(401).json({ message: 'Non authentifié' });
+      const roomName = await getActiveRoomForUser(userId);
+      if (!roomName) return res.json({ success: true });
+      await db.execute(sql`UPDATE calls SET user_typing_at = now() WHERE room_name = ${roomName}`);
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ message: 'Erreur' });
@@ -8405,8 +8434,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         WHERE room_name = ${channelName} ORDER BY created_at ASC LIMIT 200
       `);
       const list = (rows as any).rows ?? (rows as any) ?? [];
-      const muteRows = await db.execute(sql`SELECT user_mic_muted FROM calls WHERE room_name = ${channelName} LIMIT 1`);
-      const muteRow: any = (muteRows as any).rows?.[0] ?? (muteRows as any)[0] ?? null;
+      const stateRows = await db.execute(sql`SELECT user_mic_muted, user_typing_at FROM calls WHERE room_name = ${channelName} LIMIT 1`);
+      const stateRow: any = (stateRows as any).rows?.[0] ?? (stateRows as any)[0] ?? null;
       // Coordonnées complètes de l'appelant (nom, prénom, téléphone, e-mail) —
       // affichées dans le panneau d'appel côté administrateur.
       const callerRows = await db.execute(sql`
@@ -8420,7 +8449,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
         phone: callerRow.phone || null,
         email: callerRow.email || null,
       } : null;
-      res.json({ messages: list, userMicMuted: !!muteRow?.user_mic_muted, caller });
+      res.json({
+        messages: list,
+        userMicMuted: !!stateRow?.user_mic_muted,
+        caller,
+        otherPartyTyping: isRecentTyping(stateRow?.user_typing_at),
+      });
+    } catch (err) {
+      res.status(500).json({ message: 'Erreur' });
+    }
+  });
+
+  // Signal "en train d'écrire" envoyé côté administrateur ; lu par
+  // l'utilisateur via son polling.
+  app.post('/api/admin-call/:channelName/typing', async (req, res) => {
+    try {
+      const { channelName } = req.params;
+      if (!(await roomExists(channelName))) return res.status(404).json({ message: 'Appel introuvable' });
+      await db.execute(sql`UPDATE calls SET admin_typing_at = now() WHERE room_name = ${channelName}`);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ message: 'Erreur' });
+    }
+  });
+
+  // Suppression d'un message "pour tout le monde" — réservée à l'administrateur.
+  // Le message étant une ligne partagée unique lue par les deux camps via le
+  // même polling, le supprimer côté serveur le fait disparaître chez les deux
+  // dès le prochain rafraîchissement. Aucun équivalent n'existe côté utilisateur.
+  app.delete('/api/admin-call/:channelName/messages/:messageId', async (req, res) => {
+    try {
+      const { channelName, messageId } = req.params;
+      if (!(await roomExists(channelName))) return res.status(404).json({ message: 'Appel introuvable' });
+      await db.execute(sql`
+        DELETE FROM call_messages WHERE id = ${messageId} AND room_name = ${channelName}
+      `);
+      res.json({ success: true });
     } catch (err) {
       res.status(500).json({ message: 'Erreur' });
     }
@@ -8454,6 +8518,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         INSERT INTO call_messages (room_name, sender, text, image_url)
         VALUES (${channelName}, 'admin', ${text || (imageUrl ? '📷 Capture d\'écran' : '')}, ${imageUrl})
       `);
+      await db.execute(sql`UPDATE calls SET admin_typing_at = NULL WHERE room_name = ${channelName}`);
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ message: 'Erreur' });

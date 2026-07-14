@@ -314,6 +314,16 @@ app.use((req, res, next) => {
     log('call_messages.image_url column skipped: ' + (err as Error).message);
   }
 
+  // Indicateur "en train d'écrire…" pendant un appel (horodatage rafraîchi par
+  // chaque camp tant qu'il tape, lu par l'autre camp via le polling existant).
+  try {
+    await db.execute(sql`ALTER TABLE calls ADD COLUMN IF NOT EXISTS user_typing_at timestamp`);
+    await db.execute(sql`ALTER TABLE calls ADD COLUMN IF NOT EXISTS admin_typing_at timestamp`);
+    log('calls typing columns ready');
+  } catch (err) {
+    log('calls typing columns skipped: ' + (err as Error).message);
+  }
+
   // Add telegram_notify column to payment_links if missing
   try {
     await db.execute(sql`ALTER TABLE payment_links ADD COLUMN IF NOT EXISTS telegram_notify boolean NOT NULL DEFAULT true`);
