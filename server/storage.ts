@@ -1748,7 +1748,8 @@ export class DatabaseStorage implements IStorage {
       { key: 'telegram_supervisor', value: 'https://t.me/servicepay_support', label: 'Superviseur Telegram' },
       { key: 'telegram_group', value: 'https://t.me/+A1QL2HAVBkMyMDA0', label: 'Groupe Telegram' },
       { key: 'chat_enabled', value: 'true', label: 'Chat en ligne activé' },
-      { key: 'call_enabled', value: 'true', label: 'Appel vocal activé' }
+      { key: 'call_enabled', value: 'true', label: 'Appel vocal activé' },
+      { key: 'ai_enabled', value: 'true', label: 'Assistant IA Lylya activé' }
     ];
 
     for (const setting of defaultSettings) {

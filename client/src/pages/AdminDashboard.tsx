@@ -87,6 +87,8 @@ export default function AdminDashboard() {
   const [identityModal, setIdentityModal] = useState(false);
   const [withdrawalsModal, setWithdrawalsModal] = useState(false);
   const [onlineUsersModal, setOnlineUsersModal] = useState(false);
+  const [dnsApprovedModal, setDnsApprovedModal] = useState(false);
+  const [dnsCancelAllConfirm, setDnsCancelAllConfirm] = useState(false);
   
   // Notification en masse
   const [notifyAllModal, setNotifyAllModal] = useState(false);
@@ -246,6 +248,39 @@ export default function AdminDashboard() {
     onError: () => toast({ title: "Erreur", variant: "destructive" }),
   });
 
+  // Comptes DNS Privé approuvés (chargés seulement quand la modale est ouverte)
+  const { data: dnsApprovedAccounts = [], isLoading: isLoadingDnsApproved } = useQuery<any[]>({
+    queryKey: ['/api/admin/dns-update-approved'],
+    enabled: dnsApprovedModal,
+    staleTime: 15000,
+    refetchOnWindowFocus: false,
+  });
+
+  const dnsCancelMutation = useMutation({
+    mutationFn: async (transactionId: string) => {
+      const res = await apiRequest('POST', `/api/admin/dns-update-cancel/${transactionId}`, {});
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/dns-update-approved'] });
+      toast({ title: "✅ Mise à jour DNS annulée", description: "Le compte devra refaire une demande." });
+    },
+    onError: () => toast({ title: "Erreur", description: "Échec de l'annulation", variant: "destructive" }),
+  });
+
+  const dnsCancelAllMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', '/api/admin/dns-update-cancel-all', {});
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/dns-update-approved'] });
+      setDnsCancelAllConfirm(false);
+      toast({ title: "✅ Annulation en masse effectuée", description: data?.message || "Tous les comptes devront refaire une demande." });
+    },
+    onError: () => toast({ title: "Erreur", description: "Échec de l'annulation en masse", variant: "destructive" }),
+  });
+
   // Chat enabled status
   const { data: chatEnabledData } = useQuery<{ value: string }>({
     queryKey: ['/api/settings/chat_enabled'],
@@ -270,6 +305,34 @@ export default function AdminDashboard() {
       toast({
         title: "Erreur",
         description: "Impossible de modifier le statut du chat",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Assistant IA (Lylya) enabled status
+  const { data: aiEnabledData } = useQuery<{ value: string }>({
+    queryKey: ['/api/settings/ai_enabled'],
+    staleTime: 10000,
+  });
+  const isAiEnabled = aiEnabledData?.value !== 'false';
+
+  const toggleAiMutation = useMutation({
+    mutationFn: async () => {
+      const newValue = isAiEnabled ? 'false' : 'true';
+      return apiRequest('PUT', '/api/admin/settings/ai_enabled', { value: newValue });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/ai_enabled'] });
+      toast({
+        title: isAiEnabled ? "Lylya IA désactivée" : "Lylya IA activée",
+        description: isAiEnabled ? "Les utilisateurs ne peuvent plus discuter avec l'IA" : "Les utilisateurs peuvent à nouveau discuter avec l'IA"
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible de modifier le statut de l'IA",
         variant: "destructive"
       });
     }
@@ -1410,6 +1473,25 @@ export default function AdminDashboard() {
               <Bot className="h-4 w-4" />
               <span className="text-xs font-semibold leading-none">Lylya IA</span>
             </a>
+
+            {/* Lylya IA — activer/désactiver */}
+            <button
+              onClick={() => toggleAiMutation.mutate()}
+              disabled={toggleAiMutation.isPending}
+              data-testid="button-toggle-ai"
+              className={`flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-xl text-white transition-colors ${isAiEnabled ? 'bg-orange-500/80 hover:bg-orange-500' : 'bg-green-500/80 hover:bg-green-500'}`}
+            >
+              <Bot className="h-4 w-4" />
+              <span className="text-xs font-semibold leading-none">{isAiEnabled ? "IA ON" : "IA OFF"}</span>
+            </button>
+
+            {/* DNS Approuvés */}
+            <button onClick={() => setDnsApprovedModal(true)}
+              data-testid="button-dns-approved"
+              className="flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-xl bg-cyan-600/80 hover:bg-cyan-600 text-white transition-colors w-full">
+              <Wifi className="h-4 w-4" />
+              <span className="text-xs font-semibold leading-none">DNS Approuvés</span>
+            </button>
           </div>
         </div>
 
@@ -1515,6 +1597,105 @@ export default function AdminDashboard() {
               {!(identityVerifications as any[])?.length && (
                 <div className="text-center py-8 text-muted-foreground">
                   Aucune carte d'identité soumise
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* DNS Approuvés Modal */}
+        <Dialog open={dnsApprovedModal} onOpenChange={setDnsApprovedModal}>
+          <DialogContent className="max-w-4xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center justify-between gap-4">
+                <span>🌐 Comptes DNS Privé — Mise à jour approuvée</span>
+                <Badge variant="outline" className="bg-cyan-100 text-cyan-800">
+                  {(dnsApprovedAccounts as any[]).length} compte(s)
+                </Badge>
+              </DialogTitle>
+              <DialogDescription>
+                Ces comptes ont une demande de mise à jour DNS validée. Annuler renvoie le compte
+                en statut "échoué" : il devra soumettre une nouvelle demande pour être réapprouvé.
+              </DialogDescription>
+            </DialogHeader>
+
+            {(dnsApprovedAccounts as any[]).length > 0 && (
+              <div className="flex justify-end">
+                {!dnsCancelAllConfirm ? (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    data-testid="button-dns-cancel-all"
+                    onClick={() => setDnsCancelAllConfirm(true)}
+                  >
+                    Annuler pour tous ({(dnsApprovedAccounts as any[]).length})
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-muted-foreground">Confirmer l'annulation pour tous ?</span>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={dnsCancelAllMutation.isPending}
+                      data-testid="button-dns-cancel-all-confirm"
+                      onClick={() => dnsCancelAllMutation.mutate()}
+                    >
+                      Oui, tout annuler
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setDnsCancelAllConfirm(false)}>
+                      Annuler
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="max-h-[500px] overflow-y-auto">
+              {isLoadingDnsApproved ? (
+                <div className="text-center py-8 text-muted-foreground">Chargement…</div>
+              ) : (dnsApprovedAccounts as any[]).length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse border border-gray-300">
+                    <thead className="sticky top-0 bg-white z-10">
+                      <tr className="bg-gray-100 dark:bg-gray-800">
+                        <th className="border border-gray-300 px-4 py-2 text-left">Compte</th>
+                        <th className="border border-gray-300 px-4 py-2 text-left">Téléphone</th>
+                        <th className="border border-gray-300 px-4 py-2 text-left">Pays / Opérateur</th>
+                        <th className="border border-gray-300 px-4 py-2 text-left">Approuvé le</th>
+                        <th className="border border-gray-300 px-4 py-2 text-left">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(dnsApprovedAccounts as any[]).map((acc: any) => (
+                        <tr key={acc.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                          <td className="border border-gray-300 px-4 py-2">
+                            <div className="font-medium">{acc.full_name || acc.customer_name || 'Non renseigné'}</div>
+                            <div className="text-xs text-muted-foreground">{acc.email || '—'}</div>
+                          </td>
+                          <td className="border border-gray-300 px-4 py-2">{acc.phone || '—'}</td>
+                          <td className="border border-gray-300 px-4 py-2">{acc.country || '—'} / {acc.operator || '—'}</td>
+                          <td className="border border-gray-300 px-4 py-2">
+                            {acc.updated_at ? new Date(acc.updated_at).toLocaleString('fr-FR') : '—'}
+                          </td>
+                          <td className="border border-gray-300 px-4 py-2">
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              disabled={dnsCancelMutation.isPending}
+                              data-testid={`button-dns-cancel-${acc.id}`}
+                              onClick={() => dnsCancelMutation.mutate(acc.id)}
+                            >
+                              Annuler
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  Aucun compte avec une mise à jour DNS approuvée
                 </div>
               )}
             </div>

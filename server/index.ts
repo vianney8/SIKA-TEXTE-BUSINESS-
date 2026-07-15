@@ -74,6 +74,7 @@ app.use((req, res, next) => {
     { key: 'whatsapp_supervisor',        value: '',                                                  label: 'WhatsApp Service Client' },
     { key: 'telegram_admin_chat_id',     value: '7457302722',                                       label: 'Telegram Admin Chat ID' },
     { key: 'chat_enabled',              value: 'true',                                              label: 'Chat en ligne activé' },
+    { key: 'ai_enabled',                 value: 'true',                                              label: 'Assistant IA Lylya activé' },
     { key: 'withdrawal_video_url',       value: '/withdrawal-video.mp4',                            label: 'Vidéo page activation' },
     { key: 'ci_manual_activation',       value: 'true',                                              label: 'Activation manuelle CI (Côte d\'Ivoire)' },
     { key: 'ci_payment_link_redirect',   value: 'true',                                              label: 'Redirection CI pour les liens de paiement' },

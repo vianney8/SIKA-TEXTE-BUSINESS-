@@ -1199,6 +1199,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── DNS Privé — ADMIN : comptes dont la mise à jour est approuvée ──
+  // Liste tous les comptes ayant une demande DNS validée (statut 'completed'),
+  // avec possibilité pour l'admin d'annuler l'approbation. Une fois annulée,
+  // le compte repasse en statut 'failed' côté utilisateur : il doit refaire
+  // une nouvelle demande de mise à jour DNS pour être réapprouvé.
+  app.get('/api/admin/dns-update-approved', requireAdmin, async (req: any, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT t.id, t.user_id, t.customer_name, t.phone, t.operator, t.country,
+               t.amount, t.reference, t.created_at, t.updated_at,
+               u.full_name, u.email
+        FROM payment_link_transactions t
+        LEFT JOIN users u ON u.id = t.user_id
+        WHERE t.link_id = 'eedbc622' AND t.status = 'completed'
+        ORDER BY t.updated_at DESC
+      `);
+      res.json(result.rows || []);
+    } catch (error) {
+      console.error('[DNS-APPROVED] Error fetching approved accounts:', error);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  // DNS Privé — ADMIN : annuler l'approbation d'un compte (repasse en 'failed',
+  // l'utilisateur devra soumettre une nouvelle demande).
+  app.post('/api/admin/dns-update-cancel/:transactionId', requireAdmin, async (req: any, res) => {
+    try {
+      const { transactionId } = req.params;
+      const [txn] = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.id, transactionId)).limit(1);
+      if (!txn) return res.status(404).json({ message: 'Demande introuvable' });
+
+      await db.update(paymentLinkTransactions)
+        .set({ status: 'failed', updatedAt: new Date() })
+        .where(eq(paymentLinkTransactions.id, transactionId));
+
+      console.log('[DNS-APPROVED] Cancelled by admin:', transactionId);
+      res.json({ message: 'Mise à jour DNS annulée. Le compte devra refaire une demande.' });
+    } catch (error) {
+      console.error('[DNS-APPROVED] Error cancelling:', error);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
+  // DNS Privé — ADMIN : annuler l'approbation de TOUS les comptes validés.
+  app.post('/api/admin/dns-update-cancel-all', requireAdmin, async (req: any, res) => {
+    try {
+      const result = await db.execute(sql`
+        UPDATE payment_link_transactions
+        SET status = 'failed', updated_at = now()
+        WHERE link_id = 'eedbc622' AND status = 'completed'
+        RETURNING id
+      `);
+      const count = result.rows?.length || 0;
+      console.log('[DNS-APPROVED] Cancelled all by admin:', count);
+      res.json({ message: `Mise à jour DNS annulée pour ${count} compte(s).`, count });
+    } catch (error) {
+      console.error('[DNS-APPROVED] Error cancelling all:', error);
+      res.status(500).json({ message: 'Erreur serveur' });
+    }
+  });
+
   app.post('/api/account/activate', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session.userId;
@@ -8306,6 +8367,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { message, history } = req.body;
       if (!message || typeof message !== 'string') {
         return res.status(400).json({ error: 'Message requis' });
+      }
+
+      const aiSettings = await storage.getAppSettings();
+      const aiEnabledSetting = aiSettings.find(s => s.key === 'ai_enabled')?.value;
+      if (aiEnabledSetting === 'false') {
+        return res.status(503).json({ error: 'L\'assistant IA Lylya est temporairement désactivé par l\'administrateur.' });
       }
 
       if (!_groqClient) {

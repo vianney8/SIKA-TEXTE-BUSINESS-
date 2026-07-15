@@ -144,6 +144,8 @@ export default function Assistance() {
   const { data: telegramUrl } = useAppSetting("telegram_supervisor");
   const { data: callEnabledRaw } = useAppSetting("call_enabled");
   const callEnabled = callEnabledRaw !== 'false';
+  const { data: aiEnabledRaw } = useAppSetting("ai_enabled");
+  const aiEnabled = aiEnabledRaw !== 'false';
 
   const [input, setInput]               = useState("");
   const [messages, setMessages]         = useState<Message[]>(loadMessages);
@@ -526,6 +528,8 @@ export default function Assistance() {
         text = "Je rencontre une petite difficulté technique (elle est en cours de résolution) 🙏 Réessayez dans quelques instants.";
       } else if (code === "Service IA temporairement indisponible") {
         text = "Mon service est momentanément indisponible. Réessayez dans quelques instants 🙏";
+      } else if (code.includes("désactivé par l'administrateur")) {
+        text = code;
       } else if (!navigator.onLine) {
         text = "Vous semblez hors ligne. Vérifiez votre connexion internet et réessayez.";
       } else {
@@ -1096,8 +1100,8 @@ export default function Assistance() {
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
               }}
-              placeholder="Posez votre question à Lylya…"
-              disabled={chatMutation.isPending}
+              placeholder={aiEnabled ? "Posez votre question à Lylya…" : "Assistant IA temporairement indisponible…"}
+              disabled={chatMutation.isPending || !aiEnabled}
               rows={1}
               className="flex-1 resize-none bg-transparent text-sm text-slate-800 placeholder-slate-400 outline-none disabled:opacity-50"
               style={{ minHeight: "22px", maxHeight: "120px" }}
@@ -1106,7 +1110,7 @@ export default function Assistance() {
           <button
             data-testid="button-ai-chat-send"
             onClick={() => send()}
-            disabled={!input.trim() || chatMutation.isPending}
+            disabled={!input.trim() || chatMutation.isPending || !aiEnabled}
             className="w-11 h-11 rounded-2xl flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 flex-shrink-0"
             style={{ background: "linear-gradient(135deg, #1565c0, #1a237e)" }}
           >
@@ -1115,6 +1119,11 @@ export default function Assistance() {
               : <Send className="w-5 h-5 text-white" />}
           </button>
         </div>
+        {!aiEnabled && (
+          <p className="text-center text-[11px] text-amber-600 font-semibold mt-2">
+            L'assistant IA Lylya est temporairement désactivé par l'administrateur.
+          </p>
+        )}
         <p className="text-center text-[10px] text-slate-400 mt-2">
           Lylya · Superviseur IA · SIKA TEXTE BUSINESS
         </p>
