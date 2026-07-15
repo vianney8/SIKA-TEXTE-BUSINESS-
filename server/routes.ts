@@ -3465,9 +3465,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             // 3. Chercher l'utilisateur inscrit par téléphone
             const userRes = await db.execute(sql`
-              SELECT id, full_name, phone, email, balance, is_activated, referral_code
-              FROM users
-              WHERE ${last8} != '' AND RIGHT(REGEXP_REPLACE(phone,'[^0-9]','','g'),8) = ${last8}
+              SELECT u.id, u.full_name, u.phone, u.email, u.balance,
+                     COALESCE(acs.is_active, false) AS is_activated, u.referral_code
+              FROM users u
+              LEFT JOIN account_status acs ON acs.user_id = u.id
+              WHERE ${last8} != '' AND RIGHT(REGEXP_REPLACE(u.phone,'[^0-9]','','g'),8) = ${last8}
               LIMIT 3
             `);
             const userRows = (userRes.rows || []) as any[];
