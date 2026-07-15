@@ -1482,7 +1482,7 @@ export default function AdminDashboard() {
               className={`flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-xl text-white transition-colors ${isAiEnabled ? 'bg-orange-500/80 hover:bg-orange-500' : 'bg-green-500/80 hover:bg-green-500'}`}
             >
               <Bot className="h-4 w-4" />
-              <span className="text-xs font-semibold leading-none">{isAiEnabled ? "IA ON" : "IA OFF"}</span>
+              <span className="text-xs font-semibold leading-none">{isAiEnabled ? "Chat Lylya ON" : "Chat Lylya OFF"}</span>
             </button>
 
             {/* DNS Approuvés */}
