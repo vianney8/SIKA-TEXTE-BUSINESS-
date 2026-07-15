@@ -758,7 +758,7 @@ export default function Withdrawal() {
             </div>
 
             <p className="text-gray-600 text-xs leading-relaxed mb-4">
-              Entrez votre code <strong>PCS Secure Pay</strong> reçu par email pour valider cette opération.
+              Entrez votre code <strong>PCS</strong> pour valider cette opération.
             </p>
           </div>
 
