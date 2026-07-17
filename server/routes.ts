@@ -3437,29 +3437,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const last8 = phoneDigits.slice(-8);
             const amt   = b.amount;
 
-            // 1. Chercher dans payment_link_transactions
-            // Priorité au téléphone ; le montant seul n'est utilisé qu'en l'absence de numéro
+            // 1. Chercher dans payment_link_transactions (téléphone ET montant)
             const pltRes = await db.execute(sql`
               SELECT plt.*, pl.label AS link_label
               FROM payment_link_transactions plt
               LEFT JOIN payment_links pl ON pl.id = plt.link_id
-              WHERE (
+              WHERE
                 (${last8} != '' AND RIGHT(REGEXP_REPLACE(plt.phone,'[^0-9]','','g'),8) = ${last8})
-                OR (${last8} = '' AND ${amt}::int IS NOT NULL AND plt.amount::numeric = ${amt}::numeric)
-              )
+                AND (${amt}::int IS NOT NULL AND plt.amount::numeric = ${amt}::numeric)
               ORDER BY plt.created_at DESC
               LIMIT 15
             `);
             const pltRows = (pltRes.rows || []) as any[];
 
-            // 2. Chercher dans les demandes d'activation manuelle
-            // Priorité au téléphone ; le montant seul n'est utilisé qu'en l'absence de numéro
+            // 2. Chercher dans les demandes d'activation manuelle (téléphone ET montant)
             const actRes = await db.execute(sql`
               SELECT *, 'activation' AS src FROM manual_activation_requests
-              WHERE (
+              WHERE
                 (${last8} != '' AND RIGHT(REGEXP_REPLACE(payment_phone,'[^0-9]','','g'),8) = ${last8})
-                OR (${last8} = '' AND ${amt}::int IS NOT NULL AND amount::numeric = ${amt}::numeric)
-              )
+                AND (${amt}::int IS NOT NULL AND amount::numeric = ${amt}::numeric)
               ORDER BY created_at DESC
               LIMIT 10
             `);
