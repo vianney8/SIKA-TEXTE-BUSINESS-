@@ -158,3 +158,121 @@
     @apply rounded-2xl border border-border/40 bg-card shadow-sm transition-all hover:shadow-md hover:border-border/60;
   }
 }
+
+/* SIKA account verification: a calm, neutral trust surface without third-party branding. */
+.verification-panel {
+  --verification-ink: hsl(222 39% 20%);
+  --verification-muted: hsl(215 16% 47%);
+  --verification-line: hsl(214 26% 88%);
+  --verification-accent: hsl(173 54% 34%);
+  width: 100%;
+  border: 1px solid var(--verification-line);
+  border-radius: 18px;
+  background: linear-gradient(145deg, hsl(210 35% 99%), hsl(202 38% 96%));
+  box-shadow: 0 7px 18px hsl(214 28% 24% / 0.06), inset 0 1px 0 hsl(0 0% 100% / 0.85);
+  padding: 14px;
+  color: var(--verification-ink);
+}
+
+.verification-panel__topline,
+.verification-panel__identity,
+.verification-panel__footer {
+  display: flex;
+  align-items: center;
+}
+
+.verification-panel__topline {
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.verification-panel__identity { gap: 10px; }
+.verification-panel__icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: var(--verification-accent);
+  background: hsl(173 45% 91%);
+}
+.verification-panel__eyebrow {
+  margin: 0 0 2px;
+  color: var(--verification-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.verification-panel__title { margin: 0; font-size: 13px; font-weight: 750; }
+.verification-panel__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--verification-muted);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.verification-panel__status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: hsl(35 86% 54%);
+}
+.verification-panel--verified .verification-panel__status { color: var(--verification-accent); }
+.verification-panel--verified .verification-panel__status-dot { background: var(--verification-accent); }
+.verification-panel__action {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 11px;
+  min-height: 58px;
+  padding: 11px 12px;
+  border: 1px solid hsl(214 24% 84%);
+  border-radius: 13px;
+  color: inherit;
+  background: hsl(0 0% 100% / .7);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .2s ease, background-color .2s ease, transform .2s ease;
+}
+.verification-panel__action:not(:disabled):hover { border-color: hsl(173 42% 58%); background: hsl(0 0% 100%); }
+.verification-panel__action:not(:disabled):active { transform: scale(.99); }
+.verification-panel__action:focus-visible { outline: 3px solid hsl(173 54% 34% / .25); outline-offset: 2px; }
+.verification-panel__action:disabled { cursor: default; }
+.verification-panel--verified .verification-panel__action { border-color: hsl(173 42% 69%); background: hsl(173 35% 96%); }
+.verification-panel__checkbox {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  border: 2px solid hsl(214 20% 72%);
+  border-radius: 7px;
+  color: hsl(0 0% 100%);
+  background: hsl(0 0% 100%);
+}
+.verification-panel--checking .verification-panel__checkbox,
+.verification-panel--verified .verification-panel__checkbox { border-color: var(--verification-accent); }
+.verification-panel--verified .verification-panel__checkbox { background: var(--verification-accent); }
+.verification-panel__spinner {
+  width: 13px;
+  height: 13px;
+  border: 2px solid hsl(173 42% 78%);
+  border-top-color: var(--verification-accent);
+  border-radius: 50%;
+  animation: verification-spin .8s linear infinite;
+}
+.verification-panel__copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.verification-panel__copy strong { font-size: 12px; font-weight: 750; }
+.verification-panel__copy span { color: var(--verification-muted); font-size: 11px; line-height: 1.35; }
+.verification-panel__hint { margin-left: auto; color: var(--verification-accent); font-size: 10px; font-weight: 700; white-space: nowrap; }
+.verification-panel__footer { justify-content: space-between; gap: 8px; padding: 10px 2px 0; color: hsl(215 14% 58%); font-size: 9px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.verification-panel__secure { display: inline-flex; align-items: center; gap: 4px; letter-spacing: 0; text-transform: none; }
+@keyframes verification-spin { to { transform: rotate(360deg); } }
+@media (max-width: 420px) {
+  .verification-panel__hint { display: none; }
+  .verification-panel { padding: 12px; }
+}

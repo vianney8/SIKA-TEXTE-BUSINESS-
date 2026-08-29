@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Link } from "wouter";
-import { Eye, EyeOff, Phone, User, Mail, Lock, ArrowRight, Gift } from "lucide-react";
+import { Eye, EyeOff, Phone, User, Mail, Lock, ArrowRight, Gift, ShieldCheck, LockKeyhole, Check } from "lucide-react";
 import logoPath from "@assets/1764438802465_1773510898637.jpg";
 
 type CaptchaState = 'idle' | 'checking' | 'verified';
@@ -17,6 +17,12 @@ type CaptchaState = 'idle' | 'checking' | 'verified';
 function TurnstileWidget({ onVerified }: { onVerified: () => void }) {
   const [state, setState] = useState<CaptchaState>('idle');
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   function handleClick() {
     if (state !== 'idle') return;
@@ -28,54 +34,55 @@ function TurnstileWidget({ onVerified }: { onVerified: () => void }) {
   }
 
   return (
-    <div
-      className="flex items-center justify-between px-4 py-3 rounded-xl border bg-white select-none"
-      style={{ borderColor: '#d0d5dd', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
-    >
-      {/* Gauche */}
-      <div className="flex items-center gap-3">
-        <div
-          onClick={handleClick}
-          className="w-6 h-6 rounded border-2 flex items-center justify-center cursor-pointer transition-all"
-          style={{
-            borderColor: state === 'verified' ? '#16a34a' : '#d0d5dd',
-            backgroundColor: state === 'verified' ? '#16a34a' : 'white',
-          }}
-        >
-          {state === 'idle' && null}
-          {state === 'checking' && (
-            <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="10" stroke="#f97316" strokeWidth="3" strokeDasharray="30 70" />
-            </svg>
-          )}
-          {state === 'verified' && (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-              <polyline points="20 6 9 17 4 12" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          )}
+    <div className={`verification-panel verification-panel--${state}`}>
+      <div className="verification-panel__topline">
+        <div className="verification-panel__identity">
+          <span className="verification-panel__icon" aria-hidden="true">
+            {state === 'verified' ? <ShieldCheck size={19} strokeWidth={2.2} /> : <LockKeyhole size={18} strokeWidth={2.1} />}
+          </span>
+          <div>
+            <p className="verification-panel__eyebrow">Protection du compte</p>
+            <p className="verification-panel__title">Vérification de sécurité</p>
+          </div>
         </div>
-        <span className="text-sm font-medium text-gray-700">
-          {state === 'idle' && 'Je ne suis pas un robot'}
-          {state === 'checking' && 'Vérification…'}
-          {state === 'verified' && <span className="text-green-700 font-semibold">Vérifié ✅</span>}
+        <span className="verification-panel__status" aria-live="polite">
+          <span className="verification-panel__status-dot" aria-hidden="true" />
+          {state === 'verified' ? 'Validée' : state === 'checking' ? 'En cours' : 'Requise'}
         </span>
       </div>
 
-      {/* Droite : logo CF */}
-      <div className="flex flex-col items-center gap-0.5">
-        <svg width="28" height="28" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <linearGradient id="cfg" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#f38020" />
-              <stop offset="100%" stopColor="#faad3f" />
-            </linearGradient>
-          </defs>
-          <ellipse cx="50" cy="64" rx="44" ry="14" fill="url(#cfg)" />
-          <path d="M72 50 Q80 34 64 28 Q60 14 44 20 Q32 10 24 24 Q10 26 14 42 Q6 46 10 58 L82 58 Q90 44 72 50Z" fill="url(#cfg)" />
-          <path d="M66 58 Q74 44 58 40 Q56 30 44 34" fill="none" stroke="white" strokeWidth="2.5" opacity="0.5" />
-        </svg>
-        <span className="text-[9px] text-gray-400 font-medium leading-none">Cloudflare</span>
-        <span className="text-[8px] text-gray-300 leading-none">Turnstile</span>
+      <button
+        type="button"
+        className="verification-panel__action"
+        onClick={handleClick}
+        disabled={state !== 'idle'}
+        role="checkbox"
+        aria-checked={state === 'verified'}
+        aria-busy={state === 'checking'}
+        aria-label={state === 'idle' ? 'Lancer la vérification de sécurité' : state === 'checking' ? 'Vérification de sécurité en cours' : 'Vérification de sécurité validée'}
+      >
+        <span className="verification-panel__checkbox" aria-hidden="true">
+          {state === 'checking' && <span className="verification-panel__spinner" />}
+          {state === 'verified' && <Check size={16} strokeWidth={3} />}
+        </span>
+        <span className="verification-panel__copy">
+          <strong>
+            {state === 'idle' && 'Confirmez que vous êtes bien humain'}
+            {state === 'checking' && 'Nous vérifions votre demande'}
+            {state === 'verified' && 'Vous êtes bien vérifié'}
+          </strong>
+          <span>
+            {state === 'idle' && 'Un contrôle rapide protège votre inscription.'}
+            {state === 'checking' && 'Cela ne prendra que quelques secondes.'}
+            {state === 'verified' && 'Vous pouvez maintenant créer votre compte.'}
+          </span>
+        </span>
+        {state === 'idle' && <span className="verification-panel__hint">Cliquer pour continuer</span>}
+      </button>
+
+      <div className="verification-panel__footer">
+        <span className="verification-panel__secure"><ShieldCheck size={13} /> Contrôle respectueux de votre vie privée</span>
+        <span>SIKA</span>
       </div>
     </div>
   );
@@ -132,6 +139,7 @@ export default function Register() {
 
   const form = useForm<RegisterForm>({
     resolver: zodResolver(extendedRegisterSchema),
+    mode: "onChange",
     defaultValues: {
       fullName:        "",
       email:           "",
@@ -373,7 +381,7 @@ export default function Register() {
               {/* Bouton */}
               <button
                 type="submit"
-                disabled={registerMutation.isPending || !captchaVerified}
+                disabled={registerMutation.isPending || !captchaVerified || !form.formState.isValid}
                 data-testid="button-create-account"
                 className="w-full py-4 rounded-2xl font-black text-base text-white transition-all active:scale-[0.97] shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
                 style={{ background: "linear-gradient(135deg, #1a4fa0, #3b82f6)" }}
