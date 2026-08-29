@@ -271,12 +271,25 @@ export default function Dashboard() {
         ══════════════════════════════════════════ */}
         <div className="px-4 mt-3 space-y-3">
 
+          {/* ══ Témoignages ══ */}
+          <div className="bg-white rounded-[20px] shadow-sm border border-gray-100 overflow-hidden">
+            <div className="px-4 pt-4 pb-0 flex items-center justify-between">
+              <div>
+                <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">Avis</p>
+                <p className="text-gray-800 font-bold text-sm">Ce que disent nos utilisateurs</p>
+              </div>
+            </div>
+            <div className="px-3 pb-3 pt-2">
+              <TestimonialsSlider />
+            </div>
+          </div>
+
           {/* Communauté */}
           <div className="rounded-[20px] overflow-hidden" style={{ background: "#fff", border: "1px solid #f1f5f9", boxShadow: "0 2px 12px rgba(0,0,0,0.05)" }}>
             {/* En-tête section */}
             <div className="px-4 pt-4 pb-3 flex items-center gap-2 border-b border-gray-50">
               <div className="w-1 h-4 rounded-full" style={{ background: "linear-gradient(180deg, #1a237e, #1565c0)" }} />
-              <p className="text-gray-800 font-bold text-sm">Ce que disent nos utilisateurs</p>
+              <p className="text-gray-800 font-bold text-sm">Rejoignez la communauté</p>
               <span className="ml-auto text-[10px] font-semibold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">SIKA TEXTE</span>
             </div>
 
@@ -392,19 +405,6 @@ export default function Dashboard() {
                 style={{ maxHeight: "300px" }}
                 onError={(e) => { (e.target as HTMLVideoElement).src = "/promo.mp4"; }}
               />
-            </div>
-          </div>
-
-          {/* ══ Témoignages ══ */}
-          <div className="bg-white rounded-[20px] shadow-sm border border-gray-100 overflow-hidden">
-            <div className="px-4 pt-3 pb-0 flex items-center justify-between">
-              <div>
-                <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">Avis</p>
-                <p className="text-gray-800 font-bold text-sm">Ce que disent nos utilisateurs</p>
-              </div>
-            </div>
-            <div className="px-3 pb-3 pt-2">
-              <TestimonialsSlider />
             </div>
           </div>
 
