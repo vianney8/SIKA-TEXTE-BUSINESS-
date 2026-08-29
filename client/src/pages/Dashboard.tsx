@@ -271,19 +271,6 @@ export default function Dashboard() {
         ══════════════════════════════════════════ */}
         <div className="px-4 mt-3 space-y-3">
 
-          {/* ══ Témoignages ══ */}
-          <div className="bg-white rounded-[20px] shadow-sm border border-gray-100 overflow-hidden">
-            <div className="px-4 pt-4 pb-0 flex items-center justify-between">
-              <div>
-                <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">Avis</p>
-                <p className="text-gray-800 font-bold text-sm">Ce que disent nos utilisateurs</p>
-              </div>
-            </div>
-            <div className="px-3 pb-3 pt-2">
-              <TestimonialsSlider />
-            </div>
-          </div>
-
           {/* Communauté */}
           <div className="rounded-[20px] overflow-hidden" style={{ background: "#fff", border: "1px solid #f1f5f9", boxShadow: "0 2px 12px rgba(0,0,0,0.05)" }}>
             {/* En-tête section */}
@@ -405,6 +392,64 @@ export default function Dashboard() {
                 style={{ maxHeight: "300px" }}
                 onError={(e) => { (e.target as HTMLVideoElement).src = "/promo.mp4"; }}
               />
+            </div>
+          </div>
+
+          {/* ══ Collaborations ══ */}
+          <div className="bg-white rounded-[20px] shadow-sm border border-gray-100 overflow-hidden">
+            <div className="px-4 pt-4 pb-3 flex items-center gap-2 border-b border-gray-50">
+              <div className="w-1 h-4 rounded-full" style={{ background: "linear-gradient(180deg, #0f766e, #14b8a6)" }} />
+              <div>
+                <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">Écosystème</p>
+                <p className="text-gray-800 font-bold text-sm">Nos collaborations</p>
+              </div>
+              <span className="ml-auto text-[10px] font-semibold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full">Partenaires</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5 p-3">
+              <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-3">
+                <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center mb-2 shadow-sm">
+                  <span className="text-white font-black text-[11px]">PD</span>
+                </div>
+                <p className="text-gray-800 font-bold text-xs">PayDuna</p>
+                <p className="text-gray-400 text-[10px] mt-0.5">Solutions de paiement</p>
+              </div>
+              <div className="rounded-2xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white p-3">
+                <div className="w-9 h-9 rounded-xl bg-teal-600 flex items-center justify-center mb-2 shadow-sm">
+                  <span className="text-white font-black text-[10px]">pP</span>
+                </div>
+                <p className="text-gray-800 font-bold text-xs">pawaPay</p>
+                <p className="text-gray-400 text-[10px] mt-0.5">Disbursement</p>
+              </div>
+              <div className="rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-white p-3">
+                <div className="w-9 h-9 rounded-xl bg-violet-600 flex items-center justify-center mb-2 shadow-sm">
+                  <Server size={16} className="text-white" />
+                </div>
+                <p className="text-gray-800 font-bold text-xs">Spay Network</p>
+                <p className="text-gray-400 text-[10px] mt-0.5">Réseau partenaire</p>
+              </div>
+              <div className="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-500 flex items-center justify-center mb-2 shadow-sm">
+                  <Smartphone size={16} className="text-white" />
+                </div>
+                <p className="text-gray-800 font-bold text-xs">Mobile Money</p>
+                <p className="text-gray-400 text-[10px] mt-0.5">Paiements locaux</p>
+              </div>
+            </div>
+            <p className="px-4 pb-4 text-[10px] leading-relaxed text-gray-400">
+              Des collaborations qui facilitent les paiements et les transferts pour les utilisateurs SIKA TEXTE.
+            </p>
+          </div>
+
+          {/* ══ Témoignages — dernière section ══ */}
+          <div className="bg-white rounded-[20px] shadow-sm border border-gray-100 overflow-hidden">
+            <div className="px-4 pt-4 pb-0 flex items-center justify-between">
+              <div>
+                <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">Avis</p>
+                <p className="text-gray-800 font-bold text-sm">Ce que disent nos utilisateurs</p>
+              </div>
+            </div>
+            <div className="px-3 pb-3 pt-2">
+              <TestimonialsSlider />
             </div>
           </div>
 
