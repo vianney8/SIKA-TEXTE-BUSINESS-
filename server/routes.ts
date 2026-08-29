@@ -3661,10 +3661,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
 
-          // Résumé des lignes parsées
-          const tSummary = tParsed.map((p, i) =>
-            `<b>Ligne ${i+1}</b>  💰 ${p.amount !== null ? p.amount.toLocaleString('fr-FR')+' FCFA' : '—'}  📱 ${p.phone ? '+'+p.phone : '—'}  👤 ${p.name||'—'}`
-          ).join('\n');
+          // La catégorie est déterminée par le montant même si la demande
+          // correspondante n'est pas encore trouvée. Ainsi 2 400 FCFA reste
+          // clairement identifié comme une activation de code PCS.
+          const transferCategoryBadge = (amount: number | null): string => {
+            switch (classifyMoovPayment({ amount }).kind) {
+              case 'private_dns': return '🌐DNS';
+              case 'account_activation': return '🔓Act';
+              case 'pcs_activation': return '🔑PCS Act';
+              case 'pcs_purchase': return '💳PCS';
+              default: return '❓';
+            }
+          };
+          const tSummary = tParsed.map((p, i) => {
+            const matched = tMatches.some(m => m.lineIdx === i);
+            return `${matched ? '✅' : '⚠️'} <b>L${i+1} [${transferCategoryBadge(p.amount)}]</b>  💰 ${p.amount !== null ? p.amount.toLocaleString('fr-FR')+' FCFA' : '—'}  📱 ${p.phone ? '+'+p.phone : '—'}  👤 ${p.name||'—'}`;
+          }).join('\n');
 
           const TRF_FLAGS: Record<string,string> = { BJ:'🇧🇯',CI:'🇨🇮',SN:'🇸🇳',BF:'🇧🇫',TG:'🇹🇬',CM:'🇨🇲' };
           const TRF_OPS:   Record<string,string> = { mtn:'MTN',moov:'Moov',orange:'Orange',wave:'Wave',tmoney:'T-Money',free:'Free',airtel:'Airtel' };
@@ -3726,8 +3738,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   [{ text:'🔒 Bloquer', callback_data:`blklnkr_pre_${r.id}` }]
                 ]};
               } else {
+                const category = classifyMoovPayment({ amount: r.amount, linkId: r.link_id, linkLabel: r.link_label });
                 cardText =
-                  `💳 <b>✅ L${lineIdx+1} — PAIEMENT PCS</b>\n\n` +
+                  `💳 <b>✅ L${lineIdx+1} — ${category.label}</b>\n\n` +
                   `📊 ⏳ En attente\n` +
                   `👤 <b>${r.customer_name||'N/A'}</b>\n` +
                   `📱 <code>${r.phone||'—'}</code>\n` +
