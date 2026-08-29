@@ -3,3 +3,4 @@
 - [Call/chat polling patterns](call-chat-polling-patterns.md) — typing indicator & Telegram admin-decline both use timestamp/status columns + client polling, no websockets.
 - [Express route registration timing](express-route-registration-order.md) — `multer(...).single()` middleware args are built at registration time, not request time; declare the multer instance before any route uses it or you get a real TDZ bug, not just a lint nag.
 - [Agora call quality tuning](agora-call-quality-tuning.md) — default Agora audio profile is compressed music_standard; use encoderConfig "high_quality" and handle connection-state-change for network drops instead of only user-published/user-left.
+- [GitHub connector vs Git CLI](github-connector-vs-git-cli.md) — OAuth connector access can publish through the API while the terminal's separate Git credential remains invalid.
