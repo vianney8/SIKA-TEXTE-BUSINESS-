@@ -7,7 +7,6 @@ import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Link } from "wouter";
 import { Eye, EyeOff, Phone, User, Mail, Lock, ArrowRight, Gift, ShieldCheck, LockKeyhole, Check } from "lucide-react";
 import logoPath from "@assets/1764438802465_1773510898637.jpg";
@@ -104,7 +103,6 @@ const extendedRegisterSchema = z.object({
   phoneNumber:     z.string().min(8, "Au moins 8 chiffres requis"),
   password:        z.string().min(4, "Au moins 4 caractères"),
   confirmPassword: z.string(),
-  terms:           z.boolean().refine((v) => v === true, "Vous devez accepter les conditions"),
   referralCode:    z.string().optional(),
 }).refine((d) => d.password === d.confirmPassword, {
   message: "Les mots de passe ne correspondent pas",
@@ -147,7 +145,6 @@ export default function Register() {
       phoneNumber:     "",
       password:        "",
       confirmPassword: "",
-      terms:           false,
       referralCode:    referralCodeParam,
     },
   });
@@ -356,29 +353,6 @@ export default function Register() {
                   </FormItem>
                 )} />
               )}
-
-              {/* CGU */}
-              <FormField control={form.control} name="terms" render={({ field }) => (
-                <FormItem>
-                  <div className="flex items-start gap-3 p-3 rounded-xl bg-blue-50 border border-blue-100">
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        data-testid="checkbox-terms"
-                        className="mt-0.5"
-                      />
-                    </FormControl>
-                    <p className="text-xs text-gray-600 leading-relaxed">
-                      J'accepte les{" "}
-                      <span className="text-blue-600 font-semibold">conditions d'utilisation</span>
-                      {" "}et la{" "}
-                      <span className="text-blue-600 font-semibold">politique de confidentialité</span>
-                    </p>
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )} />
 
               {/* Widget Turnstile */}
               <TurnstileWidget onVerified={() => setCaptchaVerified(true)} />
