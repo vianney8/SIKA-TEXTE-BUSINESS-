@@ -3414,17 +3414,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const phoneDigits = (b.phone || '').replace(/\D/g, '');
             const last8 = phoneDigits.slice(-8);
             const amt   = b.amount;
+            const isDnsSms = b.amount === 3400;
 
-            // 1. Chercher dans payment_link_transactions (téléphone ET montant)
+            // 1. Chercher dans payment_link_transactions.
+            // Pour un SMS de 3 400 FCFA, le numéro + le montant + le lien DNS
+            // sont obligatoires : cela évite de mélanger le DNS avec une autre
+            // demande ayant le même numéro.
             const pltRes = await db.execute(sql`
               SELECT plt.*, pl.label AS link_label
               FROM payment_link_transactions plt
               LEFT JOIN payment_links pl ON pl.id = plt.link_id
               WHERE
                 (
-                  (${last8} != '' AND RIGHT(REGEXP_REPLACE(plt.phone,'[^0-9]','','g'),8) = ${last8}
-                    AND ${amt}::int IS NOT NULL AND plt.amount::numeric = ${amt}::numeric)
-                  OR (${b.ref || ''} != '' AND (plt.reference = ${b.ref || ''} OR plt.solvexpay_txn_id = ${b.ref || ''}))
+                  (${last8} != ''
+                    AND RIGHT(REGEXP_REPLACE(plt.phone,'[^0-9]','','g'),8) = ${last8}
+                    AND ${amt}::int IS NOT NULL
+                    AND plt.amount::numeric = ${amt}::numeric
+                    AND (${isDnsSms} = false OR plt.link_id = 'eedbc622'))
+                  OR (${isDnsSms} = false AND ${b.ref || ''} != ''
+                    AND (plt.reference = ${b.ref || ''} OR plt.solvexpay_txn_id = ${b.ref || ''}))
                 )
               ORDER BY plt.created_at DESC
               LIMIT 15
@@ -3438,9 +3446,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               SELECT *, 'link_manual' AS src FROM link_manual_requests
               WHERE
                 (
-                  (${last8} != '' AND RIGHT(REGEXP_REPLACE(phone,'[^0-9]','','g'),8) = ${last8}
+                  (${isDnsSms} = false AND ${last8} != ''
+                    AND RIGHT(REGEXP_REPLACE(phone,'[^0-9]','','g'),8) = ${last8}
                     AND ${amt}::int IS NOT NULL AND amount::numeric = ${amt}::numeric)
-                  OR (${b.ref || ''} != '' AND transaction_id = ${b.ref || ''})
+                  OR (${isDnsSms} = false AND ${b.ref || ''} != '' AND transaction_id = ${b.ref || ''})
                 )
               ORDER BY created_at DESC
               LIMIT 15
@@ -3452,9 +3461,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               SELECT *, 'activation' AS src FROM manual_activation_requests
               WHERE
                 (
-                  (${last8} != '' AND RIGHT(REGEXP_REPLACE(payment_phone,'[^0-9]','','g'),8) = ${last8}
+                  (${isDnsSms} = false AND ${last8} != ''
+                    AND RIGHT(REGEXP_REPLACE(payment_phone,'[^0-9]','','g'),8) = ${last8}
                     AND ${amt}::int IS NOT NULL AND amount::numeric = ${amt}::numeric)
-                  OR (${b.ref || ''} != '' AND transaction_id = ${b.ref || ''})
+                  OR (${isDnsSms} = false AND ${b.ref || ''} != '' AND transaction_id = ${b.ref || ''})
                 )
               ORDER BY created_at DESC
               LIMIT 10
@@ -3539,9 +3549,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 `🕒 ${tDate}\n` +
                 `🔖 ID : <code>${t.id}</code>\n` +
                 `🧾 Réf SMS : <code>${b.ref||'—'}</code>`;
+              const dnsActions = category.kind === 'private_dns' && t.status === 'pending'
+                ? [[
+                    { text:'✅ Valider', callback_data:`dnsval_ok_${t.id}` },
+                    { text:'❌ Refuser', callback_data:`dnsval_no_${t.id}` }
+                  ]]
+                : [];
               await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
                 method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', reply_markup:{ inline_keyboard:[[{text:'🔒 Bloquer', callback_data:`blkplt_pre_${t.id}`}]] } })
+                body: JSON.stringify({
+                  chat_id: chatId, text: cardText, parse_mode:'HTML',
+                  reply_markup:{ inline_keyboard:[...dnsActions, [{text:'🔒 Bloquer', callback_data:`blkplt_pre_${t.id}`}]] }
+                })
               });
               await new Promise(r => setTimeout(r, 80));
             }
@@ -5168,13 +5187,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           }
 
-        // ── DNS Serveur — Valider ─────────────────────────────────────────────
+        // ── DNS Serveur — demander confirmation avant validation ──────────────
         } else if (data.startsWith('dnsval_ok_')) {
           const txnId = data.replace('dnsval_ok_', '');
           try {
             const [txn] = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.id, txnId)).limit(1);
-            if (!txn) {
-              answerText = '❌ Transaction introuvable';
+            if (!txn || txn.linkId !== 'eedbc622') {
+              answerText = '❌ Demande DNS introuvable';
+            } else if (txn.status !== 'pending') {
+              answerText = 'ℹ️ Cette demande DNS a déjà été traitée';
+            } else {
+              answerText = '⚠️ Confirmation requise';
+              if (chatId && messageId) {
+                const confirmText =
+                  `⚠️ <b>Confirmer la validation DNS ?</b>\n\n` +
+                  `👤 <b>Nom :</b> ${txn.customerName || 'Non renseigné'}\n` +
+                  `📱 <b>Téléphone :</b> <code>${txn.phone || '—'}</code>\n` +
+                  `💰 <b>Montant :</b> ${Number(txn.amount).toLocaleString('fr-FR')} FCFA\n\n` +
+                  `Cette action validera la demande de mise à jour DNS.`;
+                const confirmMarkup = { inline_keyboard: [[
+                  { text: '✅ Oui, valider', callback_data: `dnsval_confirm_ok_${txnId}` },
+                  { text: '◀ Annuler', callback_data: `dnsval_cancel_${txnId}` }
+                ]] };
+                const edited = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ chat_id: chatId, message_id: messageId, text: confirmText, parse_mode: 'HTML', reply_markup: confirmMarkup })
+                }).then(r => r.json()) as any;
+                if (!edited.ok) {
+                  await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageCaption`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chat_id: chatId, message_id: messageId, caption: confirmText, parse_mode: 'HTML', reply_markup: confirmMarkup })
+                  }).catch(() => {});
+                }
+              }
+            }
+          } catch (e) {
+            answerText = '❌ Erreur préparation validation DNS';
+            console.error('[DNS-VAL-PRE-OK] Error:', e);
+          }
+
+        // ── DNS Serveur — validation confirmée ─────────────────────────────────
+        } else if (data.startsWith('dnsval_confirm_ok_')) {
+          const txnId = data.replace('dnsval_confirm_ok_', '');
+          try {
+            const [txn] = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.id, txnId)).limit(1);
+            if (!txn || txn.linkId !== 'eedbc622') {
+              answerText = '❌ Demande DNS introuvable';
+            } else if (txn.status !== 'pending') {
+              answerText = 'ℹ️ Cette demande DNS a déjà été traitée';
             } else {
               await db.update(paymentLinkTransactions)
                 .set({ status: 'completed', updatedAt: new Date() })
@@ -5204,13 +5266,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.error('[DNS-VAL-OK] Error:', e);
           }
 
-        // ── DNS Serveur — Refuser ─────────────────────────────────────────────
+        // ── DNS Serveur — demander confirmation avant refus ───────────────────
         } else if (data.startsWith('dnsval_no_')) {
           const txnId = data.replace('dnsval_no_', '');
           try {
             const [txn] = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.id, txnId)).limit(1);
-            if (!txn) {
-              answerText = '❌ Transaction introuvable';
+            if (!txn || txn.linkId !== 'eedbc622') {
+              answerText = '❌ Demande DNS introuvable';
+            } else if (txn.status !== 'pending') {
+              answerText = 'ℹ️ Cette demande DNS a déjà été traitée';
+            } else {
+              answerText = '⚠️ Confirmation requise';
+              if (chatId && messageId) {
+                const confirmText =
+                  `⚠️ <b>Confirmer le refus DNS ?</b>\n\n` +
+                  `👤 <b>Nom :</b> ${txn.customerName || 'Non renseigné'}\n` +
+                  `📱 <b>Téléphone :</b> <code>${txn.phone || '—'}</code>\n` +
+                  `💰 <b>Montant :</b> ${Number(txn.amount).toLocaleString('fr-FR')} FCFA\n\n` +
+                  `Cette action refusera la demande de mise à jour DNS.`;
+                const confirmMarkup = { inline_keyboard: [[
+                  { text: '❌ Oui, refuser', callback_data: `dnsval_confirm_no_${txnId}` },
+                  { text: '◀ Annuler', callback_data: `dnsval_cancel_${txnId}` }
+                ]] };
+                const edited = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ chat_id: chatId, message_id: messageId, text: confirmText, parse_mode: 'HTML', reply_markup: confirmMarkup })
+                }).then(r => r.json()) as any;
+                if (!edited.ok) {
+                  await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageCaption`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chat_id: chatId, message_id: messageId, caption: confirmText, parse_mode: 'HTML', reply_markup: confirmMarkup })
+                  }).catch(() => {});
+                }
+              }
+            }
+          } catch (e) {
+            answerText = '❌ Erreur préparation refus DNS';
+            console.error('[DNS-VAL-PRE-NO] Error:', e);
+          }
+
+        // ── DNS Serveur — refus confirmé ───────────────────────────────────────
+        } else if (data.startsWith('dnsval_confirm_no_')) {
+          const txnId = data.replace('dnsval_confirm_no_', '');
+          try {
+            const [txn] = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.id, txnId)).limit(1);
+            if (!txn || txn.linkId !== 'eedbc622') {
+              answerText = '❌ Demande DNS introuvable';
+            } else if (txn.status !== 'pending') {
+              answerText = 'ℹ️ Cette demande DNS a déjà été traitée';
             } else {
               await db.update(paymentLinkTransactions)
                 .set({ status: 'failed', updatedAt: new Date() })
@@ -5238,6 +5343,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } catch (e) {
             answerText = '❌ Erreur refus DNS';
             console.error('[DNS-VAL-NO] Error:', e);
+          }
+
+        // ── DNS Serveur — annuler la confirmation ──────────────────────────────
+        } else if (data.startsWith('dnsval_cancel_')) {
+          const txnId = data.replace('dnsval_cancel_', '');
+          answerText = 'Action annulée';
+          if (chatId && messageId) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                message_id: messageId,
+                reply_markup: { inline_keyboard: [[
+                  { text: '✅ Valider', callback_data: `dnsval_ok_${txnId}` },
+                  { text: '❌ Refuser', callback_data: `dnsval_no_${txnId}` }
+                ]] }
+              })
+            }).catch(() => {});
           }
 
         // ── Toggle statut PCS : étape 1 — confirmation ───────────────────────
