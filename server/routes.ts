@@ -3399,14 +3399,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
 
           // ── Recherche pour chaque bloc ────────────────────────────────────────
-          const STATUS_MOOV: Record<string,string> = { pending:'⏳ En attente', completed:'✅ Complété', failed:'❌ Échoué', cancelled:'🚫 Annulé' };
+          const STATUS_MOOV: Record<string,string> = {
+            pending:'⏳ En attente',
+            approved:'✅ Approuvé',
+            rejected:'❌ Rejeté',
+            completed:'✅ Complété',
+            failed:'❌ Échoué',
+            cancelled:'🚫 Annulé'
+          };
 
           for (let idx = 0; idx < parsedMoov.length; idx++) {
             const b = parsedMoov[idx];
-            if (!b.phone && !b.amount) {
+            if (!b.phone || b.amount === null) {
               await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
                 method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({ chat_id: chatId, text: `⚠️ <b>SMS ${idx+1}</b> : impossible d'extraire téléphone et montant.`, parse_mode:'HTML' })
+                body: JSON.stringify({ chat_id: chatId, text: `⚠️ <b>SMS ${idx+1}</b> : impossible d'extraire le téléphone et le montant nécessaires à la recherche.`, parse_mode:'HTML' })
               });
               continue;
             }
@@ -3414,7 +3421,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const phoneDigits = (b.phone || '').replace(/\D/g, '');
             const last8 = phoneDigits.slice(-8);
             const amt   = b.amount;
-            const isDnsSms = b.amount === 3400;
+            const moovCategory = classifyMoovPayment({ amount: amt });
+            const isDnsSms = moovCategory.kind === 'private_dns';
+            const isAccountActivationSms = moovCategory.kind === 'account_activation';
+            const isPcsActivationSms = moovCategory.kind === 'pcs_activation';
+            const isPcsPurchaseSms = moovCategory.kind === 'pcs_purchase';
+
+            // Les montants administratifs déterminent aussi le périmètre de
+            // recherche. Un même numéro peut avoir plusieurs demandes ouvertes :
+            // le numéro ET le montant doivent correspondre à la bonne offre.
+            const paymentLinkScope = isDnsSms
+              ? sql`AND plt.link_id = 'eedbc622'`
+              : isPcsActivationSms
+                ? sql`AND plt.link_id = '88cb6331'`
+                : isPcsPurchaseSms
+                  ? sql`AND plt.link_id IN ('d3e5479d', 'codepcs')`
+                  : isAccountActivationSms
+                    ? sql`AND false`
+                    : sql``;
+            const manualLinkScope = isDnsSms
+              ? sql`AND link_id = 'eedbc622'`
+              : isPcsActivationSms
+                ? sql`AND link_id = '88cb6331'`
+                : isPcsPurchaseSms
+                  ? sql`AND link_id IN ('d3e5479d', 'codepcs')`
+                  : isAccountActivationSms
+                    ? sql`AND false`
+                    : sql``;
+            const activationScope = isAccountActivationSms ? sql`` : sql`AND false`;
 
             // 1. Chercher dans payment_link_transactions.
             // Pour un SMS de 3 400 FCFA, le numéro + le montant + le lien DNS
@@ -3430,9 +3464,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     AND RIGHT(REGEXP_REPLACE(plt.phone,'[^0-9]','','g'),8) = ${last8}
                     AND ${amt}::int IS NOT NULL
                     AND plt.amount::numeric = ${amt}::numeric
-                    AND (${isDnsSms} = false OR plt.link_id = 'eedbc622'))
-                  OR (${isDnsSms} = false AND ${b.ref || ''} != ''
-                    AND (plt.reference = ${b.ref || ''} OR plt.solvexpay_txn_id = ${b.ref || ''}))
+                    ${paymentLinkScope})
                 )
               ORDER BY plt.created_at DESC
               LIMIT 15
@@ -3445,12 +3477,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const linkManualRes = await db.execute(sql`
               SELECT *, 'link_manual' AS src FROM link_manual_requests
               WHERE
-                (
-                  (${isDnsSms} = false AND ${last8} != ''
-                    AND RIGHT(REGEXP_REPLACE(phone,'[^0-9]','','g'),8) = ${last8}
-                    AND ${amt}::int IS NOT NULL AND amount::numeric = ${amt}::numeric)
-                  OR (${isDnsSms} = false AND ${b.ref || ''} != '' AND transaction_id = ${b.ref || ''})
-                )
+                ${last8} != ''
+                AND RIGHT(REGEXP_REPLACE(phone,'[^0-9]','','g'),8) = ${last8}
+                AND ${amt}::int IS NOT NULL
+                AND amount::numeric = ${amt}::numeric
+                ${manualLinkScope}
               ORDER BY created_at DESC
               LIMIT 15
             `);
@@ -3460,16 +3491,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const actRes = await db.execute(sql`
               SELECT *, 'activation' AS src FROM manual_activation_requests
               WHERE
-                (
-                  (${isDnsSms} = false AND ${last8} != ''
-                    AND RIGHT(REGEXP_REPLACE(payment_phone,'[^0-9]','','g'),8) = ${last8}
-                    AND ${amt}::int IS NOT NULL AND amount::numeric = ${amt}::numeric)
-                  OR (${isDnsSms} = false AND ${b.ref || ''} != '' AND transaction_id = ${b.ref || ''})
-                )
+                ${last8} != ''
+                AND RIGHT(REGEXP_REPLACE(payment_phone,'[^0-9]','','g'),8) = ${last8}
+                AND ${amt}::int IS NOT NULL
+                AND amount::numeric = ${amt}::numeric
+                ${activationScope}
               ORDER BY created_at DESC
               LIMIT 10
             `);
             const actRows = (actRes.rows || []) as any[];
+
+            // La table CI historique contient aussi les activations de compte.
+            // Elle doit être recherchée pour les SMS de 3 800 FCFA, sans
+            // mélanger ses résultats avec les achats ou activations PCS.
+            const ciActRes = isAccountActivationSms
+              ? await db.execute(sql`
+                  SELECT id, 'ci_activation' AS src, user_id,
+                         payment_phone AS phone, NULL AS payer_name,
+                         full_name AS customer_name, amount, NULL AS transaction_id,
+                         NULL AS screenshot_url, 'CI' AS country, operator,
+                         email, referral_code, NULL AS link_id,
+                         NULL AS link_label, created_at, status
+                  FROM ci_activation_requests
+                  WHERE ${last8} != ''
+                    AND RIGHT(REGEXP_REPLACE(payment_phone,'[^0-9]','','g'),8) = ${last8}
+                    AND ${amt}::int IS NOT NULL
+                    AND amount::numeric = ${amt}::numeric
+                  ORDER BY created_at DESC
+                  LIMIT 10
+                `)
+              : { rows: [] };
+            const ciActRows = (ciActRes.rows || []) as any[];
 
             // 4. Chercher l'utilisateur inscrit par téléphone
             const userRes = await db.execute(sql`
@@ -3482,11 +3534,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             `);
             const userRows = (userRes.rows || []) as any[];
 
-            const totalFound = pltRows.length + linkManualRows.length + actRows.length;
+            const totalFound = pltRows.length + linkManualRows.length + actRows.length + ciActRows.length;
             if (totalFound === 0 && userRows.length === 0) {
               await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
                 method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({ chat_id: chatId, text: `❌ <b>SMS ${idx+1}</b> — Aucune correspondance\n👤 ${b.senderName||'—'}\n📱 <code>${b.phone||'—'}</code>\n💰 ${b.amount?.toLocaleString('fr-FR')||'—'} FCFA\n\nAucune demande ni utilisateur trouvé.`, parse_mode:'HTML' })
+                body: JSON.stringify({ chat_id: chatId, text: `❌ <b>SMS ${idx+1}</b> — Aucune correspondance\n🏷️ Recherche : <b>${moovCategory.label}</b>\n👤 ${b.senderName||'—'}\n📱 <code>${b.phone||'—'}</code>\n💰 ${b.amount?.toLocaleString('fr-FR')||'—'} FCFA\n\nAucune demande ne correspond à la fois au numéro et au montant.`, parse_mode:'HTML' })
               });
               continue;
             }
@@ -3518,9 +3570,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 `🔖 ID tx : <code>${t.transaction_id||'—'}</code>\n` +
                 `🧾 Réf SMS : <code>${b.ref||'—'}</code>\n` +
                 `🕒 ${tDate}`;
+              const isManualDns = category.kind === 'private_dns' && t.link_id === 'eedbc622';
               const buttons = t.status === 'pending'
                 ? { inline_keyboard: [
-                    [{ text:'✅ Approuver', callback_data:`lnkma_pre_${t.id}` }, { text:'❌ Rejeter', callback_data:`lnkrej_pre_${t.id}` }],
+                    [{
+                      text: isManualDns ? '✅ Valider' : '✅ Approuver',
+                      callback_data:`lnkma_pre_${t.id}`
+                    }, {
+                      text: isManualDns ? '❌ Refuser' : '❌ Rejeter',
+                      callback_data:`lnkrej_pre_${t.id}`
+                    }],
                     [{ text:'🔒 Bloquer', callback_data:`blklnkr_pre_${t.id}` }]
                   ]}
                 : { inline_keyboard: [[{ text:'🔒 Bloquer', callback_data:`blklnkr_pre_${t.id}` }]] };
@@ -3561,6 +3620,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   chat_id: chatId, text: cardText, parse_mode:'HTML',
                   reply_markup:{ inline_keyboard:[...dnsActions, [{text:'🔒 Bloquer', callback_data:`blkplt_pre_${t.id}`}]] }
                 })
+              });
+              await new Promise(r => setTimeout(r, 80));
+            }
+
+            // Activations de compte CI stockées dans l'ancienne table dédiée.
+            // Elles sont recherchées uniquement pour la catégorie 3 800 FCFA.
+            for (const a of ciActRows) {
+              const aDate = a.created_at ? new Date(a.created_at).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
+              const status = STATUS_MOOV[a.status] || a.status || '⏳ En attente';
+              const buttons = a.status === 'pending' || a.status === 'pending_validation'
+                ? { inline_keyboard:[[
+                    { text:'✅ Activer', callback_data:`act_approve_pre_${a.user_id}` },
+                    { text:'❌ Décliner', callback_data:`act_decline_pre_${a.user_id}` },
+                  ], [{ text:'🔒 Bloquer le compte', callback_data:`blkusr_pre_${a.user_id}` }]] }
+                : { inline_keyboard:[[{ text:'🔒 Bloquer le compte', callback_data:`blkusr_pre_${a.user_id}` }]] };
+              const cardText =
+                `🔓 <b>SMS ${idx+1} — ACTIVATION DE COMPTE</b>\n` +
+                `🇨🇮 Côte d'Ivoire\n` +
+                `📊 ${status}\n\n` +
+                `👤 ${a.customer_name||'N/A'}\n` +
+                `📱 <code>${a.phone||'—'}</code>\n` +
+                `💰 ${Number(a.amount).toLocaleString('fr-FR')} FCFA\n` +
+                `📧 ${a.email||'N/A'}\n` +
+                `📋 Sika : <code>${a.referral_code||'N/A'}</code>\n` +
+                `🕒 ${aDate}\n` +
+                `🧾 Réf SMS : <code>${b.ref||'—'}</code>`;
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', reply_markup: buttons })
               });
               await new Promise(r => setTimeout(r, 80));
             }
@@ -3665,13 +3753,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // correspondante n'est pas encore trouvée. Ainsi 2 400 FCFA reste
           // clairement identifié comme une activation de code PCS.
           const transferCategoryBadge = (amount: number | null): string => {
-            switch (classifyMoovPayment({ amount }).kind) {
-              case 'private_dns': return '🌐DNS';
-              case 'account_activation': return '🔓Act';
-              case 'pcs_activation': return '🔑PCS Act';
-              case 'pcs_purchase': return '💳PCS';
-              default: return '❓';
-            }
+            // Utiliser directement les montants administratifs ici évite que
+            // le badge dépende d'un libellé ou d'un lien absent du transfert.
+            if (amount === 3400) return '🌐DNS';
+            if (amount === 3800) return '🔓Act';
+            if (amount === 2400) return '🔑PCS Act';
+            if (amount === 5240) return '💳PCS';
+            return '❓';
           };
           const tSummary = tParsed.map((p, i) => {
             const matched = tMatches.some(m => m.lineIdx === i);
@@ -3724,8 +3812,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   [{ text:'🔒 Bloquer le compte', callback_data:`blkuser_pre_${r.user_id}` }]
                 ]};
               } else if (r.src === 'link') {
+                const category = classifyMoovPayment({
+                  amount: r.amount,
+                  linkId: r.link_id,
+                  linkLabel: r.link_label
+                });
                 cardText =
-                  `🔗 <b>✅ L${lineIdx+1} — LIEN PAIEMENT — ${op}</b>\n\n` +
+                  `🔗 <b>✅ L${lineIdx+1} — ${category.label} — ${op}</b>\n\n` +
                   `📊 ⏳ En attente\n` +
                   `👤 <b>${r.customer_name||'N/A'}</b>\n` +
                   `📱 <code>${r.phone||'—'}</code>\n` +
@@ -6042,13 +6135,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (!r) { answerText = '❌ Demande introuvable'; }
             else if (r.status !== 'pending') { answerText = `Déjà traitée : ${r.status}`; }
             else {
-              answerText = '⚠️ Confirmer approbation ?';
+              const isDnsRequest = r.linkId === 'eedbc622';
+              answerText = isDnsRequest ? '⚠️ Confirmer validation DNS ?' : '⚠️ Confirmer approbation ?';
               if (chatId && messageId) {
                 const confirmMarkup = { inline_keyboard:[[
-                  { text:'✅ Oui, valider', callback_data:`lnkma_ok_${reqId}` },
+                  { text: isDnsRequest ? '✅ Oui, valider le DNS' : '✅ Oui, valider', callback_data:`lnkma_ok_${reqId}` },
                   { text:'◀ Annuler', callback_data:`lnkma_no_${reqId}` }
                 ]]};
-                const confirmText = `✅ <b>Confirmer approbation ?</b>\n\n🔗 Lien : ${r.linkLabel||r.linkId}\n👤 ${r.customerName||'N/A'}\n📱 <code>${r.phone||'—'}</code>\n🔖 ID tx : <code>${r.transactionId||'—'}</code>\n💰 ${Number(r.amount).toLocaleString('fr-FR')} ${r.currency||'FCFA'}\n\nCela va <b>valider ce paiement</b>.`;
+                const confirmText = `${isDnsRequest ? '🌐' : '✅'} <b>${isDnsRequest ? 'Confirmer la validation DNS ?' : 'Confirmer approbation ?'}</b>\n\n🔗 Lien : ${r.linkLabel||r.linkId}\n👤 ${r.customerName||'N/A'}\n📱 <code>${r.phone||'—'}</code>\n🔖 ID tx : <code>${r.transactionId||'—'}</code>\n💰 ${Number(r.amount).toLocaleString('fr-FR')} ${r.currency||'FCFA'}\n\nCela va <b>${isDnsRequest ? 'valider la demande de mise à jour DNS' : 'valider ce paiement'}</b>.`;
                 // Essayer editMessageText (message texte), sinon editMessageCaption (message photo)
                 const editTextRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
                   method:'POST', headers:{'Content-Type':'application/json'},
@@ -6114,9 +6208,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
 
               await db.update(linkManualRequests).set({ status: 'approved', pcsCode: pcsCode || null, updatedAt: new Date() }).where(eq(linkManualRequests.id, reqId));
-              // Mettre à jour toutes les autres demandes en attente du même numéro
+              // Mettre à jour uniquement les doublons de la même offre :
+              // même numéro, même lien et même montant. Cela évite qu'une
+              // validation DNS approuve aussi une demande PCS du même client.
               if (r.phone) {
-                await db.update(linkManualRequests).set({ status: 'approved', updatedAt: new Date() }).where(and(eq(linkManualRequests.phone, r.phone), eq(linkManualRequests.status, 'pending'), ne(linkManualRequests.id, reqId)));
+                await db.update(linkManualRequests)
+                  .set({ status: 'approved', updatedAt: new Date() })
+                  .where(and(
+                    eq(linkManualRequests.phone, r.phone),
+                    eq(linkManualRequests.linkId, r.linkId),
+                    eq(linkManualRequests.amount, r.amount),
+                    eq(linkManualRequests.status, 'pending'),
+                    ne(linkManualRequests.id, reqId)
+                  ));
               }
 
               if (pcsCode) {
@@ -6183,10 +6287,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (!r) { answerText = '❌ Introuvable'; }
             else if (r.status !== 'pending') { answerText = `Déjà traitée : ${r.status}`; }
             else {
-              answerText = '⚠️ Confirmer rejet ?';
+              const isDnsRequest = r.linkId === 'eedbc622';
+              answerText = isDnsRequest ? '⚠️ Confirmer refus DNS ?' : '⚠️ Confirmer rejet ?';
               if (chatId && messageId) {
-                const _rejLnkText = `❌ <b>Confirmer le rejet ?</b>\n\n🔗 ${r.linkLabel||r.linkId}\n👤 ${r.customerName||'N/A'}\n📱 <code>${r.phone||'—'}</code>\n\nLe paiement sera <b>rejeté</b>.`;
-                const _rejLnkMarkup = { inline_keyboard:[[{ text:'❌ Oui, rejeter', callback_data:`lnkrej_ok_${reqId}` },{ text:'◀ Annuler', callback_data:`lnkrej_no_${reqId}` }]] };
+                const _rejLnkText = `❌ <b>${isDnsRequest ? 'Confirmer le refus DNS ?' : 'Confirmer le rejet ?'}</b>\n\n🔗 ${r.linkLabel||r.linkId}\n👤 ${r.customerName||'N/A'}\n📱 <code>${r.phone||'—'}</code>\n\n${isDnsRequest ? 'La demande de mise à jour DNS' : 'Le paiement'} sera <b>rejeté${isDnsRequest ? 'e' : ''}</b>.`;
+                const _rejLnkMarkup = { inline_keyboard:[[{ text: isDnsRequest ? '❌ Oui, refuser le DNS' : '❌ Oui, rejeter', callback_data:`lnkrej_ok_${reqId}` },{ text:'◀ Annuler', callback_data:`lnkrej_no_${reqId}` }]] };
                 const _rejLnkJson = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ chat_id: chatId, message_id: messageId, text: _rejLnkText, parse_mode:'HTML', reply_markup: _rejLnkMarkup }) }).then(r=>r.json()) as any;
                 if (!_rejLnkJson.ok) {
                   await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageCaption`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ chat_id: chatId, message_id: messageId, caption: _rejLnkText, parse_mode:'HTML', reply_markup: _rejLnkMarkup }) }).catch(()=>{});
@@ -6202,9 +6307,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (!r) { answerText = '❌ Introuvable'; }
             else {
               await db.update(linkManualRequests).set({ status: 'rejected', updatedAt: new Date() }).where(eq(linkManualRequests.id, reqId));
-              // Mettre à jour toutes les autres demandes en attente du même numéro
+              // Rejeter uniquement les doublons de la même offre, pas les
+              // autres paiements du même numéro.
               if (r.phone) {
-                await db.update(linkManualRequests).set({ status: 'rejected', updatedAt: new Date() }).where(and(eq(linkManualRequests.phone, r.phone), eq(linkManualRequests.status, 'pending'), ne(linkManualRequests.id, reqId)));
+                await db.update(linkManualRequests)
+                  .set({ status: 'rejected', updatedAt: new Date() })
+                  .where(and(
+                    eq(linkManualRequests.phone, r.phone),
+                    eq(linkManualRequests.linkId, r.linkId),
+                    eq(linkManualRequests.amount, r.amount),
+                    eq(linkManualRequests.status, 'pending'),
+                    ne(linkManualRequests.id, reqId)
+                  ));
               }
               answerText = '✅ Demande rejetée';
               if (chatId && messageId) {
