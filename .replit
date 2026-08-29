@@ -1,9 +1,9 @@
-modules = ["nodejs-20", "web", "postgresql-16"]
+modules = ["nodejs-20", "web", "nix", "python-base-3.13"]
 run = "npm run dev"
 hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
 [nix]
-channel = "stable-24_05"
+channel = "stable-25_05"
 
 [deployment]
 deploymentTarget = "autoscale"
@@ -45,12 +45,7 @@ waitForPort = 5000
 [userenv]
 
 [userenv.shared]
-DATABASE_URL = "postgresql://neondb_owner:npg_A6ZOS2tVfNiQ@ep-billowing-fire-anct7mfk-pooler.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
-TELEGRAM_BOT_TOKEN = "8428546816:AAEHCJdSLVEcBegVhWubjP1XAho9V2H6lx0"
-SOLVEXPAY_WEBHOOK_SECRET = "whs_live_72b1b4ebb32cf42d3ce44f4e2ca2d687d439fdea6e3f365f"
-RESEND_API_KEY = "re_VT3CiEVX_2YoaXywfqXv3xkdtYHmp81y3"
-SOLVEXPAY_SECRET_KEY = "sk_live_3fed3a98ecf5a0858c08fdc9440aa864d6cfdb8fae37693d"
-SOLVEXPAY_API_KEY = "sk_live_1cfb32d9730641a0c3c2bffe422ea65836490bebaedf65d8"
+# Keep credentials in Replit Secrets, never in this project file.
 PRIVATE_OBJECT_DIR = "/FairInfantileAddons"
 PUBLIC_OBJECT_SEARCH_PATHS = "/FairInfantileAddons"
 RESEND_FROM_EMAIL = "support@sikatexte.site"
