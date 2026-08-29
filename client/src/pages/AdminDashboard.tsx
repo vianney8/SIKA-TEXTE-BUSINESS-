@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Users, DollarSign, TrendingUp, TrendingDown, Search, Edit, Trash, Lock, Unlock, CheckCircle, XCircle, Settings, MessageCircle, MessageSquare, MessageSquareOff, RefreshCw, Link2, Plus, Copy, ToggleLeft, ToggleRight, ExternalLink, History, ChevronLeft, ChevronRight, Mail, Bot, Bell, BellOff, Send, LayoutDashboard, Wifi } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import AdminNav from "@/components/admin/AdminNav";
 
 interface AdminStats {
   totalUsers: number;
@@ -1191,11 +1192,11 @@ export default function AdminDashboard() {
                 <td className="border border-gray-300 px-4 py-2">
                   {user.phone && (
                     <div className="flex items-center gap-1">
-                      {user.phone.startsWith('+228') && <span>🇹🇬 +228</span>}
-                      {user.phone.startsWith('+229') && <span>🇧🇯 +229</span>}
-                      {user.phone.startsWith('+226') && <span>🇧🇫 +226</span>}
-                      {user.phone.startsWith('+221') && <span>🇸🇳 +221</span>}
-                      {user.phone.startsWith('+225') && <span>🇨🇮 +225</span>}
+                      {user.phone.startsWith('+228') && <span>TG · +228</span>}
+                      {user.phone.startsWith('+229') && <span>BJ · +229</span>}
+                      {user.phone.startsWith('+226') && <span>BF · +226</span>}
+                      {user.phone.startsWith('+221') && <span>SN · +221</span>}
+                      {user.phone.startsWith('+225') && <span>CI · +225</span>}
                       <span>{user.phone.replace(/^\+22[5689156]/, '')}</span>
                     </div>
                   )}
@@ -1304,7 +1305,7 @@ export default function AdminDashboard() {
                       disabled={activateAccountMutation.isPending || deactivateAccountMutation.isPending}
                       data-testid={`button-activate-${user.id}`}
                     >
-                      {user.isActive ? '✅ Activé' : '❌ Activer'}
+                      {user.isActive ? 'Activé' : 'Activer'}
                     </Button>
                     
                     <Button
@@ -1361,18 +1362,33 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="sika-page p-4">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
+    <div className="sika-page min-h-[100dvh]">
+      <AdminNav
+        title="Vue d’ensemble"
+        subtitle="Centre de contrôle opérationnel · activité en temps réel"
+        icon={LayoutDashboard}
+        badge={(pendingWithdrawals.length || 0) + (ciPendingUsers.length || 0) || undefined}
+        actions={
+          <div className="hidden items-center gap-2 md:flex">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-teal-300/20 bg-teal-400/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-teal-200">
+              <span className="h-1.5 w-1.5 rounded-full bg-teal-300 shadow-[0_0_0_3px_rgba(94,234,212,.12)]" />
+              Système actif
+            </span>
+          </div>
+        }
+      />
+      <div className="sika-content pb-12">
+        <div className="max-w-7xl mx-auto">
+        {/* Quick controls: retained operational actions, now grouped below the shared admin header. */}
+        <div className="mb-6 rounded-2xl border border-slate-200/80 bg-slate-900 p-3 shadow-xl shadow-slate-900/10">
           {/* Top bar: title + logout */}
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-2xl font-bold text-white leading-tight">Tableau de Bord</h1>
-              <p className="text-blue-200/70 text-sm">SIKA TEXTE BUSINESS · Administration</p>
+              <h1 className="text-lg font-extrabold tracking-tight text-white leading-tight">Raccourcis opérateur</h1>
+              <p className="text-slate-400 text-xs">Accès direct aux files urgentes et aux contrôles de service</p>
             </div>
             <div className="flex items-center gap-2">
-              <Button asChild className="bg-white/15 hover:bg-white/25 text-white border border-white/20 font-medium text-sm" data-testid="button-admin-my-account">
+              <Button asChild className="bg-white/10 hover:bg-white/20 text-white border border-white/10 font-medium text-sm" data-testid="button-admin-my-account">
                 <a href="/dashboard">
                   <LayoutDashboard className="h-3.5 w-3.5 mr-1.5" />
                   Mon compte
@@ -1384,7 +1400,7 @@ export default function AdminDashboard() {
                     .then(() => window.location.href = '/simple-login')
                     .catch(() => window.location.href = '/simple-login');
                 }}
-                className="bg-red-500/80 hover:bg-red-500 text-white px-3 py-2 rounded-lg transition-colors text-sm font-medium"
+                className="bg-rose-500/15 hover:bg-rose-500/25 text-rose-200 border border-rose-400/20 px-3 py-2 rounded-lg transition-colors text-sm font-bold"
                 data-testid="button-logout"
               >
                 Déconnexion
@@ -1517,7 +1533,7 @@ export default function AdminDashboard() {
                           </p>
                         </div>
                         <Badge variant={verification.status === 'approved' ? 'default' : verification.status === 'pending' ? 'secondary' : 'destructive'}>
-                          {verification.status === 'approved' ? '✅ Approuvé' : verification.status === 'pending' ? '⏳ En attente' : '❌ Rejeté'}
+                          {verification.status === 'approved' ? 'Approuvé' : verification.status === 'pending' ? 'En attente' : 'Rejeté'}
                         </Badge>
                       </div>
 
@@ -1765,52 +1781,61 @@ export default function AdminDashboard() {
         </Dialog>
 
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card>
+        <div className="mb-3 flex items-end justify-between gap-3">
+          <div>
+            <p className="sika-kicker">Pulse opérationnel</p>
+            <h2 className="mt-1 text-lg font-extrabold tracking-tight">Chiffres clés</h2>
+          </div>
+          <span className="hidden text-[11px] font-semibold text-muted-foreground sm:block">Actualisation automatique · 30 s</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mb-8">
+          <Card className="border-slate-200/80 bg-slate-900 text-white shadow-lg shadow-slate-900/10">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Utilisateurs</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-xs font-bold text-slate-300">Utilisateurs</CardTitle>
+              <Users className="h-4 w-4 text-teal-300" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats?.totalUsers || 0}</div>
+              <div className="text-2xl font-extrabold tracking-tight">{stats?.totalUsers || 0}</div>
+              <p className="mt-1 text-[10px] text-slate-400">comptes enregistrés</p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-teal-200/70 bg-teal-50/80 shadow-lg shadow-teal-900/5">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Dépôts Validés</CardTitle>
-              <TrendingUp className="h-4 w-4 text-green-600" />
+              <CardTitle className="text-xs font-bold text-teal-900">Dépôts validés</CardTitle>
+              <TrendingUp className="h-4 w-4 text-teal-700" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats?.completedDeposits || 0}</div>
-              <p className="text-xs text-muted-foreground">
+              <div className="text-2xl font-extrabold text-teal-800">{stats?.completedDeposits || 0}</div>
+              <p className="text-[10px] font-semibold text-teal-800/70">
                 En attente: {stats?.pendingDeposits || 0}
               </p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-amber-200/80 bg-amber-50/80 shadow-lg shadow-amber-900/5">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Retraits Validés</CardTitle>
-              <TrendingDown className="h-4 w-4 text-red-600" />
+              <CardTitle className="text-xs font-bold text-amber-950">Retraits validés</CardTitle>
+              <TrendingDown className="h-4 w-4 text-amber-700" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">{stats?.completedWithdrawals || 0}</div>
-              <p className="text-xs text-muted-foreground">
+              <div className="text-2xl font-extrabold text-amber-900">{stats?.completedWithdrawals || 0}</div>
+              <p className="text-[10px] font-semibold text-amber-900/70">
                 En attente: {stats?.pendingWithdrawals || 0}
               </p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-slate-200/80 bg-card shadow-lg shadow-slate-900/5">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Transactions</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-xs font-bold text-muted-foreground">Transactions</CardTitle>
+              <DollarSign className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-extrabold tracking-tight text-foreground">
                 {(stats?.totalDeposits || 0) + (stats?.totalWithdrawals || 0)}
               </div>
+              <p className="mt-1 text-[10px] font-semibold text-muted-foreground">flux cumulés</p>
             </CardContent>
           </Card>
         </div>
@@ -1829,7 +1854,7 @@ export default function AdminDashboard() {
           <CardContent className="space-y-4">
             {/* Par téléphone */}
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-blue-800 mb-2">📱 Par numéro de téléphone</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-blue-800 mb-2"><Search className="mr-1 inline h-3.5 w-3.5" /> Par numéro de téléphone</p>
               <div className="space-y-1.5">
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <code className="bg-white border border-blue-200 px-2 py-0.5 rounded font-mono text-xs">+229XXXXXXXX</code>
@@ -1980,7 +2005,7 @@ export default function AdminDashboard() {
                         </Badge>
                         {link.manualMode && (
                           <Badge className="text-[10px] bg-orange-100 text-orange-700 border border-orange-200">
-                            🏦 Manuel
+                            Mode manuel
                           </Badge>
                         )}
                       </div>
@@ -2009,7 +2034,7 @@ export default function AdminDashboard() {
                       </>
                       <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1"
                         onClick={() => openEditModal(link)}>
-                        ✏️ Modifier
+                        <Edit className="h-3 w-3" /> Modifier
                       </Button>
                       <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1"
                         onClick={() => toggleLinkMutation.mutate(link.id)}>
@@ -2530,7 +2555,11 @@ export default function AdminDashboard() {
                               variant="destructive"
                               className="h-7 rounded-lg text-xs font-bold px-2.5"
                               disabled={deletePnMutation.isPending}
-                              onClick={() => deletePnMutation.mutate(n.id)}
+                              onClick={() => {
+                                if (window.confirm("Supprimer définitivement cette notification de la plateforme ?")) {
+                                  deletePnMutation.mutate(n.id);
+                                }
+                              }}
                             >
                               <Trash className="h-3 w-3 mr-1" />Suppr.
                             </Button>
@@ -3250,6 +3279,7 @@ export default function AdminDashboard() {
         </DialogContent>
       </Dialog>
 
+    </div>
     </div>
   );
 }

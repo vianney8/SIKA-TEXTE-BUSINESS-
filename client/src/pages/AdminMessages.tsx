@@ -1,21 +1,23 @@
-import { useState, useRef, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { ArrowLeft, MessageCircle, Send, Loader2, User, Search, Image, X, Edit2, Trash2, MoreVertical, CheckCheck } from "lucide-react";
-import { Link } from "wouter";
-import { apiRequest } from "@/lib/queryClient";
+import { useEffect, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
-import { useToast } from "@/hooks/use-toast";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  ArrowLeft,
+  CheckCheck,
+  Loader2,
+  MessageCircle,
+  MoreVertical,
+  Paperclip,
+  Search,
+  Send,
+  Trash2,
+  X,
+  Edit2,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
   DialogContent,
@@ -24,18 +26,26 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import AdminNav from "@/components/admin/AdminNav";
 
 interface SupportMessage {
   id: string;
   userId: string;
   message: string;
   imageUrl?: string;
-  senderType: 'user' | 'admin';
+  senderType: "user" | "admin";
   isRead: boolean;
   createdAt: string;
   updatedAt?: string;
 }
-
 interface UserInfo {
   id: string;
   email: string;
@@ -44,7 +54,6 @@ interface UserInfo {
   lastName: string;
   fullName: string;
 }
-
 interface Conversation {
   userId: string;
   user: UserInfo;
@@ -52,650 +61,595 @@ interface Conversation {
   unreadCount: number;
 }
 
-function renderMessageWithLinks(text: string, isAdminMessage: boolean): JSX.Element {
-  if (!text) return <></>;
-  
-  const urlRegex = /(https?:\/\/[^\s]+)/g;
-  const parts = text.split(urlRegex);
-  
-  return (
-    <>
-      {parts.map((part, index) => {
-        if (urlRegex.test(part)) {
-          urlRegex.lastIndex = 0;
-          return (
-            <a
-              key={index}
-              href={part}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`underline break-all ${isAdminMessage ? 'text-emerald-100 hover:text-white' : 'text-blue-600 hover:text-blue-800 dark:text-blue-400'}`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {part}
-            </a>
-          );
-        }
-        return <span key={index}>{part}</span>;
-      })}
-    </>
+function linkedText(text: string, admin: boolean) {
+  return text.split(/(https?:\/\/[^\s]+)/g).map((part, i) =>
+    part.startsWith("http") ? (
+      <a
+        key={i}
+        href={part}
+        target="_blank"
+        rel="noreferrer"
+        className={`underline break-all ${admin ? "text-teal-100" : "text-teal-700"}`}
+      >
+        {part}
+      </a>
+    ) : (
+      <span key={i}>{part}</span>
+    ),
   );
 }
 
 export default function AdminMessages() {
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [newMessage, setNewMessage] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [editingMessage, setEditingMessage] = useState<SupportMessage | null>(null);
-  const [editText, setEditText] = useState("");
-  const [deleteConfirmMessage, setDeleteConfirmMessage] = useState<SupportMessage | null>(null);
-  const [deleteConversationConfirm, setDeleteConversationConfirm] = useState(false);
-  const [viewingImage, setViewingImage] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const queryClient = useQueryClient();
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null),
+    [searchQuery, setSearchQuery] = useState(""),
+    [newMessage, setNewMessage] = useState(""),
+    [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [editingMessage, setEditingMessage] = useState<SupportMessage | null>(
+      null,
+    ),
+    [editText, setEditText] = useState(""),
+    [deleteConfirmMessage, setDeleteConfirmMessage] =
+      useState<SupportMessage | null>(null),
+    [deleteConversationConfirm, setDeleteConversationConfirm] = useState(false),
+    [viewingImage, setViewingImage] = useState<string | null>(null),
+    [isUploading, setIsUploading] = useState(false);
+  const endRef = useRef<HTMLDivElement>(null),
+    fileRef = useRef<HTMLInputElement>(null),
+    queryClient = useQueryClient();
   const { toast } = useToast();
-
-  const { data: conversations = [], isLoading: conversationsLoading } = useQuery<Conversation[]>({
-    queryKey: ['/api/admin/support/conversations'],
+  const {
+    data: conversations = [],
+    isLoading: conversationsLoading,
+    isError: conversationsError,
+  } = useQuery<Conversation[]>({
+    queryKey: ["/api/admin/support/conversations"],
     refetchInterval: 5000,
   });
-
-  const { data: messages = [], isLoading: messagesLoading } = useQuery<SupportMessage[]>({
-    queryKey: ['/api/admin/support/messages', selectedUserId],
+  const { data: messages = [], isLoading: messagesLoading } = useQuery<
+    SupportMessage[]
+  >({
+    queryKey: ["/api/admin/support/messages", selectedUserId],
     enabled: !!selectedUserId,
     refetchInterval: 3000,
   });
-
-  const sendMessageMutation = useMutation({
-    mutationFn: async ({ userId, message, imageUrl }: { userId: string; message: string; imageUrl?: string }) => {
-      return apiRequest('POST', `/api/admin/support/messages/${userId}`, { message, imageUrl });
-    },
+  const invalidate = () => {
+    queryClient.invalidateQueries({
+      queryKey: ["/api/admin/support/messages", selectedUserId],
+    });
+    queryClient.invalidateQueries({
+      queryKey: ["/api/admin/support/conversations"],
+    });
+  };
+  const send = useMutation({
+    mutationFn: (body: {
+      userId: string;
+      message: string;
+      imageUrl?: string;
+    }) =>
+      apiRequest("POST", `/api/admin/support/messages/${body.userId}`, body),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/support/messages', selectedUserId] });
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/support/conversations'] });
+      invalidate();
       setNewMessage("");
       setSelectedImage(null);
-    }
-  });
-
-  const updateMessageMutation = useMutation({
-    mutationFn: async ({ messageId, message }: { messageId: string; message: string }) => {
-      return apiRequest('PATCH', `/api/admin/support/messages/${messageId}`, { message });
     },
+  });
+  const update = useMutation({
+    mutationFn: (body: { messageId: string; message: string }) =>
+      apiRequest("PATCH", `/api/admin/support/messages/${body.messageId}`, {
+        message: body.message,
+      }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/support/messages', selectedUserId] });
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/support/conversations'] });
+      invalidate();
       setEditingMessage(null);
-      setEditText("");
-      toast({ title: "Message modifié", description: "Le message a été modifié avec succès" });
-    }
-  });
-
-  const deleteMessageMutation = useMutation({
-    mutationFn: async (messageId: string) => {
-      return apiRequest('DELETE', `/api/admin/support/messages/${messageId}`, {});
+      toast({ title: "Message modifié" });
     },
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) =>
+      apiRequest("DELETE", `/api/admin/support/messages/${id}`, {}),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/support/messages', selectedUserId] });
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/support/conversations'] });
+      invalidate();
       setDeleteConfirmMessage(null);
-      toast({ title: "Message supprimé", description: "Le message a été supprimé pour tous" });
-    }
-  });
-
-  const deleteConversationMutation = useMutation({
-    mutationFn: async (userId: string) => {
-      return apiRequest('DELETE', `/api/admin/support/conversations/${userId}`, {});
+      toast({ title: "Message supprimé" });
     },
+  });
+  const removeConversation = useMutation({
+    mutationFn: (id: string) =>
+      apiRequest("DELETE", `/api/admin/support/conversations/${id}`, {}),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/support/messages', selectedUserId] });
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/support/conversations'] });
+      invalidate();
       setDeleteConversationConfirm(false);
       setSelectedUserId(null);
-      toast({ title: "Historique effacé", description: "L'historique de la conversation a été effacé pour tous" });
-    }
+      toast({ title: "Historique effacé" });
+    },
   });
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
   useEffect(() => {
-    scrollToBottom();
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
-
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if ((newMessage.trim() || selectedImage) && selectedUserId) {
-      sendMessageMutation.mutate({ userId: selectedUserId, message: newMessage.trim(), imageUrl: selectedImage || undefined });
-    }
-  };
-
-  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      toast({ title: "Erreur", description: "Veuillez sélectionner une image", variant: "destructive" });
+  const readImage = (file: File) => {
+    if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "Image invalide",
+        description: "Choisissez une image de moins de 5 Mo.",
+        variant: "destructive",
+      });
       return;
     }
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast({ title: "Erreur", description: "L'image ne doit pas dépasser 5 Mo", variant: "destructive" });
-      return;
-    }
-
     setIsUploading(true);
-    try {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setSelectedImage(reader.result as string);
-        setIsUploading(false);
-      };
-      reader.onerror = () => {
-        toast({ title: "Erreur", description: "Erreur lors du chargement de l'image", variant: "destructive" });
-        setIsUploading(false);
-      };
-      reader.readAsDataURL(file);
-    } catch (error) {
-      console.error('Error processing image:', error);
+    const reader = new FileReader();
+    reader.onload = () => {
+      setSelectedImage(reader.result as string);
       setIsUploading(false);
-    }
+    };
+    reader.onerror = () => {
+      setIsUploading(false);
+      toast({ title: "Erreur de chargement", variant: "destructive" });
+    };
+    reader.readAsDataURL(file);
   };
-
-  const handlePaste = async (e: React.ClipboardEvent) => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
-
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf('image') !== -1) {
-        e.preventDefault();
-        const file = items[i].getAsFile();
-        if (file) {
-          if (file.size > 5 * 1024 * 1024) {
-            toast({ title: "Erreur", description: "L'image ne doit pas dépasser 5 Mo", variant: "destructive" });
-            return;
-          }
-          setIsUploading(true);
-          const reader = new FileReader();
-          reader.onload = () => {
-            setSelectedImage(reader.result as string);
-            setIsUploading(false);
-          };
-          reader.onerror = () => {
-            toast({ title: "Erreur", description: "Erreur lors du chargement de l'image", variant: "destructive" });
-            setIsUploading(false);
-          };
-          reader.readAsDataURL(file);
-        }
-        break;
-      }
-    }
-  };
-
-  const handleEditMessage = (msg: SupportMessage) => {
-    setEditingMessage(msg);
-    setEditText(msg.message);
-  };
-
-  const handleSaveEdit = () => {
-    if (editingMessage && editText.trim()) {
-      updateMessageMutation.mutate({ messageId: editingMessage.id, message: editText.trim() });
-    }
-  };
-
-  const filteredConversations = conversations.filter(conv => {
-    const searchLower = searchQuery.toLowerCase();
-    const name = conv.user.fullName || `${conv.user.firstName} ${conv.user.lastName}`;
-    return (
-      name.toLowerCase().includes(searchLower) ||
-      conv.user.phone?.toLowerCase().includes(searchLower) ||
-      conv.user.email?.toLowerCase().includes(searchLower)
+  const handlePaste = (event: React.ClipboardEvent<HTMLInputElement>) => {
+    const item = Array.from(event.clipboardData.items).find((entry) =>
+      entry.type.startsWith("image/"),
     );
-  });
-
-  const selectedUser = conversations.find(c => c.userId === selectedUserId)?.user;
-
-  const totalUnread = conversations.reduce((sum, c) => sum + c.unreadCount, 0);
-
-  const renderMessages = (isMobile: boolean = false) => (
-    <>
-      {messagesLoading ? (
-        <div className="flex items-center justify-center h-full">
-          <Loader2 className="w-6 h-6 animate-spin" />
-        </div>
-      ) : messages.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
-          <MessageCircle className="w-12 h-12 mb-3 opacity-50" />
-          <p>Aucun message</p>
-        </div>
-      ) : (
-        messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex ${msg.senderType === 'admin' ? 'justify-end' : 'justify-start'} group`}
-            data-testid={`admin-message-${msg.id}`}
-          >
-            <div className={`relative max-w-[${isMobile ? '80' : '70'}%]`}>
-              {msg.senderType === 'admin' && (
-                <div className="absolute -left-8 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" data-testid={`button-message-menu-${msg.id}`}>
-                        <MoreVertical className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleEditMessage(msg)} data-testid={`button-edit-message-${msg.id}`}>
-                        <Edit2 className="w-4 h-4 mr-2" />
-                        Modifier
-                      </DropdownMenuItem>
-                      <DropdownMenuItem 
-                        onClick={() => setDeleteConfirmMessage(msg)} 
-                        className="text-red-600"
-                        data-testid={`button-delete-message-${msg.id}`}
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Supprimer pour tous
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              )}
-              <div
-                className={`rounded-2xl px-4 py-2 ${
-                  msg.senderType === 'admin'
-                    ? 'bg-emerald-600 text-white rounded-br-md'
-                    : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-bl-md'
-                }`}
-              >
-                {msg.imageUrl && (
-                  <div 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setViewingImage(msg.imageUrl!);
-                    }}
-                    className="block mb-2 cursor-pointer"
-                  >
-                    <img 
-                      src={msg.imageUrl} 
-                      alt="Image partagée" 
-                      className="max-w-full rounded-lg hover:opacity-90 transition-opacity"
-                      style={{ maxHeight: '200px' }}
-                    />
-                  </div>
-                )}
-                {msg.message && (
-                  <p className="text-sm whitespace-pre-wrap">
-                    {renderMessageWithLinks(msg.message, msg.senderType === 'admin')}
-                  </p>
-                )}
-                <div className={`flex items-center gap-1 mt-1 ${msg.senderType === 'admin' ? 'justify-end' : 'justify-start'}`}>
-                  <p className={`text-xs ${msg.senderType === 'admin' ? 'text-emerald-100' : 'text-muted-foreground'}`}>
-                    {formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true, locale: fr })}
-                    {msg.updatedAt && msg.updatedAt !== msg.createdAt && ' (modifié)'}
-                  </p>
-                  {msg.senderType === 'admin' && (
-                    <CheckCheck className={`w-3.5 h-3.5 ${msg.isRead ? 'text-blue-300' : 'text-emerald-200'}`} />
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        ))
-      )}
-      <div ref={messagesEndRef} />
-    </>
+    const file = item?.getAsFile();
+    if (file) {
+      event.preventDefault();
+      readImage(file);
+    }
+  };
+  const selectedUser = conversations.find(
+    (c) => c.userId === selectedUserId,
+  )?.user;
+  const unread = conversations.reduce((sum, c) => sum + c.unreadCount, 0);
+  const filtered = conversations.filter((c) =>
+    `${c.user.fullName} ${c.user.phone} ${c.user.email}`
+      .toLowerCase()
+      .includes(searchQuery.toLowerCase()),
   );
-
-  const renderInputForm = () => (
-    <>
-      {selectedImage && (
-        <div className="px-4 py-2 border-t bg-slate-100 dark:bg-slate-800">
-          <div className="relative inline-block">
-            <img src={selectedImage} alt="Image sélectionnée" className="h-16 rounded-lg" />
-            <button
-              onClick={() => setSelectedImage(null)}
-              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
-              data-testid="button-remove-image"
+  const avatar = (u: UserInfo) =>
+    (u.fullName || u.firstName || "U").charAt(0).toUpperCase();
+  const chat = (mobile = false) =>
+    selectedUser && (
+      <div
+        className={`${mobile ? "fixed inset-0 z-50" : "flex"} flex-col bg-background`}
+      >
+        <div className="flex items-center gap-3 border-b bg-card px-4 py-3">
+          {mobile && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSelectedUserId(null)}
+              aria-label="Fermer la conversation"
+              data-testid="button-close-chat"
             >
-              <X className="w-3 h-3" />
-            </button>
-          </div>
-        </div>
-      )}
-      <form onSubmit={handleSendMessage} className="p-4 border-t bg-white dark:bg-slate-950 flex gap-2">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleImageSelect}
-          className="hidden"
-          data-testid="input-admin-file-image"
-        />
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={isUploading || sendMessageMutation.isPending}
-          data-testid="button-admin-attach-image"
-        >
-          {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Image className="w-4 h-4" />}
-        </Button>
-        <Input
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          placeholder="Répondre au client..."
-          className="flex-1"
-          disabled={sendMessageMutation.isPending}
-          data-testid="input-admin-message"
-        />
-        <Button
-          type="submit"
-          disabled={(!newMessage.trim() && !selectedImage) || sendMessageMutation.isPending}
-          className="bg-emerald-600 hover:bg-emerald-700"
-          data-testid="button-admin-send"
-        >
-          {sendMessageMutation.isPending ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <>
-              <Send className="w-4 h-4 mr-2" />
-              Envoyer
-            </>
-          )}
-        </Button>
-      </form>
-    </>
-  );
-
-  return (
-    <div className="sika-page">
-      <div className="gradient-bg text-primary-foreground">
-        <div className="px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center">
-            <Button asChild variant="ghost" size="sm" className="text-primary-foreground hover:bg-white/10">
-              <Link href="/admin" data-testid="button-back">
-                <ArrowLeft className="w-5 h-5" />
-              </Link>
+              <ArrowLeft className="h-5 w-5" />
             </Button>
-            <h1 className="ml-4 text-lg font-semibold" data-testid="page-title">
-              Messages Support
-            </h1>
-          </div>
-          {totalUnread > 0 && (
-            <div className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-              {totalUnread} non lu{totalUnread > 1 ? 's' : ''}
-            </div>
           )}
-        </div>
-      </div>
-
-      <div className="flex h-[calc(100vh-64px)]">
-        <div className="w-full md:w-80 border-r bg-slate-50 dark:bg-slate-900 flex flex-col">
-          <div className="p-4 border-b">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Rechercher..."
-                className="pl-10"
-                data-testid="input-search-conversations"
-              />
-            </div>
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-teal-700 font-bold text-white">
+            {avatar(selectedUser)}
           </div>
-
-          <ScrollArea className="flex-1">
-            {conversationsLoading ? (
-              <div className="flex items-center justify-center p-8">
-                <Loader2 className="w-6 h-6 animate-spin" />
-              </div>
-            ) : filteredConversations.length === 0 ? (
-              <div className="flex flex-col items-center justify-center p-8 text-center text-muted-foreground">
-                <MessageCircle className="w-12 h-12 mb-3 opacity-50" />
-                <p>Aucune conversation</p>
-              </div>
-            ) : (
-              <div className="divide-y">
-                {filteredConversations.map((conv) => (
-                  <button
-                    key={conv.userId}
-                    onClick={() => setSelectedUserId(conv.userId)}
-                    className={`w-full p-4 text-left hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${
-                      selectedUserId === conv.userId ? 'bg-emerald-50 dark:bg-emerald-900/20 border-l-4 border-emerald-500' : ''
-                    }`}
-                    data-testid={`conversation-${conv.userId}`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-medium">
-                        {(conv.user.fullName || conv.user.firstName || 'U')[0].toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          {conv.unreadCount > 0 && (
-                            <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse">
-                              {conv.unreadCount}
-                            </span>
-                          )}
-                          <p className="font-medium truncate flex-1">
-                            {conv.user.fullName || `${conv.user.firstName} ${conv.user.lastName}`}
-                          </p>
-                        </div>
-                        <p className="text-sm text-muted-foreground truncate">
-                          {conv.user.phone || conv.user.email}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1 truncate">
-                          {conv.lastMessage.senderType === 'admin' ? 'Vous: ' : ''}
-                          {conv.lastMessage.imageUrl ? '📷 Photo' : conv.lastMessage.message}
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </ScrollArea>
-        </div>
-
-        <div className="hidden md:flex flex-1 flex-col">
-          {selectedUserId && selectedUser ? (
-            <>
-              <div className="p-4 border-b bg-white dark:bg-slate-950 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-medium">
-                    {(selectedUser.fullName || selectedUser.firstName || 'U')[0].toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="font-medium">
-                      {selectedUser.fullName || `${selectedUser.firstName} ${selectedUser.lastName}`}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedUser.phone || selectedUser.email}
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDeleteConversationConfirm(true)}
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  data-testid="button-delete-conversation"
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Effacer l'historique
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-bold">
+              {selectedUser.fullName ||
+                `${selectedUser.firstName} ${selectedUser.lastName}`}
+            </p>
+            <p className="truncate text-xs text-muted-foreground">
+              {selectedUser.phone || selectedUser.email}
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setDeleteConversationConfirm(true)}
+            className="hidden text-rose-700 sm:flex"
+            data-testid="button-delete-conversation"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Effacer l’historique
+          </Button>
+          {mobile && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label="Actions">
+                  <MoreVertical className="h-5 w-5" />
                 </Button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-4 bg-slate-50 dark:bg-slate-900 space-y-3">
-                {renderMessages()}
-              </div>
-
-              {renderInputForm()}
-            </>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground">
-              <MessageCircle className="w-16 h-16 mb-4 opacity-50" />
-              <h3 className="text-lg font-medium mb-2">Messages Support</h3>
-              <p>Sélectionnez une conversation pour voir les messages</p>
-            </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem
+                  onClick={() => setDeleteConversationConfirm(true)}
+                  className="text-rose-700"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Effacer l’historique
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
-
-        {selectedUserId && selectedUser && (
-          <div className="md:hidden fixed inset-0 z-50 bg-background">
-            <div className="flex flex-col h-full">
-              <div className="p-4 border-b bg-white dark:bg-slate-950 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setSelectedUserId(null)}
-                    data-testid="button-close-chat"
+        <div className="flex-1 space-y-3 overflow-y-auto bg-muted/35 p-4">
+          {messagesLoading ? (
+            <div className="space-y-3">
+              <div className="skeleton h-12 w-2/3" />
+              <div className="skeleton ml-auto h-12 w-1/2" />
+            </div>
+          ) : messages.length ? (
+            messages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`group flex ${msg.senderType === "admin" ? "justify-end" : "justify-start"}`}
+                data-testid={`admin-message-${msg.id}`}
+              >
+                <div className="relative max-w-[85%] sm:max-w-[70%]">
+                  {msg.senderType === "admin" && (
+                    <div className="absolute -left-9 top-1 opacity-100 transition md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            data-testid={`button-message-menu-${msg.id}`}
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setEditingMessage(msg);
+                              setEditText(msg.message);
+                            }}
+                            data-testid={`button-edit-message-${msg.id}`}
+                          >
+                            <Edit2 className="mr-2 h-4 w-4" />
+                            Modifier
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => setDeleteConfirmMessage(msg)}
+                            className="text-rose-700"
+                            data-testid={`button-delete-message-${msg.id}`}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Supprimer
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  )}
+                  <div
+                    className={`rounded-2xl px-4 py-2.5 shadow-sm ${msg.senderType === "admin" ? "rounded-br-md bg-teal-700 text-white" : "rounded-bl-md border bg-card"}`}
                   >
-                    <ArrowLeft className="w-5 h-5" />
-                  </Button>
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-medium">
-                    {(selectedUser.fullName || selectedUser.firstName || 'U')[0].toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="font-medium">
-                      {selectedUser.fullName || `${selectedUser.firstName} ${selectedUser.lastName}`}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedUser.phone || selectedUser.email}
-                    </p>
+                    {msg.imageUrl && (
+                      <img
+                        src={msg.imageUrl}
+                        alt="Image partagée"
+                        className="mb-2 max-h-52 cursor-pointer rounded-lg object-cover"
+                        onClick={() => setViewingImage(msg.imageUrl!)}
+                      />
+                    )}
+                    {msg.message && (
+                      <p className="whitespace-pre-wrap text-sm">
+                        {linkedText(msg.message, msg.senderType === "admin")}
+                      </p>
+                    )}
+                    <div className="mt-1 flex items-center justify-end gap-1 text-[10px] opacity-70">
+                      {formatDistanceToNow(new Date(msg.createdAt), {
+                        addSuffix: true,
+                        locale: fr,
+                      })}
+                      {msg.updatedAt !== msg.createdAt && " · modifié"}
+                      {msg.senderType === "admin" && (
+                        <CheckCheck className="h-3.5 w-3.5" />
+                      )}
+                    </div>
                   </div>
                 </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <MoreVertical className="w-5 h-5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem 
-                      onClick={() => setDeleteConversationConfirm(true)}
-                      className="text-red-600"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Effacer l'historique
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
               </div>
-
-              <div className="flex-1 overflow-y-auto p-4 bg-slate-50 dark:bg-slate-900 space-y-3">
-                {renderMessages(true)}
-              </div>
-
-              {renderInputForm()}
+            ))
+          ) : (
+            <div className="grid h-full place-items-center text-center text-muted-foreground">
+              <MessageCircle className="mx-auto mb-2 h-10 w-10 opacity-30" />
+              <p>Aucun message dans cette conversation</p>
+            </div>
+          )}
+          <div ref={endRef} />
+        </div>
+        {selectedImage && (
+          <div className="border-t bg-card px-4 py-2">
+            <div className="relative inline-block">
+              <img
+                src={selectedImage}
+                alt="Aperçu"
+                className="h-16 rounded-lg"
+              />
+              <button
+                type="button"
+                onClick={() => setSelectedImage(null)}
+                className="absolute -right-2 -top-2 rounded-full bg-rose-600 p-1 text-white"
+                data-testid="button-remove-image"
+              >
+                <X className="h-3 w-3" />
+              </button>
             </div>
           </div>
         )}
+        <form
+          className="flex gap-2 border-t bg-card p-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (selectedUserId && (newMessage.trim() || selectedImage))
+              send.mutate({
+                userId: selectedUserId,
+                message: newMessage.trim(),
+                imageUrl: selectedImage || undefined,
+              });
+          }}
+        >
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) =>
+              e.target.files?.[0] && readImage(e.target.files[0])
+            }
+            data-testid="input-admin-file-image"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={() => fileRef.current?.click()}
+            disabled={isUploading || send.isPending}
+            data-testid="button-admin-attach-image"
+          >
+            {isUploading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Paperclip className="h-4 w-4" />
+            )}
+          </Button>
+          <Input
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            onPaste={handlePaste}
+            placeholder="Répondre au client…"
+            disabled={send.isPending}
+            data-testid="input-admin-message"
+          />
+          <Button
+            type="submit"
+            disabled={(!newMessage.trim() && !selectedImage) || send.isPending}
+            className="bg-saffron text-slate-950 hover:bg-amber-400"
+            data-testid="button-admin-send"
+          >
+            {send.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <>
+                <Send className="mr-2 h-4 w-4" />
+                Envoyer
+              </>
+            )}
+          </Button>
+        </form>
       </div>
-
-      <Dialog open={!!editingMessage} onOpenChange={() => setEditingMessage(null)}>
+    );
+  return (
+    <div className="sika-page">
+      <AdminNav
+        title="Messages support"
+        subtitle="Répondre aux demandes des utilisateurs, en temps réel."
+        icon={MessageCircle}
+        badge={unread || undefined}
+      />
+      <main className="sika-content">
+        <div className="sika-surface flex min-h-[calc(100dvh-190px)] overflow-hidden">
+          <aside
+            className={`${selectedUserId ? "hidden md:flex" : "flex"} w-full flex-col border-r md:w-80`}
+          >
+            <div className="border-b p-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Rechercher un contact…"
+                  className="pl-9"
+                  data-testid="input-search-conversations"
+                />
+              </div>
+              <p className="mt-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                {unread
+                  ? `${unread} non lu${unread > 1 ? "s" : ""}`
+                  : "Boîte de réception à jour"}
+              </p>
+            </div>
+            <ScrollArea className="flex-1">
+              {conversationsLoading ? (
+                <div className="space-y-2 p-4">
+                  <div className="skeleton h-16" />
+                  <div className="skeleton h-16" />
+                </div>
+              ) : conversationsError ? (
+                <div className="p-6 text-center text-sm text-rose-700">
+                  Impossible de charger les conversations.
+                </div>
+              ) : filtered.length ? (
+                filtered.map((c) => (
+                  <button
+                    key={c.userId}
+                    onClick={() => setSelectedUserId(c.userId)}
+                    className={`flex w-full gap-3 border-b p-4 text-left transition hover:bg-muted/60 ${selectedUserId === c.userId ? "border-l-4 border-l-teal-600 bg-teal-50" : ""}`}
+                    data-testid={`conversation-${c.userId}`}
+                  >
+                    <div className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-slate-800 font-bold text-white">
+                      {avatar(c.user)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-sm font-bold">
+                          {c.user.fullName ||
+                            `${c.user.firstName} ${c.user.lastName}`}
+                        </p>
+                        {c.unreadCount > 0 && (
+                          <span className="rounded-full bg-saffron px-1.5 text-[10px] font-black">
+                            {c.unreadCount}
+                          </span>
+                        )}
+                      </div>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {c.user.phone || c.user.email}
+                      </p>
+                      <p className="mt-1 truncate text-xs text-muted-foreground">
+                        {c.lastMessage.senderType === "admin" && "Vous : "}
+                        {c.lastMessage.imageUrl
+                          ? "Image partagée"
+                          : c.lastMessage.message}
+                      </p>
+                    </div>
+                  </button>
+                ))
+              ) : (
+                <div className="p-10 text-center text-muted-foreground">
+                  <MessageCircle className="mx-auto mb-3 h-10 w-10 opacity-30" />
+                  <p className="text-sm">Aucune conversation</p>
+                </div>
+              )}
+            </ScrollArea>
+          </aside>
+          <section className="hidden flex-1 md:flex">
+            {selectedUserId ? (
+              chat()
+            ) : (
+              <div className="grid flex-1 place-items-center text-center text-muted-foreground">
+                <div>
+                  <MessageCircle className="mx-auto mb-3 h-14 w-14 opacity-25" />
+                  <p className="font-bold">Sélectionnez une conversation</p>
+                  <p className="text-sm">
+                    Les échanges avec vos utilisateurs apparaîtront ici.
+                  </p>
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
+      </main>
+      {selectedUserId && <div className="md:hidden">{chat(true)}</div>}
+      <Dialog
+        open={!!editingMessage}
+        onOpenChange={() => setEditingMessage(null)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Modifier le message</DialogTitle>
             <DialogDescription>
-              Modifiez le texte de votre message
+              Le texte sera mis à jour pour tous les participants.
             </DialogDescription>
           </DialogHeader>
           <Input
             value={editText}
             onChange={(e) => setEditText(e.target.value)}
-            placeholder="Nouveau texte..."
             data-testid="input-edit-message"
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingMessage(null)}>
               Annuler
             </Button>
-            <Button 
-              onClick={handleSaveEdit} 
-              disabled={!editText.trim() || updateMessageMutation.isPending}
+            <Button
+              onClick={() =>
+                editingMessage &&
+                update.mutate({
+                  messageId: editingMessage.id,
+                  message: editText.trim(),
+                })
+              }
+              disabled={!editText.trim() || update.isPending}
               data-testid="button-save-edit"
             >
-              {updateMessageMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Enregistrer
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <Dialog open={!!deleteConfirmMessage} onOpenChange={() => setDeleteConfirmMessage(null)}>
+      <Dialog
+        open={!!deleteConfirmMessage}
+        onOpenChange={() => setDeleteConfirmMessage(null)}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Supprimer le message</DialogTitle>
+            <DialogTitle>Supprimer ce message ?</DialogTitle>
             <DialogDescription>
-              Êtes-vous sûr de vouloir supprimer ce message ? Cette action est irréversible et le message sera supprimé pour tous.
+              Cette action est irréversible et le message sera retiré pour tous.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteConfirmMessage(null)}>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteConfirmMessage(null)}
+            >
               Annuler
             </Button>
-            <Button 
-              variant="destructive" 
-              onClick={() => deleteConfirmMessage && deleteMessageMutation.mutate(deleteConfirmMessage.id)}
-              disabled={deleteMessageMutation.isPending}
+            <Button
+              variant="destructive"
+              onClick={() =>
+                deleteConfirmMessage && remove.mutate(deleteConfirmMessage.id)
+              }
               data-testid="button-confirm-delete-message"
             >
-              {deleteMessageMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Supprimer
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <Dialog open={deleteConversationConfirm} onOpenChange={setDeleteConversationConfirm}>
+      <Dialog
+        open={deleteConversationConfirm}
+        onOpenChange={setDeleteConversationConfirm}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Effacer l'historique</DialogTitle>
+            <DialogTitle>Effacer l’historique ?</DialogTitle>
             <DialogDescription>
-              Êtes-vous sûr de vouloir effacer tout l'historique de cette conversation ? Cette action est irréversible et l'historique sera supprimé pour tous.
+              Tous les messages de cette conversation seront supprimés pour
+              tous.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteConversationConfirm(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteConversationConfirm(false)}
+            >
               Annuler
             </Button>
-            <Button 
-              variant="destructive" 
-              onClick={() => selectedUserId && deleteConversationMutation.mutate(selectedUserId)}
-              disabled={deleteConversationMutation.isPending}
+            <Button
+              variant="destructive"
+              onClick={() =>
+                selectedUserId && removeConversation.mutate(selectedUserId)
+              }
               data-testid="button-confirm-delete-conversation"
             >
-              {deleteConversationMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Effacer tout
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       {viewingImage && (
-        <div 
-          className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200"
+        <div
+          className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/90 p-4"
           onClick={() => setViewingImage(null)}
           data-testid="image-lightbox"
         >
           <button
+            className="absolute right-4 top-4 text-white"
             onClick={() => setViewingImage(null)}
-            className="absolute top-4 right-4 text-white hover:text-gray-300 p-2 rounded-full bg-black/50 hover:bg-black/70 transition-colors"
             data-testid="button-close-lightbox"
           >
-            <X className="w-6 h-6" />
+            <X />
           </button>
-          <img 
-            src={viewingImage} 
-            alt="Image en grand" 
-            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+          <img
+            src={viewingImage}
+            alt="Image en grand"
+            className="max-h-full max-w-full rounded-xl"
             onClick={(e) => e.stopPropagation()}
           />
         </div>

@@ -3,11 +3,10 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { RefreshCw, Search, CheckCircle, ArrowLeft, Send, Settings2 } from "lucide-react";
+import { RefreshCw, Search, CheckCircle, Send, Settings2, ShieldAlert, UsersRound } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Link } from "wouter";
+import AdminNav from "@/components/admin/AdminNav";
 
 export default function AdminCiUpdate() {
   const { toast } = useToast();
@@ -16,7 +15,7 @@ export default function AdminCiUpdate() {
   const [showTelegramConfig, setShowTelegramConfig] = useState(false);
   const [manualChatId, setManualChatId] = useState("");
 
-  const { data: ciPendingUsers = [], refetch: refetchCiPending } = useQuery<any[]>({
+  const { data: ciPendingUsers = [], isLoading: ciPendingLoading, isError: ciPendingError, refetch: refetchCiPending } = useQuery<any[]>({
     queryKey: ['/api/admin/ci-update-pending'],
     refetchInterval: 15000,
   });
@@ -99,37 +98,17 @@ export default function AdminCiUpdate() {
   });
 
   return (
-    <div className="sika-page p-4">
-      <div className="max-w-4xl mx-auto">
-
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
-          <Link href="/admin">
-            <Button variant="secondary" size="sm">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Retour
-            </Button>
-          </Link>
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-              <RefreshCw className="h-6 w-6" />
-              Gestion Mise à jour +225
-            </h1>
-            <p className="text-blue-100 text-sm">Côte d'Ivoire — Comptes actifs</p>
-          </div>
-          {ciPendingUsers.length > 0 && (
-            <Badge className="bg-red-500 text-white text-sm px-3 py-1">
-              {ciPendingUsers.length} en attente
-            </Badge>
-          )}
-        </div>
+    <div className="sika-page">
+      <AdminNav title="Mise à jour +225" subtitle="Contrôler les comptes actifs de Côte d'Ivoire" icon={RefreshCw} badge={ciPendingUsers.length || undefined} />
+      <main className="sika-content">
+       <div className="mx-auto max-w-5xl">
 
         {/* Telegram Configuration Card */}
-        <Card className={`mb-4 ${telegramStatus?.configured ? 'border-green-200' : 'border-yellow-300'}`}>
+         <Card className={`mb-4 overflow-hidden ${telegramStatus?.configured ? 'border-teal-200' : 'border-amber-300'}`}>
           <CardContent className="pt-4">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <Send className={`h-4 w-4 ${telegramStatus?.configured ? 'text-green-600' : 'text-yellow-600'}`} />
+                 <Send className={`h-4 w-4 ${telegramStatus?.configured ? 'text-teal-600' : 'text-amber-600'}`} />
                 <p className="font-semibold text-gray-800 text-sm">Configuration Telegram</p>
                 {telegramStatus?.configured ? (
                   <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Actif</span>
@@ -188,15 +167,17 @@ export default function AdminCiUpdate() {
         </Card>
 
         {/* Action globale */}
-        <Card className="mb-4 border-red-200">
+         <Card className="mb-4 border-rose-200 bg-rose-50/30">
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-semibold text-gray-800">Désactiver pour tous les +225</p>
+                 <div className="flex items-start gap-3"><ShieldAlert className="mt-0.5 h-5 w-5 flex-none text-rose-600" /><div><p className="font-semibold text-gray-800">Désactiver pour tous les +225</p>
                 <p className="text-sm text-gray-500">Tous les comptes +225 retrouveront l'accès immédiatement</p>
-              </div>
-              <Button
+               </div></div>
+             </div>
+               <Button
                 variant="destructive"
+                 className="w-full sm:w-auto"
                 disabled={ciDisableAllMutation.isPending}
                 onClick={() => {
                   if (confirm("Désactiver la mise à jour pour TOUS les comptes +225 ? Ils auront tous accès immédiatement.")) {
@@ -211,9 +192,9 @@ export default function AdminCiUpdate() {
         </Card>
 
         {/* Comptes en attente */}
-        <Card className="mb-4 border-orange-200">
-          <CardHeader className="bg-orange-50 rounded-t-lg">
-            <CardTitle className="text-orange-700 flex items-center gap-2">
+         <Card className="mb-4 border-amber-200">
+           <CardHeader className="rounded-t-lg bg-amber-50">
+             <CardTitle className="flex items-center gap-2 text-amber-800">
               <RefreshCw className="h-5 w-5" />
               Comptes actifs à valider
               {ciPendingUsers.length > 0 && (
@@ -223,8 +204,12 @@ export default function AdminCiUpdate() {
               )}
             </CardTitle>
           </CardHeader>
-          <CardContent className="pt-4">
-            {ciPendingUsers.length === 0 ? (
+           <CardContent className="pt-4">
+           {ciPendingLoading ? (
+             <div className="space-y-2" aria-label="Chargement des comptes"><div className="h-14 animate-pulse rounded-lg bg-slate-100" /><div className="h-14 animate-pulse rounded-lg bg-slate-100" /></div>
+           ) : ciPendingError ? (
+             <div className="py-8 text-center"><ShieldAlert className="mx-auto mb-2 h-8 w-8 text-amber-500" /><p className="text-sm font-semibold text-slate-700">Impossible de charger les comptes</p><Button variant="outline" size="sm" className="mt-3" onClick={() => refetchCiPending()}>Réessayer</Button></div>
+           ) : ciPendingUsers.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <CheckCircle className="h-12 w-12 mx-auto mb-3 text-green-400" />
                 <p>Aucune demande en attente</p>
@@ -232,7 +217,7 @@ export default function AdminCiUpdate() {
             ) : (
               <div className="space-y-2">
                 {ciPendingUsers.map((u: any) => (
-                  <div key={u.id} className="flex items-center justify-between p-3 border rounded-lg bg-white">
+                     <div key={u.id} className="flex flex-col gap-3 rounded-lg border bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="font-medium text-sm">{u.fullName || 'Sans nom'}</p>
                       <p className="text-xs text-muted-foreground">{u.phone}</p>
@@ -241,7 +226,7 @@ export default function AdminCiUpdate() {
                       size="sm"
                       onClick={() => ciValidateMutation.mutate(u.id)}
                       disabled={ciValidateMutation.isPending}
-                      className="bg-green-500 hover:bg-green-600 text-white"
+                       className="w-full bg-teal-600 text-white hover:bg-teal-700 sm:w-auto"
                     >
                       <CheckCircle className="h-3 w-3 mr-1" />
                       Valider
@@ -257,7 +242,7 @@ export default function AdminCiUpdate() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-semibold">Gérer un compte individuellement</CardTitle>
+               <CardTitle className="flex items-center gap-2 text-sm font-semibold"><UsersRound className="h-4 w-4 text-teal-700" /> Gérer un compte individuellement</CardTitle>
               <Button
                 size="sm"
                 variant="outline"
@@ -296,7 +281,7 @@ export default function AdminCiUpdate() {
                         <span className={`text-xs px-1.5 py-0.5 rounded ${u.ciUpdateValidated ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
                           {u.ciUpdateValidated ? 'MàJ validée' : 'MàJ requise'}
                         </span>
-                      </div>
+       </div>
                     </div>
                     <div className="flex gap-1">
                       {!u.ciUpdateValidated ? (
@@ -328,6 +313,7 @@ export default function AdminCiUpdate() {
         </Card>
 
       </div>
+      </main>
     </div>
   );
 }

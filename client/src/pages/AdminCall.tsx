@@ -561,20 +561,21 @@ export default function AdminCall() {
 
   return (
     <div
-      className="fixed inset-0 flex flex-col items-center justify-between select-none overflow-hidden"
-      style={{ background: "linear-gradient(145deg, hsl(216 31% 18%) 0%, hsl(174 73% 27%) 100%)" }}
+      className="fixed inset-0 flex flex-col items-center justify-between select-none overflow-hidden text-slate-100"
+      style={{ background: "radial-gradient(circle at 50% 38%, hsl(174 38% 24%) 0%, hsl(216 36% 12%) 55%, hsl(222 42% 8%) 100%)" }}
+      aria-label="Appel d’assistance SIKA TEXTE"
     >
       {/* ── TOP : identité plateforme ── */}
       <div className="flex flex-col items-center gap-2.5 pt-14">
         <div
           className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-xl"
-          style={{ background: "linear-gradient(135deg, #1a237e 0%, #283593 50%, #1565c0 100%)" }}
+          style={{ background: "linear-gradient(135deg, hsl(174 73% 32%), hsl(201 65% 42%))" }}
         >
           <span className="text-white font-black text-base tracking-tighter">ST</span>
         </div>
         <div className="text-center">
           <p className="text-slate-300 font-bold text-xs tracking-[0.22em] uppercase">SIKA TEXTE</p>
-          <p className="text-slate-600 text-[10px] mt-0.5">Interface Administration sécurisée</p>
+          <p className="text-slate-400 text-[10px] mt-0.5">Canal d’administration sécurisé</p>
         </div>
       </div>
 
@@ -712,7 +713,7 @@ export default function AdminCall() {
         {(isWaiting || isActive) && (
           <div
             className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium"
-            style={{ background: "rgba(139,92,246,0.14)", border: "1px solid rgba(139,92,246,0.3)", color: "#c4b5fd" }}
+            style={{ background: "rgba(45,212,191,0.12)", border: "1px solid rgba(45,212,191,0.28)", color: "#99f6e4" }}
           >
             <Bot className="w-3 h-3" /> Voix IA activée
           </div>
@@ -725,7 +726,9 @@ export default function AdminCall() {
           <>
             <div className="flex flex-col items-center gap-2">
               <button
+                type="button"
                 onClick={toggleMute}
+                aria-label={isMuted ? "Activer mon microphone" : "Désactiver mon microphone"}
                 className="w-16 h-16 rounded-full flex items-center justify-center transition-all active:scale-90"
                 style={{
                   background: isMuted ? "rgba(239,68,68,0.18)" : "rgba(255,255,255,0.07)",
@@ -736,12 +739,14 @@ export default function AdminCall() {
                   ? <MicOff className="w-6 h-6 text-red-400" />
                   : <Mic className="w-6 h-6 text-white" />}
               </button>
-              <span className="text-slate-600 text-[11px]">{isMuted ? "Activer" : "Couper"}</span>
+              <span className="text-slate-300 text-[11px]">{isMuted ? "Activer" : "Couper"}</span>
             </div>
 
             <div className="flex flex-col items-center gap-2">
               <button
+                type="button"
                 onClick={toggleUserMic}
+                aria-label={userMicMuted ? "Réactiver le microphone du client" : "Désactiver le microphone du client"}
                 title="Activer/désactiver le micro du client"
                 className="w-16 h-16 rounded-full flex items-center justify-center transition-all active:scale-90"
                 style={{
@@ -753,12 +758,14 @@ export default function AdminCall() {
                   ? <UserX className="w-6 h-6 text-amber-400" />
                   : <UserCheck className="w-6 h-6 text-white" />}
               </button>
-              <span className="text-slate-600 text-[11px]">{userMicMuted ? "Micro client OFF" : "Micro client ON"}</span>
+              <span className="text-slate-300 text-[11px]">{userMicMuted ? "Micro client OFF" : "Micro client ON"}</span>
             </div>
 
             <div className="flex flex-col items-center gap-2 relative">
               <button
+                type="button"
                 onClick={() => { setChatOpen(v => !v); setNewMsgToast(false); }}
+                aria-label={chatOpen ? "Fermer les messages" : "Ouvrir les messages"}
                 className="w-16 h-16 rounded-full flex items-center justify-center transition-all active:scale-90"
                 style={{
                   background: chatOpen ? "rgba(59,130,246,0.22)" : "rgba(255,255,255,0.07)",
@@ -772,12 +779,14 @@ export default function AdminCall() {
                   </span>
                 )}
               </button>
-              <span className="text-slate-600 text-[11px]">Messages</span>
+              <span className="text-slate-300 text-[11px]">Messages</span>
             </div>
 
             <div className="flex flex-col items-center gap-2">
               <button
+                type="button"
                 onClick={hangUp}
+                aria-label="Raccrocher l’appel"
                 className="w-20 h-20 rounded-full flex items-center justify-center transition-all active:scale-90"
                 style={{
                   background: "linear-gradient(135deg, #b91c1c 0%, #dc2626 60%, #ef4444 100%)",
@@ -786,13 +795,14 @@ export default function AdminCall() {
               >
                 <PhoneOff className="w-8 h-8 text-white" />
               </button>
-              <span className="text-slate-600 text-[11px]">Raccrocher</span>
+              <span className="text-slate-300 text-[11px]">Raccrocher</span>
             </div>
           </>
         )}
 
         {state === "ended" && (
           <button
+            type="button"
             onClick={() => window.close()}
             className="px-8 py-3 rounded-2xl text-slate-400 text-sm font-semibold transition-all active:scale-95"
             style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)" }}
@@ -826,7 +836,7 @@ export default function AdminCall() {
             <p className="text-white font-bold text-sm flex items-center gap-2">
               <Link2 className="w-4 h-4 text-blue-300" /> Messages de l'appel
             </p>
-            <button onClick={() => setChatOpen(false)} className="text-slate-400 text-xs font-semibold">
+            <button type="button" onClick={() => setChatOpen(false)} className="text-slate-400 text-xs font-semibold" aria-label="Fermer le panneau de messages">
               Fermer
             </button>
           </div>
@@ -839,7 +849,8 @@ export default function AdminCall() {
               <div key={m.id} className={`flex items-center gap-1.5 ${m.sender === "admin" ? "justify-end" : "justify-start"}`}>
                 {/* Suppression "pour tout le monde" — réservée à l'administrateur */}
                 {m.sender === "admin" && (
-                  <button
+                   <button
+                     type="button"
                     onClick={() => deleteMessage(m)}
                     title="Retirer pour tout le monde"
                     className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 opacity-40 hover:opacity-90 transition-opacity"
@@ -894,6 +905,7 @@ export default function AdminCall() {
               onChange={handlePickScreenshot}
             />
             <button
+              type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={imageUploading}
               title="Envoyer une capture d'écran"
@@ -911,6 +923,7 @@ export default function AdminCall() {
               style={{ background: "rgba(255,255,255,0.07)", color: "#fff" }}
             />
             <button
+              type="button"
               onClick={sendChatMessage}
               disabled={!chatInput.trim()}
               className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 disabled:opacity-40"

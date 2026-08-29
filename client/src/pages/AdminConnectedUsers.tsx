@@ -1,10 +1,18 @@
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
-import { Link } from "wouter";
 import {
-  ChevronLeft, Wifi, Activity, Users, Clock, RefreshCw,
-  Shield, ShieldOff, Globe, TrendingUp, Filter
+  Activity,
+  Clock,
+  Filter,
+  RefreshCw,
+  Shield,
+  ShieldOff,
+  TrendingUp,
+  Users,
+  Wifi,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import AdminNav from "@/components/admin/AdminNav";
 import { formatFCFA } from "@/lib/utils";
 
 interface OnlineUser {
@@ -18,390 +26,289 @@ interface OnlineUser {
   isActive: boolean;
   lastActivity: string;
 }
-
 interface OnlineData {
   users: OnlineUser[];
   veryActive: number;
   total: number;
 }
-
-const COUNTRY_FLAGS: Record<string, string> = {
-  BJ: "🇧🇯", CI: "🇨🇮", SN: "🇸🇳", BF: "🇧🇫", TG: "🇹🇬", CM: "🇨🇲", ML: "🇲🇱",
+const COUNTRIES: Record<string, string> = {
+  BJ: "Bénin",
+  CI: "Côte d’Ivoire",
+  SN: "Sénégal",
+  BF: "Burkina Faso",
+  TG: "Togo",
+  CM: "Cameroun",
+  ML: "Mali",
 };
-const COUNTRY_NAMES: Record<string, string> = {
-  BJ: "Bénin", CI: "Côte d'Ivoire", SN: "Sénégal", BF: "Burkina Faso", TG: "Togo", CM: "Cameroun", ML: "Mali",
-};
-
-const AVATAR_GRADIENTS = [
-  "linear-gradient(135deg,#1d4ed8,#7c3aed)",
-  "linear-gradient(135deg,#0891b2,#0d9488)",
-  "linear-gradient(135deg,#b45309,#d97706)",
-  "linear-gradient(135deg,#be185d,#7c3aed)",
-  "linear-gradient(135deg,#15803d,#0891b2)",
-];
-
-function timeAgo(ts: string) {
-  const s = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
-  if (s < 60) return `${s}s`;
-  return `${Math.floor(s / 60)}min`;
+const COLORS = ["#0f766e", "#1d4ed8", "#b45309", "#be185d", "#15803d"];
+function age(ts: string) {
+  const s = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(ts).getTime()) / 1000),
+  );
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)} min`;
 }
-
-function activityLevel(ts: string): "now" | "recent" | "idle" {
+function level(ts: string) {
   const s = (Date.now() - new Date(ts).getTime()) / 1000;
-  if (s < 45) return "now";
-  if (s < 120) return "recent";
-  return "idle";
+  return s < 45 ? "now" : s < 120 ? "recent" : "idle";
 }
-
-function getAvatarGradient(id: string) {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
-  return AVATAR_GRADIENTS[Math.abs(hash) % AVATAR_GRADIENTS.length];
+function color(id: string) {
+  return COLORS[
+    Math.abs(Array.from(id).reduce((a, c) => a + c.charCodeAt(0), 0)) % COLORS.length
+  ];
 }
-
 type FilterType = "all" | "now" | "recent" | "active" | "inactive";
 
 export default function AdminConnectedUsers() {
-  const [lastRefresh, setLastRefresh] = useState(new Date());
-  const [filter, setFilter] = useState<FilterType>("all");
-  const [tick, setTick] = useState(0);
-
-  const { data, refetch, isFetching } = useQuery<OnlineData>({
-    queryKey: ["/api/admin/users/online"],
-    refetchInterval: 15_000,
-    staleTime: 14_000,
-  });
-
+  const [filter, setFilter] = useState<FilterType>("all"),
+    [, setTick] = useState(0),
+    [lastRefresh, setLastRefresh] = useState(new Date());
+  const { data, refetch, isFetching, isLoading, isError } =
+    useQuery<OnlineData>({
+      queryKey: ["/api/admin/users/online"],
+      refetchInterval: 15000,
+      staleTime: 14000,
+    });
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 5000);
+    return () => clearInterval(id);
+  }, []);
   useEffect(() => {
     if (!isFetching) setLastRefresh(new Date());
   }, [isFetching]);
-
-  useEffect(() => {
-    const iv = setInterval(() => setTick(t => t + 1), 5000);
-    return () => clearInterval(iv);
-  }, []);
-
-  const allUsers = data?.users ?? [];
-  const total = data?.total ?? 0;
-  const veryActive = data?.veryActive ?? 0;
-  const recentActive = total - veryActive;
-
-  const nowUsers    = allUsers.filter(u => activityLevel(u.lastActivity) === "now");
-  const recentUsers = allUsers.filter(u => activityLevel(u.lastActivity) === "recent");
-  const idleUsers   = allUsers.filter(u => activityLevel(u.lastActivity) === "idle");
-
-  const countryBreakdown = allUsers.reduce<Record<string, number>>((acc, u) => {
-    if (u.country) acc[u.country] = (acc[u.country] || 0) + 1;
-    return acc;
-  }, {});
-
-  const filteredUsers = allUsers.filter(u => {
-    if (filter === "now")      return activityLevel(u.lastActivity) === "now";
-    if (filter === "recent")   return activityLevel(u.lastActivity) === "recent";
-    if (filter === "active")   return u.isActive;
-    if (filter === "inactive") return !u.isActive;
-    return true;
-  }).sort((a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime());
-
-  const filters: { key: FilterType; label: string; count: number; color: string }[] = [
-    { key: "all",      label: "Tous",        count: total,        color: "#94a3b8" },
-    { key: "now",      label: "Maintenant",  count: nowUsers.length,    color: "#22c55e" },
-    { key: "recent",   label: "Récents",     count: recentUsers.length, color: "#3b82f6" },
-    { key: "active",   label: "Activés",     count: allUsers.filter(u => u.isActive).length,  color: "#10b981" },
-    { key: "inactive", label: "Non activés", count: allUsers.filter(u => !u.isActive).length, color: "#f59e0b" },
+  const users = data?.users ?? [],
+    total = data?.total ?? 0,
+    veryActive = data?.veryActive ?? 0,
+    now = users.filter((u) => level(u.lastActivity) === "now"),
+    recent = users.filter((u) => level(u.lastActivity) === "recent"),
+    idle = users.filter((u) => level(u.lastActivity) === "idle");
+  const list = users
+    .filter((u) =>
+      filter === "now"
+        ? level(u.lastActivity) === "now"
+        : filter === "recent"
+          ? level(u.lastActivity) === "recent"
+          : filter === "active"
+            ? u.isActive
+            : filter === "inactive"
+              ? !u.isActive
+              : true,
+    )
+    .sort((a, b) => +new Date(b.lastActivity) - +new Date(a.lastActivity));
+  const filters: [FilterType, string, number, string][] = [
+    ["all", "Tous", total, "slate"],
+    ["now", "Maintenant", now.length, "teal"],
+    ["recent", "Récents", recent.length, "blue"],
+    ["active", "Activés", users.filter((u) => u.isActive).length, "emerald"],
+    [
+      "inactive",
+      "Non activés",
+      users.filter((u) => !u.isActive).length,
+      "amber",
+    ],
   ];
-
   return (
     <div className="sika-page">
-
-      {/* HEADER */}
-      <header className="sticky top-0 z-20 border-b border-white/10"
-        style={{ background: "rgba(15,23,42,0.92)", backdropFilter: "blur(14px)" }}>
-        <div className="px-4 py-3.5 flex items-center gap-3 max-w-2xl mx-auto">
-          <Link href="/admin">
-            <button className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
-              style={{ background: "rgba(255,255,255,0.08)" }}>
-              <ChevronLeft className="w-4 h-4 text-white" />
-            </button>
-          </Link>
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <h1 className="text-white font-bold text-sm">Utilisateurs Connectés</h1>
-              <div className="flex items-center gap-1 px-2 py-0.5 rounded-full"
-                style={{ background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.3)" }}>
-                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                <span className="text-green-400 text-[10px] font-bold">{total}</span>
-              </div>
-            </div>
-            <p className="text-white/30 text-[10px]">
-              {isFetching ? "Actualisation…" : `Mis à jour ${lastRefresh.toLocaleTimeString("fr-FR")}`}
+      <AdminNav
+        title="Utilisateurs connectés"
+        subtitle="Présence en direct et activité récente des comptes."
+        icon={Wifi}
+        badge={total || undefined}
+        actions={
+          <button
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/5 text-white hover:bg-white/10"
+            aria-label="Actualiser"
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`}
+            />
+          </button>
+        }
+      />
+      <main className="sika-content space-y-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="sika-kicker">Centre de présence</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {isFetching
+                ? "Actualisation en cours…"
+                : `Mis à jour à ${lastRefresh.toLocaleTimeString("fr-FR")}`}
             </p>
           </div>
-          <button onClick={() => refetch()} disabled={isFetching}
-            className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors disabled:opacity-40"
-            style={{ background: "rgba(255,255,255,0.08)" }}>
-            <RefreshCw className={`w-4 h-4 text-white ${isFetching ? "animate-spin" : ""}`} />
-          </button>
+          <span className="inline-flex items-center gap-2 rounded-full bg-teal-50 px-3 py-1.5 text-xs font-bold text-teal-800">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-teal-600" />
+            Temps réel
+          </span>
         </div>
-      </header>
-
-      <div className="px-4 py-4 max-w-2xl mx-auto space-y-4">
-
-        {/* STATS CARDS */}
-        <div className="grid grid-cols-3 gap-2.5">
-          {[
-            {
-              icon: <Wifi className="w-4 h-4" />,
-              label: "En ligne",
-              value: total,
-              sub: "total",
-              color: "#22c55e",
-              bg: "rgba(34,197,94,0.10)",
-              border: "rgba(34,197,94,0.2)",
-              pulse: true,
-            },
-            {
-              icon: <Activity className="w-4 h-4" />,
-              label: "< 1 minute",
-              value: veryActive,
-              sub: "très actifs",
-              color: "#3b82f6",
-              bg: "rgba(59,130,246,0.10)",
-              border: "rgba(59,130,246,0.2)",
-              pulse: false,
-            },
-            {
-              icon: <Clock className="w-4 h-4" />,
-              label: "< 3 minutes",
-              value: recentActive,
-              sub: "récents",
-              color: "#f59e0b",
-              bg: "rgba(245,158,11,0.10)",
-              border: "rgba(245,158,11,0.2)",
-              pulse: false,
-            },
-          ].map(s => (
-            <div key={s.label} className="rounded-2xl p-3.5 flex flex-col gap-2.5"
-              style={{ background: s.bg, border: `1px solid ${s.border}` }}>
-              <div className="flex items-center justify-between">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                  style={{ background: `${s.color}20`, color: s.color }}>
-                  {s.icon}
-                </div>
-                {s.pulse && s.value > 0 && (
-                  <span className="w-2 h-2 rounded-full flex-shrink-0 animate-pulse"
-                    style={{ background: s.color }} />
-                )}
-              </div>
-              <div>
-                <p className="text-white font-black text-2xl leading-none">{s.value}</p>
-                <p className="text-white/30 text-[10px] mt-0.5 leading-tight font-medium">{s.label}</p>
-                <p className="text-white/20 text-[9px]">{s.sub}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* COUNTRY BREAKDOWN */}
-        {Object.keys(countryBreakdown).length > 0 && (
-          <div className="rounded-2xl p-3.5 space-y-2"
-            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
-            <div className="flex items-center gap-2 mb-2.5">
-              <Globe className="w-3.5 h-3.5 text-white/40" />
-              <p className="text-white/40 text-[11px] font-bold uppercase tracking-wider">Par pays</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(countryBreakdown)
-                .sort((a, b) => b[1] - a[1])
-                .map(([code, count]) => (
-                  <div key={code} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg"
-                    style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.09)" }}>
-                    <span className="text-base">{COUNTRY_FLAGS[code] || "🌍"}</span>
-                    <span className="text-white/60 text-xs font-semibold">{COUNTRY_NAMES[code] || code}</span>
-                    <span className="text-white font-black text-xs ml-0.5">{count}</span>
-                  </div>
-                ))}
-            </div>
+        {isLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="skeleton h-20" />
+            ))}
           </div>
-        )}
-
-        {/* ACTIVITY BREAKDOWN */}
-        {total > 0 && (
-          <div className="rounded-2xl overflow-hidden"
-            style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
-            <div className="flex">
-              {[
-                { label: "Maintenant", count: nowUsers.length,    color: "#22c55e", bg: "rgba(34,197,94,0.12)"  },
-                { label: "Récents",    count: recentUsers.length,  color: "#3b82f6", bg: "rgba(59,130,246,0.12)" },
-                { label: "Idle",       count: idleUsers.length,    color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
-              ].filter(s => s.count > 0).map(s => (
-                <div key={s.label} className="flex-1 py-3 px-3 text-center" style={{ background: s.bg }}>
-                  <p className="font-black text-white text-xl leading-none">{s.count}</p>
-                  <p className="text-[10px] font-semibold mt-0.5" style={{ color: s.color }}>{s.label}</p>
+        ) : isError ? (
+          <div className="sika-surface p-10 text-center text-rose-700">
+            Impossible de charger les utilisateurs connectés.
+            <br />
+            <button
+              onClick={() => refetch()}
+              className="mt-3 font-bold underline"
+            >
+              Réessayer
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-3 gap-3">
+              {(
+                [
+                  [Wifi, "En ligne", total, "border-teal-600", "text-teal-700"],
+                  [Activity, "Très actifs", veryActive, "border-blue-600", "text-blue-700"],
+                  [Clock, "Récents", total - veryActive, "border-amber-500", "text-amber-700"],
+                ] as [LucideIcon, string, number, string, string][]
+              ).map(([Icon, label, value, borderClass, iconClass]) => (
+                <div
+                  key={label as string}
+                  className={`sika-surface border-l-4 ${borderClass} p-4`}
+                >
+                  <Icon className={`h-4 w-4 ${iconClass}`} />
+                  <p className="mt-3 text-2xl font-black">{value as number}</p>
+                  <p className="text-xs font-bold text-muted-foreground">
+                    {label as string}
+                  </p>
                 </div>
               ))}
             </div>
             {total > 0 && (
-              <div className="h-1.5 flex">
-                {nowUsers.length > 0    && <div className="h-full bg-green-400 transition-all" style={{ width: `${(nowUsers.length/total)*100}%` }} />}
-                {recentUsers.length > 0 && <div className="h-full bg-blue-400 transition-all"  style={{ width: `${(recentUsers.length/total)*100}%` }} />}
-                {idleUsers.length > 0   && <div className="h-full bg-amber-400 transition-all" style={{ width: `${(idleUsers.length/total)*100}%` }} />}
+              <div className="sika-surface overflow-hidden">
+                <div className="flex h-2">
+                  {now.length > 0 && (
+                    <div
+                      className="bg-teal-600"
+                      style={{ width: `${(now.length / total) * 100}%` }}
+                    />
+                  )}
+                  {recent.length > 0 && (
+                    <div
+                      className="bg-blue-600"
+                      style={{ width: `${(recent.length / total) * 100}%` }}
+                    />
+                  )}
+                  {idle.length > 0 && (
+                    <div
+                      className="bg-amber-500"
+                      style={{ width: `${(idle.length / total) * 100}%` }}
+                    />
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2 p-4">
+                  {filters.map(([key, label, count]) => (
+                    <button
+                      key={key}
+                      onClick={() => setFilter(key)}
+                      className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${filter === key ? "border-teal-600 bg-teal-50 text-teal-800" : "bg-muted/35 text-muted-foreground hover:bg-muted"}`}
+                    >
+                      <Filter className="mr-1 inline h-3 w-3" />
+                      {label} <span className="ml-1">{count}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
-          </div>
-        )}
-
-        {/* FILTRES */}
-        {total > 0 && (
-          <div className="flex gap-2 overflow-x-auto pb-1 -mx-0.5 px-0.5"
-            style={{ scrollbarWidth: "none" }}>
-            {filters.map(f => (
-              <button key={f.key} onClick={() => setFilter(f.key)}
-                className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all"
-                style={{
-                  background: filter === f.key ? `${f.color}20` : "rgba(255,255,255,0.05)",
-                  border: `1px solid ${filter === f.key ? f.color + "50" : "rgba(255,255,255,0.08)"}`,
-                  color: filter === f.key ? f.color : "rgba(255,255,255,0.4)",
-                }}>
-                <Filter className="w-2.5 h-2.5" />
-                {f.label}
-                <span className="font-black">{f.count}</span>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* LISTE */}
-        {filteredUsers.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 py-16">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
-              <Users className="w-8 h-8 text-white/15" />
-            </div>
-            <div className="text-center">
-              <p className="text-white/30 text-sm font-semibold">Aucun utilisateur</p>
-              <p className="text-white/15 text-xs mt-0.5">
-                {filter === "all" ? "Aucune session active" : "Aucun résultat pour ce filtre"}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {/* Section labels */}
-            {filter === "all" && nowUsers.length > 0 && (
-              <div className="flex items-center gap-2 px-1 pt-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                <p className="text-green-400/80 text-[11px] font-bold uppercase tracking-wider">
-                  Actifs maintenant · {nowUsers.length}
+            {list.length === 0 ? (
+              <div className="sika-surface p-14 text-center text-muted-foreground">
+                <Users className="mx-auto mb-3 h-10 w-10 opacity-30" />
+                <p className="font-bold">Aucun utilisateur</p>
+                <p className="mt-1 text-sm">
+                  {filter === "all"
+                    ? "Aucune session active."
+                    : "Aucun résultat pour ce filtre."}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {list.map((u) => {
+                  const state = level(u.lastActivity);
+                  const stateText =
+                    state === "now"
+                      ? "Actif"
+                      : state === "recent"
+                        ? "Récent"
+                        : "Idle";
+                  return (
+                    <div
+                      key={u.id}
+                      className="sika-surface flex items-center gap-3 p-3.5"
+                    >
+                      <div className="relative">
+                        <div
+                          className="grid h-11 w-11 place-items-center rounded-xl font-black text-white"
+                          style={{ background: color(u.id) }}
+                        >
+                          {(u.fullName || u.phone || "?")[0].toUpperCase()}
+                        </div>
+                        <span
+                          className={`absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border-2 border-card ${state === "now" ? "bg-teal-500" : state === "recent" ? "bg-blue-500" : "bg-amber-500"}`}
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate text-sm font-bold">
+                            {u.fullName || "Sans nom"}
+                          </p>
+                          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold">
+                            {stateText}
+                          </span>
+                        </div>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {u.phone || u.email} ·{" "}
+                          {COUNTRIES[u.country] ||
+                            u.country ||
+                            "Pays non renseigné"}
+                        </p>
+                        <p className="mt-1 flex items-center gap-2 text-xs">
+                          <span className="font-bold text-teal-700">
+                            {formatFCFA(Number(u.balance))}
+                          </span>
+                          {u.isActive ? (
+                            <span className="text-emerald-700">
+                              <Shield className="mr-1 inline h-3 w-3" />
+                              Activé
+                            </span>
+                          ) : (
+                            <span className="text-rose-700">
+                              <ShieldOff className="mr-1 inline h-3 w-3" />
+                              Non activé
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="text-right text-xs font-black text-muted-foreground">
+                        {age(u.lastActivity)}
+                        <div className="mt-1 flex justify-end gap-1">
+                          {state === "now" &&
+                            [1, 2, 3].map((i) => (
+                              <span
+                                key={i}
+                                className="h-1 w-1 rounded-full bg-teal-500"
+                              />
+                            ))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <p className="flex items-center justify-center gap-2 py-3 text-xs text-muted-foreground">
+                  <TrendingUp className="h-3.5 w-3.5" />
+                  Actualisation automatique toutes les 15 secondes
                 </p>
               </div>
             )}
-
-            {filteredUsers.map((user, idx) => {
-              const level    = activityLevel(user.lastActivity);
-              const dotColor = level === "now" ? "#22c55e" : level === "recent" ? "#3b82f6" : "#f59e0b";
-              const dotLabel = level === "now" ? "Actif" : level === "recent" ? "Récent" : "Idle";
-              const flag     = COUNTRY_FLAGS[user.country] || "🌍";
-              const gradient = getAvatarGradient(user.id);
-
-              const showRecentLabel = filter === "all"
-                && level !== "now"
-                && idx > 0
-                && activityLevel(filteredUsers[idx - 1].lastActivity) === "now"
-                && recentUsers.length > 0;
-
-              return (
-                <div key={user.id}>
-                  {showRecentLabel && (
-                    <div className="flex items-center gap-2 px-1 pt-2 pb-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                      <p className="text-blue-400/60 text-[11px] font-bold uppercase tracking-wider">
-                        Récemment actifs
-                      </p>
-                    </div>
-                  )}
-                  <div className="rounded-2xl px-3.5 py-3 transition-all"
-                    style={{
-                      background: "rgba(255,255,255,0.04)",
-                      border: `1px solid ${level === "now" ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.07)"}`,
-                    }}>
-                    <div className="flex items-center gap-3">
-                      {/* Avatar */}
-                      <div className="relative flex-shrink-0">
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-sm"
-                          style={{ background: gradient }}>
-                          {(user.fullName || user.phone || "?").charAt(0).toUpperCase()}
-                        </div>
-                        <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2"
-                          style={{ background: dotColor, borderColor: "#0f172a" }} />
-                      </div>
-
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-white font-semibold text-sm truncate max-w-[120px]">
-                            {user.fullName || "—"}
-                          </span>
-                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
-                            style={{ background: `${dotColor}18`, color: dotColor }}>
-                            {dotLabel}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                          <span className="text-white/35 text-[11px]">{user.phone || "—"}</span>
-                          <span className="text-white/20 text-[11px]">·</span>
-                          <span className="text-[11px]">{flag} {COUNTRY_NAMES[user.country] || user.country || "—"}</span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-blue-400/80 text-[11px] font-bold">
-                            {formatFCFA(Number(user.balance))}
-                          </span>
-                          <span className="text-white/20 text-[11px]">·</span>
-                          {user.isActive
-                            ? <span className="flex items-center gap-0.5 text-[10px] font-bold text-emerald-400">
-                                <Shield className="w-2.5 h-2.5" /> Activé
-                              </span>
-                            : <span className="flex items-center gap-0.5 text-[10px] font-bold text-red-400">
-                                <ShieldOff className="w-2.5 h-2.5" /> Non activé
-                              </span>
-                          }
-                        </div>
-                      </div>
-
-                      {/* Temps */}
-                      <div className="flex flex-col items-end flex-shrink-0 gap-1">
-                        <span className="text-[11px] font-black tabular-nums" style={{ color: dotColor }}>
-                          {timeAgo(user.lastActivity)}
-                        </span>
-                        {level === "now" && (
-                          <div className="flex gap-0.5">
-                            {[0,1,2].map(i => (
-                              <span key={i} className="w-1 h-1 rounded-full"
-                                style={{
-                                  background: dotColor,
-                                  animation: `pulse 1.4s ${i * 0.2}s infinite ease-in-out`,
-                                  opacity: 0.6,
-                                }} />
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* Trending footer */}
-            {total > 0 && (
-              <div className="flex items-center justify-center gap-2 py-3 text-white/20 text-[10px]">
-                <TrendingUp className="w-3 h-3" />
-                <span>Actualisation auto toutes les 15 secondes</span>
-              </div>
-            )}
-          </div>
+          </>
         )}
-      </div>
+      </main>
     </div>
   );
 }

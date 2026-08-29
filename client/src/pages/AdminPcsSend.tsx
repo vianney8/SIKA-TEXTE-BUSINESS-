@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,11 +10,12 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import {
-  ArrowLeft, Mail, Plus, CheckCircle, Copy, RefreshCw, Send,
+  Mail, Plus, CheckCircle, Copy, RefreshCw, Send,
   UserCheck, Loader2, ShieldCheck, ShieldOff, Pencil, MailCheck,
   Sparkles, Zap, Trash2, AlertTriangle, Users, ToggleLeft, ToggleRight,
   ChevronLeft, ChevronRight, KeyRound, Bolt, Search, X,
 } from "lucide-react";
+import AdminNav from "@/components/admin/AdminNav";
 
 const COUNTRIES = [
   { code: "BJ", name: "Bénin" },
@@ -60,7 +60,7 @@ function ExistingCodeRow({ code, email, firstName, lastName, countryCode, index,
     },
     onSuccess: () => {
       onRefresh();
-      toast({ title: "✅ Statut mis à jour", description: `Code …${code.code.slice(-9)} → ${localStatus}` });
+      toast({ title: "Statut mis à jour", description: `Code …${code.code.slice(-9)} → ${localStatus}` });
     },
     onError: (err: any) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
   });
@@ -75,7 +75,7 @@ function ExistingCodeRow({ code, email, firstName, lastName, countryCode, index,
     },
     onSuccess: () => {
       onRefresh();
-      toast({ title: "📧 Email envoyé avec succès", description: `Code …${code.code.slice(-9)} → ${localStatus}` });
+      toast({ title: "Email envoyé avec succès", description: `Code …${code.code.slice(-9)} → ${localStatus}` });
     },
     onError: (err: any) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
   });
@@ -86,7 +86,7 @@ function ExistingCodeRow({ code, email, firstName, lastName, countryCode, index,
     },
     onSuccess: () => {
       onRefresh();
-      toast({ title: "🗑️ Code PCS supprimé", description: `Code ${code.code} supprimé définitivement.` });
+      toast({ title: "Code PCS supprimé", description: `Code ${code.code} supprimé définitivement.` });
     },
     onError: (err: any) => {
       setConfirmDelete(false);
@@ -183,7 +183,7 @@ function ExistingCodeRow({ code, email, firstName, lastName, countryCode, index,
             <SelectContent>
               {STATUS_OPTIONS.map(o => (
                 <SelectItem key={o.value} value={o.value} className={`text-xs font-semibold ${o.color}`}>
-                  {o.value === 'actif' ? '✅' : '🔴'} {o.label}
+                  {o.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -196,7 +196,7 @@ function ExistingCodeRow({ code, email, firstName, lastName, countryCode, index,
                 exit={{ opacity: 0, scale: 0.8 }}
                 className="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full"
               >
-                ✏️ Modifié
+                Modifié
               </motion.span>
             )}
           </AnimatePresence>
@@ -287,7 +287,6 @@ function ExistingCodeRow({ code, email, firstName, lastName, countryCode, index,
 
 /* ══════════════ PAGE PRINCIPALE ══════════════ */
 export default function AdminPcsSend() {
-  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -352,7 +351,7 @@ export default function AdminPcsSend() {
     },
     onSuccess: () => {
       refreshCodes(); setNewCode(generatePcsCode()); setNewStatus('actif');
-      toast({ title: "✅ Code PCS créé", description: "Enregistré sans envoi d'email." });
+      toast({ title: "Code PCS créé", description: "Enregistré sans envoi d'email." });
     },
     onError: (err: any) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
   });
@@ -367,7 +366,7 @@ export default function AdminPcsSend() {
     },
     onSuccess: () => {
       refreshCodes(); setNewCode(generatePcsCode()); setNewStatus('actif');
-      toast({ title: "📧 Code créé et email envoyé !", description: `Nouveau PCS envoyé à ${email}` });
+      toast({ title: "Code créé et email envoyé", description: `Nouveau PCS envoyé à ${email}` });
     },
     onError: (err: any) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
   });
@@ -413,7 +412,7 @@ export default function AdminPcsSend() {
     onSuccess: () => {
       refetchAuto();
       refetchPcs();
-      toast({ title: "✅ Mode de retrait mis à jour" });
+      toast({ title: "Mode de retrait mis à jour" });
     },
     onError: (err: any) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
   });
@@ -421,30 +420,9 @@ export default function AdminPcsSend() {
   return (
     <div className="sika-page">
 
-      {/* ── Header premium ── */}
-      <div className="sticky top-0 z-20">
-        <div className="bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-600 shadow-xl shadow-blue-900/20">
-          <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
-            <button
-              onClick={() => setLocation('/admin')}
-              className="w-9 h-9 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors"
-            >
-              <ArrowLeft size={18} className="text-white" />
-            </button>
-            <div className="flex items-center gap-3 flex-1">
-              <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center shadow-inner">
-                <Sparkles size={18} className="text-white" />
-              </div>
-              <div>
-                <h1 className="font-extrabold text-white text-base tracking-tight">Gestion Codes PCS</h1>
-                <p className="text-blue-100 text-[11px] font-medium">Modifier · Créer · Envoyer par email</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-2xl mx-auto px-4 py-5 space-y-4 pb-10">
+      <AdminNav title="Gestion des codes PCS" subtitle="Créer, modifier et envoyer des codes par email" icon={Mail} />
+      <main className="sika-content">
+      <div className="mx-auto max-w-5xl space-y-4 pb-10">
 
         {/* ══════════════════════════════
             SECTION 1 — Destinataire
@@ -513,7 +491,7 @@ export default function AdminPcsSend() {
                       initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                       className="mt-1.5 text-xs text-amber-600 font-medium"
                     >
-                      ⚠️ Aucun compte Sika Texte trouvé — remplissez le nom manuellement.
+                      Aucun compte Sika Texte trouvé — remplissez le nom manuellement.
                     </motion.p>
                   )}
                 </AnimatePresence>
@@ -542,7 +520,7 @@ export default function AdminPcsSend() {
                 <Label className="text-xs font-bold text-slate-600 mb-1.5 block tracking-wide uppercase">Pays *</Label>
                 <Select value={countryCode} onValueChange={setCountryCode}>
                   <SelectTrigger className="h-11 border-2 border-slate-200 focus:border-blue-400 rounded-xl text-sm">
-                    <SelectValue placeholder="🌍 Sélectionner un pays" />
+                    <SelectValue placeholder="Sélectionner un pays" />
                   </SelectTrigger>
                   <SelectContent>
                     {COUNTRIES.map(c => (
@@ -697,7 +675,6 @@ export default function AdminPcsSend() {
                               : 'border-slate-200 bg-slate-50 text-slate-400 hover:border-slate-300'
                           }`}
                         >
-                          <span>{opt.value === 'actif' ? '✅' : '🔴'}</span>
                           {opt.label}
                           {newStatus === opt.value && (
                             <span className="w-2 h-2 rounded-full bg-current opacity-60" />
@@ -752,7 +729,7 @@ export default function AdminPcsSend() {
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                         className="text-[11px] text-amber-600 text-center font-medium bg-amber-50 rounded-lg py-2 border border-amber-100"
                       >
-                        ⚠️ Sélectionnez un pays pour envoyer l'email
+                        Sélectionnez un pays pour envoyer l'email
                       </motion.p>
                     )}
                   </div>
@@ -1105,6 +1082,7 @@ export default function AdminPcsSend() {
         </motion.div>
 
       </div>
+      </main>
     </div>
   );
 }

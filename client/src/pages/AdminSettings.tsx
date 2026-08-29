@@ -4,10 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Settings, Save, Wrench, CheckCircle, Video, Upload, Play, ShieldAlert } from "lucide-react";
-import { Link } from "wouter";
+import { Settings, Save, Wrench, CheckCircle, Video, Upload, Play, ShieldAlert, Phone, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import AdminNav from "@/components/admin/AdminNav";
 
 interface AppSetting {
   id: string;
@@ -173,19 +173,45 @@ export default function AdminSettings() {
 
   return (
     <div className="sika-page">
-      {/* Header */}
-      <div className="gradient-bg text-primary-foreground">
-        <div className="px-6 py-4 flex items-center">
-          <Button asChild variant="ghost" size="sm" className="text-primary-foreground hover:bg-white/10">
-            <Link href="/admin" data-testid="button-back">
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
+      <AdminNav
+        title="Paramètres"
+        subtitle="Pilotez les paiements, les communications et la disponibilité de la plateforme."
+        icon={Settings}
+        actions={
+          <Button
+            onClick={handleSave}
+            disabled={saveSettingsMutation.isPending || isLoading}
+            size="sm"
+            className="hidden bg-teal-500 text-white hover:bg-teal-400 sm:inline-flex"
+            data-testid="button-save-settings-top"
+          >
+            <Save className="mr-2 h-4 w-4" />
+            {saveSettingsMutation.isPending ? "Enregistrement…" : "Enregistrer"}
           </Button>
-          <h1 className="ml-4 text-lg font-semibold" data-testid="page-title">Paramètres</h1>
-        </div>
-      </div>
+        }
+      />
 
-      <div className="p-6 space-y-6 max-w-2xl mx-auto">
+      <main className="sika-content max-w-6xl">
+        <div className="mb-6 flex flex-col gap-3 border-b border-border/70 pb-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="sika-kicker">Configuration opérationnelle</p>
+            <h2 className="mt-1 font-serif text-2xl font-extrabold tracking-tight">Un centre de contrôle, pas un formulaire</h2>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Les changements restent en brouillon jusqu’à leur enregistrement. Les actions de maintenance, elles, sont appliquées immédiatement.</p>
+          </div>
+          <div className={`inline-flex items-center gap-2 self-start rounded-full border px-3 py-1.5 text-xs font-bold sm:self-auto ${
+            saveSettingsMutation.isPending ? "border-amber-200 bg-amber-50 text-amber-700" : "border-teal-200 bg-teal-50 text-teal-700"
+          }`}>
+            <span className={`h-2 w-2 rounded-full ${saveSettingsMutation.isPending ? "bg-amber-500 animate-pulse" : "bg-teal-500"}`} />
+            {saveSettingsMutation.isPending ? "Synchronisation en cours" : "Prêt à enregistrer"}
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="space-y-5" aria-label="Chargement des paramètres">
+            {[1, 2, 3].map((item) => <div key={item} className="h-44 animate-pulse rounded-2xl border border-border/60 bg-card/70" />)}
+          </div>
+        ) : (
+        <div className="space-y-6">
         {/* Activation Amount Card */}
         <Card>
           <CardHeader>
@@ -273,7 +299,7 @@ export default function AdminSettings() {
             </div>
 
             <div>
-              <Label htmlFor="whatsapp_admin_contact">📱 WhatsApp Administrateur (Contact Mise à jour)</Label>
+              <Label htmlFor="whatsapp_admin_contact">WhatsApp Administrateur (Contact Mise à jour)</Label>
               <Input
                 id="whatsapp_admin_contact"
                 value={settings.whatsapp_admin_contact || ''}
@@ -290,7 +316,7 @@ export default function AdminSettings() {
             <div className="flex items-center justify-between p-4 border rounded-lg">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-r from-green-500 to-emerald-600 flex items-center justify-center text-white text-lg">
-                  📞
+                  <Phone className="h-5 w-5" />
                 </div>
                 <div>
                   <p className="font-medium">Bouton d'appel vocal</p>
@@ -416,7 +442,7 @@ export default function AdminSettings() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center text-xl">
-                    🏦
+                    <Building2 className="h-5 w-5" />
                   </div>
                   <div>
                     <p className="font-semibold text-sm text-gray-800">Dépôt manuel — Liens de paiement</p>
@@ -460,9 +486,9 @@ export default function AdminSettings() {
               {/* Sélecteur de mode */}
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { value: 'solvexpay', label: '🤖 SolvexPay', desc: 'API automatique' },
-                  { value: 'manual',   label: '🏦 Dépôt manuel', desc: 'Numéros configurés' },
-                  { value: 'redirect', label: '🔗 Redirection', desc: 'Lien externe' },
+                  { value: 'solvexpay', label: 'SolvexPay', desc: 'API automatique' },
+                  { value: 'manual',   label: 'Dépôt manuel', desc: 'Numéros configurés' },
+                  { value: 'redirect', label: 'Redirection', desc: 'Lien externe' },
                 ].map(opt => {
                   const current = settings.ci_activation_mode || 'redirect';
                   const selected = current === opt.value;
@@ -531,7 +557,7 @@ export default function AdminSettings() {
 
               {(settings.ci_activation_mode || 'redirect') === 'solvexpay' && (
                 <p className="text-xs text-orange-700 bg-orange-100 rounded-lg px-3 py-2">
-                  🤖 SolvexPay traite automatiquement les paiements CI via l'API. Aucune configuration manuelle requise.
+                  SolvexPay traite automatiquement les paiements CI via l'API. Aucune configuration manuelle requise.
                 </p>
               )}
             </div>
@@ -551,7 +577,7 @@ export default function AdminSettings() {
                   {/* En-tête pays */}
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-400 to-blue-600 flex items-center justify-center text-xl">
-                      {flag}
+                      {code}
                     </div>
                     <div>
                       <p className="font-semibold text-sm text-gray-800">{name} — Mode de paiement</p>
@@ -562,9 +588,9 @@ export default function AdminSettings() {
                   {/* Sélecteur de mode */}
                   <div className="grid grid-cols-3 gap-2">
                     {[
-                      { value: 'solvexpay', label: '🤖 SolvexPay', desc: 'API automatique' },
-                      { value: 'manual',   label: '🏦 Dépôt manuel', desc: 'Numéros configurés' },
-                      { value: 'redirect', label: '🔗 Redirection', desc: 'Lien externe' },
+                  { value: 'solvexpay', label: 'SolvexPay', desc: 'API automatique' },
+                  { value: 'manual',   label: 'Dépôt manuel', desc: 'Numéros configurés' },
+                  { value: 'redirect', label: 'Redirection', desc: 'Lien externe' },
                     ].map(opt => {
                       const selected = currentMode === opt.value;
                       return (
@@ -604,7 +630,7 @@ export default function AdminSettings() {
                   {/* Mode SolvexPay */}
                   {currentMode === 'solvexpay' && (
                     <p className="text-xs text-blue-700 bg-blue-100 rounded-lg px-3 py-2">
-                      🤖 SolvexPay traite automatiquement les paiements {name} via l'API.
+                      SolvexPay traite automatiquement les paiements {name} via l'API.
                     </p>
                   )}
 
@@ -733,7 +759,7 @@ export default function AdminSettings() {
             {MAINTENANCE_COUNTRIES.map(country => (
               <div key={country.code}>
                 <div className="flex items-center gap-2 mb-2.5">
-                  <span className="text-xl">{country.flag}</span>
+                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-[10px] font-black text-slate-600">{country.code}</span>
                   <span className="font-semibold text-sm text-gray-700">{country.name}</span>
                   <div className="flex-1 h-px bg-gray-100" />
                 </div>
@@ -895,7 +921,9 @@ export default function AdminSettings() {
       ═══════════════════════════════════════ */}
       <MaintenanceCard />
 
-      </div>
+        </div>
+        )}
+      </main>
     </div>
   );
 }
