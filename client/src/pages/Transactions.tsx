@@ -1,10 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowDownCircle, ArrowUpCircle, Clock, RefreshCw,
-  Users, ShoppingCart, ChevronLeft, Filter,
+  Users, ShoppingCart, ChevronLeft, ChevronDown,
   TrendingUp, TrendingDown, CheckCircle2, AlertCircle,
-  XCircle, X, Copy, Wallet, Zap, Gift, LayoutGrid,
-  ArrowLeftRight
+  XCircle, X, Copy, Wallet, Zap, Gift
 } from "lucide-react";
 import { useState } from "react";
 import { formatFCFA } from "@/lib/utils";
@@ -82,44 +81,32 @@ const StatusPill = ({ status }: { status: string }) => {
   );
 };
 
-const typeOptions: { value: string; label: string; icon: any; bg: string }[] = [
-  { value: "all",        label: "Tout",        icon: LayoutGrid,     bg: "linear-gradient(135deg,#334155,#475569)" },
-  { value: "deposit",    label: "Récompenses", icon: Gift,           bg: "linear-gradient(135deg,#16a34a,#059669)" },
-  { value: "pointage",   label: "Bonus",       icon: Zap,            bg: "linear-gradient(135deg,#0284c7,#2563eb)" },
-  { value: "withdrawal", label: "Retraits",    icon: Wallet,         bg: "linear-gradient(135deg,#dc2626,#e11d48)" },
-  { value: "referral",   label: "Parrainage",  icon: Users,          bg: "linear-gradient(135deg,#7c3aed,#6d28d9)" },
-  { value: "transfer",   label: "Transferts",  icon: ArrowLeftRight, bg: "linear-gradient(135deg,#ea580c,#d97706)" },
-];
-
-const statusOptions: { value: string; label: string; icon: any }[] = [
-  { value: "all",       label: "Tous",        icon: LayoutGrid    },
-  { value: "completed", label: "Complété",    icon: CheckCircle2  },
-  { value: "pending",   label: "En attente",  icon: Clock         },
-  { value: "failed",    label: "Échoué",      icon: XCircle       },
-];
-
 export default function Transactions() {
   const { toast } = useToast();
-  const [filterType, setFilterType]     = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [showFilters, setShowFilters]   = useState(false);
+  const [filter, setFilter]             = useState("all");
   const [selected, setSelected]         = useState<any>(null);
 
   const { data: transactions = [], isLoading } = useQuery({
-    queryKey: ["/api/transactions", filterType, filterStatus],
+    queryKey: ["/api/transactions"],
     queryFn: () => {
       const p = new URLSearchParams({ limit: "150" });
-      if (filterType   !== "all") p.append("type",   filterType);
-      if (filterStatus !== "all") p.append("status", filterStatus);
       return fetch(`/api/transactions?${p}`, { credentials: "include" }).then(r => r.json());
     },
   });
 
-  const list   = transactions as any[];
-  const groups = groupByDate(list);
+  const list = transactions as any[];
+  const filteredList = list.filter((transaction) => {
+    if (filter === "income") return isCredit(transaction);
+    if (filter === "expense") return !isCredit(transaction);
+    if (filter === "pending" || filter === "completed" || filter === "failed") {
+      return transaction.status === filter;
+    }
+    return true;
+  });
+  const groups = groupByDate(filteredList);
 
-  const totalIn  = list.filter(t =>  isCredit(t)).reduce((s, t) => s + Math.abs(parseFloat(t.amount)), 0);
-  const totalOut = list.filter(t => !isCredit(t)).reduce((s, t) => s + Math.abs(parseFloat(t.amount)), 0);
+  const totalIn  = filteredList.filter(t =>  isCredit(t)).reduce((s, t) => s + Math.abs(parseFloat(t.amount)), 0);
+  const totalOut = filteredList.filter(t => !isCredit(t)).reduce((s, t) => s + Math.abs(parseFloat(t.amount)), 0);
   const net      = totalIn - totalOut;
 
   const copyRef = (ref: string) => {
@@ -151,20 +138,26 @@ export default function Transactions() {
               </Link>
               <div>
                 <h1 className="text-white font-black text-xl tracking-tight">Historique</h1>
-                <p className="text-blue-300/70 text-[11px]">{list.length} opération{list.length !== 1 ? "s" : ""}</p>
+                <p className="text-blue-300/70 text-[11px]">{filteredList.length} opération{filteredList.length !== 1 ? "s" : ""}</p>
               </div>
             </div>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                showFilters ? "bg-white text-blue-900" : "bg-white/10 text-white"
-              }`}>
-              <Filter size={13} />
-              Filtres
-              {(filterType !== "all" || filterStatus !== "all") && (
-                <span className="w-4 h-4 bg-blue-500 rounded-full text-[9px] font-black flex items-center justify-center text-white">!</span>
-              )}
-            </button>
+            <label className="relative">
+              <span className="sr-only">Filtrer l'historique</span>
+              <select
+                value={filter}
+                onChange={(event) => setFilter(event.target.value)}
+                aria-label="Filtrer l'historique"
+                className="appearance-none rounded-xl border border-white/20 bg-white/10 py-2 pl-3 pr-8 text-xs font-semibold text-white outline-none backdrop-blur-sm focus:border-white/50 focus:ring-2 focus:ring-white/20"
+              >
+                <option value="all">Toutes les opérations</option>
+                <option value="income">Entrées d'argent</option>
+                <option value="expense">Sorties d'argent</option>
+                <option value="pending">En attente</option>
+                <option value="completed">Terminées</option>
+                <option value="failed">Échouées</option>
+              </select>
+               <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-white/70" aria-hidden="true" />
+            </label>
           </div>
 
           {/* Stats */}
@@ -194,70 +187,6 @@ export default function Transactions() {
         </div>
       </div>
 
-      {/* ── FILTRES ── */}
-      {showFilters && (
-        <div className="sika-surface border-b border-gray-100/80 px-4 pt-4 pb-5 space-y-4 shadow-sm">
-
-          {/* Label type */}
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2.5">Par type</p>
-            <div className="grid grid-cols-3 gap-1.5">
-              {typeOptions.map(o => {
-                const active = filterType === o.value;
-                const Icon = o.icon;
-                return (
-                  <button key={o.value} onClick={() => setFilterType(o.value)}
-                    className={`flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-[11px] font-bold transition-all ${
-                      active ? "text-white shadow-md" : "bg-gray-50 border border-gray-200 text-gray-500"
-                    }`}
-                    style={active ? { background: o.bg } : {}}
-                  >
-                    <span className={`w-5 h-5 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                      active ? "bg-white/20" : "bg-gray-100"
-                    }`}>
-                      <Icon size={11} className={active ? "text-white" : "text-gray-400"} strokeWidth={2.5} />
-                    </span>
-                    <span className="truncate">{o.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Label statut */}
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2.5">Par statut</p>
-            <div className="flex gap-2 flex-wrap">
-              {statusOptions.map(o => {
-                const active = filterStatus === o.value;
-                const Icon = o.icon;
-                const colorMap: Record<string, string> = {
-                  all: "bg-slate-700",
-                  completed: "bg-green-500",
-                  pending: "bg-amber-500",
-                  failed: "bg-red-500",
-                };
-                return (
-                  <button key={o.value} onClick={() => setFilterStatus(o.value)}
-                    className={`flex items-center gap-2 pl-2 pr-3.5 py-2 rounded-2xl text-xs font-bold transition-all ${
-                      active
-                        ? "text-white shadow-md " + colorMap[o.value]
-                        : "bg-gray-50 border border-gray-200 text-gray-500"
-                    }`}>
-                    <span className={`w-5 h-5 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                      active ? "bg-white/20" : "bg-gray-100"
-                    }`}>
-                      <Icon size={11} className={active ? "text-white" : "text-gray-400"} strokeWidth={2.5} />
-                    </span>
-                    {o.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="px-4 pt-4 pb-28 space-y-5">
 
         {/* ── LOADING ── */}
@@ -277,7 +206,7 @@ export default function Transactions() {
         )}
 
         {/* ── VIDE ── */}
-        {!isLoading && list.length === 0 && (
+        {!isLoading && filteredList.length === 0 && (
           <div className="bg-white rounded-3xl border border-gray-100 py-16 text-center shadow-sm">
             <div className="w-16 h-16 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <Clock size={28} className="text-blue-300" />

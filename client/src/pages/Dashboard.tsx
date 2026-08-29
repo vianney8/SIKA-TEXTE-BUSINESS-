@@ -276,7 +276,7 @@ export default function Dashboard() {
             {/* En-tête section */}
             <div className="px-4 pt-4 pb-3 flex items-center gap-2 border-b border-gray-50">
               <div className="w-1 h-4 rounded-full" style={{ background: "linear-gradient(180deg, #1a237e, #1565c0)" }} />
-              <p className="text-gray-800 font-bold text-sm">Communauté</p>
+              <p className="text-gray-800 font-bold text-sm">Ce que disent nos utilisateurs</p>
               <span className="ml-auto text-[10px] font-semibold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">SIKA TEXTE</span>
             </div>
 
