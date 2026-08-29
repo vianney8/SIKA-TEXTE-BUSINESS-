@@ -4128,12 +4128,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.sendStatus(200);
         }
 
-        // ── Demandes d'activation en attente ─────────────────────────────────
-        const isPendingActCmd = /demande[s]?\s+d['']activation\s+en\s+attente|activation[s]?\s+en\s+attente|en\s+attente\s+activation/i.test(msgText);
+        // ── Demandes d'activation en attente (tous pays ou pays ciblé) ────────
+        const activationCountryNames: Record<string, string> = {
+          bj: 'BJ', benin: 'BJ', bénin: 'BJ',
+          ci: 'CI', 'cote d ivoire': 'CI', 'côte d ivoire': 'CI',
+          sn: 'SN', senegal: 'SN', sénégal: 'SN',
+          bf: 'BF', burkina: 'BF', 'burkina faso': 'BF',
+          tg: 'TG', togo: 'TG',
+          cm: 'CM', cameroun: 'CM', cameroon: 'CM',
+        };
+        const activationCountryMatch = /^(?:demande[s]?\s+d['’]?activation|activation[s]?)\s+(?:au|en|pour\s+(?:le|la|l['’]))\s+(.+)$/i.exec(msgText.trim());
+        const activationCountryRaw = activationCountryMatch?.[1]
+          ?.toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[’']/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        const activationCountry = activationCountryRaw ? activationCountryNames[activationCountryRaw] : undefined;
+        const isPendingActCmd = Boolean(activationCountry) ||
+          /demande[s]?\s+d['']activation\s+en\s+attente|activation[s]?\s+en\s+attente|en\s+attente\s+activation/i.test(msgText);
         if (isPendingActCmd) {
+          const activationCountryLabel: Record<string, string> = {
+            BJ: 'Bénin', CI: 'Côte d’Ivoire', SN: 'Sénégal',
+            BF: 'Burkina Faso', TG: 'Togo', CM: 'Cameroun',
+          };
+          const activationCountryFilter = activationCountry
+            ? sql` AND UPPER(country) = ${activationCountry}`
+            : sql``;
+          const activationScopeLabel = activationCountry ? ` au ${activationCountryLabel[activationCountry]}` : '';
+
           // Total réel (pour le bouton Tout Rejeter)
           const totalRes = await db.execute(sql`
-            SELECT COUNT(*) as total FROM manual_activation_requests WHERE status = 'pending'
+            SELECT COUNT(*) as total FROM manual_activation_requests
+            WHERE status = 'pending'${activationCountryFilter}
           `);
           const totalPending = Number((totalRes.rows[0] as any)?.total || 0);
 
@@ -4143,7 +4171,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (!totalPending) {
             await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
               method:'POST', headers:{'Content-Type':'application/json'},
-              body: JSON.stringify({ chat_id: chatId, text: `✅ <b>Aucune demande d'activation en attente.</b>`, parse_mode:'HTML' })
+              body: JSON.stringify({ chat_id: chatId, text: `✅ <b>Aucune demande d'activation${activationScopeLabel} en attente.</b>`, parse_mode:'HTML' })
             });
             return res.sendStatus(200);
           }
@@ -4151,13 +4179,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Seulement les 50 plus récentes à envoyer
           const LIMIT_PA = 50;
           const pendingActRes = await db.execute(sql`
-            SELECT * FROM manual_activation_requests WHERE status = 'pending' ORDER BY created_at DESC LIMIT ${LIMIT_PA}
+            SELECT * FROM manual_activation_requests
+            WHERE status = 'pending'${activationCountryFilter}
+            ORDER BY created_at DESC LIMIT ${LIMIT_PA}
           `);
           const pendingActs = (pendingActRes.rows || []) as any[];
 
           const msgResume = totalPending > LIMIT_PA
-            ? `⏳ <b>${totalPending} demande(s) d'activation en attente</b>\n📋 Affichage des <b>${LIMIT_PA} plus récentes</b>`
-            : `⏳ <b>${totalPending} demande(s) d'activation en attente</b>`;
+            ? `⏳ <b>${totalPending} demande(s) d'activation${activationScopeLabel} en attente</b>\n📋 Affichage des <b>${LIMIT_PA} plus récentes</b>`
+            : `⏳ <b>${totalPending} demande(s) d'activation${activationScopeLabel} en attente</b>`;
 
           // Bouton "Tout Rejeter" inclus dans le message de résumé (garanti d'apparaître)
           await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
@@ -4167,7 +4197,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
               text: msgResume,
               parse_mode:'HTML',
               reply_markup: { inline_keyboard: [[
-                { text:`🗑 Tout Rejeter (${totalPending})`, callback_data:'manact_reject_all_pre' }
+                {
+                  text:`🗑 Tout Rejeter${activationCountry ? ` ${activationCountryLabel[activationCountry]}` : ''} (${totalPending})`,
+                  callback_data: activationCountry
+                    ? `manact_reject_all_country_pre_${activationCountry}`
+                    : 'manact_reject_all_pre'
+                }
               ]]}
             })
           });
@@ -5620,6 +5655,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
             await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
               method:'POST', headers:{'Content-Type':'application/json'},
               body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup:{ inline_keyboard:[] } })
+            });
+          }
+
+        // ── Tout rejeter pour un pays : pré-confirmation ───────────────────────
+        } else if (data.startsWith('manact_reject_all_country_pre_')) {
+          const countryCode = data.replace('manact_reject_all_country_pre_', '').toUpperCase();
+          const countryLabels: Record<string, string> = {
+            BJ: 'Bénin', CI: 'Côte d’Ivoire', SN: 'Sénégal',
+            BF: 'Burkina Faso', TG: 'Togo', CM: 'Cameroun',
+          };
+          const countryLabel = countryLabels[countryCode] || countryCode;
+          answerText = '⚠️ Confirmer ?';
+          if (chatId && messageId) {
+            const countRes = await db.execute(sql`
+              SELECT COUNT(*) as n FROM manual_activation_requests
+              WHERE status = 'pending' AND UPPER(country) = ${countryCode}
+            `);
+            const total = Number((countRes.rows[0] as any)?.n || 0);
+            const confirmText = total
+              ? `⚠️ <b>Confirmer le rejet de toutes les demandes d’activation du ${countryLabel} ?</b>\n\n${total} demande(s) seront rejetée(s). Cette action est irréversible.`
+              : `ℹ️ <b>Aucune demande d’activation en attente au ${countryLabel}.</b>`;
+            const markup = total
+              ? { inline_keyboard: [[
+                  { text:'🗑 Oui, tout rejeter', callback_data:`manact_reject_all_country_ok_${countryCode}` },
+                  { text:'◀ Annuler', callback_data:`manact_reject_all_country_no_${countryCode}` },
+                ]] }
+              : { inline_keyboard: [] };
+            const edited = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ chat_id: chatId, message_id: messageId, text: confirmText, parse_mode:'HTML', reply_markup: markup })
+            }).then(r => r.json()) as any;
+            if (!edited.ok) {
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageCaption`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ chat_id: chatId, message_id: messageId, caption: confirmText, parse_mode:'HTML', reply_markup: markup })
+              }).catch(()=>{});
+            }
+          }
+
+        // ── Tout rejeter pour un pays : exécution ──────────────────────────────
+        } else if (data.startsWith('manact_reject_all_country_ok_')) {
+          const countryCode = data.replace('manact_reject_all_country_ok_', '').toUpperCase();
+          try {
+            const countRes = await db.execute(sql`
+              SELECT COUNT(*) as n FROM manual_activation_requests
+              WHERE status = 'pending' AND UPPER(country) = ${countryCode}
+            `);
+            const total = Number((countRes.rows[0] as any)?.n || 0);
+            if (total === 0) {
+              answerText = 'Aucune demande en attente pour ce pays.';
+            } else {
+              await db.execute(sql`
+                UPDATE manual_activation_requests
+                SET status = 'rejected'
+                WHERE status = 'pending' AND UPPER(country) = ${countryCode}
+              `);
+              answerText = `✅ ${total} demande(s) rejetée(s)`;
+              if (chatId && messageId) {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+                  method:'POST', headers:{'Content-Type':'application/json'},
+                  body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup:{ inline_keyboard:[] } })
+                });
+              }
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  text: `🗑 <b>${total} demande(s) d'activation du pays ${countryCode} rejetée(s).</b>`,
+                  parse_mode:'HTML'
+                })
+              });
+            }
+          } catch(e:any) { answerText='❌ Erreur'; console.error('[REJECT-ALL-COUNTRY]',e); }
+
+        // ── Tout rejeter pour un pays : annulé ──────────────────────────────────
+        } else if (data.startsWith('manact_reject_all_country_no_')) {
+          const countryCode = data.replace('manact_reject_all_country_no_', '').toUpperCase();
+          answerText = 'Annulé.';
+          if (chatId && messageId) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageReplyMarkup`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({
+                chat_id: chatId, message_id: messageId,
+                reply_markup: { inline_keyboard: [[
+                  { text:`🗑 Tout Rejeter (${countryCode})`, callback_data:`manact_reject_all_country_pre_${countryCode}` }
+                ]] }
+              })
             });
           }
 
