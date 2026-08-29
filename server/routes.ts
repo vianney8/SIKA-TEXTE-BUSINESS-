@@ -44,6 +44,7 @@ import { eq, sql, and, desc, or, ilike, count, isNull, ne } from "drizzle-orm";
 import connectPg from "connect-pg-simple";
 import { randomBytes, createHmac } from "crypto";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import { classifyMoovPayment, parseMoovSmsBlock, splitMoovSmsBlocks, type ParsedMoovSms } from "./moovSms";
 
 // Déduplication des clics Telegram : évite le traitement multiple du même clic
 const processedCallbackIds = new Set<string>();
@@ -3368,30 +3369,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const isMoovMoneySms = /Vous\s+avez\s+re[cç]u\s+[\d\s]+FCFA\s+le\s+\d/i.test(msgText);
         if (isMoovMoneySms) {
           // Découper en blocs (plusieurs SMS collés ensemble)
-          const moovBlocks = msgText
-            .split(/(?=Vous\s+avez\s+re[cç]u\s)/i)
-            .map(b => b.trim())
-            .filter(b => /Vous\s+avez\s+re[cç]u/i.test(b));
-
-          interface MoovData { amount: number|null; phone: string|null; senderName: string|null; date: string|null; ref: string|null; raw: string; }
-          const parseMoovBlock = (block: string): MoovData => {
-            // Montant : "3 800 FCFA" → 3800
-            const amtM = /re[cç]u\s+([\d][\d\s]*)\s*FCFA/i.exec(block);
-            const amount = amtM ? parseInt(amtM[1].replace(/\s/g, '')) : null;
-            // Date
-            const dateM = /le\s+(\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}:\d{2})/i.exec(block);
-            const date = dateM ? dateM[1] : null;
-            // Expéditeur + téléphone : "de NOM NOM  2290160322688."
-            const senderM = /de\s+([A-Z][A-Z\s]+?)\s{1,}(\d{10,})\s*[.,]/i.exec(block);
-            const senderName = senderM ? senderM[1].trim() : null;
-            const phone = senderM ? senderM[2] : null;
-            // Référence
-            const refM = /Ref\s*:\s*(\d+)/i.exec(block);
-            const ref = refM ? refM[1] : null;
-            return { amount, phone, senderName, date, ref, raw: block };
-          };
-
-          const parsedMoov = moovBlocks.map(parseMoovBlock);
+          const parsedMoov: ParsedMoovSms[] = splitMoovSmsBlocks(msgText).map(parseMoovSmsBlock);
 
           const COUNTRY_CODES_MOOV = ['229','225','221','226','228','237'];
           const normPhoneMoov = (raw: string): string => {
@@ -3443,25 +3421,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
               FROM payment_link_transactions plt
               LEFT JOIN payment_links pl ON pl.id = plt.link_id
               WHERE
-                (${last8} != '' AND RIGHT(REGEXP_REPLACE(plt.phone,'[^0-9]','','g'),8) = ${last8})
-                AND (${amt}::int IS NOT NULL AND plt.amount::numeric = ${amt}::numeric)
+                (
+                  (${last8} != '' AND RIGHT(REGEXP_REPLACE(plt.phone,'[^0-9]','','g'),8) = ${last8}
+                    AND ${amt}::int IS NOT NULL AND plt.amount::numeric = ${amt}::numeric)
+                  OR (${b.ref || ''} != '' AND (plt.reference = ${b.ref || ''} OR plt.solvexpay_txn_id = ${b.ref || ''}))
+                )
               ORDER BY plt.created_at DESC
               LIMIT 15
             `);
             const pltRows = (pltRes.rows || []) as any[];
 
-            // 2. Chercher dans les demandes d'activation manuelle (téléphone ET montant)
+            // 2. Chercher dans les demandes de paiement par lien manuel.
+            // Elles sont stockées dans une table différente des transactions
+            // SolvexPay, mais proviennent du même parcours de paiement.
+            const linkManualRes = await db.execute(sql`
+              SELECT *, 'link_manual' AS src FROM link_manual_requests
+              WHERE
+                (
+                  (${last8} != '' AND RIGHT(REGEXP_REPLACE(phone,'[^0-9]','','g'),8) = ${last8}
+                    AND ${amt}::int IS NOT NULL AND amount::numeric = ${amt}::numeric)
+                  OR (${b.ref || ''} != '' AND transaction_id = ${b.ref || ''})
+                )
+              ORDER BY created_at DESC
+              LIMIT 15
+            `);
+            const linkManualRows = (linkManualRes.rows || []) as any[];
+
+            // 3. Chercher dans les demandes d'activation manuelle (téléphone ET montant)
             const actRes = await db.execute(sql`
               SELECT *, 'activation' AS src FROM manual_activation_requests
               WHERE
-                (${last8} != '' AND RIGHT(REGEXP_REPLACE(payment_phone,'[^0-9]','','g'),8) = ${last8})
-                AND (${amt}::int IS NOT NULL AND amount::numeric = ${amt}::numeric)
+                (
+                  (${last8} != '' AND RIGHT(REGEXP_REPLACE(payment_phone,'[^0-9]','','g'),8) = ${last8}
+                    AND ${amt}::int IS NOT NULL AND amount::numeric = ${amt}::numeric)
+                  OR (${b.ref || ''} != '' AND transaction_id = ${b.ref || ''})
+                )
               ORDER BY created_at DESC
               LIMIT 10
             `);
             const actRows = (actRes.rows || []) as any[];
 
-            // 3. Chercher l'utilisateur inscrit par téléphone
+            // 4. Chercher l'utilisateur inscrit par téléphone
             const userRes = await db.execute(sql`
               SELECT u.id, u.full_name, u.phone, u.email, u.balance,
                      COALESCE(acs.is_active, false) AS is_activated, u.referral_code
@@ -3472,7 +3472,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             `);
             const userRows = (userRes.rows || []) as any[];
 
-            const totalFound = pltRows.length + actRows.length;
+            const totalFound = pltRows.length + linkManualRows.length + actRows.length;
             if (totalFound === 0 && userRows.length === 0) {
               await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
                 method:'POST', headers:{'Content-Type':'application/json'},
@@ -3493,21 +3493,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             }
 
+            // Demandes de paiement par lien manuel
+            for (const t of linkManualRows) {
+              const tDate = t.created_at ? new Date(t.created_at).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
+              const category = classifyMoovPayment({ amount: t.amount ?? amt, linkId: t.link_id, linkLabel: t.link_label });
+              const cardText =
+                `🔗 <b>SMS ${idx+1} — ${category.label}</b>\n` +
+                `📋 Lien : ${t.link_label||t.link_id||'—'}\n` +
+                `${STATUS_MOOV[t.status]||t.status}\n\n` +
+                `👤 ${t.customer_name||'—'}\n` +
+                `📱 <code>${t.phone||'—'}</code>\n` +
+                `💰 ${Number(t.amount).toLocaleString('fr-FR')} FCFA\n` +
+                `📧 ${t.customer_email||'N/A'}\n` +
+                `🔖 ID tx : <code>${t.transaction_id||'—'}</code>\n` +
+                `🧾 Réf SMS : <code>${b.ref||'—'}</code>\n` +
+                `🕒 ${tDate}`;
+              const buttons = t.status === 'pending'
+                ? { inline_keyboard: [
+                    [{ text:'✅ Approuver', callback_data:`lnkma_pre_${t.id}` }, { text:'❌ Rejeter', callback_data:`lnkrej_pre_${t.id}` }],
+                    [{ text:'🔒 Bloquer', callback_data:`blklnkr_pre_${t.id}` }]
+                  ]}
+                : { inline_keyboard: [[{ text:'🔒 Bloquer', callback_data:`blklnkr_pre_${t.id}` }]] };
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', reply_markup: buttons })
+              });
+              if (t.screenshot_url) await sendShot(chatId, t.screenshot_url);
+              await new Promise(r => setTimeout(r, 80));
+            }
+
             // Transactions paiement par lien
             for (const t of pltRows) {
               const tDate = t.created_at ? new Date(t.created_at).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
               const isPhoneMatch = last8 && t.phone && t.phone.replace(/\D/g,'').endsWith(last8);
               const isAmtMatch   = amt && Math.round(Number(t.amount)) === amt;
               const matchTag = isPhoneMatch && isAmtMatch ? '✅✅ Tél+Montant' : isPhoneMatch ? '✅ Tél' : '💰 Montant seulement';
+              const category = classifyMoovPayment({ amount: t.amount ?? amt, linkId: t.link_id, linkLabel: t.link_label });
               const cardText =
-                `🔗 <b>SMS ${idx+1} — Paiement lien [${matchTag}]</b>\n` +
+                `🔗 <b>SMS ${idx+1} — ${category.label} [${matchTag}]</b>\n` +
                 `📋 Lien : ${t.link_label||t.link_id||'—'}\n` +
                 `${STATUS_MOOV[t.status]||t.status}\n\n` +
                 `👤 ${t.customer_name||'—'}\n` +
                 `📱 <code>${t.phone||'—'}</code>\n` +
                 `💰 ${Number(t.amount).toLocaleString('fr-FR')} FCFA\n` +
                 `🕒 ${tDate}\n` +
-                `🔖 ID : <code>${t.id}</code>`;
+                `🔖 ID : <code>${t.id}</code>\n` +
+                `🧾 Réf SMS : <code>${b.ref||'—'}</code>`;
               await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
                 method:'POST', headers:{'Content-Type':'application/json'},
                 body: JSON.stringify({ chat_id: chatId, text: cardText, parse_mode:'HTML', reply_markup:{ inline_keyboard:[[{text:'🔒 Bloquer', callback_data:`blkplt_pre_${t.id}`}]] } })
@@ -3521,13 +3552,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const isPhoneMatch = last8 && (a.payment_phone||'').replace(/\D/g,'').endsWith(last8);
               const isAmtMatch   = amt && Math.round(Number(a.amount)) === amt;
               const matchTag = isPhoneMatch && isAmtMatch ? '✅✅ Tél+Montant' : isPhoneMatch ? '✅ Tél' : '💰 Montant seulement';
+              const category = classifyMoovPayment({ amount: a.amount ?? amt });
               const cardText =
-                `⚡ <b>SMS ${idx+1} — Activation manuelle [${matchTag}]</b>\n` +
+                `⚡ <b>SMS ${idx+1} — ${category.label} [${matchTag}]</b>\n` +
                 `${STATUS_MOOV[a.status]||a.status}\n\n` +
                 `👤 ${a.full_name||a.payer_name||'—'}\n` +
                 `📱 Paiement : <code>${a.payment_phone||'—'}</code>\n` +
                 `💰 ${Number(a.amount).toLocaleString('fr-FR')} FCFA\n` +
-                `🕒 ${aDate}`;
+                `🕒 ${aDate}\n` +
+                `🧾 Réf SMS : <code>${b.ref||'—'}</code>`;
               const actBtns = a.status === 'pending'
                 ? { inline_keyboard:[[{text:'✅ Approuver', callback_data:`manact_app_pre_${a.id}`},{text:'❌ Rejeter', callback_data:`manact_rej_pre_${a.id}`}]] }
                 : { inline_keyboard:[[{text:'🔒 Bloquer compte', callback_data:`blkusr_pre_${a.user_id}`}]] };
