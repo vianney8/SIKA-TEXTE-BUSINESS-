@@ -31,8 +31,8 @@ export default function MaintenancePage({ endTime, message }: Props) {
 
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-start overflow-hidden relative"
-      style={{ background: "linear-gradient(135deg, #0f0c29 0%, #1a1464 40%, #0d47a1 100%)" }}
+      className="min-h-[100dvh] flex flex-col items-center justify-start overflow-hidden relative"
+      style={{ background: "linear-gradient(145deg, hsl(216 31% 18%) 0%, hsl(174 73% 27%) 100%)" }}
     >
       {/* Animated background orbs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">

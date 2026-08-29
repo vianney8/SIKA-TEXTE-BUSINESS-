@@ -561,11 +561,11 @@ export default function Assistance() {
   if (!isAuthenticated) return null;
 
   return (
-    <div className="fixed inset-0 flex flex-col overflow-hidden bg-slate-50">
+    <div className="sika-page fixed inset-0 flex flex-col overflow-hidden bg-background">
 
       {/* ── HEADER ─────────────────────────────────────────── */}
       <header
-        className="flex-shrink-0 flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-200"
+        className="flex-shrink-0 flex items-center gap-3 px-4 py-3 bg-card/90 border-b border-border backdrop-blur-md"
         style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
       >
         <Link href="/contact">

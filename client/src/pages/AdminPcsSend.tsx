@@ -419,7 +419,7 @@ export default function AdminPcsSend() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-50/30 to-indigo-50/20">
+    <div className="sika-page">
 
       {/* ── Header premium ── */}
       <div className="sticky top-0 z-20">

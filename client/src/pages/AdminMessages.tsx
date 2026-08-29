@@ -414,7 +414,7 @@ export default function AdminMessages() {
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="sika-page">
       <div className="gradient-bg text-primary-foreground">
         <div className="px-6 py-4 flex items-center justify-between">
           <div className="flex items-center">

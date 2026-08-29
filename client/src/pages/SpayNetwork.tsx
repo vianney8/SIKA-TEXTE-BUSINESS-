@@ -383,7 +383,7 @@ export default function SpayNetwork() {
   if (withdrawalData && !withdrawalData.isAccountActive) return <AccessDenied paymentInfo={paymentInfo} />;
 
   return (
-    <div className="min-h-screen pb-28 bg-gradient-to-br from-slate-50 via-indigo-50/40 to-violet-50/20">
+    <div className="sika-page pb-28">
       <style>{PAGE_STYLE}</style>
 
       {/* ── HEADER ── */}

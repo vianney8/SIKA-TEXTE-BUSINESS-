@@ -99,7 +99,7 @@ export default function AdminCiUpdate() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-primary to-blue-600 p-4">
+    <div className="sika-page p-4">
       <div className="max-w-4xl mx-auto">
 
         {/* Header */}

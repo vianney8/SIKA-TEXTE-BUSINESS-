@@ -128,7 +128,7 @@ export default function Transactions() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f0f4f8]">
+    <div className="sika-page">
 
       {/* ── HEADER ── */}
       <div className="relative overflow-hidden"
@@ -196,7 +196,7 @@ export default function Transactions() {
 
       {/* ── FILTRES ── */}
       {showFilters && (
-        <div className="bg-white border-b border-gray-100/80 px-4 pt-4 pb-5 space-y-4 shadow-sm">
+        <div className="sika-surface border-b border-gray-100/80 px-4 pt-4 pb-5 space-y-4 shadow-sm">
 
           {/* Label type */}
           <div>

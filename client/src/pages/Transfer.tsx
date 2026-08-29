@@ -74,7 +74,7 @@ export default function Transfer() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="sika-page">
       <PageHeader title="Transfert d'argent" backHref="/" />
 
       {/* Bandeau info abonné */}
@@ -95,7 +95,7 @@ export default function Transfer() {
           </div>
         )}
         {(
-          <Card className="bg-white rounded-xl shadow-sm border border-border">
+          <Card className="sika-surface rounded-xl shadow-sm border-border">
             <CardContent className="p-6">
               <div className="flex items-center mb-6">
                 <ArrowUpRight className="text-primary mr-3" size={24} />

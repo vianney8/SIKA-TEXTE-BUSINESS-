@@ -63,7 +63,7 @@ export default function TeamPage() {
   const monthly = referralData?.monthlyCommission || 0;
 
   return (
-    <div className="min-h-screen" style={{ background: "#f0f4f8" }}>
+    <div className="sika-page">
       {/* Header premium */}
       <div className="relative overflow-hidden"
         style={{ background: "linear-gradient(160deg, #0f172a, #1e3a5f, #1a4fa0)" }}>
@@ -123,7 +123,7 @@ export default function TeamPage() {
         </div>
 
         {/* Lien de parrainage */}
-        <div className="bg-white rounded-[20px] shadow-sm overflow-hidden">
+        <div className="sika-surface rounded-[20px] shadow-sm overflow-hidden">
           <div className="px-5 pt-5 pb-3 border-b border-gray-50">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-xl flex items-center justify-center"

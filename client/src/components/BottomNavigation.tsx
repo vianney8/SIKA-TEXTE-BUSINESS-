@@ -16,7 +16,7 @@ const navItems = [
 export default function BottomNavigation({ currentPage }: BottomNavigationProps) {
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-30"
-      style={{ background: "#fff", boxShadow: "0 -1px 0 #e5e7eb, 0 -8px 24px rgba(0,0,0,0.06)" }}>
+      style={{ background: "hsl(0 0% 100% / .94)", backdropFilter: "blur(16px)", boxShadow: "0 -1px 0 hsl(215 24% 88%), 0 -8px 24px hsl(215 38% 15% / .08)" }}>
       <div className="flex items-center justify-around px-2 py-1.5">
         {navItems.map((item) => {
           const active = currentPage === item.id;

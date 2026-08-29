@@ -112,7 +112,7 @@ export default function AdminConnectedUsers() {
   ];
 
   return (
-    <div className="min-h-screen" style={{ background: "linear-gradient(160deg,#0f172a 0%,#1e293b 60%,#0f172a 100%)" }}>
+    <div className="sika-page">
 
       {/* HEADER */}
       <header className="sticky top-0 z-20 border-b border-white/10"

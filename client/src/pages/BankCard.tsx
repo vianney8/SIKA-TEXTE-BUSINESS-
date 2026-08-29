@@ -159,7 +159,7 @@ export default function BankCard() {
   const selectedCountryInfo = COUNTRIES.find(c => c.prefix === selectedPrefix) || COUNTRIES[0];
 
   return (
-    <div className="min-h-screen pb-10" style={{ background: "#f0f4f8" }}>
+    <div className="sika-page pb-10">
       <PageHeader title="Carte Bancaire" backHref="/profile" />
 
       <div className="px-4 space-y-3 mt-3">

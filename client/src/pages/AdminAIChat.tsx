@@ -134,7 +134,7 @@ export default function AdminAIChat() {
   const activeCount = knowledge.filter(k => k.is_active).length;
 
   return (
-    <div className="min-h-screen" style={{ background: "linear-gradient(160deg, #0c0a1e 0%, #1a1040 60%, #0c0a1e 100%)" }}>
+    <div className="sika-page">
 
       {/* HEADER */}
       <header className="sticky top-0 z-10 px-4 py-3.5 flex items-center gap-3 border-b border-white/10"

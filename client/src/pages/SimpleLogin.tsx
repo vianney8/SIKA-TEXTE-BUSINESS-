@@ -74,13 +74,13 @@ export default function SimpleLogin() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "#f0f4f8" }}>
+    <div className="min-h-[100dvh] flex flex-col bg-background">
 
       {/* ── En-tête sombre ── */}
       <div
         className="relative flex flex-col items-center justify-end px-6 pt-14 pb-10 flex-shrink-0"
         style={{
-          background: "linear-gradient(160deg, #0f172a 0%, #1e3a5f 60%, #1a4fa0 100%)",
+           background: "linear-gradient(145deg, hsl(216 31% 18%) 0%, hsl(174 73% 27%) 100%)",
           borderRadius: "0 0 36px 36px",
           minHeight: "38vh",
         }}
@@ -98,8 +98,8 @@ export default function SimpleLogin() {
       </div>
 
       {/* ── Formulaire ── */}
-      <div className="flex-1 px-5 -mt-4 z-10 pb-8">
-        <div className="bg-white rounded-[24px] shadow-sm border border-gray-100 p-5">
+      <div className="flex-1 w-full max-w-xl mx-auto px-5 -mt-4 z-10 pb-8">
+        <div className="sika-surface p-5">
 
           {isBlocked ? (
             <div className="space-y-5 py-4">
@@ -144,14 +144,14 @@ export default function SimpleLogin() {
                 <Select value={countryCode} onValueChange={setCountryCode}>
                   <SelectTrigger
                     data-testid="select-country"
-                    className="h-12 rounded-xl border-gray-200 bg-gray-50 font-medium text-sm"
+                    className="h-12 rounded-xl border-border bg-muted/40 font-medium text-sm"
                   >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {COUNTRIES.map((c) => (
                       <SelectItem key={c.code} value={c.code}>
-                        {c.flag} {c.name} ({c.code})
+                         {c.name} ({c.code})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -167,12 +167,13 @@ export default function SimpleLogin() {
                   <Phone size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
                     type="tel"
+                    autoComplete="tel"
                     placeholder="12 345 678"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
                     data-testid="input-phone"
                     required
-                    className="w-full h-12 pl-10 pr-4 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+                    className="w-full h-12 pl-10 pr-4 rounded-xl border border-border bg-muted/40 text-sm font-medium text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all"
                   />
                 </div>
               </div>
@@ -186,12 +187,13 @@ export default function SimpleLogin() {
                   <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
                     type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
                     placeholder="Votre mot de passe"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     data-testid="input-password"
                     required
-                    className="w-full h-12 pl-10 pr-12 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+                    className="w-full h-12 pl-10 pr-12 rounded-xl border border-border bg-muted/40 text-sm font-medium text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all"
                   />
                   <button
                     type="button"

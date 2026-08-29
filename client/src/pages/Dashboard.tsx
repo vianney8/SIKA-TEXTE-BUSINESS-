@@ -123,11 +123,11 @@ export default function Dashboard() {
           const data = await response.json();
           localStorage.setItem(`lastPointage_${userId}`, new Date().toDateString());
           setPointageDone(true);
-          toast({ title: "✅ Bonus reçu !", description: `+${data.amount} FCFA crédités sur votre compte` });
+           toast({ title: "Bonus reçu", description: `+${data.amount} FCFA crédités sur votre compte` });
         } catch {
           localStorage.setItem(`lastPointage_${userId}`, new Date().toDateString());
           setPointageDone(true);
-          toast({ title: "✅ Bonus reçu !", description: "Bonus crédité sur votre compte" });
+           toast({ title: "Bonus reçu", description: "Bonus crédité sur votre compte" });
         }
         queryClient.invalidateQueries({ queryKey: ["/api/user/balance"] });
         queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
@@ -140,7 +140,7 @@ export default function Dashboard() {
 
 
   return (
-    <div className="min-h-screen" style={{ background: "#f0f4f8" }}>
+    <div className="min-h-[100dvh] bg-background">
 
       {/* ══ Notification chaîne WhatsApp ══ */}
       {showWhatsAppNotif && (
@@ -210,14 +210,13 @@ export default function Dashboard() {
                   n.color === 'red' ? 'bg-red-500 text-white' : 'bg-green-500 text-white'
                 }`}
               >
-                <span className="mt-0.5 flex-shrink-0 text-base">{n.color === 'red' ? '⚠️' : 'ℹ️'}</span>
                 <span className="flex-1">{n.message}</span>
                 <button
-                  onClick={() => setDismissedPnIds(prev => new Set([...prev, n.id]))}
+                  onClick={() => setDismissedPnIds(prev => new Set(Array.from(prev).concat(n.id)))}
                   className="flex-shrink-0 ml-1 mt-0.5 opacity-70 hover:opacity-100 transition-opacity"
                   aria-label="Fermer"
                 >
-                  ✕
+                  Fermer
                 </button>
               </div>
             ))}
@@ -323,8 +322,7 @@ export default function Dashboard() {
             </a>
 
             {/* Service Client */}
-            <Link href="/assistance">
-              <a className="flex items-center gap-3 px-4 py-3.5 active:bg-gray-50 transition-colors">
+            <Link href="/assistance" className="flex items-center gap-3 px-4 py-3.5 active:bg-gray-50 transition-colors">
                 <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm"
                   style={{ background: "linear-gradient(135deg, #1a237e, #1565c0)" }}>
                   <HeadphonesIcon size={18} className="text-white" />
@@ -339,7 +337,6 @@ export default function Dashboard() {
                     <ChevronRight size={14} className="text-gray-400" />
                   </div>
                 </div>
-              </a>
             </Link>
           </div>
 
@@ -349,8 +346,7 @@ export default function Dashboard() {
               background: "linear-gradient(120deg, #4f46e5 0%, #7c3aed 50%, #a21caf 100%)",
               boxShadow: "0 4px 24px rgba(109,40,217,0.35)",
             }}>
-            <Link href="/spay-network">
-              <a className="flex items-center gap-3 px-4 py-4 active:opacity-80 transition-opacity cursor-pointer">
+            <Link href="/spay-network" className="flex items-center gap-3 px-4 py-4 active:opacity-80 transition-opacity cursor-pointer">
                 {/* Logo animé */}
                 <div className="relative w-11 h-11 flex-shrink-0">
                   <div className="absolute inset-0 rounded-full border-2 border-dashed border-white/30 animate-spin"
@@ -377,7 +373,6 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <ChevronRight size={16} className="text-white/60" />
-              </a>
             </Link>
           </div>
 

@@ -20,7 +20,7 @@ export default function MobileHeader({ user, balance, onMenuToggle }: MobileHead
   const initials = `${firstName.charAt(0)}${lastName ? lastName.charAt(0) : ""}`.toUpperCase();
 
   return (
-    <header className="relative overflow-hidden" style={{ background: "linear-gradient(160deg, #0f172a 0%, #1e3a5f 60%, #1a4fa0 100%)" }}>
+    <header className="relative overflow-hidden" style={{ background: "linear-gradient(145deg, hsl(216 31% 18%) 0%, hsl(174 73% 27%) 100%)" }}>
 
       {/* Cercles décoratifs subtils */}
       <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full opacity-5" style={{ background: "#60a5fa" }} />
@@ -69,7 +69,7 @@ export default function MobileHeader({ user, balance, onMenuToggle }: MobileHead
               {initials}
             </div>
             <div>
-              <p className="text-white/50 text-[11px]">Bonjour 👋</p>
+              <p className="text-white/50 text-[11px]">Bonjour</p>
               <p className="text-white font-semibold text-sm leading-tight" data-testid="text-username">
                 {firstName} {lastName}
               </p>
@@ -89,7 +89,7 @@ export default function MobileHeader({ user, balance, onMenuToggle }: MobileHead
         <div className="mb-3">
           <p className="text-white/40 text-[10px] font-medium tracking-widest uppercase mb-0.5">Solde disponible</p>
           <div className="flex items-center gap-2">
-            <p className="text-white font-black leading-none" style={{ fontSize: "2rem" }} data-testid="text-balance">
+              <p className="text-white font-black leading-none tracking-tight" style={{ fontSize: "2rem" }} data-testid="text-balance">
               {isBalanceVisible
                 ? `${(balance || 0).toLocaleString("fr-FR")}`
                 : "••••••"}

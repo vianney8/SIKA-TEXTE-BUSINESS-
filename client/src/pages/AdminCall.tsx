@@ -562,7 +562,7 @@ export default function AdminCall() {
   return (
     <div
       className="fixed inset-0 flex flex-col items-center justify-between select-none overflow-hidden"
-      style={{ background: "linear-gradient(155deg, #07101e 0%, #0d1b30 55%, #091520 100%)" }}
+      style={{ background: "linear-gradient(145deg, hsl(216 31% 18%) 0%, hsl(174 73% 27%) 100%)" }}
     >
       {/* ── TOP : identité plateforme ── */}
       <div className="flex flex-col items-center gap-2.5 pt-14">

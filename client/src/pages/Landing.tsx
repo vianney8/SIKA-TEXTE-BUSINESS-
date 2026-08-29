@@ -16,14 +16,14 @@ const STATS = [
 
 export default function Landing() {
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "#f0f4f8" }}>
+    <div className="min-h-[100dvh] flex flex-col bg-background">
 
       {/* ── En-tête sombre ── */}
       <div
         className="relative flex flex-col items-center justify-end px-6 pt-16 pb-12 flex-shrink-0"
         style={{
-          background: "linear-gradient(160deg, #0f172a 0%, #1e3a5f 60%, #1a4fa0 100%)",
-          borderRadius: "0 0 36px 36px",
+          background: "linear-gradient(145deg, hsl(216 31% 18%) 0%, hsl(174 73% 27%) 100%)",
+          borderRadius: "0 0 42px 42px",
           minHeight: "52vh",
         }}
       >
@@ -42,7 +42,7 @@ export default function Landing() {
           <div className="w-20 h-20 rounded-[22px] overflow-hidden shadow-xl ring-4 ring-white/20 mb-4">
             <img src={logoPath} alt="SIKA TEXTE" className="w-full h-full object-cover" />
           </div>
-          <h1 className="text-white font-black text-3xl tracking-tight" data-testid="app-title">
+           <h1 className="text-white font-black text-3xl tracking-tight" data-testid="app-title">
             SIKA TEXTE
           </h1>
           <span
@@ -68,13 +68,13 @@ export default function Landing() {
       </div>
 
       {/* ── Statistiques ── */}
-      <div className="px-5 -mt-5 z-10 flex-shrink-0">
-        <div className="bg-white rounded-[20px] shadow-sm border border-gray-100 flex divide-x divide-gray-100">
+       <div className="sika-shell max-w-5xl -mt-5 z-10 flex-shrink-0">
+         <div className="sika-surface flex divide-x divide-border">
           {STATS.map((s, i) => (
             <div key={i} className="flex-1 flex flex-col items-center py-4 px-2">
-              <s.icon size={18} className="text-blue-500 mb-1" />
-              <p className="text-gray-900 font-black text-base leading-tight">{s.value}</p>
-              <p className="text-gray-400 text-[10px] text-center">{s.label}</p>
+               <s.icon size={18} className="text-primary mb-1" />
+               <p className="text-foreground font-black text-base leading-tight">{s.value}</p>
+               <p className="text-muted-foreground text-[10px] text-center">{s.label}</p>
             </div>
           ))}
         </div>
@@ -84,29 +84,17 @@ export default function Landing() {
       <div className="flex-1" />
 
       {/* ── Boutons CTA ── */}
-      <div className="px-5 pb-10 space-y-3">
-        <Link href="/register">
-          <button
-            data-testid="button-register"
-            className="w-full py-4 rounded-2xl font-black text-base text-white transition-all active:scale-[0.97] shadow-lg"
-            style={{ background: "linear-gradient(135deg, #1a4fa0, #3b82f6)" }}
-          >
-            <span className="flex items-center justify-center gap-2">
-              Créer un compte <ArrowRight size={18} />
-            </span>
-          </button>
-        </Link>
+       <div className="sika-shell max-w-5xl pb-10 space-y-3">
+         <Link href="/register" data-testid="button-register"
+           className="sika-button w-full py-4 rounded-2xl font-black text-base text-white shadow-lg flex items-center justify-center gap-2"
+           style={{ background: "linear-gradient(135deg, hsl(174 73% 27%), hsl(201 65% 42%))" }}>
+           Créer un compte <ArrowRight size={18} />
+         </Link>
 
-        <Link href="/simple-login">
-          <button
-            data-testid="button-login"
-            className="w-full py-4 rounded-2xl font-bold text-base border-2 border-gray-200 bg-white text-gray-700 transition-all active:scale-[0.97]"
-          >
-            <span className="flex items-center justify-center gap-2">
-              Se connecter <ArrowRight size={18} className="text-blue-500" />
-            </span>
-          </button>
-        </Link>
+         <Link href="/simple-login" data-testid="button-login"
+           className="sika-button w-full py-4 rounded-2xl font-bold text-base border-2 border-border bg-card text-foreground flex items-center justify-center gap-2">
+           Se connecter <ArrowRight size={18} className="text-primary" />
+         </Link>
 
         <p className="text-center text-gray-400 text-xs pt-1">
           Disponible en Afrique de l'Ouest · Sécurisé · Gratuit

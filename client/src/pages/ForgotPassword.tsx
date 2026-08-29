@@ -105,7 +105,7 @@ export default function ForgotPassword() {
     }
   };
 
-  const inputClass = "w-full h-12 pl-10 pr-4 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all";
+  const inputClass = "w-full h-12 pl-10 pr-4 rounded-xl border border-border bg-muted/40 text-sm font-medium text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all";
 
   const goBack = () => {
     if (step === "email") setLocation("/simple-login");
@@ -114,13 +114,13 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "#f0f4f8" }}>
+    <div className="min-h-[100dvh] flex flex-col bg-background">
 
       {/* Header */}
       <div
         className="relative flex flex-col items-center justify-end px-6 pt-14 pb-10 flex-shrink-0"
         style={{
-          background: "linear-gradient(160deg, #0f172a 0%, #1e3a5f 60%, #1a4fa0 100%)",
+           background: "linear-gradient(145deg, hsl(216 31% 18%) 0%, hsl(174 73% 27%) 100%)",
           borderRadius: "0 0 36px 36px",
           minHeight: "28vh",
         }}
@@ -158,8 +158,8 @@ export default function ForgotPassword() {
 
       {/* STEP 1: Email */}
       {step === "email" && (
-        <div className="flex-1 px-5 mt-4 pb-8">
-          <div className="bg-white rounded-[24px] shadow-sm border border-gray-100 p-5">
+        <div className="flex-1 w-full max-w-xl mx-auto px-5 mt-4 pb-8">
+           <div className="sika-surface p-5">
             <form onSubmit={handleSendCode} className="space-y-4">
               <p className="text-gray-600 text-sm">
                 Entrez l'adresse email associée à votre compte. Nous vous enverrons un code de réinitialisation.
@@ -170,6 +170,7 @@ export default function ForgotPassword() {
                   <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
                     type="email"
+                    autoComplete="email"
                     placeholder="votre@email.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -193,7 +194,7 @@ export default function ForgotPassword() {
 
       {/* STEP 2: Code — nouveau design */}
       {step === "code" && (
-        <div className="flex-1 flex flex-col items-center px-5 pt-6 pb-8">
+        <div className="flex-1 w-full max-w-xl mx-auto flex flex-col items-center px-5 pt-6 pb-8">
           {/* Icône + Titre */}
           <div className="flex items-center gap-2 mb-2">
             <ShieldCheck size={26} className="text-blue-600" />
@@ -288,8 +289,8 @@ export default function ForgotPassword() {
 
       {/* STEP 3: Nouveau mot de passe */}
       {step === "newPassword" && (
-        <div className="flex-1 px-5 mt-4 pb-8">
-          <div className="bg-white rounded-[24px] shadow-sm border border-gray-100 p-5">
+        <div className="flex-1 w-full max-w-xl mx-auto px-5 mt-4 pb-8">
+           <div className="sika-surface p-5">
             <form onSubmit={handleResetPassword} className="space-y-4">
               <div>
                 <label className="text-gray-500 text-xs font-semibold uppercase tracking-wider block mb-1.5">Nouveau mot de passe</label>
@@ -297,6 +298,7 @@ export default function ForgotPassword() {
                   <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
                     type={showPassword ? "text" : "password"}
+                    autoComplete="new-password"
                     placeholder="Minimum 4 caractères"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
@@ -315,6 +317,7 @@ export default function ForgotPassword() {
                   <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
                     type={showConfirm ? "text" : "password"}
+                    autoComplete="new-password"
                     placeholder="Répétez le mot de passe"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}

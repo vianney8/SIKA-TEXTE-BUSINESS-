@@ -187,16 +187,16 @@ export default function Register() {
   });
 
   const inputClass =
-    "w-full h-12 pl-10 pr-4 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all";
+    "w-full h-12 pl-10 pr-4 rounded-xl border border-border bg-muted/40 text-sm font-medium text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all";
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "#f0f4f8" }}>
+    <div className="min-h-[100dvh] flex flex-col bg-background">
 
       {/* ── En-tête sombre ── */}
       <div
         className="relative flex flex-col items-center justify-end px-6 pt-12 pb-8 flex-shrink-0"
         style={{
-          background: "linear-gradient(160deg, #0f172a 0%, #1e3a5f 60%, #1a4fa0 100%)",
+           background: "linear-gradient(145deg, hsl(216 31% 18%) 0%, hsl(174 73% 27%) 100%)",
           borderRadius: "0 0 36px 36px",
           minHeight: "28vh",
         }}
@@ -214,8 +214,8 @@ export default function Register() {
       </div>
 
       {/* ── Formulaire ── */}
-      <div className="flex-1 px-5 -mt-4 z-10 pb-8">
-        <div className="bg-white rounded-[24px] shadow-sm border border-gray-100 p-5">
+      <div className="flex-1 w-full max-w-2xl mx-auto px-5 -mt-4 z-10 pb-8">
+         <div className="sika-surface p-5">
           <Form {...form}>
             <form onSubmit={form.handleSubmit((d) => registerMutation.mutate(d))} className="space-y-4">
 
@@ -225,6 +225,7 @@ export default function Register() {
                   <FieldWrap label="Nom complet" icon={User}>
                     <input
                       {...field}
+                      autoComplete="name"
                       placeholder="Votre nom complet"
                       data-testid="input-fullname"
                       className={inputClass}
@@ -241,6 +242,7 @@ export default function Register() {
                     <input
                       {...field}
                       type="email"
+                      autoComplete="email"
                       placeholder="votre@email.com"
                       data-testid="input-email"
                       className={inputClass}
@@ -266,7 +268,7 @@ export default function Register() {
                         <SelectContent>
                           {COUNTRIES.map((c) => (
                             <SelectItem key={c.code} value={c.code}>
-                              {c.flag} {c.name} ({c.code})
+                               {c.name} ({c.code})
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -284,6 +286,7 @@ export default function Register() {
                     <input
                       {...field}
                       type="tel"
+                      autoComplete="tel"
                       placeholder="12 345 678"
                       data-testid="input-phone"
                       className={inputClass}
@@ -300,6 +303,7 @@ export default function Register() {
                     <input
                       {...field}
                       type={showPassword ? "text" : "password"}
+                      autoComplete="new-password"
                       placeholder="Créez un mot de passe"
                       data-testid="input-password"
                       className={`${inputClass} pr-12`}
@@ -321,6 +325,7 @@ export default function Register() {
                     <input
                       {...field}
                       type={showConfirmPassword ? "text" : "password"}
+                      autoComplete="new-password"
                       placeholder="Répétez votre mot de passe"
                       data-testid="input-confirm-password"
                       className={`${inputClass} pr-12`}
@@ -392,7 +397,7 @@ export default function Register() {
                 }
               </button>
               {!captchaVerified && (
-                <p className="text-center text-xs text-amber-600">Veuillez cocher la case ci-dessus pour continuer</p>
+                 <p className="text-center text-xs text-amber-700">Veuillez valider la vérification pour continuer</p>
               )}
 
               <p className="text-center text-sm text-gray-500">

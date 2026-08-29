@@ -1361,7 +1361,7 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-primary to-blue-600 p-4">
+    <div className="sika-page p-4">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">

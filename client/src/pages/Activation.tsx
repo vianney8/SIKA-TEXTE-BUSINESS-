@@ -394,7 +394,7 @@ export default function Activation() {
   // ── Chargement ────────────────────────────────────────────────────────────
   if (initializing || activationStatus === undefined) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: PG }}>
+      <div className="sika-page flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="relative w-16 h-16 mx-auto">
             <div className="absolute inset-0 rounded-full animate-ping" style={{ background: `${EM1}25`, animationDuration: "1.8s" }} />
@@ -415,7 +415,7 @@ export default function Activation() {
   // ── Compte déjà activé ────────────────────────────────────────────────────
   if (activationStatus?.isActive) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-5" style={{ background: PG }}>
+      <div className="sika-page flex items-center justify-center p-5">
         <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden">
           <div className="px-5 py-4 flex items-center gap-3" style={{ background: HDR }}>
             <img src={sikaLogo} alt="Sika" className="w-10 h-10 rounded-2xl object-cover" />
@@ -446,7 +446,7 @@ export default function Activation() {
   if (transactionId && txStatus) {
     const op = selectedOp;
     return (
-      <div className="min-h-screen flex items-center justify-center p-4" style={{ background: PG }}>
+      <div className="sika-page flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden">
           <div className="px-5 py-4 flex items-center justify-between" style={{ background: HDR }}>
             <div className="flex items-center gap-2.5">

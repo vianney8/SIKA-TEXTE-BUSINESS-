@@ -200,8 +200,8 @@ export default function Withdrawal() {
   if (transferScreen === 'processing' || transferScreen === 'success') {
     const isSuccess = transferScreen === 'success';
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden"
-        style={{ background: "linear-gradient(160deg, #050d1f 0%, #0a1a3a 45%, #071224 100%)" }}>
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center relative overflow-hidden"
+        style={{ background: "linear-gradient(145deg, hsl(216 31% 18%) 0%, hsl(174 73% 27%) 100%)" }}>
 
         {/* Subtle grid background */}
         <div className="absolute inset-0 pointer-events-none"
@@ -444,7 +444,7 @@ export default function Withdrawal() {
   if (!withdrawalData?.isAccountActive) {
     return (
       <>
-        <div className="min-h-screen" style={{ background: "#f0f4f8" }}>
+        <div className="sika-page">
           <PageHeader title="Retrait" backHref="/" />
           <div className="px-4 pb-8 space-y-3 mt-3">
 
@@ -539,7 +539,7 @@ export default function Withdrawal() {
   });
 
   return (
-    <div className="min-h-screen pb-28" style={{ background: "#f0f4f8" }}>
+    <div className="sika-page pb-28">
       <PageHeader title="Retrait Mobile Money" backHref="/" />
 
       <div className="px-4 space-y-3 mt-3">

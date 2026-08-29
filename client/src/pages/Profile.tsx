@@ -84,7 +84,7 @@ export default function Profile() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f0f4f8]">
+    <div className="sika-page">
 
       {/* ── HERO ── */}
       <div className="relative overflow-hidden"
@@ -159,7 +159,7 @@ export default function Profile() {
       <div className="px-4 pt-4 pb-28 space-y-4">
 
         {/* ── MODIFIER NOM ── */}
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="sika-surface rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="px-5 pt-4 pb-3 flex items-center justify-between border-b border-gray-50">
             <div className="flex items-center gap-2">
               <UserCircle2 size={16} className="text-indigo-500" />
@@ -218,7 +218,7 @@ export default function Profile() {
         </div>
 
         {/* ── INFORMATIONS ── */}
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="sika-surface rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="px-5 pt-4 pb-3 border-b border-gray-50 flex items-center gap-2">
             <Shield size={16} className="text-blue-500" />
             <p className="text-gray-700 text-sm font-bold">Informations du compte</p>
@@ -251,7 +251,7 @@ export default function Profile() {
 
         {/* ── PARRAINAGE ── */}
         {referralCode && (
-          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="sika-surface rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="px-5 pt-4 pb-3 border-b border-gray-50 flex items-center gap-2">
               <Hash size={16} className="text-violet-500" />
               <p className="text-gray-700 text-sm font-bold">Code parrainage</p>
@@ -270,7 +270,7 @@ export default function Profile() {
         )}
 
         {/* ── ACTIONS ── */}
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="sika-surface rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="px-5 pt-4 pb-3 border-b border-gray-50 flex items-center gap-2">
             <Bell size={16} className="text-orange-500" />
             <p className="text-gray-700 text-sm font-bold">Actions rapides</p>

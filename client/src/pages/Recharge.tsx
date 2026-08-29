@@ -64,7 +64,7 @@ export default function Recharge() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="sika-page">
       {/* Header */}
       <div className="gradient-bg text-primary-foreground">
         <div className="px-6 py-4 flex items-center">
@@ -78,7 +78,7 @@ export default function Recharge() {
       </div>
 
       <div className="p-6">
-        <Card className="bg-white rounded-xl shadow-sm border border-border">
+        <Card className="sika-surface rounded-xl shadow-sm border-border">
           <CardContent className="p-6">
             <div className="flex items-center mb-6">
               <Plus className="text-green-600 mr-3" size={24} />

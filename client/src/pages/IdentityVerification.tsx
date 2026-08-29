@@ -172,7 +172,7 @@ export default function IdentityVerification() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="sika-page">
       {/* Header */}
       <div className="gradient-bg text-primary-foreground">
         <div className="px-6 py-4 flex items-center">

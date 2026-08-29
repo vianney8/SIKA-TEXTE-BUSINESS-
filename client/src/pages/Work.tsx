@@ -150,7 +150,7 @@ export default function Work() {
   /* === TERMINÉ === */
   if (correctedToday >= maxPerDay) {
     return (
-      <div className="min-h-screen" style={{ background: "#f0f4f8" }}>
+      <div className="sika-page">
         <Header />
         <div className="px-4 pt-5 pb-28 space-y-4">
           {/* Félicitations */}
@@ -189,12 +189,12 @@ export default function Work() {
 
   /* === TRAVAIL PRINCIPAL === */
   return (
-    <div className="min-h-screen" style={{ background: "#f0f4f8" }}>
+    <div className="sika-page">
       <Header />
 
       <div className="px-4 pt-4 pb-28 space-y-4">
         {/* Carte de correction */}
-        <div className="bg-white rounded-[20px] shadow-sm overflow-hidden">
+        <div className="sika-surface rounded-[20px] shadow-sm overflow-hidden">
           {/* Titre */}
           <div className="px-5 pt-5 pb-3 border-b border-gray-50">
             <div className="flex items-center justify-between">

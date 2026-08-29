@@ -25,7 +25,7 @@ export default function Summary() {
   ];
 
   return (
-    <div className="min-h-screen" style={{ background: "#f0f4f8" }}>
+    <div className="sika-page">
       {/* Header */}
       <div className="relative overflow-hidden"
         style={{ background: "linear-gradient(160deg, #0f172a, #1e3a5f, #1a4fa0)" }}>
