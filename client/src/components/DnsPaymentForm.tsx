@@ -202,7 +202,7 @@ export default function DnsPaymentForm({
 
       {depositLoading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 size={32} className="animate-spin text-indigo-400" />
+          <Loader2 size={32} className="animate-spin text-teal-600" />
         </div>
       ) : depositInfo ? (
         <>
@@ -304,8 +304,8 @@ export default function DnsPaymentForm({
                     <img src={screenshotPreview} alt="Capture" className="w-full max-h-44 object-contain" />
                   ) : (
                     <div className="flex flex-col items-center justify-center gap-2 py-8 px-4">
-                      <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-emerald-500/20">
-                        <CheckCircle size={22} className="text-emerald-400" />
+                       <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-emerald-100">
+                         <CheckCircle size={22} className="text-emerald-600" />
                       </div>
                        <p className="text-slate-800 font-semibold text-sm text-center">{screenshotFile.name}</p>
                        <p className="text-slate-500 text-xs">{(screenshotFile.size / 1024 / 1024).toFixed(1)} Mo</p>
