@@ -379,7 +379,7 @@ app.use((req, res, next) => {
           { command: 'paiement_pcs',        description: 'Demandes de paiement PCS en attente (80)' },
           { command: 'lien_paiement',       description: 'Toutes les demandes de paiement par lien (80)' },
           { command: 'dns_attente',         description: 'Demandes de mise à jour DNS en attente' },
-          { command: 'aide_sms',            description: 'Comment coller un SMS Moov Money pour recherche' },
+          { command: 'aide_sms',            description: 'Formats SMS Moov et Orange pour recherche' },
         ]
       })
     }).then((r: any) => r.json()).then((data: any) => {

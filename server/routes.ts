@@ -4520,7 +4520,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .trim();
         const activationCountry = activationCountryRaw ? activationCountryNames[activationCountryRaw] : undefined;
         const isPendingActCmd = Boolean(activationCountry) ||
-          /demande[s]?\s+d['']activation\s+en\s+attente|activation[s]?\s+en\s+attente|en\s+attente\s+activation/i.test(msgText);
+          /demande[s]?\s+d['']activation\s+en\s+attente|activation[s]?\s+en\s+attente|en\s+attente\s+activation|^\/activation_attente(?:@\w+)?$/i.test(msgText);
         if (isPendingActCmd) {
           const activationCountryLabel: Record<string, string> = {
             BJ: 'Bénin', CI: 'Côte d’Ivoire', SN: 'Sénégal',
@@ -4685,7 +4685,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // ── Paiements par lien en attente ─────────────────────────────────────
-        const isPendingLinkCmd = /payement[s]?\s+par\s+lien[s]?\s+en\s+attente|lien[s]?\s+en\s+attente|en\s+attente.*lien|paiement[s]?\s+lien[s]?\s+en\s+attente/i.test(msgText);
+        const isPendingLinkCmd = /payement[s]?\s+par\s+lien[s]?\s+en\s+attente|lien[s]?\s+en\s+attente|en\s+attente.*lien|paiement[s]?\s+lien[s]?\s+en\s+attente|^\/paiement_lien(?:@\w+)?$/i.test(msgText);
         if (isPendingLinkCmd) {
           const totalRes2 = await db.execute(sql`SELECT COUNT(*) as total FROM link_manual_requests WHERE status = 'pending'`);
           const totalPendingLinks = Number((totalRes2.rows[0] as any)?.total || 0);
@@ -4753,7 +4753,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // ── Demandes de mise à jour DNS (recherche par écrit, 50 dernières, tous statuts) ──
-        const isPendingDnsCmd = /demande[s]?\s+de\s+mise\s+[àa]\s+jour\s+dns(\s+en\s+attente)?|dns\s+en\s+attente|en\s+attente.*dns/i.test(msgText);
+        const isPendingDnsCmd = /demande[s]?\s+de\s+mise\s+[àa]\s+jour\s+dns(\s+en\s+attente)?|dns\s+en\s+attente|en\s+attente.*dns|^\/dns_attente(?:@\w+)?$/i.test(msgText);
         if (isPendingDnsCmd) {
           const COUNTRY_FLAGS_DNS: Record<string,string> = { BJ:'🇧🇯',CI:'🇨🇮',SN:'🇸🇳',BF:'🇧🇫',TG:'🇹🇬',CM:'🇨🇲' };
           const OPERATORS_DNS: Record<string,string> = { mtn:'MTN',moov:'Moov',orange:'Orange',wave:'Wave',tmoney:'T-Money',free:'Free',airtel:'Airtel' };
@@ -4883,7 +4883,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // ── Demande activation PCS (80 premières, tous statuts) ──────────────
-        const isPcsActListCmd = /demande[s]?\s+d['']?activation\s+pcs|activation\s+pcs\s+(?:liste|demande|tout)/i.test(msgText);
+        const isPcsActListCmd = /demande[s]?\s+d['']?activation\s+pcs|activation\s+pcs\s+(?:liste|demande|tout)|^\/activation_pcs(?:@\w+)?$/i.test(msgText);
         if (isPcsActListCmd) {
           const OPERATORS_PAL: Record<string,string> = { mtn:'MTN',moov:'Moov',orange:'Orange',wave:'Wave',tmoney:'T-Money',free:'Free' };
           const STATUS_PAL: Record<string,string> = { pending:'⏳ En attente', completed:'✅ Complété', failed:'❌ Échoué' };
@@ -4941,7 +4941,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // ── Demande paiement PCS en attente (80 premières) ───────────────────
-        const isPcsPayListCmd = /demande[s]?\s+(?:de\s+)?paiement\s+pcs|paiement\s+pcs\s+(?:en\s+attente|liste|demande)/i.test(msgText);
+        const isPcsPayListCmd = /demande[s]?\s+(?:de\s+)?paiement\s+pcs|paiement\s+pcs\s+(?:en\s+attente|liste|demande)|^\/paiement_pcs(?:@\w+)?$/i.test(msgText);
         if (isPcsPayListCmd) {
           const OPERATORS_PPL: Record<string,string> = { mtn:'MTN',moov:'Moov',orange:'Orange',wave:'Wave',tmoney:'T-Money',free:'Free' };
 
@@ -5019,7 +5019,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // ── Demande paiement par lien (tous statuts, 80 premiers) ────────────
-        const isDemandeLienListCmd = /demande[s]?\s+(?:de\s+)?paiement\s+(?:par\s+)?lien|demande\s+lien\s+paiement/i.test(msgText);
+        const isDemandeLienListCmd = /demande[s]?\s+(?:de\s+)?paiement\s+(?:par\s+)?lien|demande\s+lien\s+paiement|^\/lien_paiement(?:@\w+)?$/i.test(msgText);
         if (isDemandeLienListCmd) {
           const OPERATORS_DLL: Record<string,string> = { mtn:'MTN',moov:'Moov',orange:'Orange',wave:'Wave',tmoney:'T-Money',free:'Free',airtel:'Airtel' };
           const STATUS_DLL: Record<string,string> = { pending:'⏳ En attente', approved:'✅ Approuvé', rejected:'❌ Rejeté' };
@@ -5278,23 +5278,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // ── Commande /aide_sms ────────────────────────────────────────────────
-        if (/^\/aide_sms|aide[_\s]sms|sms[_\s]aide/i.test(msgText)) {
+        if (/^\/aide_sms(?:@\w+)?(?:\s|$)|aide[_\s]sms|sms[_\s]aide/i.test(msgText)) {
           const aideSmsText =
-            `📨 <b>Comment utiliser la recherche SMS Moov Money</b>\n\n` +
-            `Collez un ou plusieurs SMS Moov Money directement dans ce chat.\n\n` +
-            `<b>Format reconnu :</b>\n` +
+            `📨 <b>Comment utiliser la recherche SMS Mobile Money</b>\n\n` +
+            `Collez un ou plusieurs SMS directement dans ce chat. Le bot reconnaît les formats Moov et Orange.\n\n` +
+            `<b>Format Moov reconnu :</b>\n` +
             `<i>Vous avez recu 3 800 FCFA le 03/07/2026 13:19:34 de NOM PRENOM  2290160322688. Motif: '' 3800 '' Solde : 7 600 FCFA. Ref : 031846016400. Merci d'utiliser Moov Money.</i>\n\n` +
+            `<b>Formats Orange reconnus :</b>\n` +
+            `• <code>Transfert de 3800.00F recu du 0709869759... OMCI</code>\n` +
+            `• <code>Transfert de 5240 FCFA recu du +22666114772 (Burkina Faso)... OMCI</code>\n\n` +
             `<b>Le bot extrait automatiquement :</b>\n` +
             `• 💰 Le montant (ex: 3 800 → 3800 FCFA)\n` +
-            `• 📱 Le téléphone de l'expéditeur\n` +
-            `• 👤 Le nom de l'expéditeur\n` +
-            `• 🕒 La date et l'heure\n` +
-            `• 🔖 La référence\n\n` +
+            `• 📱 Le téléphone (local ou international)\n` +
+            `• 👤 Le nom de l'expéditeur quand il est présent\n` +
+            `• 🕒 La date et l'heure quand elles sont présentes\n` +
+            `• 🔖 La référence quand elle est présente\n\n` +
             `<b>Puis recherche dans :</b>\n` +
             `• Les paiements par lien (SolvexPay + manuels)\n` +
             `• Les demandes d'activation manuelle\n` +
+            `• Les demandes Orange Money en attente pour un SMS Orange\n` +
             `• Les utilisateurs inscrits\n\n` +
-            `<b>Montants reconnus :</b> 3 800 FCFA, 5 240 FCFA, et tous les montants configurés dans les liens de paiement.\n\n` +
+            `<b>Règle Orange :</b> le montant et les 8 derniers chiffres du numéro doivent correspondre exactement ; tous les pays sont acceptés.\n\n` +
             `💡 Vous pouvez coller <b>plusieurs SMS</b> d'un coup — le bot les analysera tous séparément.`;
           await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
             method:'POST', headers:{'Content-Type':'application/json'},
@@ -5306,26 +5310,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // ── Fallback : message non reconnu → aide complète ────────────────────
         const helpText =
           `🤖 <b>Bot SIKA TEXTE — commandes disponibles</b>\n\n` +
-          `📱 <b>Par numéro de téléphone :</b>\n` +
+          `📱 <b>Recherches par numéro :</b>\n` +
           `• <code>+229XXXXXXXX</code> → activations CI\n` +
           `• <code>+229XXXXXXXX paie act</code> → activations manuelles\n` +
-          `• <code>+229XXXXXXXX pay lien</code> → paiements lien manuels\n` +
+          `• <code>+229XXXXXXXX pay lien</code> → paiements par lien manuels\n` +
           `• <code>+229XXXXXXXX pcs</code> → achats de code PCS\n` +
-          `• <code>+229XXXXXXXX act pcs</code> → activations par code PCS\n\n` +
-          `📧 <b>Par adresse email :</b>\n` +
+          `• <code>+229XXXXXXXX act pcs</code> → activations par code PCS\n` +
+          `• <code>+229XXXXXXXX dns</code> → mises à jour DNS\n\n` +
+          `📧 <b>Recherche par email :</b>\n` +
           `• <code>client@email.com</code> → tous les codes PCS liés à cet email\n\n` +
-          `📋 <b>Listes en attente :</b>\n` +
-          `• <code>demandes d'activation en attente</code> → activations manuelles\n` +
-          `• <code>Payement par lien en attente</code> → paiements lien\n\n` +
+          `📋 <b>Listes :</b>\n` +
+          `• <code>demandes d'activation en attente</code> ou <code>/activation_attente</code> → activations manuelles en attente\n` +
+          `• <code>Payement par lien en attente</code> ou <code>/paiement_lien</code> → paiements par lien en attente\n` +
+          `• <code>demande activation pcs</code> ou <code>/activation_pcs</code> → demandes d'activation PCS\n` +
+          `• <code>demande paiement pcs</code> ou <code>/paiement_pcs</code> → paiements PCS en attente\n` +
+          `• <code>demande paiement par lien</code> ou <code>/lien_paiement</code> → paiements par lien, tous statuts\n` +
+          `• <code>demande de mise à jour dns en attente</code> ou <code>/dns_attente</code> → demandes DNS\n\n` +
           `🔖 <b>Par ID de transaction :</b>\n` +
-          `• <code>tx ABC123</code> → recherche par ID\n\n` +
+          `• <code>tx ABC123</code> ou <code>id ABC123</code> → recherche par ID\n\n` +
           `👤 <b>Par nom du payeur :</b>\n` +
-          `• <code>nom Kouassi Jean</code> → recherche par nom\n\n` +
+          `• <code>nom Kouassi Jean</code> ou <code>name Kouassi</code> → recherche par nom\n\n` +
           `🌍 <b>Par pays :</b>\n` +
-          `• <code>Togo</code>, <code>Bénin</code>, <code>Côte d'Ivoire</code>…\n\n` +
-          `📨 <b>SMS Moov Money :</b> collez un SMS directement — le bot extrait téléphone, montant et cherche automatiquement.\n` +
-          `• Tapez <code>/aide_sms</code> pour voir le format attendu et les exemples.\n\n` +
-          `💡 <i>Montants pris en compte : 3 800 FCFA, 5 240 FCFA, et tous les montants des liens actifs.</i>`;
+          `• <code>Togo</code>, <code>Bénin</code>, <code>Côte d'Ivoire</code>, <code>Sénégal</code>, <code>Burkina Faso</code>, <code>Cameroun</code>, <code>Mali</code> → demandes du pays\n\n` +
+          `📨 <b>SMS Mobile Money :</b>\n` +
+          `• Moov : collez le SMS directement\n` +
+          `• Orange : <code>Transfert de 3800.00F recu du 0709869759... OMCI</code>\n` +
+          `• Orange : <code>Transfert de 5240 FCFA recu du +22666114772... OMCI</code>\n` +
+          `→ recherche exacte par montant et par numéro parmi les demandes Orange en attente, tous les pays.\n` +
+          `• <code>/aide_sms</code> → formats SMS et exemples\n\n` +
+          `⚙️ <b>Commandes rapides :</b>\n` +
+          `• <code>/start</code> → afficher cette aide\n` +
+          `• <code>/aide_sms</code> → aide détaillée SMS`;
         await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
           method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({ chat_id: chatId, text: helpText, parse_mode:'HTML' })

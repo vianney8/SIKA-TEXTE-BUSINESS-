@@ -52,7 +52,7 @@ export default function AdminNav({
 
   return (
     <>
-      <header className="sticky top-0 z-40 border-b border-slate-800/80 bg-slate-950/95 text-white shadow-lg shadow-slate-950/10 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 text-foreground shadow-lg shadow-slate-900/5 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3 sm:px-6">
           <Link
             href="/admin"
@@ -64,7 +64,7 @@ export default function AdminNav({
             </span>
             <span className="hidden min-w-0 sm:block">
               <span className="block truncate font-serif text-sm font-extrabold tracking-tight">SIKA TEXTE</span>
-              <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-teal-300/80">Administration</span>
+              <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-teal-700/80">Administration</span>
             </span>
           </Link>
 
@@ -72,7 +72,7 @@ export default function AdminNav({
             {actions}
             <Link
               href="/dashboard"
-              className="hidden h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-slate-200 transition hover:bg-white/10 sm:flex"
+              className="hidden h-9 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-700 transition hover:bg-teal-50 hover:text-teal-800 sm:flex"
             >
               <CircleUserRound className="h-4 w-4" />
               Mon compte
@@ -80,7 +80,7 @@ export default function AdminNav({
             <button
               type="button"
               onClick={logout}
-              className="grid h-9 w-9 place-items-center rounded-xl border border-rose-400/20 bg-rose-500/10 text-rose-300 transition hover:bg-rose-500/20"
+              className="grid h-9 w-9 place-items-center rounded-xl border border-rose-200 bg-rose-50 text-rose-600 transition hover:bg-rose-100"
               aria-label="Se déconnecter"
               title="Se déconnecter"
             >
@@ -89,7 +89,7 @@ export default function AdminNav({
           </div>
         </div>
 
-        <nav aria-label="Navigation administrateur" className="border-t border-white/5">
+        <nav aria-label="Navigation administrateur" className="border-t border-slate-100">
           <div className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-3 py-2 sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {adminLinks.map((item) => {
               const Icon = item.icon;
@@ -103,8 +103,8 @@ export default function AdminNav({
                   aria-current={active ? "page" : undefined}
                   className={`flex flex-none items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold transition ${
                     active
-                      ? "bg-teal-500 text-white shadow-md shadow-teal-950/20"
-                      : "text-slate-400 hover:bg-white/5 hover:text-white"
+                      ? "bg-teal-600 text-white shadow-md shadow-teal-900/15"
+                      : "text-slate-500 hover:bg-teal-50 hover:text-teal-800"
                   }`}
                 >
                   <Icon className="h-3.5 w-3.5" />
@@ -116,10 +116,10 @@ export default function AdminNav({
         </nav>
       </header>
 
-      <section className="border-b border-slate-200/80 bg-gradient-to-br from-slate-900 via-slate-900 to-teal-950 text-white">
+      <section className="border-b border-teal-100 bg-gradient-to-br from-teal-50 via-white to-amber-50 text-foreground">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-6 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-8">
           <div className="flex min-w-0 items-center gap-4">
-            <span className="grid h-12 w-12 flex-none place-items-center rounded-2xl border border-white/10 bg-white/10 text-teal-300 shadow-inner">
+            <span className="grid h-12 w-12 flex-none place-items-center rounded-2xl border border-teal-200 bg-white text-teal-700 shadow-sm">
               <PageIcon className="h-6 w-6" />
             </span>
             <div className="min-w-0">
@@ -131,15 +131,15 @@ export default function AdminNav({
                   {title}
                 </h1>
                 {badge !== undefined && (
-                  <span className="rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-black text-slate-950">{badge}</span>
+                  <span className="rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-black text-amber-950">{badge}</span>
                 )}
               </div>
-              <p className="mt-1 text-xs text-slate-300 sm:text-sm">{subtitle}</p>
+              <p className="mt-1 text-xs text-slate-600 sm:text-sm">{subtitle}</p>
             </div>
           </div>
           <Link
             href="/admin"
-            className="inline-flex items-center gap-1 text-xs font-bold text-teal-300 hover:text-teal-200 sm:hidden"
+            className="inline-flex items-center gap-1 text-xs font-bold text-teal-700 hover:text-teal-900 sm:hidden"
           >
             Vue d’ensemble
             <ChevronRight className="h-3.5 w-3.5" />

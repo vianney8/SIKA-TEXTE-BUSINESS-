@@ -1170,7 +1170,7 @@ export default function AdminDashboard() {
       <div className="overflow-x-auto">
         <table className="w-full border-collapse border border-gray-300">
           <thead>
-            <tr className="bg-gray-100 dark:bg-gray-800">
+            <tr className="bg-gray-100">
               <th className="border border-gray-300 px-4 py-2 text-left">Utilisateur</th>
               <th className="border border-gray-300 px-4 py-2 text-left">Téléphone</th>
               <th className="border border-gray-300 px-4 py-2 text-left">Solde</th>
@@ -1181,11 +1181,11 @@ export default function AdminDashboard() {
           </thead>
           <tbody>
             {users.map((user) => (
-              <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+              <tr key={user.id} className="hover:bg-gray-50">
                 <td className="border border-gray-300 px-4 py-2">
                   <div>
                     <div className="font-bold">{user.fullName || <span className="text-gray-400 italic">Sans nom</span>}</div>
-                    {user.email && <div className="text-xs text-blue-600 dark:text-blue-400 break-all">{user.email}</div>}
+                    {user.email && <div className="text-xs text-blue-600 break-all">{user.email}</div>}
                     <div className="text-sm text-gray-500">Code: {user.referralCode}</div>
                   </div>
                 </td>
@@ -1311,7 +1311,7 @@ export default function AdminDashboard() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="border-purple-400 text-purple-700 dark:text-purple-300"
+                      className="border-purple-400 text-purple-700"
                       onClick={() => {
                         setPcsCodesUser(user);
                         setPcsCodesModal(true);
@@ -1370,8 +1370,8 @@ export default function AdminDashboard() {
         badge={(pendingWithdrawals.length || 0) + (ciPendingUsers.length || 0) || undefined}
         actions={
           <div className="hidden items-center gap-2 md:flex">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-teal-300/20 bg-teal-400/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-teal-200">
-              <span className="h-1.5 w-1.5 rounded-full bg-teal-300 shadow-[0_0_0_3px_rgba(94,234,212,.12)]" />
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-teal-200 bg-teal-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-teal-800">
+              <span className="h-1.5 w-1.5 rounded-full bg-teal-600 shadow-[0_0_0_3px_rgba(13,148,136,.12)]" />
               Système actif
             </span>
           </div>
@@ -1380,15 +1380,15 @@ export default function AdminDashboard() {
       <div className="sika-content pb-12">
         <div className="max-w-7xl mx-auto">
         {/* Quick controls: retained operational actions, now grouped below the shared admin header. */}
-        <div className="mb-6 rounded-2xl border border-slate-200/80 bg-slate-900 p-3 shadow-xl shadow-slate-900/10">
+        <div className="mb-6 rounded-2xl border border-slate-200/80 bg-card p-3 shadow-xl shadow-slate-900/10">
           {/* Top bar: title + logout */}
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-lg font-extrabold tracking-tight text-white leading-tight">Raccourcis opérateur</h1>
-              <p className="text-slate-400 text-xs">Accès direct aux files urgentes et aux contrôles de service</p>
+              <h1 className="text-lg font-extrabold tracking-tight text-foreground leading-tight">Raccourcis opérateur</h1>
+              <p className="text-slate-500 text-xs">Accès direct aux files urgentes et aux contrôles de service</p>
             </div>
             <div className="flex items-center gap-2">
-              <Button asChild className="bg-white/10 hover:bg-white/20 text-white border border-white/10 font-medium text-sm" data-testid="button-admin-my-account">
+              <Button asChild className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-medium text-sm" data-testid="button-admin-my-account">
                 <a href="/dashboard">
                   <LayoutDashboard className="h-3.5 w-3.5 mr-1.5" />
                   Mon compte
@@ -1400,7 +1400,7 @@ export default function AdminDashboard() {
                     .then(() => window.location.href = '/simple-login')
                     .catch(() => window.location.href = '/simple-login');
                 }}
-                className="bg-rose-500/15 hover:bg-rose-500/25 text-rose-200 border border-rose-400/20 px-3 py-2 rounded-lg transition-colors text-sm font-bold"
+                 className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-3 py-2 rounded-lg transition-colors text-sm font-bold"
                 data-testid="button-logout"
               >
                 Déconnexion
@@ -1673,7 +1673,7 @@ export default function AdminDashboard() {
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse border border-gray-300">
                     <thead className="sticky top-0 bg-white z-10">
-                      <tr className="bg-gray-100 dark:bg-gray-800">
+                      <tr className="bg-gray-100">
                         <th className="border border-gray-300 px-4 py-2 text-left">Compte</th>
                         <th className="border border-gray-300 px-4 py-2 text-left">Téléphone</th>
                         <th className="border border-gray-300 px-4 py-2 text-left">Pays / Opérateur</th>
@@ -1683,7 +1683,7 @@ export default function AdminDashboard() {
                     </thead>
                     <tbody>
                       {(dnsApprovedAccounts as any[]).map((acc: any) => (
-                        <tr key={acc.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                        <tr key={acc.id} className="hover:bg-gray-50">
                           <td className="border border-gray-300 px-4 py-2">
                             <div className="font-medium">{acc.full_name || acc.customer_name || 'Non renseigné'}</div>
                             <div className="text-xs text-muted-foreground">{acc.email || '—'}</div>
@@ -1734,7 +1734,7 @@ export default function AdminDashboard() {
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse border border-gray-300">
                     <thead className="sticky top-0 bg-white z-10">
-                      <tr className="bg-gray-100 dark:bg-gray-800">
+                      <tr className="bg-gray-100">
                         <th className="border border-gray-300 px-4 py-2 text-left">Statut</th>
                         <th className="border border-gray-300 px-4 py-2 text-left">Utilisateur</th>
                         <th className="border border-gray-300 px-4 py-2 text-left">Téléphone</th>
@@ -1745,7 +1745,7 @@ export default function AdminDashboard() {
                     </thead>
                     <tbody>
                       {onlineUsers.map((user) => (
-                        <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                        <tr key={user.id} className="hover:bg-gray-50">
                           <td className="border border-gray-300 px-4 py-2">
                             <Badge className="bg-green-500 text-white">
                               🟢 En ligne
@@ -1789,14 +1789,14 @@ export default function AdminDashboard() {
           <span className="hidden text-[11px] font-semibold text-muted-foreground sm:block">Actualisation automatique · 30 s</span>
         </div>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mb-8">
-          <Card className="border-slate-200/80 bg-slate-900 text-white shadow-lg shadow-slate-900/10">
+          <Card className="border-teal-200/80 bg-teal-50/80 shadow-lg shadow-teal-900/5">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs font-bold text-slate-300">Utilisateurs</CardTitle>
-              <Users className="h-4 w-4 text-teal-300" />
+              <CardTitle className="text-xs font-bold text-teal-900">Utilisateurs</CardTitle>
+              <Users className="h-4 w-4 text-teal-700" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-extrabold tracking-tight">{stats?.totalUsers || 0}</div>
-              <p className="mt-1 text-[10px] text-slate-400">comptes enregistrés</p>
+              <div className="text-2xl font-extrabold tracking-tight text-teal-900">{stats?.totalUsers || 0}</div>
+              <p className="mt-1 text-[10px] text-teal-800/70">comptes enregistrés</p>
             </CardContent>
           </Card>
 
@@ -1880,6 +1880,58 @@ export default function AdminDashboard() {
                   <code className="bg-white border border-blue-200 px-2 py-0.5 rounded font-mono text-xs">+229XXXXXXXX act pcs</code>
                   <span className="text-gray-500">→</span>
                   <span className="text-gray-700">activations par code PCS</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <code className="bg-white border border-blue-200 px-2 py-0.5 rounded font-mono text-xs">+229XXXXXXXX dns</code>
+                  <span className="text-gray-500">→</span>
+                  <span className="text-gray-700">mises à jour DNS</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Listes */}
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-blue-800 mb-2">📋 Listes et commandes rapides</p>
+              <div className="space-y-1.5 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <code className="bg-white border border-blue-200 px-2 py-0.5 rounded font-mono text-xs">/activation_attente</code>
+                  <span className="text-gray-500">→</span>
+                  <span className="text-gray-700">activations manuelles en attente</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <code className="bg-white border border-blue-200 px-2 py-0.5 rounded font-mono text-xs">/paiement_lien</code>
+                  <span className="text-gray-500">→</span>
+                  <span className="text-gray-700">paiements par lien en attente</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <code className="bg-white border border-blue-200 px-2 py-0.5 rounded font-mono text-xs">/activation_pcs</code>
+                  <span className="text-gray-500">→</span>
+                  <span className="text-gray-700">demandes d'activation PCS</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <code className="bg-white border border-blue-200 px-2 py-0.5 rounded font-mono text-xs">/paiement_pcs</code>
+                  <span className="text-gray-500">→</span>
+                  <span className="text-gray-700">paiements PCS en attente</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <code className="bg-white border border-blue-200 px-2 py-0.5 rounded font-mono text-xs">/lien_paiement</code>
+                  <span className="text-gray-500">→</span>
+                  <span className="text-gray-700">paiements par lien, tous statuts</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <code className="bg-white border border-blue-200 px-2 py-0.5 rounded font-mono text-xs">/dns_attente</code>
+                  <span className="text-gray-500">→</span>
+                  <span className="text-gray-700">demandes de mise à jour DNS</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <code className="bg-white border border-blue-200 px-2 py-0.5 rounded font-mono text-xs">/start</code>
+                  <span className="text-gray-500">→</span>
+                  <span className="text-gray-700">afficher l'aide complète</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <code className="bg-white border border-blue-200 px-2 py-0.5 rounded font-mono text-xs">/aide_sms</code>
+                  <span className="text-gray-500">→</span>
+                  <span className="text-gray-700">formats SMS Moov et Orange</span>
                 </div>
               </div>
             </div>

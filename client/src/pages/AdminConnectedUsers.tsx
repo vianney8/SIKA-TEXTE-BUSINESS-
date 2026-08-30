@@ -118,7 +118,7 @@ export default function AdminConnectedUsers() {
           <button
             onClick={() => refetch()}
             disabled={isFetching}
-            className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/5 text-white hover:bg-white/10"
+            className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-teal-50 hover:text-teal-700"
             aria-label="Actualiser"
           >
             <RefreshCw
