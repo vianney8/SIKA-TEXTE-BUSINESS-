@@ -1908,6 +1908,26 @@ export default function AdminDashboard() {
               </div>
             </div>
 
+            {/* SMS Orange Money */}
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-blue-800 mb-2">🟠 Par SMS Orange Money</p>
+              <div className="space-y-1.5 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <code className="bg-white border border-blue-200 px-2 py-0.5 rounded font-mono text-xs">Transfert de 3800.00F recu du 0709869759... OMCI</code>
+                  <span className="text-gray-500">→</span>
+                  <span className="text-gray-700">dépôt Orange en attente</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <code className="bg-white border border-blue-200 px-2 py-0.5 rounded font-mono text-xs">Transfert de 5240 FCFA recu du +22666114772... OMCI</code>
+                  <span className="text-gray-500">→</span>
+                  <span className="text-gray-700">tous les pays, numéro local ou international</span>
+                </div>
+                <p className="text-xs text-blue-700">
+                  La recherche compare exactement le montant et les 8 derniers chiffres du numéro, uniquement parmi les demandes Orange Money en attente.
+                </p>
+              </div>
+            </div>
+
             <div className="text-xs text-blue-700 bg-blue-100 rounded-lg p-2.5 border border-blue-200">
               💡 <strong>Astuce :</strong> les recherches par téléphone comparent aussi les 8 derniers chiffres ; les recherches par nom et ID acceptent un fragment (ex : <code className="bg-white px-1 rounded">tx 5511</code> ou <code className="bg-white px-1 rounded">nom Kouassi</code>). Si vous tapez un message non reconnu, le bot vous renvoie automatiquement cette liste.
             </div>
