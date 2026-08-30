@@ -94,3 +94,42 @@ export function parseMoovSmsBlock(block: string): ParsedMoovSms {
 
   return { amount, phone, senderName, date, ref, raw: block };
 }
+
+export interface ParsedOrangeMoneySms {
+  amount: number | null;
+  phone: string | null;
+  ref: string | null;
+  raw: string;
+}
+
+/**
+ * Orange Money confirmation messages begin with "Transfert de" and end with
+ * the OMCI signature. The phone can be local or international and the amount
+ * can use either F or FCFA.
+ */
+export function splitOrangeMoneySmsBlocks(message: string): string[] {
+  const blocks = message
+    .split(/(?=Transfert\s+de\s+)/i)
+    .map(block => block.trim())
+    .filter(block => /Transfert\s+de\s+[\d\s.,]+\s*F(?:CFA)?\s+re[cç]u\s+du\s+/i.test(block));
+
+  return blocks.length ? blocks : [message.trim()];
+}
+
+export function parseOrangeMoneySmsBlock(block: string): ParsedOrangeMoneySms {
+  const amountMatch = /Transfert\s+de\s*([\d][\d\s]*(?:[.,]\d+)?)\s*F(?:CFA)?\b/i.exec(block);
+  const amount = amountMatch
+    ? Math.round(Number(amountMatch[1].replace(/\s/g, '').replace(',', '.')))
+    : null;
+
+  // Stop before the optional country in parentheses or before the next SMS
+  // field. Digits are retained after removing formatting characters.
+  const phoneMatch = /re[cç]u\s+du\s+(\+?\d[\d\s.-]*\d)(?=\s*(?:\(|,|\.|Reference|Référence|Nouveau\s+solde|ID\s*:))/i.exec(block);
+  const fallbackPhoneMatch = /re[cç]u\s+du\s+(\+?\d{7,15})/i.exec(block);
+  const phone = (phoneMatch?.[1] || fallbackPhoneMatch?.[1] || '').replace(/\D/g, '') || null;
+
+  const refMatch = /(?:Reference|Référence|Ref)\s*:?\s*([A-Za-z0-9._-]+)/i.exec(block);
+  const ref = refMatch?.[1] || null;
+
+  return { amount, phone, ref, raw: block };
+}
