@@ -44,7 +44,15 @@ import { eq, sql, and, desc, or, ilike, count, isNull, ne } from "drizzle-orm";
 import connectPg from "connect-pg-simple";
 import { randomBytes, createHmac } from "crypto";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
-import { classifyMoovPayment, parseMoovSmsBlock, splitMoovSmsBlocks, type ParsedMoovSms } from "./moovSms";
+import {
+  classifyMoovPayment,
+  parseMoovSmsBlock,
+  splitMoovSmsBlocks,
+  parseOrangeMoneySmsBlock,
+  splitOrangeMoneySmsBlocks,
+  type ParsedMoovSms,
+  type ParsedOrangeMoneySms,
+} from "./moovSms";
 
 // Déduplication des clics Telegram : évite le traitement multiple du même clic
 const processedCallbackIds = new Set<string>();
@@ -2886,7 +2894,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               chat_id: chatId,
-              text: '✅ <b>Bot SIKA TEXTE configuré avec succès !</b>\n\n💡 <b>Commandes disponibles :</b>\n\n📱 <b>Par numéro :</b>\n• <code>+229XXXXXXXX</code> → activations CI\n• <code>+229XXXXXXXX paie act</code> → activations manuelles\n• <code>+229XXXXXXXX pay lien</code> → paiements lien\n• <code>+229XXXXXXXX pcs</code> → achats PCS\n• <code>+229XXXXXXXX act pcs</code> → activations PCS\n\n📧 <b>Par email :</b>\n• <code>client@email.com</code> → codes PCS liés\n\n📋 <b>Listes :</b>\n• <code>demandes d\'activation en attente</code> — activations manuelles\n• <code>Payement par lien en attente</code> — paiements lien pending\n• <code>demande activation pcs</code> — 80 demandes activation PCS\n• <code>demande paiement pcs</code> — 80 demandes PCS en attente\n• <code>demande paiement par lien</code> — 80 demandes paiement lien (tous statuts)\n• <code>demande de mise à jour dns en attente</code> — demandes DNS en attente\n\n🔖 <b>Par transaction :</b>\n• <code>tx ABC123</code> → recherche par ID\n\n👤 <b>Par nom :</b>\n• <code>nom Kouassi Jean</code> → recherche par nom\n\n📨 <b>SMS Mobile Money :</b> collez un SMS directement pour vérification automatique.',
+               text: '✅ <b>Bot SIKA TEXTE configuré avec succès !</b>\n\n💡 <b>Commandes disponibles :</b>\n\n📱 <b>Par numéro :</b>\n• <code>+229XXXXXXXX</code> → activations CI\n• <code>+229XXXXXXXX paie act</code> → activations manuelles\n• <code>+229XXXXXXXX pay lien</code> → paiements lien\n• <code>+229XXXXXXXX pcs</code> → achats PCS\n• <code>+229XXXXXXXX act pcs</code> → activations PCS\n\n📧 <b>Par email :</b>\n• <code>client@email.com</code> → codes PCS liés\n\n📋 <b>Listes :</b>\n• <code>demandes d\'activation en attente</code> — activations manuelles\n• <code>Payement par lien en attente</code> — paiements lien pending\n• <code>demande activation pcs</code> — 80 demandes activation PCS\n• <code>demande paiement pcs</code> — 80 demandes PCS en attente\n• <code>demande paiement par lien</code> — 80 demandes paiement lien (tous statuts)\n• <code>demande de mise à jour dns en attente</code> — demandes DNS en attente\n\n🔖 <b>Par transaction :</b>\n• <code>tx ABC123</code> → recherche par ID\n\n👤 <b>Par nom :</b>\n• <code>nom Kouassi Jean</code> → recherche par nom\n\n📨 <b>SMS Mobile Money :</b>\n• SMS Moov : collez le SMS directement\n• Orange : <code>Transfert de 3800.00F recu du 0709869759... OMCI</code>\n• Orange : <code>Transfert de 5240 FCFA recu du +22666114772... OMCI</code>\n→ recherche exacte par montant et numéro parmi les demandes Orange en attente (tous les pays).',
               parse_mode: 'HTML'
             })
           });
@@ -3207,6 +3215,265 @@ export async function registerRoutes(app: Express): Promise<Server> {
               });
               await sendShot(chatId, r.screenshot_url);
               await new Promise(r=>setTimeout(r,60));
+            }
+          }
+          return res.sendStatus(200);
+        }
+
+        // ── Parsing SMS Orange Money ─────────────────────────────────────────────
+        // Format Orange Money CI et régional :
+        // "Transfert de 3800.00F recu du 0709869759. Reference ..."
+        // "Transfert de 5240 FCFA recu du +22666114772 (Burkina Faso). ..."
+        // Le numéro et le montant sont obligatoires. La recherche est limitée
+        // aux demandes Orange en attente, sans filtre de pays.
+        const isOrangeMoneySms =
+          /\bOMCI\b/i.test(msgText) &&
+          /Transfert\s+de\s+[\d\s.,]+\s*F(?:CFA)?\s+re[cç]u\s+du\s+/i.test(msgText);
+        if (isOrangeMoneySms) {
+          const parsedOrange: ParsedOrangeMoneySms[] = splitOrangeMoneySmsBlocks(msgText)
+            .map(parseOrangeMoneySmsBlock);
+
+          const orangeSummary = parsedOrange.map((sms, index) => [
+            `<b>SMS Orange ${index + 1}</b>`,
+            sms.amount !== null
+              ? `  💰 ${sms.amount.toLocaleString('fr-FR')} FCFA`
+              : '  💰 <i>Montant introuvable</i>',
+            sms.phone
+              ? `  📱 <code>${sms.phone}</code>`
+              : '  📱 <i>Numéro introuvable</i>',
+            sms.ref ? `  🔖 Référence : <code>${sms.ref}</code>` : '',
+          ].filter(Boolean).join('\n')).join('\n\n');
+
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              text: `🟠 <b>Recherche Orange Money — tous les pays</b>\n\n${orangeSummary}\n\n🔍 Recherche des demandes Orange en attente...`,
+              parse_mode: 'HTML',
+            }),
+          });
+
+          const ORANGE_FLAGS: Record<string, string> = {
+            BJ: '🇧🇯', CI: '🇨🇮', SN: '🇸🇳', BF: '🇧🇫', TG: '🇹🇬',
+            CM: '🇨🇲', ML: '🇲🇱', NE: '🇳🇪', GN: '🇬🇳', GH: '🇬🇭',
+          };
+          const ORANGE_STATUS: Record<string, string> = {
+            pending: '⏳ En attente',
+            pending_validation: '⏳ En attente',
+            approved: '✅ Approuvée',
+            activated: '✅ Activée',
+            rejected: '❌ Rejetée',
+            failed: '❌ Échouée',
+            completed: '✅ Complétée',
+          };
+
+          for (let index = 0; index < parsedOrange.length; index++) {
+            const sms = parsedOrange[index];
+            if (!sms.phone || sms.amount === null || !Number.isFinite(sms.amount)) {
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  text: `⚠️ <b>SMS Orange ${index + 1}</b> : impossible d'extraire à la fois le numéro et le montant du dépôt.`,
+                  parse_mode: 'HTML',
+                }),
+              });
+              continue;
+            }
+
+            const phoneDigits = sms.phone.replace(/\D/g, '');
+            const last8 = phoneDigits.slice(-8);
+            if (last8.length < 6) {
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  text: `⚠️ <b>SMS Orange ${index + 1}</b> : le numéro fourni est trop court pour une recherche fiable.`,
+                  parse_mode: 'HTML',
+                }),
+              });
+              continue;
+            }
+
+            const orangeRequestsRes = await db.execute(sql`
+              SELECT *
+              FROM (
+                SELECT
+                  id, 'activation' AS src, user_id, country, operator,
+                  payment_phone AS phone, payer_name,
+                  full_name AS customer_name, email AS customer_email,
+                  referral_code, amount, transaction_id, screenshot_url,
+                  status, created_at, NULL::text AS link_id,
+                  NULL::text AS link_label
+                FROM manual_activation_requests
+                WHERE status = 'pending'
+                  AND LOWER(TRIM(operator)) LIKE 'orange%'
+
+                UNION ALL
+
+                SELECT
+                  id, 'ci_activation' AS src, user_id, 'CI' AS country, operator,
+                  payment_phone AS phone, NULL::text AS payer_name,
+                  full_name AS customer_name, email AS customer_email,
+                  referral_code, amount, NULL::text AS transaction_id,
+                  NULL::text AS screenshot_url, status, created_at,
+                  NULL::text AS link_id, NULL::text AS link_label
+                FROM ci_activation_requests
+                WHERE status IN ('pending', 'pending_validation')
+                  AND LOWER(TRIM(operator)) LIKE 'orange%'
+
+                UNION ALL
+
+                SELECT
+                  id, 'link_manual' AS src, NULL::text AS user_id, country,
+                  operator, phone, NULL::text AS payer_name,
+                  customer_name, customer_email, NULL::text AS referral_code,
+                  amount, transaction_id, screenshot_url, status, created_at,
+                  link_id, link_label
+                FROM link_manual_requests
+                WHERE status = 'pending'
+                  AND LOWER(TRIM(operator)) LIKE 'orange%'
+
+                UNION ALL
+
+                SELECT
+                  id, 'payment_link' AS src, user_id, country, operator, phone,
+                  NULL::text AS payer_name, customer_name, customer_email,
+                  NULL::text AS referral_code, amount,
+                  COALESCE(reference, solvexpay_txn_id) AS transaction_id,
+                  screenshot_url, status, created_at, link_id, link_label
+                FROM payment_link_transactions
+                WHERE status = 'pending'
+                  AND LOWER(TRIM(operator)) LIKE 'orange%'
+              ) AS orange_requests
+              WHERE RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 8) = ${last8}
+                AND amount::numeric = ${sms.amount}::numeric
+              ORDER BY created_at DESC
+              LIMIT 30
+            `);
+            const orangeRequests = (orangeRequestsRes.rows || []) as any[];
+
+            if (!orangeRequests.length) {
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  text: `❌ <b>SMS Orange ${index + 1} — aucune demande trouvée</b>\n\n` +
+                    `📱 Numéro recherché : <code>${sms.phone}</code>\n` +
+                    `💰 Montant recherché : <b>${sms.amount.toLocaleString('fr-FR')} FCFA</b>\n` +
+                    `🔖 Référence SMS : <code>${sms.ref || '—'}</code>\n\n` +
+                    `Aucune demande Orange Money en attente ne correspond exactement au numéro et au montant.`,
+                  parse_mode: 'HTML',
+                }),
+              });
+              continue;
+            }
+
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                text: `✅ <b>SMS Orange ${index + 1} — ${orangeRequests.length} demande(s) trouvée(s)</b>\n` +
+                  `📱 <code>${sms.phone}</code> · 💰 <b>${sms.amount.toLocaleString('fr-FR')} FCFA</b>`,
+                parse_mode: 'HTML',
+              }),
+            });
+
+            for (const request of orangeRequests) {
+              const country = String(request.country || '').toUpperCase();
+              const flag = ORANGE_FLAGS[country] || '🌍';
+              const sourceLabel: Record<string, string> = {
+                activation: 'Activation manuelle',
+                ci_activation: 'Activation CI',
+                link_manual: 'Paiement par lien manuel',
+                payment_link: 'Paiement par lien',
+              };
+              const date = request.created_at
+                ? new Date(request.created_at).toLocaleString('fr-FR', {
+                    timeZone: 'Africa/Abidjan',
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })
+                : '—';
+              const status = ORANGE_STATUS[request.status] || request.status || '⏳ En attente';
+              const requestPhone = request.phone || '—';
+              const requestAmount = Number(request.amount).toLocaleString('fr-FR');
+              const cardText =
+                `${flag} <b>${country || 'Pays non renseigné'} — Orange Money</b>\n` +
+                `📌 ${sourceLabel[request.src] || 'Demande de paiement'}\n` +
+                `📊 ${status}\n\n` +
+                `👤 ${request.customer_name || request.payer_name || 'N/A'}\n` +
+                `📱 <code>${requestPhone}</code>\n` +
+                `💰 <b>${requestAmount} FCFA</b>\n` +
+                `📧 ${request.customer_email || 'N/A'}\n` +
+                `🔖 ID demande : <code>${request.id}</code>\n` +
+                `🧾 Réf. SMS : <code>${sms.ref || '—'}</code>\n` +
+                `🔗 Réf. transaction : <code>${request.transaction_id || '—'}</code>\n` +
+                `🕒 ${date}`;
+
+              let buttons: any;
+              if (request.src === 'activation') {
+                buttons = {
+                  inline_keyboard: [[
+                    { text: '✅ Approuver', callback_data: `manact_app_pre_${request.id}` },
+                    { text: '❌ Rejeter', callback_data: `manact_rej_pre_${request.id}` },
+                  ], [
+                    { text: '🔒 Bloquer le compte', callback_data: `blkuser_pre_${request.user_id}` },
+                  ]],
+                };
+              } else if (request.src === 'ci_activation') {
+                buttons = {
+                  inline_keyboard: [[
+                    { text: '✅ Activer', callback_data: `act_approve_pre_${request.user_id}` },
+                    { text: '❌ Décliner', callback_data: `act_decline_pre_${request.user_id}` },
+                  ], [
+                    { text: '🔒 Bloquer le compte', callback_data: `blkusr_pre_${request.user_id}` },
+                  ]],
+                };
+              } else if (request.src === 'link_manual') {
+                buttons = {
+                  inline_keyboard: [[
+                    { text: '✅ Approuver', callback_data: `lnkma_pre_${request.id}` },
+                    { text: '❌ Rejeter', callback_data: `lnkrej_pre_${request.id}` },
+                  ], [
+                    { text: '🔒 Bloquer le compte', callback_data: `blklnkr_pre_${request.id}` },
+                  ]],
+                };
+              } else {
+                const dnsButtons = request.link_id === 'eedbc622' && request.status === 'pending'
+                  ? [[
+                      { text: '✅ Valider', callback_data: `dnsval_ok_${request.id}` },
+                      { text: '❌ Refuser', callback_data: `dnsval_no_${request.id}` },
+                    ]]
+                  : [];
+                buttons = {
+                  inline_keyboard: [
+                    ...dnsButtons,
+                    [{ text: '🔒 Bloquer le compte', callback_data: `blkplt_pre_${request.id}` }],
+                  ],
+                };
+              }
+
+              await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  text: cardText,
+                  parse_mode: 'HTML',
+                  reply_markup: buttons,
+                }),
+              });
+              if (request.screenshot_url) await sendShot(chatId, request.screenshot_url);
+              await new Promise(resolve => setTimeout(resolve, 80));
             }
           }
           return res.sendStatus(200);
