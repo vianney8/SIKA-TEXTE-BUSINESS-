@@ -120,6 +120,11 @@ export default function AdminSettings() {
       toast({ title: "Erreur", description: "Seuls les fichiers vidéo sont acceptés", variant: "destructive" });
       return;
     }
+    if (file.size > 100 * 1024 * 1024) {
+      toast({ title: "Vidéo trop volumineuse", description: "La vidéo ne doit pas dépasser 100 Mo", variant: "destructive" });
+      e.target.value = "";
+      return;
+    }
     setVideoFile(file);
     const url = URL.createObjectURL(file);
     setVideoPreview(url);
@@ -130,32 +135,55 @@ export default function AdminSettings() {
     setIsUploadingVideo(true);
     setUploadProgress(0);
     try {
-      const formData = new FormData();
-      formData.append("video", videoFile);
+      // Demander une URL signée : le gros fichier ne transite pas par Express.
+      const uploadUrlResponse = await fetch("/api/admin/demo-video/upload-url", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: videoFile.name }),
+      });
+      const uploadUrlData = await uploadUrlResponse.json().catch(() => ({}));
+      if (!uploadUrlResponse.ok || !uploadUrlData.uploadUrl || !uploadUrlData.videoId) {
+        throw new Error(uploadUrlData.message || "Impossible de préparer l'upload");
+      }
 
+      setUploadProgress(3);
+
+      // Envoyer directement la vidéo dans le stockage objet pour éviter les
+      // limites de taille et les coupures de la requête multipart serveur.
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/admin/upload-demo-video", true);
-        xhr.withCredentials = true;
+        xhr.open("PUT", uploadUrlData.uploadUrl, true);
+        xhr.setRequestHeader("Content-Type", videoFile.type || "video/mp4");
         xhr.upload.addEventListener("progress", (e) => {
           if (e.lengthComputable) {
-            setUploadProgress(Math.round((e.loaded / e.total) * 95));
+            setUploadProgress(3 + Math.round((e.loaded / e.total) * 92));
           }
         });
         xhr.addEventListener("load", () => {
           if (xhr.status >= 200 && xhr.status < 300) {
-            setUploadProgress(100);
             resolve();
           } else {
-            let msg = "Erreur lors de l'upload";
-            try { msg = JSON.parse(xhr.responseText)?.message || msg; } catch {}
-            reject(new Error(msg));
+            reject(new Error(`Le stockage a refusé la vidéo (${xhr.status})`));
           }
         });
-        xhr.addEventListener("error", () => reject(new Error("Erreur réseau lors de l'upload")));
+        xhr.addEventListener("error", () => reject(new Error("Erreur réseau lors de l'envoi direct de la vidéo")));
         xhr.addEventListener("abort", () => reject(new Error("Upload annulé")));
-        xhr.send(formData);
+        xhr.send(videoFile);
       });
+
+      setUploadProgress(96);
+      const confirmResponse = await fetch("/api/admin/demo-video/confirm", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoId: uploadUrlData.videoId }),
+      });
+      const confirmData = await confirmResponse.json().catch(() => ({}));
+      if (!confirmResponse.ok) {
+        throw new Error(confirmData.message || "La vidéo a été envoyée mais n'a pas pu être activée");
+      }
+      setUploadProgress(100);
 
       toast({ title: "✅ Vidéo mise à jour !", description: "La vidéo de démonstration a été remplacée avec succès" });
       queryClient.invalidateQueries({ queryKey: ["/api/settings/demo_video_url"] });

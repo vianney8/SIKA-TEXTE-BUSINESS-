@@ -7067,6 +7067,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { videoId } = req.body;
       if (!videoId) return res.status(400).json({ message: "videoId requis" });
 
+      const svc = new ObjectStorageService();
+      const objectPath = svc.getDemoVideoObjectPath(videoId);
+      const uploaded = await svc.existsViaSignedUrl(objectPath);
+      if (!uploaded) {
+        return res.status(400).json({ message: "La vidéo n'a pas été reçue par le stockage" });
+      }
+
       // Récupérer l'ancienne URL avant de l'écraser
       const settings = await storage.getAppSettings();
       const oldUrl = settings.find((s: any) => s.key === "demo_video_url")?.value || "";
@@ -7079,7 +7086,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Supprimer l'ancienne vidéo de GCS (non bloquant)
       if (oldUrl && oldUrl.startsWith("/api/media/demo-video/")) {
         const oldVideoId = oldUrl.replace("/api/media/demo-video/", "");
-        const svc = new ObjectStorageService();
         svc.deleteDemoVideo(oldVideoId).catch((e: any) =>
           console.error("[DEMO-VIDEO] Suppression ancienne vidéo échouée:", e)
         );
