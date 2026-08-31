@@ -132,8 +132,8 @@ export class ObjectStorageService {
   async existsViaSignedUrl(objectPath: string): Promise<boolean> {
     try {
       const { bucketName, objectName } = parseObjectPath(objectPath);
-      const getUrl = await signObjectURL({ bucketName, objectName, method: "GET", ttlSec: 60 });
-      const resp = await fetch(getUrl, { method: "HEAD" });
+      const headUrl = await signObjectURL({ bucketName, objectName, method: "HEAD", ttlSec: 60 });
+      const resp = await fetch(headUrl, { method: "HEAD" });
       return resp.ok;
     } catch {
       return false;
