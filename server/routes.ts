@@ -3479,29 +3479,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.sendStatus(200);
         }
 
-        // ── Parsing SMS Mobile Money (Msisdn + OAmount uniquement) ──────────────
-        // Déclenché quand le message contient "Msisdn" suivi d'un chiffre
-        const isMobileMoneySms = /Msisdn\s+\d/i.test(msgText) && /OAmount\s+[\d.]+/i.test(msgText);
+        // ── Parsing SMS Mobile Money ─────────────────────────────────────────────
+        // Formats acceptés :
+        // 1. Format technique : "Msisdn ... OAmount ..."
+        // 2. Confirmation reçue : "Vous avez recu 3800 FCFA de 225... sur
+        //    votre compte Mobile Money ... ID Transaction: ..."
+        // Le second format peut contenir plusieurs SMS collés ensemble.
+        const isReceivedMobileMoneySms =
+          /Vous\s+avez\s+re[cç]u\s+[\d][\d\s.,]*\s*FCFA\s+de\s+\+?\d[\d\s.-]*\s+sur\s+votre\s+compte\s+Mobile\s+Money/i.test(msgText);
+        const isMobileMoneySms =
+          (/Msisdn\s+\d/i.test(msgText) && /OAmount\s+[\d.]+/i.test(msgText)) ||
+          isReceivedMobileMoneySms;
         if (isMobileMoneySms) {
           // ── Découper en blocs SMS individuels ────────────────────────────────
           const smsBlocks: string[] = [];
           const byRecu = msgText.split(/(?=Vous\s+avez\s+re[cç]u\s)/i);
+          const isRecognizedBlock = (block: string) =>
+            /Msisdn\s+\d/i.test(block) ||
+            /Vous\s+avez\s+re[cç]u\s+[\d][\d\s.,]*\s*FCFA\s+de\s+\+?\d[\d\s.-]*\s+sur\s+votre\s+compte\s+Mobile\s+Money/i.test(block);
           if (byRecu.length > 1) {
-            byRecu.forEach(b => { if (/Msisdn\s+\d/i.test(b)) smsBlocks.push(b.trim()); });
+            byRecu.forEach(b => { if (isRecognizedBlock(b)) smsBlocks.push(b.trim()); });
           }
           if (smsBlocks.length === 0) {
-            msgText.split(/\n\s*\n/).forEach(b => { if (/Msisdn\s+\d/i.test(b)) smsBlocks.push(b.trim()); });
+            msgText.split(/\n\s*\n/).forEach(b => { if (isRecognizedBlock(b)) smsBlocks.push(b.trim()); });
           }
           if (smsBlocks.length === 0) smsBlocks.push(msgText);
 
-          // ── Parseur : extrait uniquement Msisdn et OAmount ───────────────────
-          interface SmsData { amount: number|null; msisdn: string|null; }
+          // ── Parseur : montant, numéro source et ID transaction optionnel ──────
+          interface SmsData { amount: number|null; msisdn: string|null; ref: string|null; }
           const parseSmsBlock = (block: string): SmsData => {
-            const oAmtM  = /OAmount\s+([\d.]+)/i.exec(block);
-            const amount = oAmtM ? Math.round(parseFloat(oAmtM[1])) : null;
+            const oAmtM = /OAmount\s+([\d.]+)/i.exec(block);
+            const receivedAmtM = /Vous\s+avez\s+re[cç]u\s+([\d][\d\s.,]*)\s*FCFA\s+de\s+/i.exec(block);
+            const amountText = oAmtM?.[1] || receivedAmtM?.[1];
+            const amount = amountText
+              ? Math.round(parseFloat(amountText.replace(/\s/g, '').replace(',', '.')))
+              : null;
+
             const msisdnM = /Msisdn\s+(\d+)/i.exec(block);
-            const msisdn  = msisdnM ? msisdnM[1].trim() : null;
-            return { amount, msisdn };
+            const receivedPhoneM = /Vous\s+avez\s+re[cç]u\s+[\d][\d\s.,]*\s*FCFA\s+de\s+(\+?\d[\d\s.-]*\d)\s+sur\s+votre\s+compte\s+Mobile\s+Money/i.exec(block);
+            const msisdn = (msisdnM?.[1] || receivedPhoneM?.[1] || '').replace(/\D/g, '') || null;
+
+            const refM = /(?:ID\s+Transaction|Transaction\s+ID|ID)\s*:?\s*([A-Za-z0-9_-]+)/i.exec(block);
+            const ref = refM?.[1] || null;
+            return { amount, msisdn, ref };
           };
 
           const parsedBlocks = smsBlocks.map(parseSmsBlock);
@@ -3519,7 +3539,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           `);
           const pending = (pendingRes.rows || []) as any[];
 
-          // ── Correspondance : Msisdn ET OAmount doivent tous les deux matcher ──
+          // ── Correspondance : numéro ET montant doivent tous les deux matcher ──
           const bestMatch = new Map<string, {req: any, smsIndex: number}>();
 
           // Normalise un numéro : retire uniquement l'indicatif pays (avec préfixe 00 éventuel)
@@ -3563,6 +3583,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               `<b>SMS ${i + 1}</b>`,
               b.amount !== null ? `  💰 ${b.amount.toLocaleString('fr-FR')} FCFA` : '  💰 <i>—</i>',
               b.msisdn          ? `  📱 +${b.msisdn}`                             : '  📱 <i>—</i>',
+              b.amount !== null ? `  🏷️ ${classifyMoovPayment({ amount: b.amount }).label}` : '',
+              b.ref             ? `  🧾 ID transaction : <code>${b.ref}</code>`     : '',
             ];
             return lines.join('\n');
           }).join('\n\n');
@@ -3572,7 +3594,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               method:'POST', headers:{'Content-Type':'application/json'},
               body: JSON.stringify({
                 chat_id: chatId,
-                text: `📨 <b>Analyse ${parsedBlocks.length} SMS Mobile Money</b>\n\n${blocksSummary}\n\n❌ <b>Aucune correspondance</b> parmi ${pending.length} demande(s) en attente\n\n<i>Aucune demande ne correspond exactement au Msisdn et au montant.</i>`,
+                 text: `📨 <b>Analyse ${parsedBlocks.length} SMS Mobile Money</b>\n\n${blocksSummary}\n\n❌ <b>Aucune correspondance</b> parmi ${pending.length} demande(s) en attente\n\n<i>Aucune demande ne correspond exactement au numéro et au montant.</i>`,
                 parse_mode:'HTML'
               })
             });
@@ -3593,8 +3615,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const date = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'}) : '—';
               const flag  = COUNTRY_FLAGS_SMS[r.country] || '🌍';
               const isLink = r.src === 'link';
+              const category = classifyMoovPayment({ amount: r.amount, linkId: r.link_id, linkLabel: r.link_label });
               const cardText = isLink
-                ? `🔗 <b>✅ SMS ${smsIndex + 1} — LIEN PAIEMENT</b>\n` +
+                ? `🔗 <b>✅ SMS ${smsIndex + 1} — ${category.label}</b>\n` +
                   `${flag} ${OPERATORS_SMS[r.operator]||r.operator||'—'} | <b>${r.link_label||r.link_id||'—'}</b>\n\n` +
                   `📊 ⏳ En attente\n` +
                   `👤 Client : <b>${r.customer_name||'N/A'}</b>\n` +
@@ -3603,7 +3626,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   `📧 ${r.email||'N/A'}\n` +
                   `🔖 ID tx : <code>${r.transaction_id||'—'}</code>\n` +
                   `🕒 ${date}`
-                : `${flag} <b>✅ SMS ${smsIndex + 1} — ACTIVATION — ${OPERATORS_SMS[r.operator]||r.operator||'—'}</b>\n\n` +
+                : `${flag} <b>✅ SMS ${smsIndex + 1} — ${category.label} — ${OPERATORS_SMS[r.operator]||r.operator||'—'}</b>\n\n` +
                   `📊 ⏳ En attente\n` +
                   `👤 Payeur SIM : <b>${r.payer_name||r.customer_name||'N/A'}</b>\n` +
                   `📱 <code>${r.phone||'—'}</code>\n` +
