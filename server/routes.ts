@@ -861,6 +861,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.session.userId;
       const { fullName, phone, email, firstName, lastName } = req.body;
+      const currentUser = await storage.getUser(userId);
+      if (!currentUser) {
+        return res.status(404).json({ message: "Utilisateur introuvable" });
+      }
 
       if (!email || !email.trim()) {
         return res.status(400).json({ message: "L'adresse email est obligatoire" });
@@ -877,10 +881,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Le nom ne peut pas être vide" });
       }
 
+      // Le téléphone dispose de sa propre route et ne doit pas être modifiable
+      // indirectement via la mise à jour du nom ou de l'adresse email.
+      if (phone !== undefined && phone !== currentUser.phone) {
+        return res.status(400).json({
+          message: "Utilisez la section Téléphone pour effectuer votre unique changement de numéro",
+        });
+      }
+
       const user = await storage.upsertUser({
         id: userId,
         fullName,
-        phone,
         email,
         ...(firstName !== undefined && { firstName: firstName.trim() }),
         ...(lastName !== undefined && { lastName: lastName.trim() }),
@@ -891,6 +902,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error updating profile:", error);
       res.status(500).json({ message: "Erreur lors de la mise à jour du profil" });
+    }
+  });
+
+  // Un utilisateur peut modifier son numéro de téléphone une seule fois.
+  app.put('/api/user/phone', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const currentUser = await storage.getUser(userId);
+      if (!currentUser) {
+        return res.status(404).json({ message: "Utilisateur introuvable" });
+      }
+
+      if (currentUser.phoneChangeUsed) {
+        return res.status(403).json({
+          message: "La modification de votre numéro a déjà été utilisée",
+        });
+      }
+
+      const rawPhone = typeof req.body?.phone === "string" ? req.body.phone : "";
+      const phone = rawPhone.trim().replace(/\s+/g, "");
+      if (!/^\+?[0-9]{8,15}$/.test(phone)) {
+        return res.status(400).json({
+          message: "Entrez un numéro valide avec son indicatif pays, par exemple +2250700000000",
+        });
+      }
+
+      if (phone === currentUser.phone) {
+        return res.status(400).json({
+          message: "Le nouveau numéro doit être différent de votre numéro actuel",
+        });
+      }
+
+      const existingUser = await storage.getUserByPhone(phone);
+      if (existingUser && existingUser.id !== userId) {
+        return res.status(409).json({
+          message: "Ce numéro de téléphone est déjà utilisé par un autre compte",
+        });
+      }
+
+      const updatedUser = await storage.updateUserPhoneOnce(userId, phone);
+      if (!updatedUser) {
+        return res.status(403).json({
+          message: "La modification de votre numéro a déjà été utilisée",
+        });
+      }
+
+      res.json({
+        message: "Numéro de téléphone modifié avec succès",
+        user: updatedUser,
+      });
+    } catch (error: any) {
+      // La contrainte unique reste la dernière protection en cas de requêtes
+      // concurrentes sur le même nouveau numéro.
+      if (error?.code === "23505") {
+        return res.status(409).json({
+          message: "Ce numéro de téléphone est déjà utilisé par un autre compte",
+        });
+      }
+      console.error("Error updating phone:", error);
+      res.status(500).json({ message: "Erreur lors de la modification du numéro" });
     }
   });
 

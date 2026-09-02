@@ -43,6 +43,7 @@ export const users: any = pgTable("users", {
   isBlocked: boolean("is_blocked").default(false), // Pour bloquer des utilisateurs
   blockedReason: varchar("blocked_reason"), // Motif du blocage
   ciUpdateValidated: boolean("ci_update_validated").default(false), // Mise à jour requise Côte d'Ivoire
+  phoneChangeUsed: boolean("phone_change_used").default(false), // Le numéro ne peut être modifié qu'une seule fois
   emailVerified: boolean("email_verified").default(false),
   emailVerificationCode: varchar("email_verification_code"),
   emailVerificationExpiry: timestamp("email_verification_expiry"),

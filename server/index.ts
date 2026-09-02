@@ -145,6 +145,14 @@ app.use((req, res, next) => {
     log('users.last_seen column skipped: ' + (err as Error).message);
   }
 
+  // Add the one-time phone change flag to users
+  try {
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_change_used boolean DEFAULT false`);
+    log('users.phone_change_used column ready');
+  } catch (err) {
+    log('users.phone_change_used column skipped: ' + (err as Error).message);
+  }
+
   // Create pcs_codes table if not exists
   try {
     await db.execute(sql`

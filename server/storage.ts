@@ -49,6 +49,7 @@ export interface IStorage {
   // Authentication operations
   getUserByPhone(phone: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  updateUserPhoneOnce(userId: string, phone: string): Promise<User | undefined>;
   createUser(userData: { 
     phone?: string; 
     fullName?: string; 
@@ -192,6 +193,22 @@ export class DatabaseStorage implements IStorage {
   async getUserByPhone(phone: string): Promise<User | undefined> {
     const result = await db.select().from(users).where(eq(users.phone, phone));
     return result.length > 0 ? result[0] : undefined;
+  }
+
+  async updateUserPhoneOnce(userId: string, phone: string): Promise<User | undefined> {
+    const result = await db
+      .update(users)
+      .set({
+        phone,
+        phoneChangeUsed: true,
+        updatedAt: new Date(),
+      })
+      .where(and(
+        eq(users.id, userId),
+        eq(users.phoneChangeUsed, false),
+      ))
+      .returning();
+    return result.length > 0 ? result[0] as User : undefined;
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {

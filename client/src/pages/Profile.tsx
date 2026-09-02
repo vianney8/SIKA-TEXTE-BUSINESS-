@@ -17,6 +17,8 @@ export default function Profile() {
   const [editingName, setEditingName] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [newPhone, setNewPhone] = useState("");
 
   const { data: activationStatus } = useQuery<{ isActive: boolean; activatedAt: string | null }>({
     queryKey: ["/api/activation/status"],
@@ -61,6 +63,23 @@ export default function Profile() {
     },
   });
 
+  const updatePhoneMutation = useMutation({
+    mutationFn: async () => apiRequest("PUT", "/api/user/phone", { phone: newPhone }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      setEditingPhone(false);
+      setNewPhone("");
+      toast({ title: "Numéro modifié ✓", description: "Vous ne pourrez plus le modifier." });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Impossible de modifier le numéro",
+        description: err?.message || "Vérifiez le numéro saisi",
+        variant: "destructive",
+      });
+    },
+  });
+
   const openEditName = () => {
     const u = user as any;
     setFirstName(u?.firstName || "");
@@ -72,6 +91,7 @@ export default function Profile() {
   const userName = u?.fullName || (u?.firstName && u?.lastName ? `${u.firstName} ${u.lastName}` : u?.firstName || u?.lastName || "Utilisateur");
   const userEmail = u?.email || "";
   const userPhone = u?.phone || "";
+  const phoneChangeUsed = Boolean(u?.phoneChangeUsed);
   const userInitials = userName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase();
   const isActive = activationStatus?.isActive;
   const balance = balanceData?.balance ?? 0;
@@ -226,7 +246,6 @@ export default function Profile() {
           <div className="divide-y divide-gray-50">
             {[
               { icon: <Mail size={15} className="text-gray-400" />,     label: "E-mail",     value: userEmail },
-              { icon: <Phone size={15} className="text-gray-400" />,    label: "Téléphone",  value: userPhone },
               { icon: <Calendar size={15} className="text-gray-400" />, label: "Membre depuis", value: u?.createdAt ? new Date(u.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : "—" },
             ].map(r => (
               <div key={r.label} className="px-5 py-3.5 flex items-center gap-3">
@@ -235,6 +254,59 @@ export default function Profile() {
                 <p className="text-gray-800 font-semibold text-sm text-right max-w-[55%] truncate">{r.value || "—"}</p>
               </div>
             ))}
+
+            {/* Téléphone — modifiable une seule fois */}
+            {editingPhone ? (
+              <div className="px-5 py-4 space-y-3 bg-blue-50/50">
+                <div className="flex items-center gap-3">
+                  <Phone size={15} className="text-blue-500" />
+                  <p className="text-gray-700 text-sm font-bold">Nouveau numéro</p>
+                </div>
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  value={newPhone}
+                  onChange={e => setNewPhone(e.target.value)}
+                  placeholder="+2250700000000"
+                  autoFocus
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+                />
+                <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                  Attention : cette modification est définitive et ne sera possible qu'une seule fois.
+                </p>
+                <div className="flex gap-2.5">
+                  <button
+                    onClick={() => { setEditingPhone(false); setNewPhone(""); }}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-xl border border-gray-200 bg-white text-gray-600 text-sm font-bold active:bg-gray-50"
+                  >
+                    <X size={14} /> Annuler
+                  </button>
+                  <button
+                    onClick={() => updatePhoneMutation.mutate()}
+                    disabled={updatePhoneMutation.isPending || !newPhone.trim()}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-xl bg-blue-600 text-white text-sm font-bold active:opacity-80 disabled:opacity-50 transition-all"
+                  >
+                    {updatePhoneMutation.isPending ? "Enregistrement…" : <><Save size={14} /> Confirmer</>}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="px-5 py-3.5 flex items-center gap-3">
+                <Phone size={15} className="text-gray-400" />
+                <p className="text-gray-500 text-sm flex-1">Téléphone</p>
+                <p className="text-gray-800 font-semibold text-sm text-right max-w-[38%] truncate">{userPhone || "—"}</p>
+                {!phoneChangeUsed ? (
+                  <button
+                    onClick={() => { setNewPhone(""); setEditingPhone(true); }}
+                    className="flex items-center gap-1 text-blue-600 text-xs font-bold bg-blue-50 px-2.5 py-1.5 rounded-lg active:opacity-70"
+                  >
+                    <Pencil size={11} /> Modifier
+                  </button>
+                ) : (
+                  <span className="text-[10px] font-semibold text-gray-400 whitespace-nowrap">Déjà modifié</span>
+                )}
+              </div>
+            )}
 
             {/* Statut */}
             <div className="px-5 py-3.5 flex items-center gap-3">
