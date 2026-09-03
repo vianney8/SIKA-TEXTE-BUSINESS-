@@ -1,154 +1,367 @@
-import { ChevronLeft, CheckCircle, Users, TrendingUp, Shield, Zap, Star, Gift } from "lucide-react";
+import {
+  ArrowRight,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronDown,
+  FileText,
+  Globe2,
+  Headphones,
+  LockKeyhole,
+  MessageCircle,
+  ShieldCheck,
+  Sparkles,
+  Users,
+  WalletCards,
+  Zap,
+} from "lucide-react";
 import { Link } from "wouter";
 import BottomNavigation from "@/components/BottomNavigation";
+import logoPath from "@assets/1764438802465_1773510898637.jpg";
+
+const trustPoints = [
+  {
+    icon: ShieldCheck,
+    title: "Un cadre fiable",
+    description: "Des règles claires, un suivi de votre compte et un accompagnement accessible.",
+    color: "#2563eb",
+    background: "#eff6ff",
+  },
+  {
+    icon: WalletCards,
+    title: "Des retraits encadrés",
+    description: "Vos gains sont suivis dans votre espace avant un retrait via Mobile Money.",
+    color: "#059669",
+    background: "#ecfdf5",
+  },
+  {
+    icon: Headphones,
+    title: "Une équipe présente",
+    description: "Une assistance IA et des canaux de contact pour répondre à vos questions.",
+    color: "#7c3aed",
+    background: "#f5f3ff",
+  },
+];
+
+const collaborations = [
+  {
+    icon: Globe2,
+    title: "Partenaires linguistiques",
+    description: "Nous valorisons la qualité du français et les usages européens pour produire des phrases utiles et naturelles.",
+    color: "#2563eb",
+  },
+  {
+    icon: WalletCards,
+    title: "Réseaux Mobile Money",
+    description: "Les solutions de paiement mobile facilitent l’activation et le retrait des gains selon votre pays.",
+    color: "#059669",
+  },
+  {
+    icon: Users,
+    title: "Communautés locales",
+    description: "Les membres et les équipes de proximité contribuent à faire connaître le service et à partager les bonnes pratiques.",
+    color: "#c2410c",
+  },
+];
+
+const startRequirements = [
+  {
+    number: "01",
+    title: "Un compte SIKA",
+    description: "Créez votre compte avec des informations exactes et gardez vos accès personnels.",
+  },
+  {
+    number: "02",
+    title: "Un moyen de paiement",
+    description: "Utilisez un numéro Mobile Money à votre nom pour les opérations liées à votre compte.",
+  },
+  {
+    number: "03",
+    title: "De la régularité",
+    description: "Lisez attentivement chaque phrase, respectez les consignes et avancez avec sérieux.",
+  },
+];
+
+const policyItems = [
+  {
+    icon: LockKeyhole,
+    title: "Politique de confidentialité",
+    content:
+      "Nous limitons l’utilisation de vos informations aux besoins du compte, du service et de l’assistance. Ne partagez jamais votre mot de passe ni vos codes de validation.",
+  },
+  {
+    icon: FileText,
+    title: "Règles d’utilisation",
+    content:
+      "Chaque membre doit utiliser un compte personnel, fournir des informations exactes et respecter les consignes de correction. Les comportements frauduleux peuvent entraîner une restriction du compte.",
+  },
+  {
+    icon: WalletCards,
+    title: "Paiements et retraits",
+    content:
+      "Les montants et les conditions affichés dans la plateforme font foi. Vérifiez toujours le numéro de retrait avant de confirmer une opération et contactez l’assistance en cas de doute.",
+  },
+  {
+    icon: MessageCircle,
+    title: "Réclamations et assistance",
+    content:
+      "Pour une question ou une réclamation, utilisez l’assistance intégrée ou les canaux officiels de contact. Décrivez le problème sans transmettre de mot de passe ou de code secret.",
+  },
+];
 
 export default function Summary() {
-  const steps = [
-    { n: "1", text: "Activez votre compte avec un paiement Mobile Money" },
-    { n: "2", text: "Corrigez jusqu'à 12 phrases par jour" },
-    { n: "3", text: "Gagnez 650 FCFA par phrase correctement corrigée" },
-    { n: "4", text: "Parrainez vos amis et touchez des commissions" },
-    { n: "5", text: "Retirez vos gains via Mobile Money" },
-  ];
-
-  const earnings = [
-    { label: "Par phrase corrigée",   value: "650 FCFA",    color: "#2563eb" },
-    { label: "Par jour (12 phrases)", value: "7 800 FCFA",  color: "#059669" },
-    { label: "Par mois (30 jours)",   value: "234 000 FCFA",color: "#7c3aed" },
-  ];
-
-  const features = [
-    { icon: Shield,    title: "Plateforme sécurisée",   desc: "Vos données et transactions sont protégées",       color: "#2563eb" },
-    { icon: Zap,       title: "Paiements instantanés",  desc: "Retirez vos gains rapidement sur Mobile Money",    color: "#f59e0b" },
-    { icon: Gift,      title: "Système de parrainage",  desc: "Invitez des amis et gagnez des commissions",       color: "#7c3aed" },
-    { icon: Star,      title: "Bonus quotidien",        desc: "Collectez votre bonus chaque jour",                color: "#059669" },
-  ];
-
   return (
-    <div className="sika-page">
-      {/* Header */}
-      <div className="relative overflow-hidden"
-        style={{ background: "linear-gradient(160deg, #0f172a, #1e3a5f, #1a4fa0)" }}>
-        <div className="absolute top-0 right-0 w-40 h-40 rounded-full blur-3xl opacity-20"
-          style={{ background: "radial-gradient(circle, #fbbf24, transparent)" }} />
-        <div className="px-4 pt-4 pb-6">
-          <div className="flex items-center gap-3 mb-5">
+    <div className="sika-page bg-slate-50">
+      {/* Hero institutionnel */}
+      <header
+        className="relative overflow-hidden"
+        style={{ background: "linear-gradient(145deg, #0b1730 0%, #123568 58%, #1d4ed8 100%)" }}
+      >
+        <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-blue-300/10 blur-2xl" />
+        <div className="absolute -bottom-20 -left-14 h-52 w-52 rounded-full bg-violet-300/10 blur-2xl" />
+
+        <div className="relative mx-auto max-w-2xl px-5 pb-7 pt-5">
+          <div className="mb-8 flex items-center gap-3">
             <Link href="/" data-testid="button-back">
-              <div className="w-9 h-9 bg-white/10 rounded-xl flex items-center justify-center active:bg-white/20">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 transition-colors active:bg-white/20">
                 <ChevronLeft size={20} className="text-white" />
               </div>
             </Link>
-            <div>
-              <h1 className="text-white font-black text-xl">À propos</h1>
-              <p className="text-blue-300 text-xs">SIKA TEXTE BUSINESS</p>
+            <div className="flex min-w-0 flex-1 items-center gap-2.5">
+              <img src={logoPath} alt="SIKA TEXTE" className="h-9 w-9 rounded-xl object-cover ring-2 ring-white/20" />
+              <div className="min-w-0">
+                <p className="truncate text-[10px] font-bold uppercase tracking-[0.18em] text-blue-200">SIKA TEXTE BUSINESS</p>
+                <h1 className="text-lg font-black leading-tight text-white">À propos de SIKA</h1>
+              </div>
+            </div>
+            <div className="rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-bold text-blue-100">
+              Notre histoire
             </div>
           </div>
 
-          {/* Mission pill */}
-          <div className="bg-white/10 rounded-2xl p-4">
-            <p className="text-blue-300 text-[10px] font-bold uppercase tracking-widest mb-2">Notre Mission</p>
-            <p className="text-white text-sm leading-relaxed font-medium">
-              SIKA TEXTE est une plateforme innovante qui lutte contre le chômage en Afrique.
-              Nous offrons la possibilité de gagner un revenu quotidien en corrigeant des phrases.
+          <div className="max-w-xl">
+            <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.2em] text-blue-300">Travailler · apprendre · progresser</p>
+            <h2 className="text-[2rem] font-black leading-[1.05] tracking-tight text-white sm:text-4xl">
+              Une plateforme utile, pensée pour avancer avec confiance.
+            </h2>
+            <p className="mt-4 max-w-lg text-sm leading-6 text-blue-100/85">
+              SIKA TEXTE met en relation des membres, des outils numériques et un service de correction
+              linguistique pour transformer des tâches simples en une expérience de travail structurée.
             </p>
           </div>
-        </div>
-      </div>
 
-      <div className="px-4 pt-4 pb-28 space-y-4">
-
-        {/* Potentiel de gains */}
-        <div className="bg-white rounded-[20px] shadow-sm overflow-hidden">
-          <div className="px-5 pt-5 pb-3 border-b border-gray-50">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center"
-                style={{ background: "linear-gradient(135deg, #059669, #34d399)" }}>
-                <TrendingUp size={15} className="text-white" />
-              </div>
-              <p className="text-gray-800 font-bold text-sm">Potentiel de gains</p>
-            </div>
-          </div>
-          <div className="px-5 py-4 space-y-3">
-            {earnings.map((e, i) => (
-              <div key={i} className="flex items-center justify-between">
-                <p className="text-gray-600 text-sm">{e.label}</p>
-                <p className="font-black text-sm" style={{ color: e.color }}>{e.value}</p>
+          <div className="mt-7 grid grid-cols-3 gap-2">
+            {[
+              { value: "12", label: "phrases max./jour" },
+              { value: "650 F", label: "par correction" },
+              { value: "24/7", label: "accès plateforme" },
+            ].map((stat) => (
+              <div key={stat.label} className="rounded-2xl border border-white/10 bg-white/10 px-2.5 py-3 text-center backdrop-blur-sm">
+                <p className="text-base font-black text-white">{stat.value}</p>
+                <p className="mt-1 text-[9px] font-semibold leading-tight text-blue-200">{stat.label}</p>
               </div>
             ))}
-            <div className="bg-green-50 border border-green-100 rounded-2xl p-3 mt-2">
-              <p className="text-green-700 text-xs font-semibold text-center">
-                Potentiel annuel : <span className="font-black text-green-600">2 808 000 FCFA</span>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-2xl space-y-5 px-4 pb-28 pt-5">
+        {/* Mission */}
+        <section className="rounded-3xl border border-blue-100 bg-white p-5 shadow-sm">
+          <div className="mb-3 flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600">
+              <Sparkles size={17} className="text-white" />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-blue-600">Notre mission</p>
+              <h2 className="text-base font-black text-slate-800">Créer une expérience simple et responsable</h2>
+            </div>
+          </div>
+          <p className="text-sm leading-6 text-slate-600">
+            Notre objectif est de proposer un espace clair où chaque membre comprend ce qu’il fait,
+            suit ses résultats et peut être accompagné. La qualité du travail, la transparence des
+            informations et le respect des membres sont au centre de SIKA TEXTE.
+          </p>
+        </section>
+
+        {/* Service linguistique */}
+        <section className="overflow-hidden rounded-3xl bg-white shadow-sm">
+          <div className="bg-gradient-to-r from-violet-700 to-indigo-700 p-5 text-white">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-white/15">
+                <Globe2 size={22} />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-violet-200">Notre service linguistique</p>
+                <h2 className="mt-1 text-lg font-black">Correction de phrases européennes</h2>
+                <p className="mt-2 text-xs leading-5 text-violet-100">
+                  Une mission utile pour améliorer la qualité de contenus en français et dans des contextes européens.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="grid gap-3 p-5 sm:grid-cols-3">
+            {[
+              { icon: CheckCircle2, title: "Lire avec attention", text: "Comprendre le sens avant de répondre." },
+              { icon: Zap, title: "Corriger avec précision", text: "Repérer les fautes et proposer une phrase naturelle." },
+              { icon: ShieldCheck, title: "Respecter la qualité", text: "Suivre les consignes pour garder un résultat fiable." },
+            ].map((item) => (
+              <div key={item.title} className="rounded-2xl bg-slate-50 p-3.5">
+                <item.icon size={17} className="mb-2 text-indigo-600" />
+                <p className="text-xs font-black text-slate-800">{item.title}</p>
+                <p className="mt-1 text-[11px] leading-4 text-slate-500">{item.text}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Fiabilité */}
+        <section>
+          <div className="mb-3 flex items-end justify-between px-1">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Pourquoi SIKA</p>
+              <h2 className="text-lg font-black text-slate-800">La fiabilité au quotidien</h2>
+            </div>
+            <ShieldCheck size={21} className="text-blue-600" />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {trustPoints.map((point) => (
+              <div key={point.title} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: point.background }}>
+                  <point.icon size={17} style={{ color: point.color }} />
+                </div>
+                <h3 className="text-sm font-black text-slate-800">{point.title}</h3>
+                <p className="mt-1.5 text-[11px] leading-5 text-slate-500">{point.description}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Collaborations */}
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">Un écosystème ouvert</p>
+              <h2 className="mt-1 text-lg font-black text-slate-800">Nos collaborations</h2>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                SIKA avance grâce à plusieurs familles de partenaires et à sa communauté.
               </p>
             </div>
-          </div>
-        </div>
-
-        {/* Comment ça marche */}
-        <div className="bg-white rounded-[20px] shadow-sm overflow-hidden">
-          <div className="px-5 pt-5 pb-3 border-b border-gray-50">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center"
-                style={{ background: "linear-gradient(135deg, #2563eb, #60a5fa)" }}>
-                <CheckCircle size={15} className="text-white" />
-              </div>
-              <p className="text-gray-800 font-bold text-sm">Comment ça fonctionne</p>
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-emerald-50">
+              <Users size={19} className="text-emerald-600" />
             </div>
           </div>
-          <div className="px-5 py-4 space-y-3">
-            {steps.map((s) => (
-              <div key={s.n} className="flex items-start gap-3">
-                <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}>
-                  <span className="text-white font-black text-xs">{s.n}</span>
+          <div className="space-y-3">
+            {collaborations.map((collaboration) => (
+              <div key={collaboration.title} className="flex items-start gap-3 rounded-2xl bg-slate-50 p-3.5">
+                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-white" style={{ background: collaboration.color }}>
+                  <collaboration.icon size={16} />
                 </div>
-                <p className="text-gray-700 text-sm pt-1 leading-relaxed">{s.text}</p>
+                <div>
+                  <h3 className="text-sm font-black text-slate-800">{collaboration.title}</h3>
+                  <p className="mt-1 text-[11px] leading-5 text-slate-500">{collaboration.description}</p>
+                </div>
               </div>
             ))}
           </div>
-        </div>
+        </section>
 
-        {/* Fonctionnalités */}
-        <div className="bg-white rounded-[20px] shadow-sm overflow-hidden">
-          <div className="px-5 pt-5 pb-3 border-b border-gray-50">
-            <p className="text-gray-800 font-bold text-sm">Pourquoi nous choisir</p>
+        {/* 3 conditions */}
+        <section className="rounded-3xl bg-slate-900 p-5 text-white shadow-sm">
+          <div className="mb-5">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-blue-300">Pour bien commencer</p>
+            <h2 className="mt-1 text-lg font-black">Les 3 éléments essentiels</h2>
+            <p className="mt-1 text-xs leading-5 text-slate-300">Un parcours sérieux commence par des bases simples.</p>
           </div>
-          <div className="px-5 py-4 grid grid-cols-2 gap-3">
-            {features.map((f, i) => (
-              <div key={i} className="rounded-2xl p-3" style={{ background: `${f.color}08` }}>
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-2"
-                  style={{ background: `${f.color}18` }}>
-                  <f.icon size={17} style={{ color: f.color }} />
+          <div className="space-y-4">
+            {startRequirements.map((item) => (
+              <div key={item.number} className="flex items-start gap-3">
+                <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-blue-600 text-[10px] font-black">{item.number}</span>
+                <div>
+                  <h3 className="text-sm font-black">{item.title}</h3>
+                  <p className="mt-1 text-[11px] leading-5 text-slate-400">{item.description}</p>
                 </div>
-                <p className="text-gray-800 font-bold text-xs mb-0.5">{f.title}</p>
-                <p className="text-gray-400 text-[10px] leading-relaxed">{f.desc}</p>
               </div>
             ))}
           </div>
-        </div>
+        </section>
 
-        {/* Parrainage */}
-        <div className="relative overflow-hidden rounded-[20px]"
-          style={{ background: "linear-gradient(135deg, #7c3aed, #a855f7)" }}>
-          <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full bg-white/10" />
-          <div className="relative px-5 py-5 flex items-center gap-4">
-            <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center flex-shrink-0">
-              <Users size={22} className="text-white" />
+        {/* Premium */}
+        <section className="relative overflow-hidden rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50 p-5 shadow-sm">
+          <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-amber-200/30 blur-xl" />
+          <div className="relative">
+            <div className="mb-3 flex items-center gap-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500">
+                <Sparkles size={17} className="text-white" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700">Évolution de la plateforme</p>
+                <h2 className="text-lg font-black text-slate-800">Pourquoi une offre Premium ?</h2>
+              </div>
+            </div>
+            <p className="text-sm leading-6 text-slate-600">
+              L’accès essentiel reste le point de départ. Une offre Premium peut répondre aux membres
+              qui souhaitent davantage d’accompagnement et de possibilités, sans être une condition
+              pour comprendre le service ou utiliser le parcours de base.
+            </p>
+            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+              {["Plus de possibilités", "Accompagnement prioritaire", "Ressources exclusives"].map((benefit) => (
+                <div key={benefit} className="flex items-center gap-2 rounded-xl border border-amber-100 bg-white/80 px-3 py-2.5">
+                  <CheckCircle2 size={14} className="flex-shrink-0 text-amber-600" />
+                  <span className="text-[11px] font-bold text-slate-700">{benefit}</span>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-[10px] leading-4 text-slate-400">
+              Les prix, conditions et avantages applicables doivent toujours être affichés clairement avant toute activation.
+            </p>
+          </div>
+        </section>
+
+        {/* Politiques */}
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-3 flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100">
+              <FileText size={17} className="text-slate-700" />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">À lire avant d’utiliser SIKA</p>
+              <h2 className="text-lg font-black text-slate-800">Politiques et engagements</h2>
+            </div>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {policyItems.map((item) => (
+              <details key={item.title} className="group py-3 first:pt-1 last:pb-1">
+                <summary className="flex cursor-pointer list-none items-center gap-3 text-sm font-bold text-slate-700 [&::-webkit-details-marker]:hidden">
+                  <item.icon size={16} className="flex-shrink-0 text-slate-400" />
+                  <span className="flex-1">{item.title}</span>
+                  <ChevronDown size={16} className="text-slate-400 transition-transform group-open:rotate-180" />
+                </summary>
+                <p className="ml-7 mt-2 pr-3 text-[11px] leading-5 text-slate-500">{item.content}</p>
+              </details>
+            ))}
+          </div>
+        </section>
+
+        {/* CTA aide */}
+        <section className="rounded-3xl bg-gradient-to-r from-blue-600 to-indigo-600 p-5 text-white shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-white/15">
+              <MessageCircle size={19} />
             </div>
             <div className="flex-1">
-              <p className="text-white font-bold text-sm">Système de parrainage</p>
-              <p className="text-purple-200 text-xs mt-0.5">
-                Invitez des amis et gagnez une commission sur chaque activation
-              </p>
-              <Link href="/team">
-                <span className="inline-block mt-2 text-[11px] font-bold text-white bg-white/20 px-3 py-1 rounded-full">
-                  Voir mon équipe →
-                </span>
-              </Link>
+              <h2 className="text-sm font-black">Une question sur le fonctionnement ?</h2>
+              <p className="mt-1 text-[11px] text-blue-100">Notre équipe est disponible pour vous orienter.</p>
             </div>
+            <Link href="/contact" className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-blue-700" aria-label="Contacter l'assistance">
+              <ArrowRight size={17} />
+            </Link>
           </div>
-        </div>
+        </section>
 
-      </div>
+        <p className="px-3 text-center text-[10px] leading-4 text-slate-400">
+          SIKA TEXTE BUSINESS · Une plateforme conçue pour travailler avec clarté, respect et responsabilité.
+        </p>
+      </main>
 
       <BottomNavigation currentPage="summary" />
     </div>

@@ -1,5 +1,5 @@
 import {
-  LogOut, TrendingUp, HelpCircle, Wallet, Home,
+  LogOut, Info, HelpCircle, Wallet, Home,
   X, ChevronRight, Shield, Settings, Smartphone
 } from "lucide-react";
 import { Link } from "wouter";
@@ -32,7 +32,7 @@ const MENU_ITEMS = [
     to: "#34d399",
   },
   {
-    icon: TrendingUp,
+    icon: Info,
     label: "À propos",
     desc: "Comment ça fonctionne",
     href: "/summary",
