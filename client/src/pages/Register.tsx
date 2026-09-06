@@ -360,7 +360,7 @@ export default function Register() {
               {/* Bouton */}
               <button
                 type="submit"
-                disabled={registerMutation.isPending || !captchaVerified || !form.formState.isValid}
+                disabled={registerMutation.isPending || !captchaVerified}
                 data-testid="button-create-account"
                 className="w-full py-4 rounded-2xl font-black text-base text-white transition-all active:scale-[0.97] shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
                 style={{ background: "linear-gradient(135deg, #1a4fa0, #3b82f6)" }}

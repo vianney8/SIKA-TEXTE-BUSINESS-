@@ -315,7 +315,6 @@ export const registerUserSchema = z.object({
   fullName: z.string().min(1, "Le nom complet est requis"),
   password: z.string().min(4, "Le mot de passe doit contenir au moins 4 caractères"),
   confirmPassword: z.string(),
-  terms: z.boolean().refine(val => val === true, "Vous devez accepter les conditions"),
 }).refine(data => data.password === data.confirmPassword, {
   message: "Les mots de passe ne correspondent pas",
   path: ["confirmPassword"],

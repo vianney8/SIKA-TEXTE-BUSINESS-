@@ -8,9 +8,7 @@ import fs from "fs";
 import { storage } from "./storage";
 import { generateCode, sendVerificationEmail, sendPasswordResetEmail, sendPcsEmail, sendPcsEmailBatch, generatePcsCode } from "./email";
 import { 
-  registerUserSchema, 
   loginUserSchema, 
-  simpleRegisterSchema,
   simpleLoginSchema,
   transferSchema, 
   rechargeSchema, 
