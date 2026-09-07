@@ -1013,7 +1013,7 @@ export default function PaymentLinkPage() {
                 className="w-full bg-slate-50 border-2 border-slate-100 focus:border-blue-400 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none transition-colors" />
             )}
             {link?.isPcs && (
-              <p className="text-slate-300 text-[10px] mt-1.5 flex items-center gap-1"><AlertTriangle size={11} /> Seuls les comptes Sika Texte sont acceptés.</p>
+              <p className="text-slate-500 text-[10px] mt-1.5 flex items-center gap-1"><AlertTriangle size={11} /> Seuls les comptes Sika Texte sont acceptés.</p>
             )}
           </div>
         </div>
