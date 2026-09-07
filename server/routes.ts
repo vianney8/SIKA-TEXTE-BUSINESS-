@@ -40,7 +40,7 @@ import session from "express-session";
 import { db } from "./db";
 import { eq, sql, and, desc, or, ilike, count, isNull, ne } from "drizzle-orm";
 import connectPg from "connect-pg-simple";
-import { randomBytes, createHmac } from "crypto";
+import { randomBytes, createHmac, timingSafeEqual } from "crypto";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import {
   classifyMoovPayment,
@@ -64,6 +64,24 @@ function isCallbackAlreadyProcessed(id: string): boolean {
 
 // Pending block reason map: chatId → { userId, userInfo, reason? }
 const pendingBlockMap = new Map<string, { userId: string; userInfo: { fullName: string; phone: string; email: string }; reason?: string }>();
+
+const ROBOTPAY_BASE_URL = (process.env.ROBOTPAY_BASE_URL || process.env.WESTPAY_BASE_URL || 'https://westpay.cfd').replace(/\/+$/, '');
+
+function getRobotPaySdkKey() {
+  return process.env.ROBOTPAY_SDK_KEY || process.env.WESTPAY_SDK_KEY || '';
+}
+
+function getRobotPayWebhookSecret() {
+  return process.env.ROBOTPAY_WEBHOOK_SECRET || process.env.WESTPAY_WEBHOOK_SECRET || '';
+}
+
+function verifyRobotPaySignature(rawBody: Buffer, signature: string, secret: string) {
+  if (!rawBody || !signature || !secret) return false;
+  const expected = createHmac('sha256', secret).update(rawBody).digest('hex');
+  const receivedBuffer = Buffer.from(signature.trim().toLowerCase(), 'utf8');
+  const expectedBuffer = Buffer.from(expected, 'utf8');
+  return receivedBuffer.length === expectedBuffer.length && timingSafeEqual(receivedBuffer, expectedBuffer);
+}
 
 // Session setup
 function setupSessions(app: Express) {
@@ -7331,22 +7349,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ciManualActivation = settings.find((s: any) => s.key === 'ci_manual_activation')?.value !== 'false';
       // Mode CI unifié
       const ciActivationModeSetting = settings.find((s: any) => s.key === 'ci_activation_mode')?.value;
-      let ciMode: 'redirect' | 'manual' | 'solvexpay';
+      let ciMode: 'redirect' | 'manual' | 'solvexpay' | 'robotpay';
       if (ciActivationModeSetting === 'manual') ciMode = 'manual';
       else if (ciActivationModeSetting === 'solvexpay') ciMode = 'solvexpay';
+      else if (ciActivationModeSetting === 'robotpay') ciMode = 'robotpay';
       else if (ciActivationModeSetting === 'redirect') ciMode = 'redirect';
       else ciMode = ciManualActivation ? 'redirect' : 'solvexpay';
       const ciRedirectUrl = settings.find((s: any) => s.key === 'ci_manual_activation_url')?.value || 'https://clp.ci/ETPXwo';
 
       // Modes pour tous les autres pays
-      type PayMode = 'manual' | 'redirect' | 'solvexpay';
+      type PayMode = 'manual' | 'redirect' | 'solvexpay' | 'robotpay';
       const otherCountries = ['bj','sn','bf','tg','cm'];
       const countryModes: Record<string, { mode: PayMode; redirectUrl: string }> = {
         CI: { mode: ciMode, redirectUrl: ciRedirectUrl },
       };
       for (const k of otherCountries) {
         const rawMode = settings.find((s: any) => s.key === `${k}_activation_mode`)?.value;
-        const mode: PayMode = (rawMode === 'redirect' || rawMode === 'solvexpay' || rawMode === 'manual')
+        const mode: PayMode = (rawMode === 'redirect' || rawMode === 'solvexpay' || rawMode === 'robotpay' || rawMode === 'manual')
           ? rawMode : 'manual';
         const redirectUrl = settings.find((s: any) => s.key === `${k}_redirect_url`)?.value || '';
         countryModes[k.toUpperCase()] = { mode, redirectUrl };
@@ -7606,6 +7625,233 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('[SOLVEXPAY-CHECK] Error:', error);
       res.status(500).json({ message: 'Erreur lors de la vérification' });
+    }
+  });
+
+  // ROBOTPAY/WESTPAY - Initier un paiement Mobile Money automatique
+  app.post('/api/activation/init-robotpay', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { phone: bodyPhone, operator: bodyOperator, country: bodyCountry } = req.body;
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
+
+      const statusResult = await db.select().from(accountStatus).where(eq(accountStatus.userId, userId));
+      if (statusResult[0]?.isActive) {
+        return res.status(400).json({ message: 'Votre compte est déjà activé' });
+      }
+
+      const settings = await storage.getAppSettings();
+      if (settings.find((s: any) => s.key === 'robotpay_enabled')?.value !== 'true') {
+        return res.status(503).json({ message: 'RobotPay est actuellement désactivé' });
+      }
+
+      const sdkKey = getRobotPaySdkKey();
+      if (!sdkKey) {
+        return res.status(503).json({ message: 'Clé SDK RobotPay non configurée' });
+      }
+      if (!bodyPhone || !bodyOperator || !bodyCountry) {
+        return res.status(400).json({ message: 'Téléphone, opérateur et pays requis' });
+      }
+
+      const country = String(bodyCountry).toUpperCase();
+      const operator = String(bodyOperator).toLowerCase();
+      const countryPrefixes: Record<string, string> = {
+        BJ: '229', CI: '225', SN: '221', TG: '228', CM: '237', BF: '226'
+      };
+      const prefix = countryPrefixes[country];
+      if (!prefix) return res.status(400).json({ message: 'Pays non pris en charge' });
+      const digitsOnly = String(bodyPhone).replace(/\D/g, '');
+      const phone = `+${digitsOnly.startsWith(prefix) ? digitsOnly : prefix + digitsOnly}`;
+      const activationSetting = settings.find((s: any) => s.key === 'activation_amount');
+      const activationAmount = parseInt(activationSetting?.value || '3600');
+      const currency = country === 'CM' ? 'XAF' : 'XOF';
+      const orderId = `RBP-${userId.slice(0, 8)}-${Date.now()}`;
+      const forwardedProto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0];
+      const callbackUrl = process.env.ROBOTPAY_WEBHOOK_URL
+        || process.env.WESTPAY_WEBHOOK_URL
+        || `${forwardedProto}://${req.get('host')}/api/webhook/robotpay`;
+
+      await db.insert(bkapayPayments).values({
+        id: crypto.randomUUID(),
+        userId,
+        amount: activationAmount.toString(),
+        reference: orderId,
+        status: 'pending',
+        createdAt: new Date(),
+      });
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20000);
+      const robotResponse = await fetch(`${ROBOTPAY_BASE_URL}/api/sdk/v1/payin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-SDK-Key': sdkKey,
+        },
+        body: JSON.stringify({
+          amount: activationAmount,
+          currency,
+          order_id: orderId,
+          callback_url: callbackUrl,
+          metadata: {
+            phone_number: phone,
+            network: operator,
+            country_code: country,
+            customer_name: user.fullName || [user.firstName, user.lastName].filter(Boolean).join(' ') || undefined,
+          },
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      const robotData: any = await robotResponse.json().catch(() => ({}));
+      if (!robotResponse.ok || robotData?.status !== 'success' || !robotData?.data?.reference) {
+        await db.update(bkapayPayments)
+          .set({ status: 'failed' })
+          .where(eq(bkapayPayments.reference, orderId));
+        return res.status(robotResponse.ok ? 502 : robotResponse.status)
+          .json({ message: robotData?.message || 'RobotPay n’a pas pu initier le paiement' });
+      }
+
+      const transaction = robotData.data;
+      await db.update(bkapayPayments)
+        .set({ redirectUrl: transaction.reference })
+        .where(eq(bkapayPayments.reference, orderId));
+
+      res.json({
+        success: true,
+        transactionId: transaction.reference,
+        reference: orderId,
+        amount: activationAmount,
+        status: transaction.status || 'pending',
+        paymentUrl: transaction.redirect_url || undefined,
+        message: transaction.instructions || robotData.message || 'Paiement initié. Validez sur votre téléphone.',
+        gateway: 'robotpay',
+      });
+    } catch (error: any) {
+      console.error('[ROBOTPAY-INIT] Error:', error);
+      if (error?.name === 'AbortError') {
+        return res.status(504).json({ message: 'Délai d’attente RobotPay dépassé — veuillez réessayer' });
+      }
+      res.status(500).json({ message: 'Erreur lors de l’initiation du paiement RobotPay' });
+    }
+  });
+
+  // ROBOTPAY/WESTPAY - Vérifier le statut et activer le compte
+  app.get('/api/activation/check-robotpay/:transactionId', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const transactionId = String(req.params.transactionId);
+      const sdkKey = getRobotPaySdkKey();
+      if (!sdkKey) return res.status(503).json({ message: 'Clé SDK RobotPay non configurée' });
+
+      const [localPayment] = await db.select().from(bkapayPayments)
+        .where(and(
+          eq(bkapayPayments.redirectUrl, transactionId),
+          eq(bkapayPayments.userId, userId),
+        ))
+        .limit(1);
+      if (!localPayment) return res.status(404).json({ message: 'Transaction introuvable' });
+
+      const robotResponse = await fetch(`${ROBOTPAY_BASE_URL}/api/sdk/v1/transaction/${encodeURIComponent(transactionId)}`, {
+        headers: { 'X-SDK-Key': sdkKey },
+      });
+      const robotData: any = await robotResponse.json().catch(() => ({}));
+      if (!robotResponse.ok || robotData?.status !== 'success') {
+        return res.status(robotResponse.ok ? 502 : robotResponse.status)
+          .json({ message: robotData?.message || 'Erreur de vérification RobotPay' });
+      }
+
+      const providerStatus = String(robotData?.data?.status || 'pending').toLowerCase();
+      const completed = providerStatus === 'confirmed' || providerStatus === 'completed';
+      const failed = providerStatus === 'failed' || providerStatus === 'expired' || providerStatus === 'cancelled';
+      if (completed && localPayment.status !== 'completed') {
+        await db.update(bkapayPayments)
+          .set({ status: 'completed', completedAt: new Date() })
+          .where(eq(bkapayPayments.id, localPayment.id));
+        await storage.activateAccount(userId);
+      } else if (failed && localPayment.status === 'pending') {
+        await db.update(bkapayPayments)
+          .set({ status: 'failed' })
+          .where(eq(bkapayPayments.id, localPayment.id));
+      }
+
+      res.json({
+        id: transactionId,
+        status: completed ? 'completed' : failed ? 'failed' : 'pending',
+        activated: completed,
+        transaction: robotData.data,
+      });
+    } catch (error) {
+      console.error('[ROBOTPAY-CHECK] Error:', error);
+      res.status(500).json({ message: 'Erreur lors de la vérification RobotPay' });
+    }
+  });
+
+  // ROBOTPAY/WESTPAY - Webhook signé HMAC-SHA256
+  app.post('/api/webhook/robotpay', async (req: any, res) => {
+    try {
+      const secret = getRobotPayWebhookSecret();
+      const signature = String(req.headers['x-robotpay-signature'] || '');
+      if (!secret) {
+        console.error('[ROBOTPAY-WEBHOOK] Secret webhook non configuré');
+        return res.status(503).json({ error: 'Webhook non configuré' });
+      }
+      if (!verifyRobotPaySignature(req.rawBody as Buffer, signature, secret)) {
+        return res.status(401).json({ error: 'Signature invalide' });
+      }
+
+      const event = String(req.headers['x-robotpay-event'] || req.body?.event || '');
+      const reference = String(req.body?.reference || '');
+      const orderId = String(req.body?.order_id || '');
+      if (!reference && !orderId) return res.status(400).json({ error: 'Référence manquante' });
+
+      const [payment] = await db.select().from(bkapayPayments)
+        .where(or(
+          ...(reference ? [eq(bkapayPayments.redirectUrl, reference)] : []),
+          ...(orderId ? [eq(bkapayPayments.reference, orderId)] : []),
+        ))
+        .orderBy(desc(bkapayPayments.createdAt))
+        .limit(1);
+
+      if (!payment) {
+        const [linkTransaction] = await db.select().from(paymentLinkTransactions)
+          .where(or(
+            ...(reference ? [eq(paymentLinkTransactions.solvexpayTxnId, reference)] : []),
+            ...(orderId ? [eq(paymentLinkTransactions.reference, orderId)] : []),
+          ))
+          .orderBy(desc(paymentLinkTransactions.createdAt))
+          .limit(1);
+        if (!linkTransaction) return res.status(404).json({ error: 'Paiement introuvable' });
+
+        const linkCompleted = event === 'payment.confirmed' || req.body?.status === 'confirmed';
+        const linkFailed = event === 'payment.failed' || req.body?.status === 'failed';
+        if (linkCompleted || linkFailed) {
+          await db.update(paymentLinkTransactions)
+            .set({ status: linkCompleted ? 'completed' : 'failed', updatedAt: new Date() })
+            .where(eq(paymentLinkTransactions.id, linkTransaction.id));
+        }
+        return res.json({ received: true });
+      }
+
+      if (event === 'payment.confirmed' || req.body?.status === 'confirmed') {
+        if (payment.status !== 'completed') {
+          await db.update(bkapayPayments)
+            .set({ status: 'completed', completedAt: new Date() })
+            .where(eq(bkapayPayments.id, payment.id));
+          await storage.activateAccount(payment.userId);
+        }
+      } else if (req.body?.status === 'failed' || event === 'payment.failed') {
+        await db.update(bkapayPayments)
+          .set({ status: 'failed' })
+          .where(eq(bkapayPayments.id, payment.id));
+      }
+
+      res.json({ received: true });
+    } catch (error) {
+      console.error('[ROBOTPAY-WEBHOOK] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -8165,9 +8411,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Mode CI unifié (même logique que l'activation)
       const ciManualActivation = settings.find((s: any) => s.key === 'ci_manual_activation')?.value !== 'false';
       const ciActivationModeSetting = settings.find((s: any) => s.key === 'ci_activation_mode')?.value;
-      let ciMode: 'redirect' | 'manual' | 'solvexpay';
+      let ciMode: 'redirect' | 'manual' | 'solvexpay' | 'robotpay';
       if (ciActivationModeSetting === 'manual') ciMode = 'manual';
       else if (ciActivationModeSetting === 'solvexpay') ciMode = 'solvexpay';
+      else if (ciActivationModeSetting === 'robotpay') ciMode = 'robotpay';
       else if (ciActivationModeSetting === 'redirect') ciMode = 'redirect';
       else {
         // Compat: ancienne config
@@ -8187,14 +8434,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? JSON.parse(maintenanceSetting2.value) : {};
 
       // Modes pour tous les pays
-      type PayMode2 = 'manual' | 'redirect' | 'solvexpay';
+      type PayMode2 = 'manual' | 'redirect' | 'solvexpay' | 'robotpay';
       const otherCountries2 = ['bj','sn','bf','tg','cm'];
       const countryModes: Record<string, { mode: PayMode2; redirectUrl: string }> = {
         CI: { mode: ciMode, redirectUrl: ciRedirectUrl },
       };
       for (const k of otherCountries2) {
         const rawMode = settings.find((s: any) => s.key === `${k}_activation_mode`)?.value;
-        const mode: PayMode2 = (rawMode === 'redirect' || rawMode === 'solvexpay' || rawMode === 'manual')
+        const mode: PayMode2 = (rawMode === 'redirect' || rawMode === 'solvexpay' || rawMode === 'robotpay' || rawMode === 'manual')
           ? rawMode : 'manual';
         const rUrl = settings.find((s: any) => s.key === `${k}_redirect_url`)?.value || '';
         countryModes[k.toUpperCase()] = { mode, redirectUrl: rUrl };
@@ -8290,15 +8537,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const apiKey = process.env.SOLVEXPAY_API_KEY;
-      if (!apiKey) return res.status(500).json({ message: 'Clé API non configurée' });
-
       const countryPrefixes: Record<string, string> = {
         BJ: '229', CI: '225', SN: '221', TG: '228', CM: '237', BF: '226'
       };
       const prefix = countryPrefixes[country] || '';
       const digitsOnly = phone.replace(/\D/g, '');
       const fullPhone = digitsOnly.startsWith(prefix) ? digitsOnly : prefix + digitsOnly;
+
+      const settings = await storage.getAppSettings();
+      const countryKey = String(country).toLowerCase();
+      const configuredMode = settings.find((s: any) =>
+        s.key === (country === 'CI' ? 'ci_activation_mode' : `${countryKey}_activation_mode`)
+      )?.value;
+
+      if (configuredMode === 'robotpay') {
+        if (settings.find((s: any) => s.key === 'robotpay_enabled')?.value !== 'true') {
+          return res.status(503).json({ message: 'RobotPay est actuellement désactivé' });
+        }
+        const sdkKey = getRobotPaySdkKey();
+        if (!sdkKey) return res.status(503).json({ message: 'Clé SDK RobotPay non configurée' });
+
+        const orderId = `RBP-LINK-${linkId.slice(0, 8)}-${Date.now()}`;
+        const forwardedProto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0];
+        const callbackUrl = process.env.ROBOTPAY_WEBHOOK_URL
+          || process.env.WESTPAY_WEBHOOK_URL
+          || `${forwardedProto}://${req.get('host')}/api/webhook/robotpay`;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 20000);
+        const robotResponse = await fetch(`${ROBOTPAY_BASE_URL}/api/sdk/v1/payin`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-SDK-Key': sdkKey,
+          },
+          body: JSON.stringify({
+            amount: parseFloat(link.amount),
+            currency: link.currency || (country === 'CM' ? 'XAF' : 'XOF'),
+            order_id: orderId,
+            callback_url: callbackUrl,
+            metadata: {
+              phone_number: `+${fullPhone}`,
+              network: String(operator).toLowerCase(),
+              country_code: country,
+              customer_name: customerName || undefined,
+            },
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+
+        const robotData: any = await robotResponse.json().catch(() => ({}));
+        if (!robotResponse.ok || robotData?.status !== 'success' || !robotData?.data?.reference) {
+          return res.status(robotResponse.ok ? 502 : robotResponse.status)
+            .json({ message: robotData?.message || 'Erreur RobotPay' });
+        }
+
+        const transaction = robotData.data;
+        await db.insert(paymentLinkTransactions).values({
+          linkId,
+          linkLabel: link.label,
+          amount: link.amount,
+          currency: link.currency || (country === 'CM' ? 'XAF' : 'XOF'),
+          phone: fullPhone,
+          operator: String(operator).toLowerCase(),
+          country,
+          customerName: customerName || null,
+          customerEmail: customerEmail || null,
+          solvexpayTxnId: transaction.reference,
+          reference: orderId,
+          status: 'pending',
+        });
+
+        return res.json({
+          success: true,
+          transactionId: transaction.reference,
+          status: transaction.status || 'pending',
+          paymentUrl: transaction.redirect_url || undefined,
+          message: transaction.instructions || robotData.message || 'Paiement initié avec RobotPay.',
+          gateway: 'robotpay',
+        });
+      }
+
+      const apiKey = process.env.SOLVEXPAY_API_KEY;
+      if (!apiKey) return res.status(500).json({ message: 'Clé API non configurée' });
 
       const payload: Record<string, any> = {
         amount: parseFloat(link.amount),
@@ -8691,14 +9012,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/public/payment-links/check/:txnId', async (req, res) => {
     try {
       const { txnId } = req.params;
-      const apiKey = process.env.SOLVEXPAY_API_KEY;
-      if (!apiKey) return res.status(500).json({ message: 'Clé API non configurée' });
+      const [knownTxn] = await db.select().from(paymentLinkTransactions)
+        .where(eq(paymentLinkTransactions.solvexpayTxnId, txnId))
+        .limit(1);
+      const isRobotPay = knownTxn?.reference?.startsWith('RBP-LINK-') === true;
 
-      const spRes = await fetch(`https://solvexpay.com/api/v1/transactions/${txnId}`, {
-        headers: { 'Authorization': `Bearer ${apiKey}` },
-      });
-      const spData = await spRes.json();
-      const newStatus = spData?.status || 'unknown';
+      let providerData: any;
+      let newStatus = 'unknown';
+      if (isRobotPay) {
+        const sdkKey = getRobotPaySdkKey();
+        if (!sdkKey) return res.status(503).json({ message: 'Clé SDK RobotPay non configurée' });
+        const robotRes = await fetch(`${ROBOTPAY_BASE_URL}/api/sdk/v1/transaction/${encodeURIComponent(txnId)}`, {
+          headers: { 'X-SDK-Key': sdkKey },
+        });
+        providerData = await robotRes.json().catch(() => ({}));
+        if (!robotRes.ok || providerData?.status !== 'success') {
+          return res.status(robotRes.ok ? 502 : robotRes.status)
+            .json({ message: providerData?.message || 'Erreur RobotPay' });
+        }
+        const robotStatus = String(providerData?.data?.status || 'pending').toLowerCase();
+        newStatus = robotStatus === 'confirmed' || robotStatus === 'completed'
+          ? 'completed'
+          : robotStatus === 'failed' || robotStatus === 'expired' || robotStatus === 'cancelled'
+            ? 'failed'
+            : 'pending';
+      } else {
+        const apiKey = process.env.SOLVEXPAY_API_KEY;
+        if (!apiKey) return res.status(500).json({ message: 'Clé API non configurée' });
+        const spRes = await fetch(`https://solvexpay.com/api/v1/transactions/${txnId}`, {
+          headers: { 'Authorization': `Bearer ${apiKey}` },
+        });
+        providerData = await spRes.json();
+        if (!spRes.ok) {
+          return res.status(spRes.status).json({ message: providerData?.message || providerData?.error?.message || 'Erreur SolvexPay' });
+        }
+        newStatus = providerData?.status || 'unknown';
+      }
       // Update local DB status if changed
       if (newStatus === 'completed' || newStatus === 'failed') {
         // Fetch transaction to check if PCS email needs to be sent
@@ -8778,7 +9127,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .catch(() => {});
         }
       }
-      res.json({ status: newStatus, transaction: spData });
+      res.json({ status: newStatus, transaction: isRobotPay ? providerData?.data : providerData });
     } catch (err) {
       console.error('[PAYMENT-LINKS-CHECK] Error:', err);
       res.status(500).json({ message: 'Erreur serveur' });

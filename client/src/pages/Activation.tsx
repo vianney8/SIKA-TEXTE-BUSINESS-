@@ -163,6 +163,7 @@ export default function Activation() {
 
   const [loading, setLoading]             = useState(false);
   const [transactionId, setTransactionId] = useState<string | null>(null);
+  const [transactionGateway, setTransactionGateway] = useState<"solvexpay" | "robotpay">("solvexpay");
   const [txStatus, setTxStatus]           = useState<"pending" | "completed" | "failed" | null>(null);
   const [checkCount, setCheckCount]       = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -183,10 +184,10 @@ export default function Activation() {
     : country === "CI" ? "05 12 34 56 78"
     : "01 23 45 67";
 
-  const ciMode: "redirect" | "manual" | "solvexpay" = paymentInfo?.ciMode ?? "redirect";
+  const ciMode: "redirect" | "manual" | "solvexpay" | "robotpay" = paymentInfo?.ciMode ?? "redirect";
   const ciRedirectUrl = paymentInfo?.ciRedirectUrl || "https://clp.ci/ETPXwo";
 
-  type PayMode = "manual" | "redirect" | "solvexpay";
+  type PayMode = "manual" | "redirect" | "solvexpay" | "robotpay";
   const countryModes: Record<string, { mode: PayMode; redirectUrl: string }> = paymentInfo?.countryModes ?? {};
   const getCountryMode        = (c: string): PayMode  => { if (c === "CI") return ciMode; return countryModes[c]?.mode ?? "manual"; };
   const getCountryRedirectUrl = (c: string): string   => { if (c === "CI") return ciRedirectUrl; return countryModes[c]?.redirectUrl || ""; };
@@ -266,7 +267,7 @@ export default function Activation() {
     if (!transactionId || txStatus === "completed" || txStatus === "failed") return;
     const check = async () => {
       try {
-        const res  = await fetch(`/api/activation/check-solvexpay/${transactionId}`, { credentials: "include" });
+        const res  = await fetch(`/api/activation/check-${transactionGateway}/${transactionId}`, { credentials: "include" });
         if (!res.ok) return;
         const data = await res.json();
         setCheckCount(c => c + 1);
@@ -277,7 +278,7 @@ export default function Activation() {
     check();
     intervalRef.current = setInterval(check, 5000);
     return () => clearInterval(intervalRef.current!);
-  }, [transactionId]);
+  }, [transactionId, transactionGateway]);
 
   // Handlers
   const copyDepositNumber = async () => {
@@ -360,7 +361,8 @@ export default function Activation() {
         }
         return;
       }
-      const res  = await fetch("/api/activation/init-solvexpay", {
+      const gateway = getCountryMode(country) === "robotpay" ? "robotpay" : "solvexpay";
+      const res  = await fetch(`/api/activation/init-${gateway}`, {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone, operator, country }),
@@ -368,6 +370,7 @@ export default function Activation() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || "Erreur de paiement");
       if (data.paymentUrl) { window.location.href = data.paymentUrl; return; }
+      setTransactionGateway(gateway);
       setTransactionId(data.transactionId); setTxStatus("pending");
       toast({ title: "Paiement envoyé !", description: data.message || "Validez sur votre téléphone." });
     } catch (err: any) { toast({ title: "Erreur", description: err.message, variant: "destructive" }); }

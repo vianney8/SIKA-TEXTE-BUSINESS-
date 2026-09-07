@@ -82,6 +82,8 @@ app.use((req, res, next) => {
     { key: 'solvexpay_enabled',         value: 'true',                                              label: 'Activer Passerelle SolvexPay' },
     { key: 'solvexpay_name',            value: 'SolvexPay — Mobile Money',                         label: 'Nom Passerelle SolvexPay' },
     { key: 'solvexpay_link',            value: '',                                                  label: 'Lien de paiement SolvexPay' },
+    { key: 'robotpay_enabled',          value: 'false',                                             label: 'Activer Passerelle RobotPay' },
+    { key: 'robotpay_name',             value: 'RobotPay — Mobile Money',                          label: 'Nom Passerelle RobotPay' },
     { key: 'whatsapp_admin_contact',    value: '',                                                  label: 'WhatsApp Administrateur (Contact Mise à jour)' },
     { key: 'demo_video_url',            value: '/promo.mp4',                                       label: 'Vidéo démonstration accueil' },
     { key: 'international_deposit_note_bj_mtn',    value: '', label: 'Note dépôt Bénin MTN' },

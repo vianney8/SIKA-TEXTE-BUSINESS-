@@ -75,6 +75,8 @@ export default function AdminSettings() {
       queryClient.invalidateQueries({ queryKey: ['/api/settings/solvexpay_enabled'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/solvexpay_name'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/solvexpay_link'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/robotpay_enabled'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/robotpay_name'] });
       queryClient.invalidateQueries({ queryKey: ['/api/activation/payment-info'] });
     },
     onError: (error: any) => {
@@ -512,9 +514,10 @@ export default function AdminSettings() {
               </div>
 
               {/* Sélecteur de mode */}
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
                   { value: 'solvexpay', label: 'SolvexPay', desc: 'API automatique' },
+                  { value: 'robotpay', label: 'RobotPay', desc: 'API automatique' },
                   { value: 'manual',   label: 'Dépôt manuel', desc: 'Numéros configurés' },
                   { value: 'redirect', label: 'Redirection', desc: 'Lien externe' },
                 ].map(opt => {
@@ -588,6 +591,11 @@ export default function AdminSettings() {
                   SolvexPay traite automatiquement les paiements CI via l'API. Aucune configuration manuelle requise.
                 </p>
               )}
+              {settings.ci_activation_mode === 'robotpay' && (
+                <p className="text-xs text-orange-700 bg-orange-100 rounded-lg px-3 py-2">
+                  RobotPay traite automatiquement les paiements CI via son API Mobile Money.
+                </p>
+              )}
             </div>
 
             {/* Configuration par pays */}
@@ -614,9 +622,10 @@ export default function AdminSettings() {
                   </div>
 
                   {/* Sélecteur de mode */}
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[
                   { value: 'solvexpay', label: 'SolvexPay', desc: 'API automatique' },
+                  { value: 'robotpay', label: 'RobotPay', desc: 'API automatique' },
                   { value: 'manual',   label: 'Dépôt manuel', desc: 'Numéros configurés' },
                   { value: 'redirect', label: 'Redirection', desc: 'Lien externe' },
                     ].map(opt => {
@@ -659,6 +668,11 @@ export default function AdminSettings() {
                   {currentMode === 'solvexpay' && (
                     <p className="text-xs text-blue-700 bg-blue-100 rounded-lg px-3 py-2">
                       SolvexPay traite automatiquement les paiements {name} via l'API.
+                    </p>
+                  )}
+                  {currentMode === 'robotpay' && (
+                    <p className="text-xs text-blue-700 bg-blue-100 rounded-lg px-3 py-2">
+                      RobotPay traite automatiquement les paiements {name} via l'API Mobile Money.
                     </p>
                   )}
 
@@ -756,6 +770,52 @@ export default function AdminSettings() {
               </div>
               <p className="text-xs text-muted-foreground">
                 URL Webhook à configurer dans SolvexPay : <span className="font-mono">https://sikatexte.site/api/webhook/solvexpay</span>
+              </p>
+            </div>
+
+            {/* RobotPay */}
+            <div className="space-y-3 p-4 border rounded-lg border-emerald-300 bg-emerald-50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-emerald-500 to-teal-700 flex items-center justify-center text-white font-bold text-sm">
+                    R
+                  </div>
+                  <div>
+                    <p className="font-medium">RobotPay</p>
+                    <p className="text-sm text-muted-foreground">
+                      {settings.robotpay_enabled === 'true' ? '✓ Activé' : '✗ Désactivé'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleInputChange('robotpay_enabled', settings.robotpay_enabled === 'true' ? 'false' : 'true')}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    settings.robotpay_enabled === 'true'
+                      ? 'bg-green-500 hover:bg-green-600 text-white'
+                      : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
+                  }`}
+                  data-testid="toggle-robotpay-enabled"
+                >
+                  {settings.robotpay_enabled === 'true' ? 'Activé' : 'Désactivé'}
+                </button>
+              </div>
+              <div>
+                <Label htmlFor="robotpay_name" className="text-sm">Nom personnalisé</Label>
+                <Input
+                  id="robotpay_name"
+                  value={settings.robotpay_name || 'RobotPay — Mobile Money'}
+                  onChange={(e) => handleInputChange('robotpay_name', e.target.value)}
+                  placeholder="RobotPay — Mobile Money"
+                  data-testid="input-robotpay-name"
+                  className="mt-1"
+                />
+              </div>
+              <p className="text-xs text-emerald-800 bg-emerald-100 rounded-lg px-3 py-2">
+                Les clés restent protégées dans les secrets Replit. Activez RobotPay ici, puis choisissez-le pour les pays souhaités.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                URL Webhook à configurer dans RobotPay : <span className="font-mono">https://sikatexte.site/api/webhook/robotpay</span>
               </p>
             </div>
 
