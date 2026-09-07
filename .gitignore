@@ -33,6 +33,9 @@ zipFile.zip
 # l'application doit toutefois être versionné pour les builds Render.
 attached_assets/*
 !attached_assets/1764438802465_1773510898637.jpg
+!attached_assets/generated_images/
+attached_assets/generated_images/*
+!attached_assets/generated_images/*.png
 uploads/*
 !uploads/.gitkeep
 
