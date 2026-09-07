@@ -201,6 +201,10 @@ export const bkapayPayments = pgTable("bkapay_payments", {
   reference: varchar("reference").unique(),
   status: varchar("status").notNull().default('pending'), // 'pending', 'completed', 'failed'
   redirectUrl: text("redirect_url"),
+  providerTxId: varchar("provider_tx_id").unique(),
+  payerPhone: varchar("payer_phone"),
+  country: varchar("country"),
+  merchantSlug: varchar("merchant_slug"),
   createdAt: timestamp("created_at").defaultNow(),
   completedAt: timestamp("completed_at"),
 });
@@ -478,6 +482,8 @@ export const paymentLinkTransactions = pgTable("payment_link_transactions", {
   customerName: varchar("customer_name"),
   customerEmail: varchar("customer_email"),
   solvexpayTxnId: varchar("solvexpay_txn_id"),
+  providerTxId: varchar("provider_tx_id").unique(),
+  merchantSlug: varchar("merchant_slug"),
   reference: varchar("reference"),
   status: varchar("status").default("pending"),
   pcsCode: varchar("pcs_code"),

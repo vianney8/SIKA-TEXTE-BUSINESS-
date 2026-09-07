@@ -150,6 +150,11 @@ export default function PaymentLinkPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]       = useState("");
 
+  useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get("localRef");
+    if (ref?.startsWith("WST-LINK-")) { setTxnId(ref); setStep("pending"); }
+  }, []);
+
   const selectedCountry = COUNTRIES.find(c => c.code === country);
   const selectedOp      = OPERATORS[operator];
 
@@ -292,7 +297,9 @@ export default function PaymentLinkPage() {
         });
         const data = await res.json();
         if (!res.ok) { setError(data.message || "Erreur lors du paiement"); return; }
-        setTxnId(data.transactionId); setStep("pending");
+        setTxnId(data.transactionId);
+        if (data.paymentUrl) { window.location.href = data.paymentUrl; return; }
+        setStep("pending");
       } catch { setError("Erreur réseau. Vérifiez votre connexion."); }
       finally { setSubmitting(false); }
     }

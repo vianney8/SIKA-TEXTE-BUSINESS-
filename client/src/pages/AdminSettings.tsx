@@ -811,8 +811,16 @@ export default function AdminSettings() {
                   className="mt-1"
                 />
               </div>
+              <div>
+                <Label htmlFor="robotpay_merchant_slug" className="text-sm">Slug marchand WestPay</Label>
+                <Input id="robotpay_merchant_slug" value={settings.robotpay_merchant_slug || ''} onChange={(e) => handleInputChange('robotpay_merchant_slug', e.target.value)} placeholder="votre-slug" className="mt-1" />
+              </div>
+              <div>
+                <Label htmlFor="robotpay_checkout_url" className="text-sm">URL checkout WestPay</Label>
+                <Input id="robotpay_checkout_url" value={settings.robotpay_checkout_url || 'https://checkout1.westpay.cfd/pay'} onChange={(e) => handleInputChange('robotpay_checkout_url', e.target.value)} placeholder="https://checkout1.westpay.cfd/pay" className="mt-1" />
+              </div>
               <p className="text-xs text-emerald-800 bg-emerald-100 rounded-lg px-3 py-2">
-                Les clés restent protégées dans les secrets Replit. Activez RobotPay ici, puis choisissez-le pour les pays souhaités.
+                WestPay utilise un checkout hébergé. Le slug est configuré ici et le secret webhook reste protégé dans les secrets Replit.
               </p>
               <p className="text-xs text-muted-foreground">
                 URL Webhook à configurer dans RobotPay : <span className="font-mono">https://sikatexte.site/api/webhook/robotpay</span>

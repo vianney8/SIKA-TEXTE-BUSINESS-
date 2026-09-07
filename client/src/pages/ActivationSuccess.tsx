@@ -6,7 +6,9 @@ export default function ActivationSuccess() {
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    setLocation('/activation?return=1');
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('localRef');
+    setLocation(`/activation?return=1${ref ? `&localRef=${encodeURIComponent(ref)}` : ''}`);
   }, [setLocation]);
 
   return (

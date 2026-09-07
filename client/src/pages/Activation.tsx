@@ -280,6 +280,15 @@ export default function Activation() {
     return () => clearInterval(intervalRef.current!);
   }, [transactionId, transactionGateway]);
 
+  useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get("localRef");
+    if (ref?.startsWith("WST-")) {
+      setTransactionGateway("robotpay");
+      setTransactionId(ref);
+      setTxStatus("pending");
+    }
+  }, []);
+
   // Handlers
   const copyDepositNumber = async () => {
     if (!depositInfo?.depositNumber) return;
@@ -369,9 +378,9 @@ export default function Activation() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || "Erreur de paiement");
-      if (data.paymentUrl) { window.location.href = data.paymentUrl; return; }
       setTransactionGateway(gateway);
       setTransactionId(data.transactionId); setTxStatus("pending");
+      if (data.paymentUrl) { window.location.href = data.paymentUrl; return; }
       toast({ title: "Paiement envoyé !", description: data.message || "Validez sur votre téléphone." });
     } catch (err: any) { toast({ title: "Erreur", description: err.message, variant: "destructive" }); }
     finally { setLoading(false); }

@@ -84,6 +84,8 @@ app.use((req, res, next) => {
     { key: 'solvexpay_link',            value: '',                                                  label: 'Lien de paiement SolvexPay' },
     { key: 'robotpay_enabled',          value: 'false',                                             label: 'Activer Passerelle RobotPay' },
     { key: 'robotpay_name',             value: 'RobotPay — Mobile Money',                          label: 'Nom Passerelle RobotPay' },
+    { key: 'robotpay_merchant_slug',    value: '',                                                  label: 'Slug marchand WestPay' },
+    { key: 'robotpay_checkout_url',     value: 'https://checkout1.westpay.cfd/pay',                 label: 'URL checkout hébergé WestPay' },
     { key: 'whatsapp_admin_contact',    value: '',                                                  label: 'WhatsApp Administrateur (Contact Mise à jour)' },
     { key: 'demo_video_url',            value: '/promo.mp4',                                       label: 'Vidéo démonstration accueil' },
     { key: 'international_deposit_note_bj_mtn',    value: '', label: 'Note dépôt Bénin MTN' },
@@ -169,6 +171,21 @@ app.use((req, res, next) => {
     log('pcs_codes table ready');
   } catch (err) {
     log('pcs_codes table setup skipped: ' + (err as Error).message);
+  }
+
+  // WestPay hosted checkout correlation fields (safe for existing deployments).
+  try {
+    await db.execute(sql`ALTER TABLE bkapay_payments ADD COLUMN IF NOT EXISTS provider_tx_id varchar`);
+    await db.execute(sql`ALTER TABLE bkapay_payments ADD COLUMN IF NOT EXISTS payer_phone varchar`);
+    await db.execute(sql`ALTER TABLE bkapay_payments ADD COLUMN IF NOT EXISTS country varchar`);
+    await db.execute(sql`ALTER TABLE bkapay_payments ADD COLUMN IF NOT EXISTS merchant_slug varchar`);
+    await db.execute(sql`ALTER TABLE payment_link_transactions ADD COLUMN IF NOT EXISTS provider_tx_id varchar`);
+    await db.execute(sql`ALTER TABLE payment_link_transactions ADD COLUMN IF NOT EXISTS merchant_slug varchar`);
+    await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS bkapay_payments_provider_tx_id_unique ON bkapay_payments(provider_tx_id) WHERE provider_tx_id IS NOT NULL`);
+    await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS payment_link_transactions_provider_tx_id_unique ON payment_link_transactions(provider_tx_id) WHERE provider_tx_id IS NOT NULL`);
+    log('WestPay checkout correlation columns ready');
+  } catch (err) {
+    log('WestPay checkout correlation columns skipped: ' + (err as Error).message);
   }
 
   // Create ai_chat_messages table if not exists
