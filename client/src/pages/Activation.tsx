@@ -10,24 +10,31 @@ import {
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import sikaLogo from "@assets/1764438802465_1773510898637.jpg";
-import { PAYMENT_COUNTRIES, PAYMENT_OPERATORS } from "@/lib/paymentCatalog";
 
 // ─── Config pays & opérateurs ────────────────────────────────────────────────
-export const COUNTRIES = PAYMENT_COUNTRIES;
+export const COUNTRIES = [
+  { code: "BJ",  name: "Bénin",         flag: "🇧🇯", prefix: "229", phonePlaceholder: "01 23 45 67 89", operators: ["mtn","moov"] },
+  { code: "CI",  name: "Côte d'Ivoire", flag: "🇨🇮", prefix: "225", phonePlaceholder: "05 12 34 56 78", operators: ["mtn","moov","orange","wave"] },
+  { code: "SN",  name: "Sénégal",       flag: "🇸🇳", prefix: "221", phonePlaceholder: "01 23 45 67", operators: ["orange","wave","free"] },
+  { code: "BF",  name: "Burkina Faso",  flag: "🇧🇫", prefix: "226", phonePlaceholder: "01 23 45 67", operators: ["moov","orange","wave"] },
+  { code: "TG",  name: "Togo",          flag: "🇹🇬", prefix: "228", phonePlaceholder: "01 23 45 67", operators: ["moov","tmoney"] },
+  { code: "CM",  name: "Cameroun",      flag: "🇨🇲", prefix: "237", phonePlaceholder: "6 12 34 56 78", operators: ["mtn","orange"] },
+];
 
 type MethodType = "ussd" | "redirect";
 
 export const OPERATORS: Record<string, {
   name: string; full: string; bg: string; text: string; border: string; initials: string;
   method: MethodType; methodLabel: string;
-}> = Object.fromEntries(Object.entries(PAYMENT_OPERATORS).map(([code, operator]) => [
-  code,
-  {
-    ...operator,
-    method: ["wave", "mpesa", "safaricom", "opay", "palmpay", "easypaisa", "jazzcash", "nayapay", "sadapay", "gcash", "maya", "upi", "phonepe", "gpay"].includes(code) ? "redirect" : "ussd",
-    methodLabel: ["wave", "mpesa", "safaricom", "opay", "palmpay", "easypaisa", "jazzcash", "nayapay", "sadapay", "gcash", "maya", "upi", "phonepe", "gpay"].includes(code) ? "Redirection" : "USSD Push",
-  },
-]));
+}> = {
+  mtn:    { name: "MTN",     full: "MTN Mobile Money",  bg: "#FFCC00", text: "#1a1a1a", border: "#e6b800", initials: "MTN", method: "ussd",     methodLabel: "USSD Push" },
+  moov:   { name: "Moov",    full: "Moov Money",        bg: "#005BAA", text: "#fff",    border: "#004d99", initials: "MV",  method: "ussd",     methodLabel: "USSD Push" },
+  orange: { name: "Orange",  full: "Orange Money",      bg: "#FF6600", text: "#fff",    border: "#e55c00", initials: "OM",  method: "ussd",     methodLabel: "USSD Push" },
+  wave:   { name: "Wave",    full: "Wave",              bg: "#1B6FEE", text: "#fff",    border: "#1560d4", initials: "W",   method: "redirect", methodLabel: "Redirection" },
+  tmoney: { name: "T-Money", full: "T-Money",           bg: "#C8102E", text: "#fff",    border: "#a50d25", initials: "TM",  method: "ussd",     methodLabel: "USSD Push" },
+  free:   { name: "Free",    full: "Free Money",        bg: "#00923F", text: "#fff",    border: "#007a34", initials: "FM",  method: "ussd",     methodLabel: "USSD Push" },
+  airtel: { name: "Airtel",  full: "Airtel Money",      bg: "#E40000", text: "#fff",    border: "#c20000", initials: "AM",  method: "ussd",     methodLabel: "USSD Push" },
+};
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const PG  = "#EFF2F7";

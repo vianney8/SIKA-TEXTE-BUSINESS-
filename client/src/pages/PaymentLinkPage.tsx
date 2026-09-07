@@ -4,12 +4,26 @@ import {
   CheckCircle, ChevronLeft, ChevronRight, Clock, Copy, ExternalLink, Globe, ImageIcon,
   Info, Loader2, Phone, ShieldCheck, Upload, Wrench, XCircle, AlertCircle, AlertTriangle
 } from "lucide-react";
-import { PAYMENT_COUNTRIES, PAYMENT_OPERATORS } from "@/lib/paymentCatalog";
 
 // ─── Config pays & opérateurs ────────────────────────────────────────────────
-const COUNTRIES = PAYMENT_COUNTRIES;
+const COUNTRIES = [
+  { code: "BJ",  name: "Bénin",         flag: "🇧🇯", prefix: "229", phonePlaceholder: "01 23 45 67 89", operators: ["mtn","moov"] },
+  { code: "CI",  name: "Côte d'Ivoire", flag: "🇨🇮", prefix: "225", phonePlaceholder: "05 12 34 56 78", operators: ["mtn","moov","orange","wave"] },
+  { code: "SN",  name: "Sénégal",       flag: "🇸🇳", prefix: "221", phonePlaceholder: "01 23 45 67", operators: ["orange","wave","free"] },
+  { code: "BF",  name: "Burkina Faso",  flag: "🇧🇫", prefix: "226", phonePlaceholder: "01 23 45 67", operators: ["moov","orange","wave"] },
+  { code: "TG",  name: "Togo",          flag: "🇹🇬", prefix: "228", phonePlaceholder: "01 23 45 67", operators: ["moov","tmoney"] },
+  { code: "CM",  name: "Cameroun",      flag: "🇨🇲", prefix: "237", phonePlaceholder: "6 12 34 56 78", operators: ["mtn","orange"] },
+];
 
-const OPERATORS = PAYMENT_OPERATORS;
+const OPERATORS: Record<string, { name: string; full: string; bg: string; text: string; border: string; initials: string }> = {
+  mtn:    { name: "MTN",     full: "MTN Mobile Money", bg: "#FFCC00", text: "#1a1a1a", border: "#e6b800", initials: "MTN" },
+  moov:   { name: "Moov",    full: "Moov Money",       bg: "#005BAA", text: "#fff", border: "#004d99", initials: "MV" },
+  orange: { name: "Orange",  full: "Orange Money",     bg: "#FF6600", text: "#fff", border: "#e55c00", initials: "OM" },
+  wave:   { name: "Wave",    full: "Wave",             bg: "#1B6FEE", text: "#fff", border: "#1560d4", initials: "W" },
+  tmoney: { name: "T-Money", full: "T-Money",          bg: "#C8102E", text: "#fff", border: "#a50d25", initials: "TM" },
+  free:   { name: "Free",    full: "Free Money",       bg: "#00923F", text: "#fff", border: "#007a34", initials: "FM" },
+  airtel: { name: "Airtel",  full: "Airtel Money",     bg: "#E40000", text: "#fff", border: "#c20000", initials: "AM" },
+};
 
 // ─── Design tokens ─────────────────────────────────────────────────────────
 const PG    = "#EFF2F7";

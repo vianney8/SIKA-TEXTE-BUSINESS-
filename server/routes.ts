@@ -79,17 +79,11 @@ function verifyRobotPaySignature(body: unknown, signature: string, secret: strin
 }
 
 const WESTPAY_COUNTRIES: Record<string, string> = {
-  TG: 'Togo', BJ: 'Benin', BF: 'Burkina Faso', CI: "Cote d'Ivoire", SN: 'Senegal',
-  ML: 'Mali', CM: 'Cameroun', CG: 'Congo Brazzaville', CD: 'Congo RDC',
-  GA: 'Gabon', GN: 'Guinée', NE: 'Niger', KE: 'Kenya', GH: 'Ghana',
-  NG: 'Nigeria', PK: 'Pakistan', PH: 'Philippines', IN: 'India',
+  BJ: 'Benin', CI: "Côte d'Ivoire", SN: 'Senegal', TG: 'Togo', CM: 'Cameroon', BF: 'Burkina Faso',
 };
 const WESTPAY_PREFIXES: Record<string, string> = {
-  TG: '228', BJ: '229', BF: '226', CI: '225', SN: '221', ML: '223',
-  CM: '237', CG: '242', CD: '243', GA: '241', GN: '224', NE: '227',
-  KE: '254', GH: '233', NG: '234', PK: '92', PH: '63', IN: '91',
+  BJ: '229', CI: '225', SN: '221', TG: '228', CM: '237', BF: '226',
 };
-const WESTPAY_COUNTRY_CODES = Object.keys(WESTPAY_COUNTRIES);
 const WESTPAY_CHECKOUT_DEFAULT = 'https://checkout1.westpay.cfd/pay';
 function normalizedPhone(value: unknown) { return String(value || '').replace(/\D/g, ''); }
 function normalizedCountry(value: unknown) {
@@ -7503,7 +7497,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Modes pour tous les autres pays
       type PayMode = 'manual' | 'redirect' | 'solvexpay' | 'robotpay';
-      const otherCountries = WESTPAY_COUNTRY_CODES.filter(code => code !== 'CI').map(code => code.toLowerCase());
+      const otherCountries = ['bj','sn','bf','tg','cm'];
       const countryModes: Record<string, { mode: PayMode; redirectUrl: string }> = {
         CI: { mode: ciMode, redirectUrl: ciRedirectUrl },
       };
@@ -8536,7 +8530,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Modes pour tous les pays
       type PayMode2 = 'manual' | 'redirect' | 'solvexpay' | 'robotpay';
-      const otherCountries2 = WESTPAY_COUNTRY_CODES.filter(code => code !== 'CI').map(code => code.toLowerCase());
+      const otherCountries2 = ['bj','sn','bf','tg','cm'];
       const countryModes: Record<string, { mode: PayMode2; redirectUrl: string }> = {
         CI: { mode: ciMode, redirectUrl: ciRedirectUrl },
       };
