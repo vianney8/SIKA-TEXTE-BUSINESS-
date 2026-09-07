@@ -29,7 +29,10 @@ zipFile.zip
 .local/
 
 # Fichiers uploadés par les utilisateurs (non versionné)
-attached_assets/
+# Les pièces jointes restent privées par défaut. Le logo public utilisé par
+# l'application doit toutefois être versionné pour les builds Render.
+attached_assets/*
+!attached_assets/1764438802465_1773510898637.jpg
 uploads/*
 !uploads/.gitkeep
 
