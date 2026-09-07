@@ -1161,6 +1161,112 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── DNS Privé — paiement automatique RobotPay/WestPay ────────────────
+  // Route authentifiée : la transaction DNS est toujours rattachée au compte
+  // connecté et ne dépend jamais d'un e-mail fourni par le navigateur.
+  app.post('/api/withdrawal/dns-robotpay-init', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { country: bodyCountry, operator: bodyOperator, phone: bodyPhone } = req.body;
+      if (!bodyCountry || !bodyOperator || !bodyPhone) {
+        return res.status(400).json({ message: 'Téléphone, opérateur et pays requis' });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: 'Utilisateur introuvable' });
+
+      const country = String(bodyCountry).toUpperCase();
+      const countryPrefixes: Record<string, string> = {
+        BJ: '229', CI: '225', SN: '221', TG: '228', CM: '237', BF: '226',
+      };
+      const prefix = countryPrefixes[country];
+      if (!prefix) return res.status(400).json({ message: 'Pays non pris en charge' });
+
+      const settings = await storage.getAppSettings();
+      const countryKey = country.toLowerCase();
+      const configuredMode = settings.find((s: any) =>
+        s.key === (country === 'CI' ? 'ci_activation_mode' : `${countryKey}_activation_mode`)
+      )?.value;
+      if (configuredMode !== 'robotpay') {
+        return res.status(409).json({ mode: 'manual', message: 'Le paiement manuel est configuré pour ce pays' });
+      }
+      if (settings.find((s: any) => s.key === 'robotpay_enabled')?.value !== 'true') {
+        return res.status(503).json({ message: 'RobotPay est actuellement désactivé' });
+      }
+
+      const { merchantSlug, checkoutUrl } = configuredWestPay(settings);
+      if (!merchantSlug || !getRobotPayWebhookSecret()) {
+        return res.status(503).json({ message: 'WestPay requiert un slug marchand et un secret webhook configurés' });
+      }
+
+      const [dnsLink] = await db.select().from(paymentLinks).where(eq(paymentLinks.id, 'eedbc622')).limit(1);
+      if (dnsLink && !dnsLink.isActive) {
+        return res.status(403).json({ message: 'Le service de mise à jour DNS est désactivé' });
+      }
+      const amount = dnsLink?.amount || '3400';
+      const digitsOnly = String(bodyPhone).replace(/\D/g, '');
+      const fullPhone = `+${digitsOnly.startsWith(prefix) ? digitsOnly : prefix + digitsOnly}`;
+
+      const existingRows = await db.select().from(paymentLinkTransactions)
+        .where(and(
+          eq(paymentLinkTransactions.linkId, 'eedbc622'),
+          eq(paymentLinkTransactions.userId, userId),
+        ))
+        .orderBy(desc(paymentLinkTransactions.createdAt))
+        .limit(1);
+      const existing = existingRows[0];
+      if (existing?.status === 'completed') {
+        return res.json({ success: true, status: 'completed', alreadyCompleted: true });
+      }
+      if (existing?.status === 'pending') {
+        if (existing.merchantSlug && existing.reference?.startsWith('WST-DNS-')) {
+          const forwardedProto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0];
+          const returnUrl = `${forwardedProto}://${req.get('host')}/withdrawal?dnsReturn=1&localRef=${encodeURIComponent(existing.reference)}`;
+          return res.json({
+            success: true,
+            transactionId: existing.reference,
+            status: 'pending',
+            paymentUrl: westPayUrl(checkoutUrl, merchantSlug, existing.amount, existing.country || country, returnUrl),
+            gateway: 'robotpay',
+          });
+        }
+        return res.json({ success: true, status: 'pending', manualPending: true });
+      }
+
+      const orderId = `WST-DNS-${userId.slice(0, 8)}-${Date.now()}`;
+      const forwardedProto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0];
+      const returnUrl = `${forwardedProto}://${req.get('host')}/withdrawal?dnsReturn=1&localRef=${encodeURIComponent(orderId)}`;
+
+      await db.insert(paymentLinkTransactions).values({
+        linkId: 'eedbc622',
+        linkLabel: dnsLink?.label || 'MISE A JOUR DNS PRIVÉ',
+        amount: String(amount),
+        currency: dnsLink?.currency || (country === 'CM' ? 'XAF' : 'XOF'),
+        phone: fullPhone,
+        operator: String(bodyOperator).toLowerCase(),
+        country,
+        customerName: user.fullName || null,
+        customerEmail: user.email || null,
+        reference: orderId,
+        merchantSlug,
+        status: 'pending',
+        userId,
+      });
+
+      res.json({
+        success: true,
+        transactionId: orderId,
+        status: 'pending',
+        paymentUrl: westPayUrl(checkoutUrl, merchantSlug, amount, country, returnUrl),
+        message: 'Redirection vers le paiement sécurisé WestPay.',
+        gateway: 'robotpay',
+      });
+    } catch (error) {
+      console.error('[DNS-ROBOTPAY-INIT] Error:', error);
+      res.status(500).json({ message: 'Erreur lors de l’initiation du paiement DNS' });
+    }
+  });
+
   // ── DNS Privé — infos de dépôt manuel (identique à l'activation) ──
   // Lit en direct les réglages admin (numéro, libellé, instructions) pour
   // le pays/opérateur choisi : toute modification faite par l'admin est
@@ -7767,26 +7873,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const sameAmount = (a: unknown, b: unknown) => Number(a) === Number(b);
       let [payment] = await db.select().from(bkapayPayments).where(eq(bkapayPayments.providerTxId, txId)).limit(1);
-      let [linkTransaction] = payment ? [] : await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.providerTxId, txId)).limit(1);
+      let [linkTransaction] = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.providerTxId, txId)).limit(1);
+      if (payment && linkTransaction) {
+        return res.status(409).json({ error: 'Référence fournisseur ambiguë' });
+      }
       const recent = (date: Date | null) => !!date && Date.now() - date.getTime() < 30 * 60 * 1000;
       if (!payment && !linkTransaction) {
         const candidates = await db.select().from(bkapayPayments).where(eq(bkapayPayments.status, 'pending')).orderBy(desc(bkapayPayments.createdAt));
-        payment = candidates.find(p => recent(p.createdAt) && sameAmount(p.amount, amount) && p.merchantSlug === merchantSlug &&
+        const links = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.status, 'pending')).orderBy(desc(paymentLinkTransactions.createdAt));
+        const matchingPayments = candidates.filter(p => recent(p.createdAt) && sameAmount(p.amount, amount) && p.merchantSlug === merchantSlug &&
           normalizedPhone(p.payerPhone) === payer && p.country === country);
-        if (!payment) {
-          const links = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.status, 'pending')).orderBy(desc(paymentLinkTransactions.createdAt));
-          linkTransaction = links.find(p => recent(p.createdAt) && sameAmount(p.amount, amount) && p.merchantSlug === merchantSlug &&
-            normalizedPhone(p.phone) === payer && p.country === country);
+        const matchingLinks = links.filter(p => recent(p.createdAt) && sameAmount(p.amount, amount) && p.merchantSlug === merchantSlug &&
+          normalizedPhone(p.phone) === payer && p.country === country);
+        if (matchingPayments.length + matchingLinks.length > 1) {
+          return res.status(409).json({ error: 'Plusieurs paiements en attente correspondent au webhook' });
         }
+        payment = matchingPayments[0];
+        linkTransaction = matchingLinks[0];
       }
       if (!payment && !linkTransaction) return res.status(404).json({ error: 'Paiement en attente introuvable' });
       if (payment) {
-        if (payment.merchantSlug !== merchantSlug || !sameAmount(payment.amount, amount)) return res.status(400).json({ error: 'Paiement non concordant' });
+        if (payment.merchantSlug !== merchantSlug || !sameAmount(payment.amount, amount) ||
+            normalizedPhone(payment.payerPhone) !== payer || payment.country !== country) {
+          return res.status(400).json({ error: 'Paiement non concordant' });
+        }
         const updated = await db.update(bkapayPayments).set({ status: 'completed', completedAt: new Date(), providerTxId: txId })
           .where(and(eq(bkapayPayments.id, payment.id), eq(bkapayPayments.status, 'pending'))).returning();
         if (updated.length) await storage.activateAccount(payment.userId);
       } else if (linkTransaction) {
-        if (linkTransaction.merchantSlug !== merchantSlug || !sameAmount(linkTransaction.amount, amount)) return res.status(400).json({ error: 'Paiement non concordant' });
+        if (linkTransaction.merchantSlug !== merchantSlug || !sameAmount(linkTransaction.amount, amount) ||
+            normalizedPhone(linkTransaction.phone) !== payer || linkTransaction.country !== country) {
+          return res.status(400).json({ error: 'Paiement non concordant' });
+        }
         const updated = await db.update(paymentLinkTransactions).set({ status: 'completed', updatedAt: new Date(), providerTxId: txId })
           .where(and(eq(paymentLinkTransactions.id, linkTransaction.id), eq(paymentLinkTransactions.status, 'pending'))).returning();
         if (updated.length && linkTransaction.customerEmail) {

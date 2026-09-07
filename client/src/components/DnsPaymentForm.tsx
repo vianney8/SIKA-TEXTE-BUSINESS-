@@ -38,6 +38,7 @@ export default function DnsPaymentForm({
   const [depositInfo, setDepositInfo] = useState<DepositInfo | null>(null);
   const [depositLoading, setDepositLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [automaticLoading, setAutomaticLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selectedCountry = COUNTRIES.find(c => c.code === country);
@@ -66,6 +67,35 @@ export default function DnsPaymentForm({
     if (!depositInfo?.depositNumber) return;
     try { await navigator.clipboard.writeText(depositInfo.depositNumber); toast({ title: "Numéro copié !" }); }
     catch { toast({ title: "Copié", description: depositInfo.depositNumber }); }
+  };
+
+  const continueAfterPhone = async () => {
+    setAutomaticLoading(true);
+    try {
+      const res = await fetch("/api/withdrawal/dns-robotpay-init", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ country, operator, phone }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.status === 409 && data.mode === "manual") {
+        setStep("manual");
+        return;
+      }
+      if (!res.ok) throw new Error(data.message || "Impossible d'initier le paiement automatique");
+      if (data.status === "completed" || data.manualPending) {
+        onSubmitted();
+        return;
+      }
+      if (!data.paymentUrl) throw new Error("URL de paiement WestPay indisponible");
+      window.location.href = data.paymentUrl;
+    } catch (err: any) {
+      toast({ title: "Paiement automatique indisponible", description: err.message, variant: "destructive" });
+    } finally {
+      setAutomaticLoading(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -181,12 +211,12 @@ export default function DnsPaymentForm({
         </div>
         <button
           data-testid="button-dns-phone-continue"
-          onClick={() => canContinue && setStep("manual")}
-          disabled={!canContinue}
+          onClick={() => canContinue && continueAfterPhone()}
+          disabled={!canContinue || automaticLoading}
           className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 active:scale-[0.97] transition-all disabled:opacity-40"
           style={{ background: "linear-gradient(135deg, #059669, #10b981)", boxShadow: "0 6px 24px rgba(16,185,129,0.4)" }}
         >
-          Continuer <ChevronRight size={18} />
+          {automaticLoading ? <><Loader2 size={18} className="animate-spin" /> Connexion à WestPay...</> : <>Continuer <ChevronRight size={18} /></>}
         </button>
       </div>
     );

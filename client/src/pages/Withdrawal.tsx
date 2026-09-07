@@ -72,6 +72,15 @@ export default function Withdrawal() {
   const [showDnsPage, setShowDnsPage] = useState(false);
   const [showDnsForm, setShowDnsForm] = useState(false);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("dnsReturn") === "1") {
+      setShowDnsPage(true);
+      setShowDnsForm(false);
+      window.history.replaceState({}, "", "/withdrawal");
+    }
+  }, []);
+
   const { data: telegramSupervisor } = useAppSetting("telegram_supervisor");
 
   const { data: dnsEligibility } = useQuery<{ eligible: boolean }>({
