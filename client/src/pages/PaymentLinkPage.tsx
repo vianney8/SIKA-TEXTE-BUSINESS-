@@ -158,7 +158,7 @@ export default function PaymentLinkPage() {
   const selectedCountry = COUNTRIES.find(c => c.code === country);
   const selectedOp      = OPERATORS[operator];
 
-  type PayMode = "manual" | "redirect" | "solvexpay";
+  type PayMode = "manual" | "redirect" | "solvexpay" | "robotpay";
   const countryModes: Record<string, { mode: PayMode; redirectUrl: string }> = link?.countryModes ?? {};
   const ciMode: PayMode        = link?.ciMode ?? "redirect";
   const maintenanceMap: Record<string, boolean> = link?.maintenanceMap ?? {};
@@ -167,7 +167,12 @@ export default function PaymentLinkPage() {
   const getRedirectUrl         = (c: string): string  => { if (c === "CI") return link?.ciRedirectUrl || ""; return countryModes[c]?.redirectUrl || ""; };
   const currentMode            = getMode(country);
   const useRedirect            = country !== "" && currentMode === "redirect";
-  const useManual              = country !== "" && (currentMode === "manual" || (!useRedirect && link?.manualMode === true));
+  // Le mode RobotPay choisi par l'administrateur pour le pays est prioritaire.
+  // Le réglage manuel propre au lien ne sert de repli que pour les autres modes.
+  const useManual              = country !== "" && (
+    currentMode === "manual" ||
+    (currentMode !== "robotpay" && !useRedirect && link?.manualMode === true)
+  );
 
   // ── Effects ──────────────────────────────────────────────────────────────
   useEffect(() => {
