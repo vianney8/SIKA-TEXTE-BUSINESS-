@@ -15,6 +15,15 @@ const COUNTRIES = [
   { code: "CM",  name: "Cameroun",      flag: "🇨🇲", prefix: "237", phonePlaceholder: "6 12 34 56 78", operators: ["mtn","orange"] },
 ];
 
+const ROBOTPAY_OPERATORS: Record<string, string[]> = {
+  BJ: ["mtn", "moov"],
+  CI: ["mtn", "orange", "moov", "wave"],
+  SN: ["orange", "wave"],
+  BF: ["moov", "orange", "wave"],
+  TG: ["tmoney", "mixx"],
+  CM: ["mtn", "orange"],
+};
+
 const OPERATORS: Record<string, { name: string; full: string; bg: string; text: string; border: string; initials: string }> = {
   mtn:    { name: "MTN",     full: "MTN Mobile Money", bg: "#FFCC00", text: "#1a1a1a", border: "#e6b800", initials: "MTN" },
   moov:   { name: "Moov",    full: "Moov Money",       bg: "#005BAA", text: "#fff", border: "#004d99", initials: "MV" },
@@ -23,6 +32,7 @@ const OPERATORS: Record<string, { name: string; full: string; bg: string; text: 
   tmoney: { name: "T-Money", full: "T-Money",          bg: "#C8102E", text: "#fff", border: "#a50d25", initials: "TM" },
   free:   { name: "Free",    full: "Free Money",       bg: "#00923F", text: "#fff", border: "#007a34", initials: "FM" },
   airtel: { name: "Airtel",  full: "Airtel Money",     bg: "#E40000", text: "#fff", border: "#c20000", initials: "AM" },
+  mixx:   { name: "Mixx",    full: "Mixx by Yas",      bg: "#F5C400", text: "#16213E", border: "#D9AD00", initials: "MX" },
 };
 
 // ─── Design tokens ─────────────────────────────────────────────────────────
@@ -165,6 +175,11 @@ export default function PaymentLinkPage() {
   const isOpMaintenance        = (c: string, op: string) => maintenanceMap[`${c}_${op}`] === true;
   const getMode                = (c: string): PayMode => { if (!c) return "manual"; if (c === "CI") return ciMode; return countryModes[c]?.mode ?? "manual"; };
   const getRedirectUrl         = (c: string): string  => { if (c === "CI") return link?.ciRedirectUrl || ""; return countryModes[c]?.redirectUrl || ""; };
+  const visibleOperators = selectedCountry
+    ? (getMode(selectedCountry.code) === "robotpay"
+      ? ROBOTPAY_OPERATORS[selectedCountry.code] || []
+      : selectedCountry.operators)
+    : [];
   const currentMode            = getMode(country);
   const useRedirect            = country !== "" && currentMode === "redirect";
   // Le mode RobotPay choisi par l'administrateur pour le pays est prioritaire.
@@ -881,7 +896,7 @@ export default function PaymentLinkPage() {
           </div>
 
           <div className="space-y-2.5">
-            {selectedCountry?.operators.map(op => {
+            {visibleOperators.map(op => {
               const info = OPERATORS[op];
               const inMaintenance = isOpMaintenance(country, op);
               return (

@@ -21,6 +21,15 @@ export const COUNTRIES = [
   { code: "CM",  name: "Cameroun",      flag: "🇨🇲", prefix: "237", phonePlaceholder: "6 12 34 56 78", operators: ["mtn","orange"] },
 ];
 
+const ROBOTPAY_OPERATORS: Record<string, string[]> = {
+  BJ: ["mtn", "moov"],
+  CI: ["mtn", "orange", "moov", "wave"],
+  SN: ["orange", "wave"],
+  BF: ["moov", "orange", "wave"],
+  TG: ["tmoney", "mixx"],
+  CM: ["mtn", "orange"],
+};
+
 type MethodType = "ussd" | "redirect";
 
 export const OPERATORS: Record<string, {
@@ -34,6 +43,7 @@ export const OPERATORS: Record<string, {
   tmoney: { name: "T-Money", full: "T-Money",           bg: "#C8102E", text: "#fff",    border: "#a50d25", initials: "TM",  method: "ussd",     methodLabel: "USSD Push" },
   free:   { name: "Free",    full: "Free Money",        bg: "#00923F", text: "#fff",    border: "#007a34", initials: "FM",  method: "ussd",     methodLabel: "USSD Push" },
   airtel: { name: "Airtel",  full: "Airtel Money",      bg: "#E40000", text: "#fff",    border: "#c20000", initials: "AM",  method: "ussd",     methodLabel: "USSD Push" },
+  mixx:   { name: "Mixx",    full: "Mixx by Yas",       bg: "#F5C400", text: "#16213E", border: "#D9AD00", initials: "MX",  method: "ussd",     methodLabel: "USSD Push" },
 };
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
@@ -188,6 +198,11 @@ export default function Activation() {
   const countryModes: Record<string, { mode: PayMode; redirectUrl: string }> = paymentInfo?.countryModes ?? {};
   const getCountryMode        = (c: string): PayMode  => { if (c === "CI") return ciMode; return countryModes[c]?.mode ?? "manual"; };
   const getCountryRedirectUrl = (c: string): string   => { if (c === "CI") return ciRedirectUrl; return countryModes[c]?.redirectUrl || ""; };
+  const visibleOperators = selectedCountry
+    ? (getCountryMode(selectedCountry.code) === "robotpay"
+      ? ROBOTPAY_OPERATORS[selectedCountry.code] || []
+      : selectedCountry.operators)
+    : [];
   const isManualCountry       = (c: string) => getCountryMode(c) === "manual";
   const isRedirectCountry     = (c: string) => getCountryMode(c) === "redirect";
 
@@ -807,7 +822,7 @@ export default function Activation() {
           </div>
 
           <div className="space-y-2.5">
-            {selectedCountry?.operators.map(op => {
+            {visibleOperators.map(op => {
               const info = OPERATORS[op];
               const inMaintenance = isOpMaintenance(country, op);
               return (
