@@ -604,7 +604,7 @@ export default function Activation() {
           </div>
           <div className="relative mt-8">
             <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-300/80">Activation du compte</p>
-            <h1 className="max-w-xs text-2xl font-black leading-tight text-white">Votre dossier est entre de bonnes mains.</h1>
+            <h1 className="max-w-xs text-2xl font-black leading-tight text-white">Vérification de votre demande d'activation</h1>
             <p className="mt-2 max-w-sm text-sm leading-6 text-slate-300">
               Votre demande a bien été reçue. Nous vérifions votre paiement avant de déverrouiller votre accès.
             </p>
@@ -707,9 +707,9 @@ export default function Activation() {
             <div className="flex items-start gap-2.5">
               <Info size={16} className="mt-0.5 flex-shrink-0 text-blue-500" />
               <div>
-                <p className="text-xs font-black text-slate-700">Vous n'avez rien d'autre à faire</p>
+                <p className="text-xs font-black text-slate-700">Consigne importante pendant la vérification</p>
                 <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Ne renvoyez pas une deuxième demande. Vous pouvez revenir sur cette page et actualiser votre statut à tout moment.
+                  N'annulez pas la transaction pendant la vérification. Vous pouvez revenir sur cette page et actualiser votre statut à tout moment.
                 </p>
               </div>
             </div>

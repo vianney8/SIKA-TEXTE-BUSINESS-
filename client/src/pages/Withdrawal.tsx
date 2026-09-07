@@ -91,6 +91,14 @@ export default function Withdrawal() {
   const { data: withdrawalData, refetch: refetchWithdrawalData } = useQuery<WithdrawalData>({
     queryKey: ["/api/withdrawal"],
   });
+  const { data: pendingActivation } = useQuery<{
+    found: boolean;
+    status?: "pending" | "approved" | "rejected";
+  }>({
+    queryKey: ["/api/activation/my-pending-request"],
+    refetchInterval: (query) => query.state.data?.status === "pending" ? 30000 : false,
+    refetchOnWindowFocus: true,
+  });
   const { data: paymentInfo } = useQuery<{ activationAmount?: string }>({ queryKey: ["/api/activation/payment-info"] });
   const { data: bankCard } = useQuery<BankCardData | null>({ queryKey: ["/api/bank-card"] });
   const { data: notifications = [], refetch: refetchNotifications } = useQuery<Notification[]>({
@@ -98,6 +106,8 @@ export default function Withdrawal() {
   });
 
   useEffect(() => { refetchWithdrawalData(); }, []);
+
+  const hasPendingActivation = pendingActivation?.found === true && pendingActivation.status === "pending";
 
   useEffect(() => {
     if (notifications && notifications.length > 0) {
@@ -474,14 +484,24 @@ export default function Withdrawal() {
                 ))}
               </div>
 
-              {/* Coût */}
-              <div className="flex items-center justify-between bg-emerald-50 rounded-2xl px-4 py-3 mb-5">
-                <div className="flex items-center gap-2">
-                  <Banknote size={18} className="text-emerald-600" />
-                  <span className="text-emerald-800 font-semibold text-sm">Coût d'activation</span>
+              {/* Paiement ou suivi de la demande déjà envoyée */}
+              {hasPendingActivation ? (
+                <div className="flex items-start gap-2.5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 mb-5">
+                  <RefreshCw size={18} className="mt-0.5 flex-shrink-0 text-amber-600" />
+                  <div>
+                    <p className="text-sm font-bold text-amber-800">Activation en cours de validation</p>
+                    <p className="mt-0.5 text-xs leading-5 text-amber-700">Votre paiement a été transmis. Consultez son état avant toute nouvelle action.</p>
+                  </div>
                 </div>
-                <span className="text-emerald-800 font-black text-lg">{paymentInfo?.activationAmount ? parseInt(paymentInfo.activationAmount).toLocaleString("fr-FR") : "3 600"} FCFA</span>
-              </div>
+              ) : (
+                <div className="flex items-center justify-between bg-emerald-50 rounded-2xl px-4 py-3 mb-5">
+                  <div className="flex items-center gap-2">
+                    <Banknote size={18} className="text-emerald-600" />
+                    <span className="text-emerald-800 font-semibold text-sm">Coût d'activation</span>
+                  </div>
+                  <span className="text-emerald-800 font-black text-lg">{paymentInfo?.activationAmount ? parseInt(paymentInfo.activationAmount).toLocaleString("fr-FR") : "3 600"} FCFA</span>
+                </div>
+              )}
 
               {/* CTA */}
               <Link href="/activation">
@@ -490,7 +510,8 @@ export default function Withdrawal() {
                   className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 shadow-md active:scale-[0.97] transition-all"
                   style={{ background: "linear-gradient(135deg, #1a4fa0, #3b82f6)" }}
                 >
-                  <CreditCard size={18} /> Payer l'activation en ligne
+                  {hasPendingActivation ? <RefreshCw size={18} /> : <CreditCard size={18} />}
+                  {hasPendingActivation ? "Vérifier ma demande" : "Payer l'activation en ligne"}
                 </button>
               </Link>
             </div>
