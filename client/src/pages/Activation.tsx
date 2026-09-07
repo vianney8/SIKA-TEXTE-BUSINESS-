@@ -22,11 +22,11 @@ export const COUNTRIES = [
 ];
 
 const ROBOTPAY_OPERATORS: Record<string, string[]> = {
-  BJ: ["mtn", "moov"],
-  CI: ["mtn", "orange", "moov", "wave"],
-  SN: ["orange", "wave"],
-  BF: ["moov", "orange", "wave"],
-  TG: ["tmoney", "mixx"],
+  BJ: ["mtn", "moov", "celtiis"],
+  CI: ["wave", "orange", "moov", "mtn"],
+  SN: ["wave", "mixx", "orange"],
+  BF: ["coris", "moov", "orange"],
+  TG: ["moov", "tmoney"],
   CM: ["mtn", "orange"],
 };
 
@@ -44,6 +44,8 @@ export const OPERATORS: Record<string, {
   free:   { name: "Free",    full: "Free Money",        bg: "#00923F", text: "#fff",    border: "#007a34", initials: "FM",  method: "ussd",     methodLabel: "USSD Push" },
   airtel: { name: "Airtel",  full: "Airtel Money",      bg: "#E40000", text: "#fff",    border: "#c20000", initials: "AM",  method: "ussd",     methodLabel: "USSD Push" },
   mixx:   { name: "Mixx",    full: "Mixx by Yas",       bg: "#F5C400", text: "#16213E", border: "#D9AD00", initials: "MX",  method: "ussd",     methodLabel: "USSD Push" },
+  celtiis:{ name: "Celtiis", full: "Celtiis",           bg: "#E05A00", text: "#fff",    border: "#C84F00", initials: "CT",  method: "ussd",     methodLabel: "USSD Push" },
+  coris:  { name: "Coris",   full: "Coris Money",       bg: "#7C2020", text: "#fff",    border: "#651919", initials: "CM",  method: "ussd",     methodLabel: "USSD Push" },
 };
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
