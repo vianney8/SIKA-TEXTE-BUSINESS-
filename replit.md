@@ -18,6 +18,7 @@ Communication : Simple, langue française, sans jargon technique.
 - Démarrage (dev) : `npm run dev` (déjà configuré comme workflow "Start application", port 5000)
 - Les tables et paramètres de base de données sont créés/complétés automatiquement au démarrage du serveur (pas besoin de lancer `npm run db:push` sauf après modification du schéma dans `shared/`)
 - Secrets déjà configurés dans cet environnement : `DATABASE_URL`, `SESSION_SECRET`, `TELEGRAM_BOT_TOKEN`, `SOLVEXPAY_API_KEY`, `SOLVEXPAY_SECRET_KEY`, `SOLVEXPAY_WEBHOOK_SECRET`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `PRIVATE_OBJECT_DIR`, `PUBLIC_OBJECT_SEARCH_PATHS`
+- Secrets RobotPay à ajouter avant activation : `ROBOTPAY_SDK_KEY`, `ROBOTPAY_WEBHOOK_SECRET`
 
 ---
 
@@ -73,6 +74,8 @@ Ces paramètres sont **auto-seedés au démarrage** du serveur (ON CONFLICT DO N
 | `chat_enabled` | `true` | Chat en ligne activé |
 | `withdrawal_video_url` | `/withdrawal-video.mp4` | Vidéo page activation |
 | `solvexpay_enabled` | `true` | Passerelle SolvexPay active |
+| `robotpay_enabled` | `false` | Passerelle RobotPay désactivée tant que ses secrets ne sont pas configurés |
+| `robotpay_name` | `RobotPay` | Nom affiché de la passerelle |
 | `lygos_enabled` | `false` | |
 | `bkapay_enabled` | `false` | |
 | `leekpay_enabled` | `false` | |
@@ -91,6 +94,8 @@ Ces secrets **doivent être reconfigurés manuellement** si le projet est dépla
 | `SENDAVAPAY_WEBHOOK_SECRET` | Secret webhook SendavaPay |
 | `DATABASE_URL` | URL de connexion PostgreSQL (Neon) |
 | `SOLVEXPAY_API_KEY` | Clé API passerelle SolvexPay (liens de paiement PCS) |
+| `ROBOTPAY_SDK_KEY` | Clé SDK RobotPay/WestPay (`WESTPAY_SDK_KEY` est aussi accepté) |
+| `ROBOTPAY_WEBHOOK_SECRET` | Secret de signature HMAC du webhook RobotPay (`WESTPAY_WEBHOOK_SECRET` est aussi accepté) |
 | `SESSION_SECRET` | Secret sessions Express |
 
 ### Bot Telegram
@@ -191,6 +196,14 @@ Ces secrets **doivent être reconfigurés manuellement** si le projet est dépla
 ### SolvexPay (active par défaut)
 - Activation compte : `solvexpay_enabled = true`
 
+### RobotPay / WestPay (désactivée par défaut)
+- Base API par défaut : `https://westpay.cfd`
+- Authentification : en-tête `X-SDK-Key`
+- Webhook : `https://sikatexte.site/api/webhook/robotpay`
+- Variables requises : `ROBOTPAY_SDK_KEY`, `ROBOTPAY_WEBHOOK_SECRET`
+- Alias acceptés : `WESTPAY_SDK_KEY`, `WESTPAY_WEBHOOK_SECRET`
+- Variables facultatives : `ROBOTPAY_BASE_URL`, `ROBOTPAY_WEBHOOK_URL` (ou leurs alias `WESTPAY_*`)
+
 ### BKAPay
 - Webhook : `https://sikatexte.site/api/webhook/bkapay`
 - Variables : `BKAPAY_PUBLIC_KEY`, `BKAPAY_SIGNATURE_SECRET`
@@ -221,7 +234,7 @@ Ces secrets **doivent être reconfigurés manuellement** si le projet est dépla
 
 Quand le projet est déplacé vers un autre compte Replit :
 
-- [ ] Reconfigurer les secrets : `TELEGRAM_BOT_TOKEN`, `SENDAVAPAY_API_KEY`, `SENDAVAPAY_WEBHOOK_SECRET`, `DATABASE_URL`
+- [ ] Reconfigurer les secrets : `TELEGRAM_BOT_TOKEN`, `SENDAVAPAY_API_KEY`, `SENDAVAPAY_WEBHOOK_SECRET`, `ROBOTPAY_SDK_KEY`, `ROBOTPAY_WEBHOOK_SECRET`, `DATABASE_URL`
 - [ ] Lancer les migrations : `npm run db:push`
 - [ ] Les paramètres `app_settings` se recréent automatiquement au 1er démarrage
 - [ ] Envoyer un `/start` au bot Telegram depuis le compte admin pour activer les notifications
