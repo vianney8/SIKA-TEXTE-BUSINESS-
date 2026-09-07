@@ -6,35 +6,35 @@
 @tailwind utilities;
 
 :root {
-  --background: hsl(210 33% 97%);
-  --foreground: hsl(215 38% 15%);
-  --card: hsl(0 0% 100%);
+  --background: hsl(193 32% 96%);
+  --foreground: hsl(198 42% 14%);
+  --card: hsl(36 40% 99%);
   --card-foreground: hsl(215 38% 15%);
   --popover: hsl(0 0% 100%);
   --popover-foreground: hsl(215 38% 15%);
-  --primary: hsl(174 73% 27%);
+  --primary: hsl(170 62% 29%);
   --primary-foreground: hsl(0 0% 100%);
   --secondary: hsl(39 82% 92%);
   --secondary-foreground: hsl(215 38% 15%);
   --muted: hsl(210 24% 93%);
   --muted-foreground: hsl(215 16% 45%);
-  --accent: hsl(37 92% 54%);
+  --accent: hsl(36 89% 54%);
   --accent-foreground: hsl(215 38% 15%);
   --destructive: hsl(4 72% 51%);
   --destructive-foreground: hsl(0 0% 100%);
   --border: hsl(214 32% 91%);
   --input: hsl(214 32% 91%);
-  --ring: hsl(174 73% 27%);
+  --ring: hsl(170 62% 29%);
   --chart-1: hsl(174 73% 27%);
   --chart-2: hsl(37 92% 54%);
   --chart-3: hsl(201 65% 42%);
   --chart-4: hsl(152 48% 39%);
   --chart-5: hsl(4 72% 51%);
-  --sidebar: hsl(216 31% 18%);
+  --sidebar: hsl(198 42% 14%);
   --sidebar-foreground: hsl(210 33% 97%);
   --sidebar-primary: hsl(37 92% 54%);
   --sidebar-primary-foreground: hsl(0 0% 100%);
-  --sidebar-accent: hsl(174 43% 27%);
+  --sidebar-accent: hsl(170 43% 27%);
   --sidebar-accent-foreground: hsl(37 92% 64%);
   --sidebar-border: hsl(215 24% 27%);
   --sidebar-ring: hsl(37 92% 54%);
@@ -81,6 +81,68 @@
   --font-serif: 'Manrope', sans-serif;
   --font-mono: 'DM Mono', monospace;
   --radius: 16px;
+}
+
+/* Payment journeys: a quiet bank-counter palette with a warm signal accent.
+   The layout intentionally avoids fixed action bars: mobile keyboards and
+   browser safe areas must never cover the form. */
+.payment-journey {
+  --payment-ink: #16333a;
+  --payment-muted: #60777b;
+  --payment-paper: #fffdf8;
+  --payment-wash: #edf5f3;
+  --payment-line: #d9e7e3;
+  --payment-teal: #176b62;
+  --payment-teal-deep: #0d4e4a;
+  --payment-signal: #d98a32;
+  min-height: 100dvh !important;
+  color: var(--payment-ink);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(217,138,50,.12), transparent 30rem),
+    linear-gradient(180deg, #f4f8f5 0%, var(--payment-wash) 100%);
+  font-family: var(--font-sans);
+}
+.payment-journey .payment-card {
+  background: color-mix(in srgb, var(--payment-paper) 94%, white);
+  border: 1px solid var(--payment-line);
+  box-shadow: 0 18px 45px rgba(22,51,58,.09);
+}
+.payment-journey .bg-white {
+  background-color: var(--payment-paper);
+}
+.payment-journey .border-slate-100,
+.payment-journey .border-slate-200 {
+  border-color: var(--payment-line);
+}
+.payment-journey .text-slate-900,
+.payment-journey .text-slate-800 { color: var(--payment-ink); }
+.payment-journey .text-slate-500,
+.payment-journey .text-slate-400 { color: var(--payment-muted); }
+.payment-journey .bg-slate-50 { background-color: #f4f8f5; }
+.payment-journey .payment-action {
+  min-height: 52px;
+  transition: transform .18s ease, box-shadow .18s ease, opacity .18s ease;
+}
+.payment-journey .payment-action:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 12px 24px rgba(23,107,98,.2); }
+.payment-journey .payment-action:not(:disabled):active { transform: translateY(1px); }
+.payment-journey .payment-content {
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+}
+.payment-action-dock {
+  width: 100%;
+  max-width: 32rem;
+  margin: 1rem auto 0;
+  padding-bottom: calc(.75rem + env(safe-area-inset-bottom));
+}
+.payment-journey input, .payment-journey button { font-family: inherit; }
+.payment-journey input { min-height: 50px; }
+.payment-journey .payment-eyebrow { color: var(--payment-teal); letter-spacing: .14em; }
+.payment-journey .payment-header {
+  background: linear-gradient(135deg, #123c43 0%, #176b62 68%, #2a8270 100%);
+}
+@media (max-width: 520px) {
+  .payment-journey .payment-card { border-radius: 22px; }
+  .payment-journey .payment-content { padding-left: 1rem; padding-right: 1rem; }
 }
 
 .gradient-bg {

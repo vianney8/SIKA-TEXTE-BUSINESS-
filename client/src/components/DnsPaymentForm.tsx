@@ -139,7 +139,7 @@ export default function DnsPaymentForm({
   // ── Étape 1 : Pays ──────────────────────────────────────────────────────
   if (step === "country") {
     return (
-      <div className="space-y-3">
+      <div className="payment-journey payment-content space-y-3">
         <HeaderBar onBack={onCancel} />
         <p className="text-slate-600 text-xs font-bold uppercase tracking-widest mb-1">Choisissez votre pays</p>
         <div className="space-y-2.5">
@@ -162,7 +162,7 @@ export default function DnsPaymentForm({
   // ── Étape 2 : Opérateur ─────────────────────────────────────────────────
   if (step === "operator") {
     return (
-      <div className="space-y-3">
+      <div className="payment-journey payment-content space-y-3">
         <HeaderBar onBack={() => setStep("country")} />
         <p className="text-slate-600 text-xs font-bold uppercase tracking-widest mb-1">
           Choisissez votre opérateur — {selectedCountry?.flag} {selectedCountry?.name}
@@ -195,7 +195,7 @@ export default function DnsPaymentForm({
   if (step === "phone") {
     const canContinue = phone.replace(/\s/g, "").length >= 6;
     return (
-      <div className="space-y-4">
+      <div className="payment-journey payment-content space-y-4">
         <HeaderBar onBack={() => setStep("operator")} />
         <p className="text-slate-600 text-xs font-bold uppercase tracking-widest mb-1">
           Numéro {selectedOp?.name} utilisé pour le paiement
@@ -227,7 +227,7 @@ export default function DnsPaymentForm({
   const fullPhone = `+${selectedCountry?.prefix}${phone.replace(/\s/g, "")}`;
 
   return (
-    <div className="space-y-4 pb-4">
+    <div className="payment-journey payment-content space-y-4 pb-4">
       <HeaderBar onBack={() => setStep("phone")} />
 
       {depositLoading ? (

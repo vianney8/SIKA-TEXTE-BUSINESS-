@@ -4,26 +4,12 @@ import {
   CheckCircle, ChevronLeft, ChevronRight, Clock, Copy, ExternalLink, Globe, ImageIcon,
   Info, Loader2, Phone, ShieldCheck, Upload, Wrench, XCircle, AlertCircle, AlertTriangle
 } from "lucide-react";
+import { PAYMENT_COUNTRIES, PAYMENT_OPERATORS } from "@/lib/paymentCatalog";
 
 // ─── Config pays & opérateurs ────────────────────────────────────────────────
-const COUNTRIES = [
-  { code: "BJ",  name: "Bénin",         flag: "🇧🇯", prefix: "229", phonePlaceholder: "01 23 45 67 89", operators: ["mtn","moov"] },
-  { code: "CI",  name: "Côte d'Ivoire", flag: "🇨🇮", prefix: "225", phonePlaceholder: "05 12 34 56 78", operators: ["mtn","moov","orange","wave"] },
-  { code: "SN",  name: "Sénégal",       flag: "🇸🇳", prefix: "221", phonePlaceholder: "01 23 45 67",    operators: ["orange","wave","free"] },
-  { code: "BF",  name: "Burkina Faso",  flag: "🇧🇫", prefix: "226", phonePlaceholder: "01 23 45 67",    operators: ["moov","orange","wave"] },
-  { code: "TG",  name: "Togo",          flag: "🇹🇬", prefix: "228", phonePlaceholder: "01 23 45 67",    operators: ["moov","tmoney"] },
-  { code: "CM",  name: "Cameroun",      flag: "🇨🇲", prefix: "237", phonePlaceholder: "6 12 34 56 78",  operators: ["mtn","orange"] },
-];
+const COUNTRIES = PAYMENT_COUNTRIES;
 
-const OPERATORS: Record<string, { name: string; full: string; bg: string; text: string; border: string; initials: string }> = {
-  mtn:    { name: "MTN",     full: "MTN Mobile Money",  bg: "#FFCC00", text: "#1a1a1a", border: "#e6b800", initials: "MTN" },
-  moov:   { name: "Moov",    full: "Moov Money",        bg: "#005BAA", text: "#fff",    border: "#004d99", initials: "MV"  },
-  orange: { name: "Orange",  full: "Orange Money",      bg: "#FF6600", text: "#fff",    border: "#e55c00", initials: "OM"  },
-  wave:   { name: "Wave",    full: "Wave",              bg: "#1B6FEE", text: "#fff",    border: "#1560d4", initials: "W"   },
-  tmoney: { name: "T-Money", full: "T-Money",           bg: "#C8102E", text: "#fff",    border: "#a50d25", initials: "TM"  },
-  free:   { name: "Free",    full: "Free Money",        bg: "#00923F", text: "#fff",    border: "#007a34", initials: "FM"  },
-  airtel: { name: "Airtel",  full: "Airtel Money",      bg: "#E40000", text: "#fff",    border: "#c20000", initials: "AM"  },
-};
+const OPERATORS = PAYMENT_OPERATORS;
 
 // ─── Design tokens ─────────────────────────────────────────────────────────
 const PG    = "#EFF2F7";
@@ -393,7 +379,7 @@ export default function PaymentLinkPage() {
 
   // ── Chargement ────────────────────────────────────────────────────────────
   if (!link && !loadError) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: PG }}>
+    <div className="payment-journey min-h-screen flex items-center justify-center" style={{ background: PG }}>
       <div className="text-center space-y-4">
         <div className="relative w-16 h-16 mx-auto">
           <div className="absolute inset-0 rounded-full animate-ping" style={{ background: `${EM1}25`, animationDuration: "1.8s" }} />
@@ -409,9 +395,9 @@ export default function PaymentLinkPage() {
 
   // ── Erreur ────────────────────────────────────────────────────────────────
   if (loadError) return (
-    <div className="min-h-screen flex items-center justify-center px-5" style={{ background: PG }}>
+    <div className="payment-journey min-h-screen flex items-center justify-center px-5" style={{ background: PG }}>
       <div className="bg-white rounded-3xl shadow-xl p-8 text-center max-w-sm w-full">
-        <div className="text-5xl mb-4">🔗</div>
+        <div className="w-14 h-14 mb-4 mx-auto rounded-2xl bg-amber-50 flex items-center justify-center"><Globe size={26} className="text-amber-600" /></div>
         <h2 className="font-bold text-slate-900 text-lg mb-2">Lien introuvable</h2>
         <p className="text-slate-500 text-sm">{loadError}</p>
       </div>
@@ -420,7 +406,7 @@ export default function PaymentLinkPage() {
 
   // ── Succès (USSD) ─────────────────────────────────────────────────────────
   if (step === "success") return (
-    <div className="min-h-screen flex items-center justify-center px-5" style={{ background: PG }}>
+    <div className="payment-journey min-h-screen flex items-center justify-center px-5" style={{ background: PG }}>
       <div className="bg-white rounded-3xl shadow-xl p-8 text-center max-w-sm w-full">
         <div className="relative w-24 h-24 mx-auto mb-6">
           <div className="absolute inset-0 rounded-full animate-ping" style={{ background: `${EM1}20`, animationDuration: "2s" }} />
@@ -444,7 +430,7 @@ export default function PaymentLinkPage() {
 
   // ── Échoué ────────────────────────────────────────────────────────────────
   if (step === "failed") return (
-    <div className="min-h-screen flex items-center justify-center px-5" style={{ background: PG }}>
+    <div className="payment-journey min-h-screen flex items-center justify-center px-5" style={{ background: PG }}>
       <div className="bg-white rounded-3xl shadow-xl p-8 text-center max-w-sm w-full">
         <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-red-50 flex items-center justify-center">
           <XCircle size={48} className="text-red-500" />
@@ -462,7 +448,7 @@ export default function PaymentLinkPage() {
 
   // ── En attente USSD ───────────────────────────────────────────────────────
   if (step === "pending") return (
-    <div className="min-h-screen flex items-center justify-center px-5" style={{ background: PG }}>
+    <div className="payment-journey min-h-screen flex items-center justify-center px-5" style={{ background: PG }}>
       <style>{`@keyframes bounceDot{0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1}}`}</style>
       <div className="bg-white rounded-3xl shadow-xl p-8 text-center max-w-sm w-full space-y-5">
         <div className="relative w-20 h-20 mx-auto">
@@ -495,10 +481,10 @@ export default function PaymentLinkPage() {
 
   // ── Redirigé ──────────────────────────────────────────────────────────────
   if (step === "redirected") return (
-    <div className="min-h-screen flex items-center justify-center px-5" style={{ background: PG }}>
+    <div className="payment-journey min-h-screen flex items-center justify-center px-5" style={{ background: PG }}>
       <div className="bg-white rounded-3xl shadow-xl p-8 text-center max-w-sm w-full space-y-5">
         <div className="w-24 h-24 mx-auto rounded-full bg-orange-50 flex items-center justify-center">
-          <span className="text-5xl">{selectedCountry?.flag || "🌍"}</span>
+          <span className="text-5xl">{selectedCountry?.flag || <Globe size={42} className="text-orange-500" />}</span>
         </div>
         <div>
           <h2 className="font-black text-slate-900 text-2xl mb-2">Redirection effectuée</h2>
@@ -520,7 +506,7 @@ export default function PaymentLinkPage() {
   // ── Demande soumise (manuel) ───────────────────────────────────────────────
   if (step === "submitted") {
     return (
-      <div className="min-h-screen pb-8" style={{ background: PG }}>
+      <div className="payment-journey min-h-screen pb-8" style={{ background: PG }}>
         <style>{`@keyframes bounceDot{0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1}}`}</style>
         <div className="px-5 pt-6 pb-4 flex items-center justify-between" style={{ background: HDR }}>
           <div className="flex items-center gap-2.5">
@@ -564,9 +550,9 @@ export default function PaymentLinkPage() {
               <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Avancement du dossier</p>
             </div>
             {[
-              { emoji: "✅", label: "Demande envoyée avec succès",  state: "done"    },
-              { emoji: "🔍", label: "Vérification du paiement",     state: "active"  },
-              { emoji: "🔑", label: "Génération du code PCS",       state: "waiting" },
+              { icon: CheckCircle, label: "Demande envoyée avec succès",  state: "done"    },
+              { icon: Info, label: "Vérification du paiement",     state: "active"  },
+              { icon: ShieldCheck, label: "Génération du code PCS",       state: "waiting" },
             ].map((row, i) => (
               <div key={i} className="px-4 py-3 flex items-center gap-3 border-b border-slate-50 last:border-0">
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-base"
@@ -574,7 +560,7 @@ export default function PaymentLinkPage() {
                     background: row.state === "done" ? "#D1FAE5" : row.state === "active" ? "#DBEAFE" : "#F1F5F9",
                     border: `1px solid ${row.state === "done" ? "#6EE7B7" : row.state === "active" ? "#BFDBFE" : "#E2E8F0"}`
                   }}>
-                  {row.emoji}
+                  <row.icon size={16} className={row.state === "done" ? "text-emerald-600" : row.state === "active" ? "text-blue-600" : "text-slate-400"} />
                 </div>
                 <p className={`flex-1 text-sm font-bold ${row.state === "done" ? "text-emerald-700" : row.state === "active" ? "text-blue-700" : "text-slate-300"}`}>
                   {row.label}
@@ -619,7 +605,7 @@ export default function PaymentLinkPage() {
     const fullPhone     = `+${selectedCountry?.prefix}${phone.replace(/\s/g,"")}`;
 
     return (
-      <div className="min-h-screen pb-52" style={{ background: PG }}>
+      <div className="payment-journey min-h-screen pb-10" style={{ background: PG }}>
         <style>{`@keyframes bounceDot{0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1}}`}</style>
         <div className="px-5 pt-6 pb-3 flex items-center justify-between" style={{ background: HDR }}>
           <button onClick={() => setStep("phone")}
@@ -776,7 +762,7 @@ export default function PaymentLinkPage() {
 
               {error && (
                 <div className="rounded-2xl px-4 py-3 text-sm flex items-start gap-2 bg-red-50 border border-red-100">
-                  <span className="flex-shrink-0 text-red-500">⚠️</span>
+            <AlertTriangle size={15} className="flex-shrink-0 text-red-500" />
                   <span className="text-red-600">{error}</span>
                 </div>
               )}
@@ -790,7 +776,7 @@ export default function PaymentLinkPage() {
           </div>
         )}
 
-        <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto">
+        <div className="payment-action-dock">
           <div className="bg-white border-t border-slate-100 shadow-2xl px-4 pt-3 pb-1">
             <div className="rounded-xl px-3 py-2 flex gap-2 bg-red-50 border border-red-100">
               <AlertCircle size={11} className="text-red-400 flex-shrink-0 mt-0.5" />
@@ -824,7 +810,7 @@ export default function PaymentLinkPage() {
   // ─────────────────────────────────────────────────────────────────────────────
   if (step === "country") {
     return (
-      <div className="min-h-screen pb-10" style={{ background: PG }}>
+      <div className="payment-journey min-h-screen pb-10" style={{ background: PG }}>
         <PageHeader showProgress formStep="country" />
         <div className="px-4 pt-5 pb-10 space-y-4 max-w-md mx-auto">
           <div className="text-center pb-1">
@@ -868,7 +854,7 @@ export default function PaymentLinkPage() {
   if (step === "operator") {
     const modeForCountry = getMode(country);
     return (
-      <div className="min-h-screen pb-10" style={{ background: PG }}>
+      <div className="payment-journey min-h-screen pb-10" style={{ background: PG }}>
         <PageHeader onBack={() => setStep("country")} showProgress formStep="operator" />
         <div className="px-4 pt-5 pb-10 space-y-4 max-w-md mx-auto">
 
@@ -942,7 +928,7 @@ export default function PaymentLinkPage() {
   const canContinue = phoneValid && nameValid && emailValid && !isOpMaintenance(country, operator);
 
   return (
-    <div className="min-h-screen pb-52" style={{ background: PG }}>
+    <div className="payment-journey min-h-screen pb-10" style={{ background: PG }}>
       <style>{`@keyframes bounceDot{0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1}}`}</style>
       <PageHeader onBack={() => setStep("operator")} showProgress formStep="phone" />
 
@@ -1027,7 +1013,7 @@ export default function PaymentLinkPage() {
                 className="w-full bg-slate-50 border-2 border-slate-100 focus:border-blue-400 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none transition-colors" />
             )}
             {link?.isPcs && (
-              <p className="text-slate-300 text-[10px] mt-1.5">⚠️ Seuls les comptes Sika Texte sont acceptés.</p>
+              <p className="text-slate-300 text-[10px] mt-1.5 flex items-center gap-1"><AlertTriangle size={11} /> Seuls les comptes Sika Texte sont acceptés.</p>
             )}
           </div>
         </div>
@@ -1057,13 +1043,13 @@ export default function PaymentLinkPage() {
 
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-red-600 text-sm flex items-start gap-2">
-            <span className="flex-shrink-0 mt-0.5">⚠️</span><span>{error}</span>
+            <AlertTriangle size={15} className="flex-shrink-0 mt-0.5" /><span>{error}</span>
           </div>
         )}
       </div>
 
       {/* CTA fixe */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto">
+      <div className="payment-action-dock">
         <div className="bg-white border-t border-slate-100 shadow-2xl px-4 pt-3 pb-1 space-y-1.5">
           <div className="rounded-xl px-3 py-2 flex gap-2 bg-red-50 border border-red-100">
             <AlertCircle size={11} className="text-red-400 flex-shrink-0 mt-0.5" />

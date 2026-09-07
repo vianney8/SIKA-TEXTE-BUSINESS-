@@ -10,31 +10,24 @@ import {
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import sikaLogo from "@assets/1764438802465_1773510898637.jpg";
+import { PAYMENT_COUNTRIES, PAYMENT_OPERATORS } from "@/lib/paymentCatalog";
 
 // ─── Config pays & opérateurs ────────────────────────────────────────────────
-export const COUNTRIES = [
-  { code: "BJ",  name: "Bénin",         flag: "🇧🇯", prefix: "229", operators: ["mtn","moov"] },
-  { code: "CI",  name: "Côte d'Ivoire", flag: "🇨🇮", prefix: "225", operators: ["mtn","moov","orange","wave"] },
-  { code: "SN",  name: "Sénégal",       flag: "🇸🇳", prefix: "221", operators: ["orange","wave","free"] },
-  { code: "BF",  name: "Burkina Faso",  flag: "🇧🇫", prefix: "226", operators: ["moov","orange","wave"] },
-  { code: "TG",  name: "Togo",          flag: "🇹🇬", prefix: "228", operators: ["moov","tmoney"] },
-  { code: "CM",  name: "Cameroun",      flag: "🇨🇲", prefix: "237", operators: ["mtn","orange"] },
-];
+export const COUNTRIES = PAYMENT_COUNTRIES;
 
 type MethodType = "ussd" | "redirect";
 
 export const OPERATORS: Record<string, {
   name: string; full: string; bg: string; text: string; border: string; initials: string;
   method: MethodType; methodLabel: string;
-}> = {
-  mtn:    { name: "MTN",     full: "MTN Mobile Money",  bg: "#FFCC00", text: "#1a1a1a", border: "#e6b800", initials: "MTN", method: "ussd",     methodLabel: "USSD Push" },
-  moov:   { name: "Moov",    full: "Moov Money",        bg: "#005BAA", text: "#fff",    border: "#004d99", initials: "MV",  method: "ussd",     methodLabel: "USSD Push" },
-  orange: { name: "Orange",  full: "Orange Money",      bg: "#FF6600", text: "#fff",    border: "#e55c00", initials: "OM",  method: "ussd",     methodLabel: "USSD Push" },
-  wave:   { name: "Wave",    full: "Wave",              bg: "#1B6FEE", text: "#fff",    border: "#1560d4", initials: "W",   method: "redirect", methodLabel: "Redirection" },
-  tmoney: { name: "T-Money", full: "T-Money",           bg: "#C8102E", text: "#fff",    border: "#a50d25", initials: "TM",  method: "ussd",     methodLabel: "USSD Push" },
-  free:   { name: "Free",    full: "Free Money",        bg: "#00923F", text: "#fff",    border: "#007a34", initials: "FM",  method: "ussd",     methodLabel: "USSD Push" },
-  airtel: { name: "Airtel",  full: "Airtel Money",      bg: "#E40000", text: "#fff",    border: "#c20000", initials: "AM",  method: "ussd",     methodLabel: "USSD Push" },
-};
+}> = Object.fromEntries(Object.entries(PAYMENT_OPERATORS).map(([code, operator]) => [
+  code,
+  {
+    ...operator,
+    method: ["wave", "mpesa", "safaricom", "opay", "palmpay", "easypaisa", "jazzcash", "nayapay", "sadapay", "gcash", "maya", "upi", "phonepe", "gpay"].includes(code) ? "redirect" : "ussd",
+    methodLabel: ["wave", "mpesa", "safaricom", "opay", "palmpay", "easypaisa", "jazzcash", "nayapay", "sadapay", "gcash", "maya", "upi", "phonepe", "gpay"].includes(code) ? "Redirection" : "USSD Push",
+  },
+]));
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const PG  = "#EFF2F7";
@@ -70,7 +63,7 @@ function OperatorBadge({ code, size = "md" }: { code: string; size?: "sm" | "md"
 function MethodPill({ method }: { method: MethodType }) {
   return (
     <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700">
-      {method === "ussd" ? "📱" : "↗️"} {method === "ussd" ? "USSD Push" : "Redirection"}
+      {method === "ussd" ? <Phone size={11} /> : <ExternalLink size={11} />} {method === "ussd" ? "USSD Push" : "Redirection"}
     </span>
   );
 }
@@ -179,10 +172,7 @@ export default function Activation() {
     ? parseInt(paymentInfo.activationAmount).toLocaleString("fr-FR")
     : "3 600";
 
-  const phonePlaceholder = country === "BJ" ? "01 23 45 67 89"
-    : country === "CM" ? "6 12 34 56 78"
-    : country === "CI" ? "05 12 34 56 78"
-    : "01 23 45 67";
+  const phonePlaceholder = selectedCountry?.phonePlaceholder || "Numéro Mobile Money";
 
   const ciMode: "redirect" | "manual" | "solvexpay" | "robotpay" = paymentInfo?.ciMode ?? "redirect";
   const ciRedirectUrl = paymentInfo?.ciRedirectUrl || "https://clp.ci/ETPXwo";
@@ -432,7 +422,7 @@ export default function Activation() {
   // ── Chargement ────────────────────────────────────────────────────────────
   if (initializing || activationStatus === undefined) {
     return (
-      <div className="sika-page flex items-center justify-center">
+      <div className="payment-journey sika-page flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="relative w-16 h-16 mx-auto">
             <div className="absolute inset-0 rounded-full animate-ping" style={{ background: `${EM1}25`, animationDuration: "1.8s" }} />
@@ -453,7 +443,7 @@ export default function Activation() {
   // ── Compte déjà activé ────────────────────────────────────────────────────
   if (activationStatus?.isActive) {
     return (
-      <div className="sika-page flex items-center justify-center p-5">
+      <div className="payment-journey sika-page flex items-center justify-center p-5">
         <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden">
           <div className="px-5 py-4 flex items-center gap-3" style={{ background: HDR }}>
             <img src={sikaLogo} alt="Sika" className="w-10 h-10 rounded-2xl object-cover" />
@@ -484,7 +474,7 @@ export default function Activation() {
   if (transactionId && txStatus) {
     const op = selectedOp;
     return (
-      <div className="sika-page flex items-center justify-center p-4">
+      <div className="payment-journey sika-page flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden">
           <div className="px-5 py-4 flex items-center justify-between" style={{ background: HDR }}>
             <div className="flex items-center gap-2.5">
@@ -511,9 +501,9 @@ export default function Activation() {
                 </div>
                 <div className="rounded-2xl p-4 space-y-2 text-sm bg-emerald-50 border border-emerald-100">
                   <p className="font-bold text-slate-700 mb-1">Que faire maintenant ?</p>
-                  <div className="flex gap-2 text-slate-600"><span>📱</span><span>Une notification USSD a été envoyée</span></div>
-                  <div className="flex gap-2 text-slate-600"><span>✅</span><span>Confirmez le paiement sur votre téléphone</span></div>
-                  <div className="flex gap-2 text-slate-600"><span>🔄</span><span>Vérification automatique toutes les 5 s</span></div>
+                  <div className="flex gap-2 text-slate-600"><Phone size={15} className="text-emerald-600 flex-shrink-0" /><span>Une notification USSD a été envoyée</span></div>
+                  <div className="flex gap-2 text-slate-600"><CheckCircle size={15} className="text-emerald-600 flex-shrink-0" /><span>Confirmez le paiement sur votre téléphone</span></div>
+                  <div className="flex gap-2 text-slate-600"><RefreshCw size={15} className="text-emerald-600 flex-shrink-0" /><span>Vérification automatique toutes les 5 s</span></div>
                   <p className="text-xs text-slate-400 pt-1 text-right">Tentative #{checkCount + 1}…</p>
                 </div>
                 <div className="flex items-center justify-center gap-2 text-xs text-slate-400">
@@ -562,7 +552,7 @@ export default function Activation() {
   // ── DEMANDE REJETÉE ───────────────────────────────────────────────────────
   if (rejectionNote !== null) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-5" style={{ background: PG }}>
+      <div className="payment-journey min-h-screen flex flex-col items-center justify-center px-5" style={{ background: PG }}>
         <div className="w-full max-w-sm flex flex-col items-center text-center gap-5">
           <div className="w-20 h-20 rounded-full flex items-center justify-center bg-red-50 shadow-md">
             <XCircle size={38} className="text-red-500" />
@@ -597,7 +587,7 @@ export default function Activation() {
     const reviewExpired = reviewTimeLeft !== null && reviewTimeLeft <= 0;
 
     return (
-      <div className="min-h-screen pb-8" style={{ background: PG }}>
+      <div className="payment-journey min-h-screen pb-8" style={{ background: PG }}>
         <style>{`@keyframes reviewPulse{0%,100%{transform:scale(1);opacity:.8}50%{transform:scale(1.12);opacity:1}}`}</style>
         <header className="relative overflow-hidden px-5 pb-7 pt-6" style={{ background: HDR }}>
           <div className="absolute -right-14 -top-20 h-48 w-48 rounded-full bg-emerald-400/10 blur-2xl" />
@@ -753,7 +743,7 @@ export default function Activation() {
   // ─────────────────────────────────────────────────────────────────────────────
   if (step === "country") {
     return (
-      <div className="min-h-screen pb-10" style={{ background: PG }}>
+      <div className="payment-journey min-h-screen pb-10" style={{ background: PG }}>
         <PageHeader showBack={true} />
         <div className="px-4 pt-5 pb-10 space-y-4 max-w-md mx-auto">
 
@@ -797,7 +787,7 @@ export default function Activation() {
   // ─────────────────────────────────────────────────────────────────────────────
   if (step === "operator") {
     return (
-      <div className="min-h-screen pb-10" style={{ background: PG }}>
+      <div className="payment-journey min-h-screen pb-10" style={{ background: PG }}>
         <PageHeader onBack={() => setStep("country")} />
         <div className="px-4 pt-5 pb-10 space-y-4 max-w-md mx-auto">
 
@@ -870,7 +860,7 @@ export default function Activation() {
   if (step === "phone") {
     const canContinue = phone.replace(/\D/g, "").length >= 6 && !isOpMaintenance(country, operator);
     return (
-      <div className="min-h-screen pb-52" style={{ background: PG }}>
+      <div className="payment-journey min-h-screen pb-10" style={{ background: PG }}>
         <PageHeader onBack={() => setStep("operator")} />
         <div className="px-4 pt-5 space-y-4 max-w-md mx-auto">
 
@@ -937,7 +927,7 @@ export default function Activation() {
         </div>
 
         {/* Bouton fixe */}
-        <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto">
+        <div className="payment-action-dock">
           <div className="bg-white border-t border-slate-100 shadow-2xl px-4 pt-3 pb-1 space-y-1.5">
             <div className="rounded-xl px-3 py-2 flex gap-2 bg-red-50 border border-red-100">
               <AlertCircle size={11} className="text-red-400 flex-shrink-0 mt-0.5" />
@@ -977,7 +967,7 @@ export default function Activation() {
     const fullPhone = `+${selectedCountry?.prefix}${phone.replace(/\s/g, "")}`;
 
     return (
-      <div className="min-h-screen pb-52" style={{ background: PG }}>
+      <div className="payment-journey min-h-screen pb-10" style={{ background: PG }}>
         <div className="px-5 pt-6 pb-3 flex items-center justify-between" style={{ background: HDR }}>
           <button onClick={() => setStep("phone")}
             className="w-9 h-9 rounded-xl flex items-center justify-center"
@@ -1130,7 +1120,7 @@ export default function Activation() {
           </div>
         )}
 
-        <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto">
+        <div className="payment-action-dock">
           <div className="bg-white border-t border-slate-100 shadow-2xl px-4 pt-3 pb-1">
             <div className="rounded-xl px-3 py-2 flex gap-2 bg-red-50 border border-red-100">
               <AlertCircle size={11} className="text-red-400 flex-shrink-0 mt-0.5" />
@@ -1167,7 +1157,7 @@ export default function Activation() {
   const phoneDisplay = `+${selectedCountry?.prefix} ${phone}`;
 
   return (
-    <div className="min-h-screen pb-60" style={{ background: PG }}>
+    <div className="payment-journey min-h-screen pb-10" style={{ background: PG }}>
       <div style={{ background: HDR }} className="px-5 pt-6 pb-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5">
@@ -1259,7 +1249,7 @@ export default function Activation() {
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 shadow-2xl max-w-md mx-auto">
+      <div className="payment-action-dock">
         <div className="px-4 pt-3 pb-1 space-y-1.5">
           <div className="rounded-xl px-3 py-2 flex gap-2 bg-red-50 border border-red-100">
             <AlertCircle size={12} className="text-red-400 flex-shrink-0 mt-0.5" />

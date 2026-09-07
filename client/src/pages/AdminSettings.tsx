@@ -8,6 +8,7 @@ import { Settings, Save, Wrench, CheckCircle, Video, Upload, Play, ShieldAlert, 
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import AdminNav from "@/components/admin/AdminNav";
+import { PAYMENT_COUNTRIES } from "@/lib/paymentCatalog";
 
 interface AppSetting {
   id: string;
@@ -599,14 +600,16 @@ export default function AdminSettings() {
             </div>
 
             {/* Configuration par pays */}
-            {[
-              { code: 'BJ',  flag: '🇧🇯', name: 'Bénin',             key: 'bj',  operators: ['mtn','moov'] },
-              { code: 'SN',  flag: '🇸🇳', name: 'Sénégal',           key: 'sn',  operators: ['orange','wave','free'] },
-              { code: 'BF',  flag: '🇧🇫', name: 'Burkina Faso',      key: 'bf',  operators: ['moov','orange','wave'] },
-              { code: 'TG',  flag: '🇹🇬', name: 'Togo',              key: 'tg',  operators: ['moov','tmoney'] },
-              { code: 'CM',  flag: '🇨🇲', name: 'Cameroun',          key: 'cm',  operators: ['mtn','orange'] },
-            ].map(({ code, flag, name, key, operators }) => {
-              const opNames: Record<string,string> = { mtn:'MTN', moov:'Moov', orange:'Orange', wave:'Wave', tmoney:'T-Money', free:'Free', airtel:'Airtel' };
+            {PAYMENT_COUNTRIES.filter(country => country.code !== 'CI').map(({ code, flag, name, operators }) => {
+              const key = code.toLowerCase();
+              const opNames: Record<string,string> = {
+                mtn:'MTN', moov:'Moov', orange:'Orange', wave:'Wave', tmoney:'TMoney',
+                mixx:'Mixx by Yas', airtel:'Airtel', mpesa:'M-Pesa', zamani:'Zamani',
+                amana:'Amana', mynita:'Mynita', safaricom:'Safaricom', airteltigo:'AirtelTigo',
+                vodafone:'Vodafone Cash', opay:'OPay', palmpay:'PalmPay', easypaisa:'EasyPaisa',
+                jazzcash:'JazzCash', nayapay:'NayaPay', sadapay:'SadaPay', gcash:'GCash',
+                maya:'Maya', upi:'UPI / IMPS', phonepe:'PhonePe', gpay:'Google Pay'
+              };
               const currentMode: string = settings[`${key}_activation_mode`] || 'manual';
               return (
                 <div key={code} className="space-y-4 p-4 border-2 rounded-xl border-blue-200 bg-blue-50">
@@ -813,14 +816,14 @@ export default function AdminSettings() {
               </div>
               <div>
                 <Label htmlFor="robotpay_merchant_slug" className="text-sm">Slug marchand WestPay</Label>
-                <Input id="robotpay_merchant_slug" value={settings.robotpay_merchant_slug || ''} onChange={(e) => handleInputChange('robotpay_merchant_slug', e.target.value)} placeholder="votre-slug" className="mt-1" />
+                <Input id="robotpay_merchant_slug" value={settings.robotpay_merchant_slug || 'Sikatexte'} onChange={(e) => handleInputChange('robotpay_merchant_slug', e.target.value)} placeholder="Sikatexte" className="mt-1" />
               </div>
               <div>
                 <Label htmlFor="robotpay_checkout_url" className="text-sm">URL checkout WestPay</Label>
                 <Input id="robotpay_checkout_url" value={settings.robotpay_checkout_url || 'https://checkout1.westpay.cfd/pay'} onChange={(e) => handleInputChange('robotpay_checkout_url', e.target.value)} placeholder="https://checkout1.westpay.cfd/pay" className="mt-1" />
               </div>
               <p className="text-xs text-emerald-800 bg-emerald-100 rounded-lg px-3 py-2">
-                WestPay utilise un checkout hébergé. Le slug est configuré ici et le secret webhook reste protégé dans les secrets Replit.
+                Les dépôts utilisent le checkout hébergé avec le slug <strong>Sikatexte</strong>. Les clés API par pays sont réservées aux retraits et restent protégées dans les secrets Replit.
               </p>
               <p className="text-xs text-muted-foreground">
                 URL Webhook à configurer dans RobotPay : <span className="font-mono">https://sikatexte.site/api/webhook/robotpay</span>

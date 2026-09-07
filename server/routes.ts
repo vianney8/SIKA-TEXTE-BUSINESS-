@@ -79,8 +79,17 @@ function verifyRobotPaySignature(body: unknown, signature: string, secret: strin
 }
 
 const WESTPAY_COUNTRIES: Record<string, string> = {
-  BJ: 'Benin', CI: "Côte d'Ivoire", SN: 'Senegal', TG: 'Togo', CM: 'Cameroon', BF: 'Burkina Faso',
+  TG: 'Togo', BJ: 'Benin', BF: 'Burkina Faso', CI: "Cote d'Ivoire", SN: 'Senegal',
+  ML: 'Mali', CM: 'Cameroun', CG: 'Congo Brazzaville', CD: 'Congo RDC',
+  GA: 'Gabon', GN: 'Guinée', NE: 'Niger', KE: 'Kenya', GH: 'Ghana',
+  NG: 'Nigeria', PK: 'Pakistan', PH: 'Philippines', IN: 'India',
 };
+const WESTPAY_PREFIXES: Record<string, string> = {
+  TG: '228', BJ: '229', BF: '226', CI: '225', SN: '221', ML: '223',
+  CM: '237', CG: '242', CD: '243', GA: '241', GN: '224', NE: '227',
+  KE: '254', GH: '233', NG: '234', PK: '92', PH: '63', IN: '91',
+};
+const WESTPAY_COUNTRY_CODES = Object.keys(WESTPAY_COUNTRIES);
 const WESTPAY_CHECKOUT_DEFAULT = 'https://checkout1.westpay.cfd/pay';
 function normalizedPhone(value: unknown) { return String(value || '').replace(/\D/g, ''); }
 function normalizedCountry(value: unknown) {
@@ -96,7 +105,8 @@ function configuredWestPay(settings: any[]) {
   return { merchantSlug, checkoutUrl };
 }
 function westPayUrl(checkoutUrl: string, merchantSlug: string, amount: string | number, country: string, redirect: string) {
-  const url = new URL(checkoutUrl);
+  const url = new URL(checkoutUrl || WESTPAY_CHECKOUT_DEFAULT);
+  if (url.hostname === 'checkout1.westpay.cfd' && url.pathname === '/') url.pathname = '/pay';
   url.searchParams.set('merchant', merchantSlug);
   url.searchParams.set('amount', String(amount));
   url.searchParams.set('country', WESTPAY_COUNTRIES[country] || country);
@@ -1176,10 +1186,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!user) return res.status(404).json({ message: 'Utilisateur introuvable' });
 
       const country = String(bodyCountry).toUpperCase();
-      const countryPrefixes: Record<string, string> = {
-        BJ: '229', CI: '225', SN: '221', TG: '228', CM: '237', BF: '226',
-      };
-      const prefix = countryPrefixes[country];
+      const prefix = WESTPAY_PREFIXES[country];
       if (!prefix) return res.status(400).json({ message: 'Pays non pris en charge' });
 
       const settings = await storage.getAppSettings();
@@ -7486,7 +7493,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Modes pour tous les autres pays
       type PayMode = 'manual' | 'redirect' | 'solvexpay' | 'robotpay';
-      const otherCountries = ['bj','sn','bf','tg','cm'];
+      const otherCountries = WESTPAY_COUNTRY_CODES.filter(code => code !== 'CI').map(code => code.toLowerCase());
       const countryModes: Record<string, { mode: PayMode; redirectUrl: string }> = {
         CI: { mode: ciMode, redirectUrl: ciRedirectUrl },
       };
@@ -7579,10 +7586,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         operator = bodyOperator.toLowerCase();
         country = bodyCountry.toUpperCase();
         // Normalize phone: ensure full number with country code, no "+"
-        const countryPrefixes: Record<string, string> = {
-          BJ: '229', CI: '225', SN: '221', TG: '228', CM: '237', BF: '226'
-        };
-        const prefix = countryPrefixes[country] || '';
+        const prefix = WESTPAY_PREFIXES[country] || '';
         const digitsOnly = bodyPhone.replace(/\D/g, '');
         phone = digitsOnly.startsWith(prefix) ? digitsOnly : prefix + digitsOnly;
       } else {
@@ -7782,10 +7786,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const country = String(bodyCountry).toUpperCase();
-      const countryPrefixes: Record<string, string> = {
-        BJ: '229', CI: '225', SN: '221', TG: '228', CM: '237', BF: '226'
-      };
-      const prefix = countryPrefixes[country];
+      const prefix = WESTPAY_PREFIXES[country];
       if (!prefix) return res.status(400).json({ message: 'Pays non pris en charge' });
       const digitsOnly = String(bodyPhone).replace(/\D/g, '');
       const phone = `+${digitsOnly.startsWith(prefix) ? digitsOnly : prefix + digitsOnly}`;
@@ -8523,7 +8524,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Modes pour tous les pays
       type PayMode2 = 'manual' | 'redirect' | 'solvexpay' | 'robotpay';
-      const otherCountries2 = ['bj','sn','bf','tg','cm'];
+      const otherCountries2 = WESTPAY_COUNTRY_CODES.filter(code => code !== 'CI').map(code => code.toLowerCase());
       const countryModes: Record<string, { mode: PayMode2; redirectUrl: string }> = {
         CI: { mode: ciMode, redirectUrl: ciRedirectUrl },
       };
@@ -8625,10 +8626,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const countryPrefixes: Record<string, string> = {
-        BJ: '229', CI: '225', SN: '221', TG: '228', CM: '237', BF: '226'
-      };
-      const prefix = countryPrefixes[country] || '';
+      const prefix = WESTPAY_PREFIXES[country] || '';
       const digitsOnly = phone.replace(/\D/g, '');
       const fullPhone = digitsOnly.startsWith(prefix) ? digitsOnly : prefix + digitsOnly;
 
