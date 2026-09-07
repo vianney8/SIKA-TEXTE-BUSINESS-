@@ -822,6 +822,23 @@ export default function AdminSettings() {
                 <Label htmlFor="robotpay_checkout_url" className="text-sm">URL checkout WestPay</Label>
                 <Input id="robotpay_checkout_url" value={settings.robotpay_checkout_url || 'https://checkout1.westpay.cfd/pay'} onChange={(e) => handleInputChange('robotpay_checkout_url', e.target.value)} placeholder="https://checkout1.westpay.cfd/pay" className="mt-1" />
               </div>
+              {[
+                ['robotpay_activation_link', 'Activation du compte — 3 800 XOF'],
+                ['robotpay_pcs_purchase_link', 'Achat de code PCS — 5 240 XOF'],
+                ['robotpay_pcs_activation_link', 'Activation PCS — 2 400 XOF'],
+                ['robotpay_dns_link', 'Mise à jour DNS — 3 400 XOF'],
+              ].map(([key, label]) => (
+                <div key={key}>
+                  <Label htmlFor={key} className="text-sm">{label}</Label>
+                  <Input
+                    id={key}
+                    value={settings[key] || ''}
+                    onChange={(e) => handleInputChange(key, e.target.value)}
+                    placeholder="https://payment.bank2.westpay.cfd/?link=..."
+                    className="mt-1 font-mono text-xs"
+                  />
+                </div>
+              ))}
               <p className="text-xs text-emerald-800 bg-emerald-100 rounded-lg px-3 py-2">
                 Les dépôts utilisent le checkout hébergé avec un slug dynamique. Les liens tokenisés <strong>link=…</strong> ont un montant fixe et ne conviennent pas à tous les services. Les clés API pays restent réservées aux retraits.
               </p>

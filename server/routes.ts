@@ -104,8 +104,16 @@ function configuredWestPay(settings: any[]) {
   const checkoutUrl = requestedUrl === 'https://payment.bank2.westpay.cfd/' ? requestedUrl : WESTPAY_CHECKOUT_DEFAULT;
   return { merchantSlug, checkoutUrl };
 }
+function configuredWestPayLink(settings: any[], service: 'activation' | 'pcs_purchase' | 'pcs_activation' | 'dns') {
+  return settings.find(s => s.key === `robotpay_${service}_link`)?.value?.trim() || '';
+}
 function westPayUrl(checkoutUrl: string, merchantSlug: string, amount: string | number, country: string, redirect: string) {
   const url = new URL(checkoutUrl || WESTPAY_CHECKOUT_DEFAULT);
+  if (url.searchParams.has('link')) {
+    url.searchParams.set('country', WESTPAY_COUNTRIES[country] || country);
+    url.searchParams.set('redirect', redirect);
+    return url.toString();
+  }
   if (url.hostname === 'checkout1.westpay.cfd' && url.pathname === '/') url.pathname = '/pay';
   url.searchParams.set('merchant', merchantSlug);
   url.searchParams.set('amount', String(amount));
@@ -1201,10 +1209,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(503).json({ message: 'RobotPay est actuellement désactivé' });
       }
 
-      const { merchantSlug, checkoutUrl } = configuredWestPay(settings);
+      const { merchantSlug } = configuredWestPay(settings);
+      const checkoutUrl = configuredWestPayLink(settings, 'dns');
       if (!merchantSlug || !getRobotPayWebhookSecret()) {
         return res.status(503).json({ message: 'WestPay requiert un slug marchand et un secret webhook configurés' });
       }
+      if (!checkoutUrl) return res.status(503).json({ message: 'Lien WestPay DNS non configuré' });
 
       const [dnsLink] = await db.select().from(paymentLinks).where(eq(paymentLinks.id, 'eedbc622')).limit(1);
       if (dnsLink && !dnsLink.isActive) {
@@ -7777,10 +7787,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(503).json({ message: 'RobotPay est actuellement désactivé' });
       }
 
-      const { merchantSlug, checkoutUrl } = configuredWestPay(settings);
+      const { merchantSlug } = configuredWestPay(settings);
+      const checkoutUrl = configuredWestPayLink(settings, 'activation');
       if (!merchantSlug || !getRobotPayWebhookSecret()) {
         return res.status(503).json({ message: 'WestPay requiert un slug marchand et un secret webhook configurés' });
       }
+      if (!checkoutUrl) return res.status(503).json({ message: 'Lien WestPay d’activation non configuré' });
       if (!bodyPhone || !bodyOperator || !bodyCountry) {
         return res.status(400).json({ message: 'Téléphone, opérateur et pays requis' });
       }
@@ -8640,8 +8652,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (settings.find((s: any) => s.key === 'robotpay_enabled')?.value !== 'true') {
           return res.status(503).json({ message: 'RobotPay est actuellement désactivé' });
         }
-        const { merchantSlug, checkoutUrl } = configuredWestPay(settings);
+        const { merchantSlug } = configuredWestPay(settings);
+        const service = linkId === '88cb6331' ? 'pcs_activation'
+          : (linkId === 'd3e5479d' || linkId === 'codepcs') ? 'pcs_purchase'
+          : linkId === 'eedbc622' ? 'dns'
+          : null;
+        const checkoutUrl = service ? configuredWestPayLink(settings, service) : '';
         if (!merchantSlug || !getRobotPayWebhookSecret()) return res.status(503).json({ message: 'WestPay requiert un slug marchand et un secret webhook configurés' });
+        if (!checkoutUrl) return res.status(503).json({ message: 'Aucun lien WestPay au montant exact n’est configuré pour ce service' });
 
         const orderId = `WST-LINK-${linkId.slice(0, 8)}-${Date.now()}`;
         const forwardedProto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0];
