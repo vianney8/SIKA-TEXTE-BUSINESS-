@@ -84,7 +84,7 @@ app.use((req, res, next) => {
     { key: 'solvexpay_link',            value: '',                                                  label: 'Lien de paiement SolvexPay' },
     { key: 'robotpay_enabled',          value: 'false',                                             label: 'Activer Passerelle RobotPay' },
     { key: 'robotpay_name',             value: 'RobotPay — Mobile Money',                          label: 'Nom Passerelle RobotPay' },
-    { key: 'robotpay_merchant_slug',    value: 'Sikatexte',                                         label: 'Slug marchand WestPay' },
+    { key: 'robotpay_merchant_slug',    value: '',                                                  label: 'Slug marchand WestPay' },
     { key: 'robotpay_checkout_url',     value: 'https://checkout1.westpay.cfd/pay',                 label: 'URL checkout hébergé WestPay' },
     { key: 'whatsapp_admin_contact',    value: '',                                                  label: 'WhatsApp Administrateur (Contact Mise à jour)' },
     { key: 'demo_video_url',            value: '/promo.mp4',                                       label: 'Vidéo démonstration accueil' },

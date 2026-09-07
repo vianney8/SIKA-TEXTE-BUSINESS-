@@ -816,14 +816,14 @@ export default function AdminSettings() {
               </div>
               <div>
                 <Label htmlFor="robotpay_merchant_slug" className="text-sm">Slug marchand WestPay</Label>
-                <Input id="robotpay_merchant_slug" value={settings.robotpay_merchant_slug || 'Sikatexte'} onChange={(e) => handleInputChange('robotpay_merchant_slug', e.target.value)} placeholder="Sikatexte" className="mt-1" />
+                <Input id="robotpay_merchant_slug" value={settings.robotpay_merchant_slug || ''} onChange={(e) => handleInputChange('robotpay_merchant_slug', e.target.value)} placeholder="Slug dynamique fourni par WestPay" className="mt-1" />
               </div>
               <div>
                 <Label htmlFor="robotpay_checkout_url" className="text-sm">URL checkout WestPay</Label>
                 <Input id="robotpay_checkout_url" value={settings.robotpay_checkout_url || 'https://checkout1.westpay.cfd/pay'} onChange={(e) => handleInputChange('robotpay_checkout_url', e.target.value)} placeholder="https://checkout1.westpay.cfd/pay" className="mt-1" />
               </div>
               <p className="text-xs text-emerald-800 bg-emerald-100 rounded-lg px-3 py-2">
-                Les dépôts utilisent le checkout hébergé avec le slug <strong>Sikatexte</strong>. Les clés API par pays sont réservées aux retraits et restent protégées dans les secrets Replit.
+                Les dépôts utilisent le checkout hébergé avec un slug dynamique. Les liens tokenisés <strong>link=…</strong> ont un montant fixe et ne conviennent pas à tous les services. Les clés API pays restent réservées aux retraits.
               </p>
               <p className="text-xs text-muted-foreground">
                 URL Webhook à configurer dans RobotPay : <span className="font-mono">https://sikatexte.site/api/webhook/robotpay</span>
