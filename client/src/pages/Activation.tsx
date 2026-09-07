@@ -41,6 +41,15 @@ const PG  = "#EFF2F7";
 const HDR = "#0D1B2A";
 const EM1 = "#10B981";
 const EM2 = "#059669";
+const REVIEW_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+function formatReviewCountdown(milliseconds: number) {
+  const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
+  const hours = Math.floor(totalSeconds / 3600).toString().padStart(2, "0");
+  const minutes = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, "0");
+  const seconds = (totalSeconds % 60).toString().padStart(2, "0");
+  return { hours, minutes, seconds };
+}
 
 // ─── Step type ───────────────────────────────────────────────────────────────
 type FormStep = "country" | "operator" | "phone" | "confirm" | "manual";
@@ -147,6 +156,7 @@ export default function Activation() {
   const [manualSubmitting, setManualSubmitting]     = useState(false);
   const [manualSubmitted, setManualSubmitted]       = useState(false);
   const [pendingCreatedAt, setPendingCreatedAt]     = useState<string | null>(null);
+  const [reviewTimeLeft, setReviewTimeLeft]         = useState<number | null>(null);
   const [rejectionNote, setRejectionNote]           = useState<string | null>(null);
   const [statusChecking, setStatusChecking]         = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -215,6 +225,22 @@ export default function Activation() {
   }, [manualSubmitted]);
 
   useEffect(() => {
+    if (!manualSubmitted || !pendingCreatedAt) {
+      setReviewTimeLeft(null);
+      return;
+    }
+
+    const updateCountdown = () => {
+      const deadline = new Date(pendingCreatedAt).getTime() + REVIEW_WINDOW_MS;
+      setReviewTimeLeft(Math.max(0, deadline - Date.now()));
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [manualSubmitted, pendingCreatedAt]);
+
+  useEffect(() => {
     if (activationStatus === undefined) return;
     if (activationStatus?.isActive) { setInitializing(false); return; }
     if (manualSubmitted || rejectionNote !== null) { setInitializing(false); return; }
@@ -223,9 +249,9 @@ export default function Activation() {
       .then(data => {
         if (!data.found) return;
         const createdAt = new Date(data.createdAt);
-        const hoursDiff = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60);
-        if (data.status === "pending" && hoursDiff < 24) {
-          setPendingCreatedAt(createdAt.toISOString()); setManualSubmitted(true);
+        if (data.status === "pending") {
+          setPendingCreatedAt(createdAt.toISOString());
+          setManualSubmitted(true);
         } else if (data.status === "rejected") {
           const dismissedAt = localStorage.getItem("sika_rejection_dismissed_at");
           const requestTime = new Date(data.createdAt).getTime();
@@ -297,7 +323,7 @@ export default function Activation() {
     setTransactionId(null); setTxStatus(null); setCheckCount(0);
     setStep("country"); setCountry(""); setOperator(""); setPhone("");
     setPayerName(""); setTransactionId2(""); setScreenshotFile(null);
-    setManualSubmitted(false); setDepositInfo(null); setPendingCreatedAt(null); setRejectionNote(null);
+    setManualSubmitted(false); setDepositInfo(null); setPendingCreatedAt(null); setReviewTimeLeft(null); setRejectionNote(null);
     if (intervalRef.current) clearInterval(intervalRef.current);
   };
 
@@ -555,97 +581,157 @@ export default function Activation() {
 
   // ── DEMANDE EN ATTENTE (admin) ────────────────────────────────────────────
   if (manualSubmitted) {
+    const countdown = formatReviewCountdown(reviewTimeLeft ?? REVIEW_WINDOW_MS);
+    const reviewExpired = reviewTimeLeft !== null && reviewTimeLeft <= 0;
+
     return (
       <div className="min-h-screen pb-8" style={{ background: PG }}>
-        <style>{`@keyframes bounceScale{0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1}}`}</style>
-        <div className="px-5 pt-6 pb-4 flex items-center justify-between" style={{ background: HDR }}>
-          <div className="flex items-center gap-2.5">
-            <img src={sikaLogo} alt="Sika" className="w-9 h-9 rounded-xl object-cover" />
-            <div>
-              <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: EM1 }}>Sika Services</p>
-              <p className="text-white font-black text-sm">SIKA TEXTE</p>
+        <style>{`@keyframes reviewPulse{0%,100%{transform:scale(1);opacity:.8}50%{transform:scale(1.12);opacity:1}}`}</style>
+        <header className="relative overflow-hidden px-5 pb-7 pt-6" style={{ background: HDR }}>
+          <div className="absolute -right-14 -top-20 h-48 w-48 rounded-full bg-emerald-400/10 blur-2xl" />
+          <div className="relative flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <img src={sikaLogo} alt="Sika" className="h-10 w-10 rounded-2xl object-cover ring-2 ring-white/10" />
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-[0.18em]" style={{ color: EM1 }}>Sika Services</p>
+                <p className="text-sm font-black text-white">SIKA TEXTE</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-300" style={{ animation: "reviewPulse 1.8s infinite" }} />
+              <span className="text-[11px] font-bold text-amber-200">En vérification</span>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
-            style={{ background: "rgba(251,191,36,0.15)", border: "1px solid rgba(251,191,36,0.3)" }}>
-            <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-            <span className="text-amber-300 text-[11px] font-bold">En vérification</span>
-          </div>
-        </div>
-        <div className="px-4 py-5 space-y-4 max-w-md mx-auto">
-          <div className="text-center pb-1">
-            <h1 className="text-slate-900 font-black text-2xl mb-1">Vérification en cours</h1>
-            <p className="text-slate-500 text-sm leading-relaxed">
-              Votre demande a bien été reçue.<br />
-              <span className="text-slate-700 font-semibold">Nos équipes sont mobilisées</span> pour la traiter rapidement.
+          <div className="relative mt-8">
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-300/80">Activation du compte</p>
+            <h1 className="max-w-xs text-2xl font-black leading-tight text-white">Votre dossier est entre de bonnes mains.</h1>
+            <p className="mt-2 max-w-sm text-sm leading-6 text-slate-300">
+              Votre demande a bien été reçue. Nous vérifions votre paiement avant de déverrouiller votre accès.
             </p>
           </div>
-          <div className="bg-white rounded-3xl shadow-md p-4 flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${EM1}15` }}>
-              <Clock size={22} style={{ color: EM1 }} />
-            </div>
-            <div>
-              <p className="text-slate-900 font-bold">Traitement en cours</p>
-              <p className="text-slate-500 text-sm">Nos agents traitent votre dossier</p>
-            </div>
-          </div>
-          <div className="bg-white rounded-3xl shadow-md p-4 flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "#D1FAE5" }}>
-              <span className="text-xl">👥</span>
-            </div>
-            <div className="flex-1">
-              <p className="text-slate-900 font-black text-sm">Équipes mobilisées</p>
-              <p className="text-slate-400 text-xs">Nos agents traitent votre dossier activement</p>
-            </div>
-            <div className="flex gap-1.5 flex-shrink-0">
-              {[0,1,2].map(i => (
-                <div key={i} className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: EM1, animation: `bounceScale 1.4s ${i*0.25}s infinite ease-in-out` }} />
-              ))}
-            </div>
-          </div>
-          <div className="bg-white rounded-3xl shadow-md overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-100">
-              <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Avancement du dossier</p>
-            </div>
-            {[
-              { emoji: "✅", label: "Demande reçue",            sub: "Votre dossier est enregistré",        state: "done"    },
-              { emoji: "🔍", label: "Vérification du paiement", sub: "Nos agents contrôlent la transaction", state: "active"  },
-              { emoji: "⚡", label: "Activation du compte",      sub: "Votre accès sera déverrouillé",       state: "waiting" },
-            ].map((row, i) => (
-              <div key={i} className="px-4 py-3 flex items-center gap-3 border-b border-slate-50 last:border-0">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-base"
-                  style={{
-                    background: row.state === "done" ? "#D1FAE5" : row.state === "active" ? "#DBEAFE" : "#F1F5F9",
-                    border: `1px solid ${row.state === "done" ? "#6EE7B7" : row.state === "active" ? "#BFDBFE" : "#E2E8F0"}`
-                  }}>
-                  {row.emoji}
-                </div>
-                <div className="flex-1">
-                  <p className={`text-sm font-bold ${row.state === "done" ? "text-emerald-700" : row.state === "active" ? "text-blue-700" : "text-slate-300"}`}>{row.label}</p>
-                  <p className="text-slate-400 text-xs">{row.sub}</p>
-                </div>
-                {row.state === "active" && <Loader2 size={14} className="text-blue-500 animate-spin flex-shrink-0" />}
-                {row.state === "done"   && <CheckCircle size={14} style={{ color: EM1 }} className="flex-shrink-0" />}
+        </header>
+
+        <main className="mx-auto max-w-md space-y-4 px-4 py-5">
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-emerald-50">
+                <Clock size={22} className="text-emerald-600" />
               </div>
-            ))}
-          </div>
+              <div>
+                <p className="text-base font-black text-slate-900">Vérification en cours</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Une vérification manuelle est nécessaire pour confirmer votre paiement.
+                </p>
+              </div>
+            </div>
+
+            <div className={`mt-5 rounded-2xl border p-4 ${reviewExpired ? "border-amber-200 bg-amber-50" : "border-blue-100 bg-blue-50"}`}>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className={`text-[10px] font-black uppercase tracking-[0.16em] ${reviewExpired ? "text-amber-700" : "text-blue-700"}`}>
+                    {reviewExpired ? "Délai maximal atteint" : "Délai maximal de traitement"}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-600">
+                    {reviewExpired ? "Votre demande est toujours enregistrée." : "La vérification peut prendre jusqu'à 24 h."}
+                  </p>
+                </div>
+                <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${reviewExpired ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
+                  {reviewExpired ? <AlertTriangle size={18} /> : <Clock size={18} />}
+                </div>
+              </div>
+
+              {!reviewExpired ? (
+                <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                  {[
+                    { value: countdown.hours, label: "heures" },
+                    { value: countdown.minutes, label: "minutes" },
+                    { value: countdown.seconds, label: "secondes" },
+                  ].map((unit) => (
+                    <div key={unit.label} className="rounded-xl border border-white/80 bg-white/80 px-2 py-2.5">
+                      <p className="font-mono text-xl font-black tracking-tight text-slate-900">{unit.value}</p>
+                      <p className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">{unit.label}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 text-xs leading-5 text-amber-800">
+                  Actualisez votre statut. Si la demande reste en attente, contactez l'assistance avec votre numéro de transaction.
+                </p>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Suivi du dossier</p>
+                <h2 className="mt-1 text-base font-black text-slate-900">Les prochaines étapes</h2>
+              </div>
+              <ShieldCheck size={20} className="text-emerald-500" />
+            </div>
+
+            <div className="space-y-5">
+              <div className="flex gap-3">
+                <div className="relative flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50">
+                  <CheckCircle size={17} className="text-emerald-600" />
+                  <span className="absolute -bottom-5 left-1/2 h-5 w-px bg-slate-200" />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-emerald-700">Demande reçue</p>
+                  <p className="mt-0.5 text-xs leading-5 text-slate-500">Votre dossier et votre capture ont été enregistrés.</p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <div className="relative flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-blue-200 bg-blue-50">
+                  <Loader2 size={17} className="animate-spin text-blue-600" />
+                  <span className="absolute -bottom-5 left-1/2 h-5 w-px bg-slate-200" />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-blue-700">Vérification du paiement</p>
+                  <p className="mt-0.5 text-xs leading-5 text-slate-500">Notre équipe contrôle les informations transmises.</p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50">
+                  <CheckCircle size={17} className="text-slate-300" />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-slate-400">Activation du compte</p>
+                  <p className="mt-0.5 text-xs leading-5 text-slate-400">Votre accès sera ouvert après validation.</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex items-start gap-2.5">
+              <Info size={16} className="mt-0.5 flex-shrink-0 text-blue-500" />
+              <div>
+                <p className="text-xs font-black text-slate-700">Vous n'avez rien d'autre à faire</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Ne renvoyez pas une deuxième demande. Vous pouvez revenir sur cette page et actualiser votre statut à tout moment.
+                </p>
+              </div>
+            </div>
+          </section>
+
           <div className="space-y-3 pt-1">
             <button onClick={checkPendingStatus} disabled={statusChecking}
-              className="w-full py-4 rounded-2xl font-black text-white text-sm flex items-center justify-center gap-2 disabled:opacity-50"
-              style={{ background: `linear-gradient(135deg,${EM1},${EM2})`, boxShadow: `0 6px 20px ${EM1}35` }}>
-              {statusChecking ? <><Loader2 size={15} className="animate-spin" /> Vérification…</> : <><RefreshCw size={15} /> Actualiser mon statut</>}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-sm font-black text-white shadow-lg shadow-emerald-600/20 transition-transform active:scale-[0.98] disabled:opacity-50"
+              style={{ background: `linear-gradient(135deg,${EM1},${EM2})` }}>
+              {statusChecking ? <><Loader2 size={16} className="animate-spin" /> Vérification…</> : <><RefreshCw size={16} /> Actualiser mon statut</>}
             </button>
             <Link href="/">
-              <button className="w-full py-3 rounded-2xl text-sm font-semibold text-slate-400 hover:text-slate-600 border border-slate-200 bg-white">
+              <button className="w-full rounded-2xl border border-slate-200 bg-white py-3 text-sm font-semibold text-slate-500 transition-colors hover:text-slate-700">
                 Retour à l'accueil
               </button>
             </Link>
           </div>
-          <p className="text-slate-300 text-[10px] flex items-center justify-center gap-1.5 pb-2">
-            <ShieldCheck size={9} /> Traitement sécurisé · Actualisation auto toutes les 30 s
+
+          <p className="flex items-center justify-center gap-1.5 pb-2 text-[10px] text-slate-400">
+            <ShieldCheck size={11} className="text-emerald-500" /> Paiement et traitement sécurisés · Actualisation automatique toutes les 30 s
           </p>
-        </div>
+        </main>
       </div>
     );
   }
