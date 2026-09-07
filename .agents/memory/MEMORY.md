@@ -5,3 +5,4 @@
 - [Agora call quality tuning](agora-call-quality-tuning.md) — default Agora audio profile is compressed music_standard; use encoderConfig "high_quality" and handle connection-state-change for network drops instead of only user-published/user-left.
 - [GitHub connector vs Git CLI](github-connector-vs-git-cli.md) — OAuth connector access can publish through the API while the terminal's separate Git credential remains invalid.
 - [WestPay checkout modes](westpay-checkout-modes.md) — tokenized link URLs carry a fixed dashboard amount; variable-price services require an active dynamic merchant slug.
+- [Payment catalog scope](payment-catalog-scope.md) — keep the established payment countries and operators unchanged unless the user explicitly requests a catalog change.
