@@ -32,6 +32,8 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
+    // Replit's preview reaches Vite through a proxied host.
+    allowedHosts: true,
     fs: {
       strict: true,
       deny: ["**/.*"],
