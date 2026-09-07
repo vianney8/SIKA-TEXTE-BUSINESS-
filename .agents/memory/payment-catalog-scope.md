@@ -9,4 +9,4 @@ Keep the established payment countries unchanged when redesigning payment pages 
 
 **How to apply:** Treat UI, checkout-link, webhook, and mobile-layout work as independent from country changes. Never add countries implicitly. Keep separate RobotPay and historical-manual operator lists and choose between them from the configured country payment mode.
 
-For RobotPay operator changes, inspect the live hosted checkout data from an active tokenized payment link rather than relying on assumptions or a generic provider-country list.
+For RobotPay operator changes, use the user's confirmed product catalog as the source of truth. A live checkout bundle may expose additional provider options that should not automatically appear in SIKA TEXTE.
