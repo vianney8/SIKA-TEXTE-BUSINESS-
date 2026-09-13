@@ -69,13 +69,26 @@ function getRobotPayWebhookSecret() {
   return process.env.ROBOTPAY_WEBHOOK_SECRET || process.env.WESTPAY_WEBHOOK_SECRET || '';
 }
 
-function verifyRobotPaySignature(body: unknown, signature: string, secret: string) {
+function verifyRobotPaySignature(body: unknown, rawBody: Buffer | undefined, signature: string, secret: string) {
   if (!signature || !secret) return false;
-  // WestPay signs the parsed payload serialized with JSON.stringify.
-  const expected = createHmac('sha256', secret).update(JSON.stringify(body)).digest('hex');
-  const receivedBuffer = Buffer.from(signature.trim().toLowerCase(), 'utf8');
-  const expectedBuffer = Buffer.from(expected, 'utf8');
-  return receivedBuffer.length === expectedBuffer.length && timingSafeEqual(receivedBuffer, expectedBuffer);
+  const received = signature.trim().replace(/^sha256=/i, '');
+  const payloads = [
+    rawBody,
+    Buffer.from(JSON.stringify(body), 'utf8'),
+  ].filter((payload): payload is Buffer => !!payload);
+  const expectedSignatures = payloads.flatMap(payload => {
+    const hmac = createHmac('sha256', secret).update(payload);
+    return [hmac.digest('hex')];
+  });
+  // Some WestPay installations return a base64 HMAC instead of hexadecimal.
+  for (const payload of payloads) {
+    expectedSignatures.push(createHmac('sha256', secret).update(payload).digest('base64'));
+  }
+  return expectedSignatures.some(expected => {
+    const receivedBuffer = Buffer.from(received.toLowerCase(), 'utf8');
+    const expectedBuffer = Buffer.from(expected.toLowerCase(), 'utf8');
+    return receivedBuffer.length === expectedBuffer.length && timingSafeEqual(receivedBuffer, expectedBuffer);
+  });
 }
 
 const WESTPAY_COUNTRIES: Record<string, string> = {
@@ -86,6 +99,7 @@ const WESTPAY_PREFIXES: Record<string, string> = {
 };
 const WESTPAY_CHECKOUT_DEFAULT = 'https://checkout1.westpay.cfd/pay';
 function normalizedPhone(value: unknown) { return String(value || '').replace(/\D/g, ''); }
+function normalizedMerchantSlug(value: unknown) { return String(value || '').trim().toLowerCase(); }
 function normalizedCountry(value: unknown) {
   const text = String(value || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const matches = Object.entries(WESTPAY_COUNTRIES).find(([code, name]) =>
@@ -7863,7 +7877,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error('[ROBOTPAY-WEBHOOK] Secret webhook non configuré');
         return res.status(503).json({ error: 'Webhook non configuré' });
       }
-      if (!verifyRobotPaySignature(req.body, signature, secret)) {
+      if (!verifyRobotPaySignature(req.body, req.rawBody, signature, secret)) {
+        console.warn('[ROBOTPAY-WEBHOOK] Signature invalide');
         return res.status(401).json({ error: 'Signature invalide' });
       }
 
@@ -7872,8 +7887,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const amount = String(req.body?.amount || '');
       const payer = normalizedPhone(req.body?.payer);
       const country = normalizedCountry(req.body?.country);
-      const merchantSlug = String(req.body?.merchantSlug || '');
+      const merchantSlug = normalizedMerchantSlug(req.body?.merchantSlug);
       if (!txId || !amount || !payer || !country || !merchantSlug) {
+        console.warn('[ROBOTPAY-WEBHOOK] Payload incomplet', {
+          hasTxId: !!txId, hasAmount: !!amount, hasPayer: !!payer, hasCountry: !!country, hasMerchantSlug: !!merchantSlug,
+        });
         return res.status(400).json({ error: 'Payload WestPay incomplet' });
       }
       if (event !== 'payment.confirmed') return res.json({ received: true });
@@ -7884,32 +7902,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (payment && linkTransaction) {
         return res.status(409).json({ error: 'Référence fournisseur ambiguë' });
       }
-      const recent = (date: Date | null) => !!date && Date.now() - date.getTime() < 30 * 60 * 1000;
+      const recent = (date: Date | null) => !!date && Date.now() - date.getTime() < 24 * 60 * 60 * 1000;
       if (!payment && !linkTransaction) {
         const candidates = await db.select().from(bkapayPayments).where(eq(bkapayPayments.status, 'pending')).orderBy(desc(bkapayPayments.createdAt));
         const links = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.status, 'pending')).orderBy(desc(paymentLinkTransactions.createdAt));
-        const matchingPayments = candidates.filter(p => recent(p.createdAt) && sameAmount(p.amount, amount) && p.merchantSlug === merchantSlug &&
+        const matchingPayments = candidates.filter(p => recent(p.createdAt) && sameAmount(p.amount, amount) && normalizedMerchantSlug(p.merchantSlug) === merchantSlug &&
           normalizedPhone(p.payerPhone) === payer && p.country === country);
-        const matchingLinks = links.filter(p => recent(p.createdAt) && sameAmount(p.amount, amount) && p.merchantSlug === merchantSlug &&
+        const matchingLinks = links.filter(p => recent(p.createdAt) && sameAmount(p.amount, amount) && normalizedMerchantSlug(p.merchantSlug) === merchantSlug &&
           normalizedPhone(p.phone) === payer && p.country === country);
         if (matchingPayments.length + matchingLinks.length > 1) {
+          console.warn('[ROBOTPAY-WEBHOOK] Correspondance ambiguë', { txId, matches: matchingPayments.length + matchingLinks.length });
           return res.status(409).json({ error: 'Plusieurs paiements en attente correspondent au webhook' });
         }
         payment = matchingPayments[0];
         linkTransaction = matchingLinks[0];
       }
-      if (!payment && !linkTransaction) return res.status(404).json({ error: 'Paiement en attente introuvable' });
+      if (!payment && !linkTransaction) {
+        console.warn('[ROBOTPAY-WEBHOOK] Paiement en attente introuvable', { txId, amount, country, merchantSlug });
+        return res.status(404).json({ error: 'Paiement en attente introuvable' });
+      }
       if (payment) {
-        if (payment.merchantSlug !== merchantSlug || !sameAmount(payment.amount, amount) ||
+        if (normalizedMerchantSlug(payment.merchantSlug) !== merchantSlug || !sameAmount(payment.amount, amount) ||
             normalizedPhone(payment.payerPhone) !== payer || payment.country !== country) {
+          console.warn('[ROBOTPAY-WEBHOOK] Paiement activation non concordant', { txId });
           return res.status(400).json({ error: 'Paiement non concordant' });
         }
         const updated = await db.update(bkapayPayments).set({ status: 'completed', completedAt: new Date(), providerTxId: txId })
           .where(and(eq(bkapayPayments.id, payment.id), eq(bkapayPayments.status, 'pending'))).returning();
         if (updated.length) await storage.activateAccount(payment.userId);
       } else if (linkTransaction) {
-        if (linkTransaction.merchantSlug !== merchantSlug || !sameAmount(linkTransaction.amount, amount) ||
+        if (normalizedMerchantSlug(linkTransaction.merchantSlug) !== merchantSlug || !sameAmount(linkTransaction.amount, amount) ||
             normalizedPhone(linkTransaction.phone) !== payer || linkTransaction.country !== country) {
+          console.warn('[ROBOTPAY-WEBHOOK] Paiement lien non concordant', { txId });
           return res.status(400).json({ error: 'Paiement non concordant' });
         }
         const updated = await db.update(paymentLinkTransactions).set({ status: 'completed', updatedAt: new Date(), providerTxId: txId })
