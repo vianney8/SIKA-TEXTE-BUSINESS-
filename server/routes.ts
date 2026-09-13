@@ -284,6 +284,124 @@ async function sendUserPcsCodesListToTelegram(chatId: string, email: string, tel
   }
 }
 
+function telegramAdminChatId(settings: any[]) {
+  return settings.find((setting: any) => setting.key === 'telegram_admin_chat_id')?.value?.trim()
+    || process.env.TELEGRAM_ADMIN_CHAT_ID
+    || '7457302722';
+}
+
+function escapeTelegramHtml(value: unknown) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+async function sendWestPayTelegramNotification(
+  settings: any[],
+  text: string,
+  replyMarkup?: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> },
+) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) {
+    console.error('[WESTPAY-TELEGRAM] TELEGRAM_BOT_TOKEN non configuré');
+    return false;
+  }
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: telegramAdminChatId(settings),
+        text,
+        parse_mode: 'HTML',
+        ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+      }),
+    });
+    const result = await response.json() as any;
+    if (!response.ok || !result.ok) {
+      console.error('[WESTPAY-TELEGRAM] Échec notification:', result?.description || response.status);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('[WESTPAY-TELEGRAM] Erreur notification:', error);
+    return false;
+  }
+}
+
+async function notifyWestPayActivationRequest(
+  settings: any[],
+  user: any,
+  details: { reference: string; phone: string; operator: string; country: string; amount: number },
+) {
+  const text =
+    `💳 <b>Demande WestPay — Activation de compte</b>\n\n` +
+    `👤 <b>Nom :</b> ${escapeTelegramHtml(user.fullName || 'Non renseigné')}\n` +
+    `🆔 <b>ID compte :</b> <code>${escapeTelegramHtml(user.id)}</code>\n` +
+    `📧 <b>Email :</b> <code>${escapeTelegramHtml(user.email || 'N/A')}</code>\n` +
+    `📱 <b>Numéro :</b> <code>${escapeTelegramHtml(formatPhoneIntl(details.phone, details.country))}</code>\n` +
+    `💳 <b>Opérateur :</b> ${escapeTelegramHtml(details.operator)}\n` +
+    `🌍 <b>Pays :</b> ${escapeTelegramHtml(details.country)}\n` +
+    `💰 <b>Montant :</b> ${details.amount.toLocaleString('fr-FR')} FCFA\n` +
+    `🔖 <b>Référence locale :</b> <code>${escapeTelegramHtml(details.reference)}</code>\n\n` +
+    `⚠️ <b>Demande lancée, paiement non encore confirmé par SIKA TEXTE.</b>\n` +
+    `Vérifiez la transaction réussie dans WestPay avant d'activer.`;
+  return sendWestPayTelegramNotification(settings, text, {
+    inline_keyboard: [[
+      { text: '✅ Activer le compte', callback_data: `act_approve_pre_${user.id}` },
+      { text: '❌ Décliner', callback_data: `act_decline_pre_${user.id}` },
+    ]],
+  });
+}
+
+async function notifyWestPayLinkRequest(
+  settings: any[],
+  link: any,
+  transaction: any,
+) {
+  const service = transaction.linkId === '88cb6331'
+    ? 'Activation de code PCS'
+    : (transaction.linkId === 'd3e5479d' || transaction.linkId === 'codepcs')
+      ? 'Achat de code PCS'
+      : transaction.linkId === 'eedbc622'
+        ? 'Mise à jour DNS privé'
+        : transaction.linkLabel || link.label || 'Paiement';
+  const text =
+    `💳 <b>Demande WestPay — ${escapeTelegramHtml(service)}</b>\n\n` +
+    `👤 <b>Nom :</b> ${escapeTelegramHtml(transaction.customerName || 'Non renseigné')}\n` +
+    `📧 <b>Email :</b> <code>${escapeTelegramHtml(transaction.customerEmail || 'Non renseigné')}</code>\n` +
+    `📱 <b>Numéro :</b> <code>${escapeTelegramHtml(formatPhoneIntl(transaction.phone, transaction.country))}</code>\n` +
+    `💳 <b>Opérateur :</b> ${escapeTelegramHtml(transaction.operator || 'Non renseigné')}\n` +
+    `🌍 <b>Pays :</b> ${escapeTelegramHtml(transaction.country || 'Non renseigné')}\n` +
+    `💰 <b>Montant :</b> ${Number(transaction.amount).toLocaleString('fr-FR')} FCFA\n` +
+    `🔖 <b>Référence locale :</b> <code>${escapeTelegramHtml(transaction.reference || transaction.id)}</code>\n\n` +
+    `⚠️ <b>Demande lancée, paiement non encore confirmé par SIKA TEXTE.</b>\n` +
+    `Vérifiez la transaction réussie dans WestPay avant toute validation.`;
+
+  let replyMarkup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> } | undefined;
+  if (transaction.linkId === 'eedbc622') {
+    replyMarkup = { inline_keyboard: [[
+      { text: '✅ Valider le DNS', callback_data: `dnsval_ok_${transaction.id}` },
+      { text: '❌ Refuser', callback_data: `dnsval_no_${transaction.id}` },
+    ]] };
+  } else if (transaction.linkId === 'd3e5479d' || transaction.linkId === 'codepcs') {
+    replyMarkup = { inline_keyboard: [[
+      { text: '🆕 Créer et envoyer le code PCS', callback_data: `pcsnew_pre_${transaction.id}` },
+    ]] };
+  }
+
+  const sent = await sendWestPayTelegramNotification(settings, text, replyMarkup);
+  if (sent && transaction.linkId === '88cb6331' && transaction.customerEmail && process.env.TELEGRAM_BOT_TOKEN) {
+    await sendUserPcsCodesListToTelegram(
+      telegramAdminChatId(settings),
+      transaction.customerEmail,
+      process.env.TELEGRAM_BOT_TOKEN,
+    );
+  }
+  return sent;
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Serve uploaded files (videos, etc.)
   const uploadsDir = path.join(process.cwd(), "uploads");
@@ -1247,6 +1365,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (existing.merchantSlug && existing.reference?.startsWith('WST-DNS-')) {
           const forwardedProto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0];
           const returnUrl = `${forwardedProto}://${req.get('host')}/withdrawal?dnsReturn=1&localRef=${encodeURIComponent(existing.reference)}`;
+          await notifyWestPayLinkRequest(settings, dnsLink || { label: 'MISE A JOUR DNS PRIVÉ' }, existing);
           return res.json({
             success: true,
             transactionId: existing.reference,
@@ -1262,7 +1381,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const forwardedProto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0];
       const returnUrl = `${forwardedProto}://${req.get('host')}/withdrawal?dnsReturn=1&localRef=${encodeURIComponent(orderId)}`;
 
-      await db.insert(paymentLinkTransactions).values({
+      const [westPayDnsTransaction] = await db.insert(paymentLinkTransactions).values({
         linkId: 'eedbc622',
         linkLabel: dnsLink?.label || 'MISE A JOUR DNS PRIVÉ',
         amount: String(amount),
@@ -1276,7 +1395,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         merchantSlug,
         status: 'pending',
         userId,
-      });
+      }).returning();
+      await notifyWestPayLinkRequest(settings, dnsLink || { label: 'MISE A JOUR DNS PRIVÉ' }, westPayDnsTransaction);
 
       res.json({
         success: true,
@@ -7826,6 +7946,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         normalizedMerchantSlug(existing.merchantSlug) === normalizedMerchantSlug(merchantSlug);
       if (canReuseExisting) {
         const returnUrl = `${forwardedProto}://${req.get('host')}/activation-success?localRef=${encodeURIComponent(existing.reference!)}`;
+        await notifyWestPayActivationRequest(settings, user, {
+          reference: existing.reference!,
+          phone,
+          operator: String(bodyOperator),
+          country,
+          amount: activationAmount,
+        });
         return res.json({
           success: true,
           transactionId: existing.reference,
@@ -7851,6 +7978,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         country,
         merchantSlug,
         createdAt: new Date(),
+      });
+      await notifyWestPayActivationRequest(settings, user, {
+        reference: orderId,
+        phone,
+        operator: String(bodyOperator),
+        country,
+        amount: activationAmount,
       });
 
       res.json({
@@ -8709,7 +8843,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const forwardedProto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0];
         // Keep our reference distinct from WestPay's optional return ref.
         const returnUrl = `${forwardedProto}://${req.get('host')}/pay/${encodeURIComponent(linkId)}?localRef=${encodeURIComponent(orderId)}`;
-        await db.insert(paymentLinkTransactions).values({
+        const [westPayTransaction] = await db.insert(paymentLinkTransactions).values({
           linkId,
           linkLabel: link.label,
           amount: link.amount,
@@ -8722,7 +8856,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           reference: orderId,
           merchantSlug,
           status: 'pending',
-        });
+        }).returning();
+        await notifyWestPayLinkRequest(settings, link, westPayTransaction);
 
         return res.json({
           success: true,
