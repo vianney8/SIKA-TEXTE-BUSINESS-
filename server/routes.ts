@@ -7812,8 +7812,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const phone = `+${digitsOnly.startsWith(prefix) ? digitsOnly : prefix + digitsOnly}`;
       const activationSetting = settings.find((s: any) => s.key === 'activation_amount');
       const activationAmount = parseInt(activationSetting?.value || '3600');
-      const orderId = `WST-${userId.slice(0, 8)}-${Date.now()}`;
       const forwardedProto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0];
+      const pendingRows = await db.select().from(bkapayPayments)
+        .where(and(eq(bkapayPayments.userId, userId), eq(bkapayPayments.status, 'pending')))
+        .orderBy(desc(bkapayPayments.createdAt))
+        .limit(1);
+      const existing = pendingRows[0];
+      const canReuseExisting = existing?.reference && existing.createdAt &&
+        Date.now() - existing.createdAt.getTime() < 24 * 60 * 60 * 1000 &&
+        Number(existing.amount) === activationAmount &&
+        normalizedPhone(existing.payerPhone) === normalizedPhone(phone) &&
+        existing.country === country &&
+        normalizedMerchantSlug(existing.merchantSlug) === normalizedMerchantSlug(merchantSlug);
+      if (canReuseExisting) {
+        const returnUrl = `${forwardedProto}://${req.get('host')}/activation-success?localRef=${encodeURIComponent(existing.reference!)}`;
+        return res.json({
+          success: true,
+          transactionId: existing.reference,
+          amount: activationAmount,
+          status: 'pending',
+          paymentUrl: westPayUrl(checkoutUrl, merchantSlug, activationAmount, country, returnUrl),
+          message: 'Paiement en attente réutilisé. Redirection vers WestPay.',
+          gateway: 'robotpay',
+        });
+      }
+
+      const orderId = `WST-${userId.slice(0, 8)}-${Date.now()}`;
       // localRef is ours; provider status/ref may be appended but is never trusted.
       const returnUrl = `${forwardedProto}://${req.get('host')}/activation-success?localRef=${encodeURIComponent(orderId)}`;
 
@@ -7910,7 +7934,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           normalizedPhone(p.payerPhone) === payer && p.country === country);
         const matchingLinks = links.filter(p => recent(p.createdAt) && sameAmount(p.amount, amount) && normalizedMerchantSlug(p.merchantSlug) === merchantSlug &&
           normalizedPhone(p.phone) === payer && p.country === country);
-        if (matchingPayments.length + matchingLinks.length > 1) {
+        const sameActivationTarget = matchingPayments.length > 1 && matchingLinks.length === 0 &&
+          matchingPayments.every(candidate => candidate.userId === matchingPayments[0].userId);
+        if (matchingPayments.length + matchingLinks.length > 1 && !sameActivationTarget) {
           console.warn('[ROBOTPAY-WEBHOOK] Correspondance ambiguë', { txId, matches: matchingPayments.length + matchingLinks.length });
           return res.status(409).json({ error: 'Plusieurs paiements en attente correspondent au webhook' });
         }
