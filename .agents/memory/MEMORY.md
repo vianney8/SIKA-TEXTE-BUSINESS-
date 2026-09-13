@@ -6,3 +6,4 @@
 - [GitHub connector vs Git CLI](github-connector-vs-git-cli.md) — OAuth connector access can publish through the API while the terminal's separate Git credential remains invalid.
 - [WestPay checkout modes](westpay-checkout-modes.md) — tokenized link URLs carry a fixed dashboard amount; variable-price services require an active dynamic merchant slug.
 - [Payment catalog scope](payment-catalog-scope.md) — keep the established payment countries and operators unchanged unless the user explicitly requests a catalog change.
+- [Payment initiation retries](payment-initiation-retries.md) — reuse same-target pending payments; duplicate rows can make a valid webhook look ambiguous and block activation.
