@@ -110,6 +110,13 @@ function samePaymentPhone(left: unknown, right: unknown) {
   return comparableLength >= 8 && a.slice(-comparableLength) === b.slice(-comparableLength);
 }
 function normalizedMerchantSlug(value: unknown) { return String(value || '').trim().toLowerCase(); }
+function normalizedPaymentAmount(value: unknown) {
+  const direct = Number(value);
+  if (Number.isFinite(direct)) return direct;
+  const cleaned = String(value || '').replace(/\s/g, '').replace(/[^\d,.-]/g, '');
+  if (/^-?\d{1,3}(,\d{3})+$/.test(cleaned)) return Number(cleaned.replace(/,/g, ''));
+  return Number(cleaned.replace(',', '.'));
+}
 function normalizedCountry(value: unknown) {
   const text = String(value || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const matches = Object.entries(WESTPAY_COUNTRIES).find(([code, name]) =>
@@ -8074,7 +8081,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/webhook/robotpay', async (req: any, res) => {
     try {
       const secret = getRobotPayWebhookSecret();
-      const signature = String(req.headers['x-robotpay-signature'] || '');
+      const signature = String(
+        req.headers['x-robotpay-signature']
+        || req.headers['x-westpay-signature']
+        || req.headers['x-webhook-signature']
+        || '',
+      );
       if (!secret) {
         console.error('[ROBOTPAY-WEBHOOK] Secret webhook non configuré');
         return res.status(503).json({ error: 'Webhook non configuré' });
@@ -8084,34 +8096,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: 'Signature invalide' });
       }
 
-      const event = String(req.headers['x-robotpay-event'] || req.body?.event || '');
-      const txId = String(req.body?.txId || '');
-      const amount = String(req.body?.amount || '');
-      const payer = normalizedPhone(req.body?.payer);
-      const country = normalizedCountry(req.body?.country);
-      const merchantSlug = normalizedMerchantSlug(req.body?.merchantSlug);
+      const root = req.body || {};
+      const payload = root?.data?.transaction || root?.data || root?.transaction || root;
+      const event = String(req.headers['x-robotpay-event'] || payload?.event || root?.event || '').trim().toLowerCase();
+      if (event !== 'payment.confirmed') return res.json({ received: true });
+
+      const txId = String(payload?.txId || payload?.transactionId || payload?.transaction_id || payload?.id || '');
+      const amountValue = payload?.amount ?? payload?.paidAmount ?? payload?.paid_amount;
+      const amount = String(amountValue ?? '');
+      const payer = normalizedPhone(payload?.payer || payload?.phone || payload?.payerPhone || payload?.payer_phone);
+      const country = normalizedCountry(payload?.country || payload?.countryCode || payload?.country_code);
+      const merchantSlug = normalizedMerchantSlug(payload?.merchantSlug || payload?.merchant_slug || payload?.merchant);
       if (!txId || !amount || !payer || !country || !merchantSlug) {
         console.warn('[ROBOTPAY-WEBHOOK] Payload incomplet', {
           hasTxId: !!txId, hasAmount: !!amount, hasPayer: !!payer, hasCountry: !!country, hasMerchantSlug: !!merchantSlug,
         });
         return res.status(400).json({ error: 'Payload WestPay incomplet' });
       }
-      if (event !== 'payment.confirmed') return res.json({ received: true });
 
-      const sameAmount = (a: unknown, b: unknown) => Number(a) === Number(b);
+      const sameAmount = (a: unknown, b: unknown) => {
+        const left = normalizedPaymentAmount(a);
+        const right = normalizedPaymentAmount(b);
+        return Number.isFinite(left) && Number.isFinite(right) && left === right;
+      };
       let [payment] = await db.select().from(bkapayPayments).where(eq(bkapayPayments.providerTxId, txId)).limit(1);
       let [linkTransaction] = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.providerTxId, txId)).limit(1);
       if (payment && linkTransaction) {
         return res.status(409).json({ error: 'Référence fournisseur ambiguë' });
       }
-      const recent = (date: Date | null) => !!date && Date.now() - date.getTime() < 24 * 60 * 60 * 1000;
+      const recent = (date: Date | null) => !!date && Date.now() - date.getTime() < 7 * 24 * 60 * 60 * 1000;
       if (!payment && !linkTransaction) {
         const candidates = await db.select().from(bkapayPayments).where(eq(bkapayPayments.status, 'pending')).orderBy(desc(bkapayPayments.createdAt));
         const links = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.status, 'pending')).orderBy(desc(paymentLinkTransactions.createdAt));
         const matchingPayments = candidates.filter(p => recent(p.createdAt) && sameAmount(p.amount, amount) && normalizedMerchantSlug(p.merchantSlug) === merchantSlug &&
-          samePaymentPhone(p.payerPhone, payer) && p.country === country);
+          samePaymentPhone(p.payerPhone, payer) && normalizedCountry(p.country) === country);
         const matchingLinks = links.filter(p => recent(p.createdAt) && sameAmount(p.amount, amount) && normalizedMerchantSlug(p.merchantSlug) === merchantSlug &&
-          samePaymentPhone(p.phone, payer) && p.country === country);
+          samePaymentPhone(p.phone, payer) && normalizedCountry(p.country) === country);
         const sameActivationTarget = matchingPayments.length > 1 && matchingLinks.length === 0 &&
           matchingPayments.every(candidate => candidate.userId === matchingPayments[0].userId);
         if (matchingPayments.length + matchingLinks.length > 1 && !sameActivationTarget) {
@@ -8127,47 +8147,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       if (payment) {
         if (normalizedMerchantSlug(payment.merchantSlug) !== merchantSlug || !sameAmount(payment.amount, amount) ||
-            !samePaymentPhone(payment.payerPhone, payer) || payment.country !== country) {
+            !samePaymentPhone(payment.payerPhone, payer) || normalizedCountry(payment.country) !== country) {
           console.warn('[ROBOTPAY-WEBHOOK] Paiement activation non concordant', { txId });
           return res.status(400).json({ error: 'Paiement non concordant' });
         }
-        const updated = await db.update(bkapayPayments).set({ status: 'completed', completedAt: new Date(), providerTxId: txId })
-          .where(and(eq(bkapayPayments.id, payment.id), eq(bkapayPayments.status, 'pending'))).returning();
-        if (updated.length) await storage.activateAccount(payment.userId);
+        if (payment.status === 'pending') {
+          await storage.activateAccount(payment.userId);
+          await db.update(bkapayPayments).set({ status: 'completed', completedAt: new Date(), providerTxId: txId })
+            .where(and(eq(bkapayPayments.id, payment.id), eq(bkapayPayments.status, 'pending')));
+        }
       } else if (linkTransaction) {
         if (normalizedMerchantSlug(linkTransaction.merchantSlug) !== merchantSlug || !sameAmount(linkTransaction.amount, amount) ||
-            !samePaymentPhone(linkTransaction.phone, payer) || linkTransaction.country !== country) {
+            !samePaymentPhone(linkTransaction.phone, payer) || normalizedCountry(linkTransaction.country) !== country) {
           console.warn('[ROBOTPAY-WEBHOOK] Paiement lien non concordant', { txId });
           return res.status(400).json({ error: 'Paiement non concordant' });
         }
-        const updated = await db.update(paymentLinkTransactions).set({ status: 'completed', updatedAt: new Date(), providerTxId: txId })
-          .where(and(eq(paymentLinkTransactions.id, linkTransaction.id), eq(paymentLinkTransactions.status, 'pending'))).returning();
-        if (updated.length && linkTransaction.customerEmail) {
-          const [owner] = await db.select().from(users).where(eq(users.email, linkTransaction.customerEmail.toLowerCase().trim())).limit(1);
-          if (owner && (linkTransaction.linkId === 'd3e5479d' || linkTransaction.linkId === 'codepcs')) {
-            let pcsCode = generatePcsCode();
-            for (let i = 0; i < 4; i++) {
-              const clash = await db.select({ id: pcsCodes.id }).from(pcsCodes).where(eq(pcsCodes.code, pcsCode)).limit(1);
-              if (!clash.length) break;
-              pcsCode = generatePcsCode();
+        if (linkTransaction.status === 'pending') {
+          const fulfillment = await db.transaction(async (tx) => {
+            const [claimed] = await tx.update(paymentLinkTransactions)
+              .set({ status: 'processing', updatedAt: new Date(), providerTxId: txId })
+              .where(and(eq(paymentLinkTransactions.id, linkTransaction.id), eq(paymentLinkTransactions.status, 'pending')))
+              .returning();
+            if (!claimed) return null;
+
+            const isPcsPurchase = claimed.linkId === 'd3e5479d' || claimed.linkId === 'codepcs';
+            const isPcsActivation = claimed.linkId === '88cb6331';
+            let emailPayload: null | { type: 'purchase' | 'activation'; email: string; code: string } = null;
+
+            if (isPcsPurchase || isPcsActivation) {
+              if (!claimed.customerEmail) throw new Error('Email client absent pour le traitement PCS');
+              const normalizedEmail = claimed.customerEmail.toLowerCase().trim();
+              const [owner] = await tx.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
+              if (!owner) throw new Error('Compte client introuvable pour le traitement PCS');
+
+              if (isPcsPurchase) {
+                let pcsCode = generatePcsCode();
+                for (let i = 0; i < 5; i++) {
+                  const [clash] = await tx.select({ id: pcsCodes.id }).from(pcsCodes).where(eq(pcsCodes.code, pcsCode)).limit(1);
+                  if (!clash) break;
+                  pcsCode = generatePcsCode();
+                }
+                await tx.insert(pcsCodes).values({ userId: owner.id, code: pcsCode, status: 'inactif' });
+                await tx.update(paymentLinkTransactions).set({ pcsCode }).where(eq(paymentLinkTransactions.id, claimed.id));
+                emailPayload = { type: 'purchase', email: normalizedEmail, code: pcsCode };
+              } else {
+                const [inactive] = await tx.select().from(pcsCodes)
+                  .where(and(eq(pcsCodes.userId, owner.id), eq(pcsCodes.status, 'inactif')))
+                  .limit(1);
+                if (!inactive) throw new Error('Aucun code PCS inactif à activer');
+                const activated = await tx.update(pcsCodes).set({ status: 'actif' })
+                  .where(and(eq(pcsCodes.id, inactive.id), eq(pcsCodes.status, 'inactif')))
+                  .returning();
+                if (!activated.length) throw new Error('Le code PCS n’a pas pu être activé');
+                emailPayload = { type: 'activation', email: normalizedEmail, code: inactive.code };
+              }
             }
-            await db.insert(pcsCodes).values({ userId: owner.id, code: pcsCode, status: 'inactif' });
-            await db.update(paymentLinkTransactions).set({ pcsCode }).where(eq(paymentLinkTransactions.id, linkTransaction.id));
-            sendPcsEmail({ to: linkTransaction.customerEmail, firstName: (linkTransaction.customerName || '').split(' ')[0], lastName: '', countryCode: linkTransaction.country || '', pcsCode, issuedAt: new Date() }).catch(() => {});
-          } else if (owner && linkTransaction.linkId === '88cb6331') {
-            const [inactive] = await db.select().from(pcsCodes).where(and(eq(pcsCodes.userId, owner.id), eq(pcsCodes.status, 'inactif'))).limit(1);
-            if (inactive) {
-              await db.update(pcsCodes).set({ status: 'actif' }).where(and(eq(pcsCodes.id, inactive.id), eq(pcsCodes.status, 'inactif')));
-              const nameParts = (linkTransaction.customerName || '').split(' ');
-              sendPcsEmailBatch({
-                to: linkTransaction.customerEmail,
-                firstName: nameParts[0] || '',
-                lastName: nameParts.slice(1).join(' '),
-                countryCode: linkTransaction.country || '',
-                pcsCodesWithStatus: [{ code: inactive.code, status: 'actif' }],
-                issuedAt: new Date(),
-              }).catch(() => {});
-            }
+
+            await tx.update(paymentLinkTransactions)
+              .set({ status: 'completed', updatedAt: new Date() })
+              .where(and(eq(paymentLinkTransactions.id, claimed.id), eq(paymentLinkTransactions.status, 'processing')));
+            return emailPayload;
+          });
+
+          if (fulfillment?.type === 'purchase') {
+            sendPcsEmail({
+              to: fulfillment.email,
+              firstName: (linkTransaction.customerName || '').split(' ')[0],
+              lastName: '',
+              countryCode: linkTransaction.country || '',
+              pcsCode: fulfillment.code,
+              issuedAt: new Date(),
+            }).catch(error => console.error('[ROBOTPAY-WEBHOOK] Envoi email PCS échoué:', error));
+          } else if (fulfillment?.type === 'activation') {
+            const nameParts = (linkTransaction.customerName || '').split(' ');
+            sendPcsEmailBatch({
+              to: fulfillment.email,
+              firstName: nameParts[0] || '',
+              lastName: nameParts.slice(1).join(' '),
+              countryCode: linkTransaction.country || '',
+              pcsCodesWithStatus: [{ code: fulfillment.code, status: 'actif' }],
+              issuedAt: new Date(),
+            }).catch(error => console.error('[ROBOTPAY-WEBHOOK] Envoi email activation PCS échoué:', error));
           }
         }
       }
@@ -8853,15 +8913,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Pour les liens PCS, l'email doit appartenir à un compte Sika
       const isPcsLink = (linkId === 'd3e5479d' || linkId === 'codepcs' || linkId === '88cb6331');
+      let sikaUserId: string | null = null;
+      if (isPcsLink && !customerEmail) {
+        return res.status(400).json({ message: 'L’adresse e-mail du compte Sika Texte est obligatoire pour ce service PCS.' });
+      }
       if (isPcsLink && customerEmail) {
         const [sikaUser] = await db.select({ id: users.id }).from(users).where(eq(users.email, (customerEmail as string).toLowerCase().trim())).limit(1);
         if (!sikaUser) {
           return res.status(400).json({ message: 'Cet e-mail ne correspond à aucun compte Sika Texte. Veuillez utiliser l\'adresse e-mail de votre compte.' });
         }
+        sikaUserId = sikaUser.id;
       }
 
       const prefix = WESTPAY_PREFIXES[country] || '';
       const digitsOnly = phone.replace(/\D/g, '');
+      if (digitsOnly.length < 8) {
+        return res.status(400).json({ message: 'Le numéro de téléphone est invalide.' });
+      }
       const fullPhone = digitsOnly.startsWith(prefix) ? digitsOnly : prefix + digitsOnly;
 
       const settings = await storage.getAppSettings();
@@ -8900,6 +8968,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           reference: orderId,
           merchantSlug,
           status: 'pending',
+          userId: sikaUserId,
         }).returning();
         await notifyWestPayLinkRequest(settings, link, westPayTransaction);
 
