@@ -99,6 +99,16 @@ const WESTPAY_PREFIXES: Record<string, string> = {
 };
 const WESTPAY_CHECKOUT_DEFAULT = 'https://checkout1.westpay.cfd/pay';
 function normalizedPhone(value: unknown) { return String(value || '').replace(/\D/g, ''); }
+function samePaymentPhone(left: unknown, right: unknown) {
+  const a = normalizedPhone(left);
+  const b = normalizedPhone(right);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  // WestPay peut renvoyer le numéro local (01...) alors que SIKA TEXTE
+  // conserve le même numéro avec l'indicatif pays (22901...).
+  const comparableLength = Math.min(a.length, b.length);
+  return comparableLength >= 8 && a.slice(-comparableLength) === b.slice(-comparableLength);
+}
 function normalizedMerchantSlug(value: unknown) { return String(value || '').trim().toLowerCase(); }
 function normalizedCountry(value: unknown) {
   const text = String(value || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -8099,9 +8109,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const candidates = await db.select().from(bkapayPayments).where(eq(bkapayPayments.status, 'pending')).orderBy(desc(bkapayPayments.createdAt));
         const links = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.status, 'pending')).orderBy(desc(paymentLinkTransactions.createdAt));
         const matchingPayments = candidates.filter(p => recent(p.createdAt) && sameAmount(p.amount, amount) && normalizedMerchantSlug(p.merchantSlug) === merchantSlug &&
-          normalizedPhone(p.payerPhone) === payer && p.country === country);
+          samePaymentPhone(p.payerPhone, payer) && p.country === country);
         const matchingLinks = links.filter(p => recent(p.createdAt) && sameAmount(p.amount, amount) && normalizedMerchantSlug(p.merchantSlug) === merchantSlug &&
-          normalizedPhone(p.phone) === payer && p.country === country);
+          samePaymentPhone(p.phone, payer) && p.country === country);
         const sameActivationTarget = matchingPayments.length > 1 && matchingLinks.length === 0 &&
           matchingPayments.every(candidate => candidate.userId === matchingPayments[0].userId);
         if (matchingPayments.length + matchingLinks.length > 1 && !sameActivationTarget) {
@@ -8117,7 +8127,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       if (payment) {
         if (normalizedMerchantSlug(payment.merchantSlug) !== merchantSlug || !sameAmount(payment.amount, amount) ||
-            normalizedPhone(payment.payerPhone) !== payer || payment.country !== country) {
+            !samePaymentPhone(payment.payerPhone, payer) || payment.country !== country) {
           console.warn('[ROBOTPAY-WEBHOOK] Paiement activation non concordant', { txId });
           return res.status(400).json({ error: 'Paiement non concordant' });
         }
@@ -8126,7 +8136,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (updated.length) await storage.activateAccount(payment.userId);
       } else if (linkTransaction) {
         if (normalizedMerchantSlug(linkTransaction.merchantSlug) !== merchantSlug || !sameAmount(linkTransaction.amount, amount) ||
-            normalizedPhone(linkTransaction.phone) !== payer || linkTransaction.country !== country) {
+            !samePaymentPhone(linkTransaction.phone, payer) || linkTransaction.country !== country) {
           console.warn('[ROBOTPAY-WEBHOOK] Paiement lien non concordant', { txId });
           return res.status(400).json({ error: 'Paiement non concordant' });
         }
