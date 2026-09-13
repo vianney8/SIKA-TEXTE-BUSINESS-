@@ -3524,10 +3524,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const last8 = phoneDigits.slice(-8);
           const COUNTRY_FLAGS2: Record<string,string> = { BJ:'🇧🇯',CI:'🇨🇮',SN:'🇸🇳',BF:'🇧🇫',TG:'🇹🇬',CM:'🇨🇲' };
           const OPERATORS_FR3: Record<string,string> = { mtn:'MTN',moov:'Moov',orange:'Orange',wave:'Wave',tmoney:'T-Money',free:'Free',airtel:'Airtel' };
-          const STATUS_FR3: Record<string,string> = { pending:'⏳ En attente',approved:'✅ Approuvé',rejected:'❌ Rejeté' };
+          const STATUS_FR3: Record<string,string> = {
+            pending:'⏳ En attente',
+            approved:'✅ Approuvé',
+            completed:'✅ Complété',
+            rejected:'❌ Rejeté',
+            failed:'❌ Échoué',
+          };
 
           const results = await db.execute(sql`
-            SELECT * FROM manual_activation_requests
+            SELECT *
+            FROM (
+              SELECT
+                mar.id, 'manual'::text AS source, mar.user_id, mar.payment_phone,
+                mar.country, mar.operator, mar.payer_name, mar.full_name,
+                mar.email, mar.referral_code, mar.amount, mar.transaction_id,
+                mar.screenshot_url, mar.status, mar.created_at
+              FROM manual_activation_requests mar
+
+              UNION ALL
+
+              SELECT
+                bp.id, 'westpay'::text AS source, bp.user_id,
+                bp.payer_phone AS payment_phone, bp.country,
+                NULL::text AS operator, NULL::text AS payer_name,
+                u.full_name, u.email, u.referral_code, bp.amount,
+                COALESCE(bp.provider_tx_id, bp.reference) AS transaction_id,
+                NULL::text AS screenshot_url, bp.status, bp.created_at
+              FROM bkapay_payments bp
+              LEFT JOIN users u ON u.id = bp.user_id
+            ) AS activation_requests
             WHERE (regexp_replace(payment_phone,'[^0-9]','','g') LIKE ${'%'+phoneDigits+'%'}
                OR regexp_replace(payment_phone,'[^0-9]','','g') LIKE ${'%'+last8+'%'})
             ORDER BY created_at DESC LIMIT 10
@@ -3549,7 +3575,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const date = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'}) : '—';
               const cardText =
                 `${flag} <b>${r.country} — ${OPERATORS_FR3[r.operator]||r.operator}</b>\n` +
-                `📊 ${STATUS_FR3[r.status]||r.status}\n` +
+                `📊 ${STATUS_FR3[r.status]||r.status} — ${r.source === 'westpay' ? 'WestPay' : 'Manuel'}\n` +
                 `👤 Payeur (SIM) : ${r.payer_name||r.full_name||'N/A'}\n` +
                 `🪪 Compte : ${r.full_name||'N/A'}\n` +
                 `📋 Compte Sika : <code>${r.referral_code||'N/A'}</code>\n` +
@@ -3559,12 +3585,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 `🔖 ID tx : <code>${r.transaction_id||'—'}</code>\n` +
                 `🖼 Capture : ${r.screenshot_url ? '📎 envoyée ci-dessous' : '❌ aucune'}\n` +
                 `🕒 ${date}`;
+              const pendingActions = r.status === 'pending'
+                ? (r.source === 'westpay'
+                  ? [[
+                      { text:'✅ Activer', callback_data:`act_approve_pre_${r.user_id}` },
+                      { text:'❌ Décliner', callback_data:`act_decline_pre_${r.user_id}` },
+                    ]]
+                  : [[
+                      { text:'✅ Approuver', callback_data:`manact_app_pre_${r.id}` },
+                      { text:'❌ Rejeter', callback_data:`manact_rej_pre_${r.id}` },
+                    ]])
+                : [];
               const buttons = {
                 inline_keyboard: [
-                  ...(r.status === 'pending' ? [[
-                    { text:'✅ Approuver', callback_data:`manact_app_pre_${r.id}` },
-                    { text:'❌ Rejeter',   callback_data:`manact_rej_pre_${r.id}` },
-                  ]] : []),
+                  ...pendingActions,
                   [{ text:'🔒 Bloquer le compte', callback_data:`blkuser_pre_${r.user_id}` }]
                 ]
               };
