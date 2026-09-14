@@ -200,11 +200,14 @@ export default function Activation() {
   const getCountryRedirectUrl = (c: string): string   => { if (c === "CI") return ciRedirectUrl; return countryModes[c]?.redirectUrl || ""; };
   const visibleOperators = selectedCountry
     ? (getCountryMode(selectedCountry.code) === "robotpay"
-      ? ROBOTPAY_OPERATORS[selectedCountry.code] || []
+      ? (selectedCountry.code === "CI"
+        ? Array.from(new Set([...(ROBOTPAY_OPERATORS.CI || []), "wave"]))
+        : ROBOTPAY_OPERATORS[selectedCountry.code] || [])
       : selectedCountry.operators)
     : [];
   const isManualCountry       = (c: string) => getCountryMode(c) === "manual";
   const isRedirectCountry     = (c: string) => getCountryMode(c) === "redirect";
+  const isCiWaveManual        = country === "CI" && operator === "wave" && getCountryMode(country) === "robotpay";
 
   // Effects
   useEffect(() => {
@@ -309,7 +312,7 @@ export default function Activation() {
   };
 
   const handlePhoneContinue = () => {
-    if (isManualCountry(country)) setStep("manual");
+    if (isManualCountry(country) || isCiWaveManual) setStep("manual");
     else setStep("confirm");
   };
 

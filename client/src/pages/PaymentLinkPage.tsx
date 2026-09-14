@@ -177,14 +177,18 @@ export default function PaymentLinkPage() {
   const getRedirectUrl         = (c: string): string  => { if (c === "CI") return link?.ciRedirectUrl || ""; return countryModes[c]?.redirectUrl || ""; };
   const visibleOperators = selectedCountry
     ? (getMode(selectedCountry.code) === "robotpay"
-      ? ROBOTPAY_OPERATORS[selectedCountry.code] || []
+      ? (selectedCountry.code === "CI"
+        ? Array.from(new Set([...(ROBOTPAY_OPERATORS.CI || []), "wave"]))
+        : ROBOTPAY_OPERATORS[selectedCountry.code] || [])
       : selectedCountry.operators)
     : [];
   const currentMode            = getMode(country);
   const useRedirect            = country !== "" && currentMode === "redirect";
+  const useCiWaveManual        = country === "CI" && operator === "wave" && currentMode === "robotpay";
   // Le mode RobotPay choisi par l'administrateur pour le pays est prioritaire.
-  // Le réglage manuel propre au lien ne sert de repli que pour les autres modes.
+  // Exception CI : Wave reste manuel car WestPay ne le prend pas en charge.
   const useManual              = country !== "" && (
+    useCiWaveManual ||
     currentMode === "manual" ||
     (currentMode !== "robotpay" && !useRedirect && link?.manualMode === true)
   );

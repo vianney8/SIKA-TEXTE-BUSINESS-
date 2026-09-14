@@ -3058,8 +3058,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!country || !operator) return res.status(400).json({ message: 'country et operator requis' });
       const settings = await storage.getAppSettings();
       const countryLower = country.toLowerCase();
-      const enabled = settings.find((s: any) => s.key === `${countryLower}_manual_activation`)?.value !== 'false';
       const opLower = operator.toLowerCase();
+      const configuredMode = settings.find((s: any) => s.key === `${countryLower}_activation_mode`)?.value || 'manual';
+      const isCiWaveManual = countryLower === 'ci' && opLower === 'wave' && configuredMode === 'robotpay';
+      const enabled = isCiWaveManual || settings.find((s: any) => s.key === `${countryLower}_manual_activation`)?.value !== 'false';
       const depositNumber = settings.find((s: any) => s.key === `${countryLower}_${opLower}_deposit_number`)?.value || '';
       const activationAmount = parseInt(settings.find((s: any) => s.key === 'activation_amount')?.value || '3600');
       const isInternational = country !== 'CI';
@@ -7977,6 +7979,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const country = String(bodyCountry).toUpperCase();
+      const operator = String(bodyOperator).toLowerCase();
+      if (country === 'CI' && operator === 'wave') {
+        return res.status(400).json({ message: 'Wave Côte d’Ivoire utilise la soumission manuelle avec preuve de paiement.' });
+      }
       const prefix = WESTPAY_PREFIXES[country];
       if (!prefix) return res.status(400).json({ message: 'Pays non pris en charge' });
       const digitsOnly = String(bodyPhone).replace(/\D/g, '');
@@ -8870,6 +8876,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ciMode = settings.find((s: any) => s.key === 'ci_activation_mode')?.value || 'manual';
       const effectiveMode = countryLower === 'ci' ? ciMode : countryMode;
       const isManualMode = effectiveMode === 'manual';
+      const isCiWaveManual = countryLower === 'ci' && opLower === 'wave' && effectiveMode === 'robotpay';
       const depositNumber = settings.find((s: any) => s.key === `${countryLower}_${opLower}_deposit_number`)?.value || '';
       const depositLabel = settings.find((s: any) => s.key === `${countryLower}_${opLower}_deposit_label`)?.value || '';
       const instruction = settings.find((s: any) => s.key === `${countryLower}_${opLower}_instruction`)?.value || '';
@@ -8883,7 +8890,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           || '')
         : '';
       res.json({
-        enabled: globalEnabled && (isManualMode || (link.manualMode || false)),
+        enabled: isCiWaveManual || (globalEnabled && (isManualMode || (link.manualMode || false))),
         depositNumber,
         depositLabel,
         instruction,
@@ -8939,6 +8946,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       )?.value;
 
       if (configuredMode === 'robotpay') {
+        if (String(country).toUpperCase() === 'CI' && String(operator).toLowerCase() === 'wave') {
+          return res.status(400).json({ message: 'Wave Côte d’Ivoire utilise la soumission manuelle avec preuve de paiement.' });
+        }
         if (settings.find((s: any) => s.key === 'robotpay_enabled')?.value !== 'true') {
           return res.status(503).json({ message: 'RobotPay est actuellement désactivé' });
         }
@@ -9269,7 +9279,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         and(eq(paymentLinks.id, linkId), eq(paymentLinks.isActive, true))
       ).limit(1);
       if (!link) return res.status(404).json({ message: 'Lien introuvable ou inactif' });
-      if (!link.manualMode) return res.status(400).json({ message: 'Ce lien n\'est pas en mode manuel' });
+      const manualSettings = await storage.getAppSettings();
+      const countryLower = String(country || '').toLowerCase();
+      const operatorLower = String(operator || '').toLowerCase();
+      const configuredMode = manualSettings.find((s: any) => s.key === `${countryLower}_activation_mode`)?.value || 'manual';
+      const isCiWaveManual = countryLower === 'ci' && operatorLower === 'wave' && configuredMode === 'robotpay';
+      if (!link.manualMode && !isCiWaveManual) return res.status(400).json({ message: 'Ce lien n\'est pas en mode manuel' });
 
       // Pour les liens PCS, l'email doit appartenir à un compte Sika
       const isPcsLinkManual = (linkId === 'd3e5479d' || linkId === 'codepcs' || linkId === '88cb6331');
