@@ -19,7 +19,7 @@ Communication : Simple, langue française, sans jargon technique.
 - Base PostgreSQL : les tables de cet import ont été initialisées avec `npm run db:push`. Pour une nouvelle base vide, lancer cette commande une fois avant le serveur. Le démarrage complète ensuite les paramètres et tables auxiliaires existants.
 - `DATABASE_URL` est fourni par l'environnement et `SESSION_SECRET` est configuré. Cette base est neuve : les anciens comptes et données ne sont pas importés.
 - Les clés des services externes ne sont pas transférées avec le dépôt. Configurer les secrets des services utilisés avant de tester paiements, Telegram, e-mails, IA, appels Agora ou conversion vocale. Les anciens chemins de stockage présents dans `.replit` ne garantissent pas l'accès aux fichiers du projet source.
-- Vérification de cet import : démarrage et accueil confirmés, `npm run build` réussi. `npm run check` signale encore des erreurs de typage dans les routes et les anciens modules d'intégration ; elles restent à corriger.
+- Vérification de cet import : démarrage et accueil confirmés. Les erreurs de typage des routes et des anciens modules d'intégration ont été corrigées ; `npm run check` et `npm run build` sont les commandes de vérification.
 
 ---
 

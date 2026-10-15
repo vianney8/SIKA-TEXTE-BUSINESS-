@@ -3261,7 +3261,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log('[TELEGRAM] Ignored message from non-admin chat:', chatId);
           return res.sendStatus(200);
         }
-        const msgText = (update.message.text || '').trim();
+        const msgText: string = (update.message.text || '').trim();
         const settings = await storage.getAppSettings();
 
         // Auto-save admin chat_id on first message
@@ -9901,23 +9901,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const liveSettingKeys = ['activation_amount', 'ci_update_amount', 'telegram_group', 'whatsapp_group', 'telegram_supervisor', 'instagram_supervisor'];
 
       // ── Toutes les requêtes DB en parallèle ──────────────────────────────
-      const [user, accountStatusRow, transactions, balance, liveSettingsArr, pcsRows, knowledgeRows] = await Promise.all([
+      const [user, accountStatusRow, transactions, balance, pcsRows, knowledgeRows] = await Promise.all([
         storage.getUser(userId),
         storage.getAccountStatus(userId),
         storage.getUserTransactions(userId, 5),
         storage.getUserBalance(userId),
-        Promise.all(liveSettingKeys.map(async (key) => {
-          try { return [key, await storage.getAppSetting(key)] as [string, string | null]; } catch { return [key, null] as [string, null]; }
-        })),
         db.execute(sql`SELECT status FROM pcs_codes WHERE user_id = ${userId} LIMIT 1`).catch(() => ({ rows: [] })),
         db.execute(sql`SELECT title, content FROM ai_knowledge_base WHERE is_active = true ORDER BY id ASC`).catch(() => ({ rows: [] })),
       ]);
 
       if (!user) return res.status(401).json({ error: 'Utilisateur non trouvé' });
 
-      // Construire liveSettings depuis les résultats parallèles
+      // Réutiliser les paramètres déjà chargés pour vérifier ai_enabled.
       const liveSettings: Record<string, string> = {};
-      for (const [key, val] of liveSettingsArr) { if (val) liveSettings[key] = val; }
+      for (const { key, value } of aiSettings) {
+        if (liveSettingKeys.includes(key) && value) liveSettings[key] = value;
+      }
 
       // Statut PCS
       const pcsArr = ((pcsRows as any).rows ?? pcsRows ?? []) as any[];
@@ -10470,7 +10469,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     storage: multer.memoryStorage(),
     limits: { fileSize: 8 * 1024 * 1024 },
   });
-  app.post('/api/admin-call/:channelName/voice-convert', voiceChunkUpload.single('audio'), async (req, res) => {
+  app.post<{ channelName: string }>('/api/admin-call/:channelName/voice-convert', voiceChunkUpload.single('audio'), async (req, res) => {
     try {
       const { channelName } = req.params;
       if (!(await roomExists(channelName))) return res.status(404).json({ message: 'Appel introuvable' });
