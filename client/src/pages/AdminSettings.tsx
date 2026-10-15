@@ -8,6 +8,7 @@ import { Settings, Save, Wrench, CheckCircle, Video, Upload, Play, ShieldAlert, 
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import AdminNav from "@/components/admin/AdminNav";
+import { changeCheckoutSetting } from "@shared/checkout-settings";
 
 interface AppSetting {
   id: string;
@@ -114,7 +115,7 @@ export default function AdminSettings() {
   });
 
   const handleInputChange = (key: string, value: string) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
+    setSettings(prev => changeCheckoutSetting(prev, key, value));
   };
 
   const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -247,6 +248,15 @@ export default function AdminSettings() {
               Lorsque SolvexPay est activé, il traite tous les paiements de services : activation, achat et activation des PCS, DNS, mises à jour et autres liens.
               Choisissez la présentation utilisée par les clients. Aucun ancien formulaire n'est supprimé.
             </p>
+            {settings.solvexpay_enabled === "false" && (
+              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950" role="status">
+                <p>SolvexPay est désactivé globalement : le modèle simplifié ne sera pas affiché, même si SolvexPay est sélectionné par pays.</p>
+                <Button type="button" variant="outline" className="mt-3"
+                  onClick={() => handleInputChange("solvexpay_enabled", "true")}>
+                  Activer SolvexPay pour tout le site
+                </Button>
+              </div>
+            )}
             <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Modèle de paiement">
               {[
                 { value: "simple", label: "Modèle simplifié", description: "Pays, opérateur et téléphone sur une seule page, puis validation sur le téléphone." },
@@ -263,6 +273,7 @@ export default function AdminSettings() {
             </div>
             <p className="mt-3 text-xs text-muted-foreground">
               Enregistrez les paramètres pour appliquer le choix. Désactiver SolvexPay rétablit les moyens manuels et les autres prestataires configurés ; les paiements déjà lancés restent vérifiables.
+              Sélectionner SolvexPay dans les réglages d’un pays active aussi son interrupteur général, sans modifier votre choix de modèle.
             </p>
           </CardContent>
         </Card>
