@@ -10,12 +10,13 @@ import {
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import sikaLogo from "@assets/1764438802465_1773510898637.jpg";
+import PaymentCheckout from "@/components/PaymentCheckout";
 
 // ─── Config pays & opérateurs ────────────────────────────────────────────────
 export const COUNTRIES = [
-  { code: "BJ",  name: "Bénin",         flag: "🇧🇯", prefix: "229", phonePlaceholder: "01 23 45 67 89", operators: ["mtn","moov"] },
+  { code: "BJ",  name: "Bénin",         flag: "🇧🇯", prefix: "229", phonePlaceholder: "01 23 45 67 89", operators: ["mtn","moov","celtis"] },
   { code: "CI",  name: "Côte d'Ivoire", flag: "🇨🇮", prefix: "225", phonePlaceholder: "05 12 34 56 78", operators: ["mtn","moov","orange","wave"] },
-  { code: "SN",  name: "Sénégal",       flag: "🇸🇳", prefix: "221", phonePlaceholder: "01 23 45 67", operators: ["orange","wave","free"] },
+  { code: "SN",  name: "Sénégal",       flag: "🇸🇳", prefix: "221", phonePlaceholder: "01 23 45 67", operators: ["orange","wave","free","expresso"] },
   { code: "BF",  name: "Burkina Faso",  flag: "🇧🇫", prefix: "226", phonePlaceholder: "01 23 45 67", operators: ["moov","orange","wave"] },
   { code: "TG",  name: "Togo",          flag: "🇹🇬", prefix: "228", phonePlaceholder: "01 23 45 67", operators: ["moov","tmoney"] },
   { code: "CM",  name: "Cameroun",      flag: "🇨🇲", prefix: "237", phonePlaceholder: "6 12 34 56 78", operators: ["mtn","orange"] },
@@ -36,6 +37,8 @@ export const OPERATORS: Record<string, {
   name: string; full: string; bg: string; text: string; border: string; initials: string;
   method: MethodType; methodLabel: string;
 }> = {
+  celtis: { name: "Celtis", full: "Celtis Cash", bg: "#006B52", text: "#fff", border: "#00513e", initials: "CC", method: "ussd", methodLabel: "USSD Push" },
+  expresso: { name: "Expresso", full: "Expresso", bg: "#005E9E", text: "#fff", border: "#004a7d", initials: "EX", method: "ussd", methodLabel: "USSD Push" },
   mtn:    { name: "MTN",     full: "MTN Mobile Money",  bg: "#FFCC00", text: "#1a1a1a", border: "#e6b800", initials: "MTN", method: "ussd",     methodLabel: "USSD Push" },
   moov:   { name: "Moov",    full: "Moov Money",        bg: "#005BAA", text: "#fff",    border: "#004d99", initials: "MV",  method: "ussd",     methodLabel: "USSD Push" },
   orange: { name: "Orange",  full: "Orange Money",      bg: "#FF6600", text: "#fff",    border: "#e55c00", initials: "OM",  method: "ussd",     methodLabel: "USSD Push" },
@@ -146,6 +149,10 @@ function ProgressBar({ step }: { step: FormStep }) {
 
 // ─── Composant principal ──────────────────────────────────────────────────────
 export default function Activation() {
+  return <PaymentCheckout service="activation"><LegacyActivation /></PaymentCheckout>;
+}
+
+function LegacyActivation() {
   const { toast } = useToast();
 
   const { data: activationStatus, refetch: refetchStatus } = useQuery({ queryKey: ["/api/activation/status"] }) as any;

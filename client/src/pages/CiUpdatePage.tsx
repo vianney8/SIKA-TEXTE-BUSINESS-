@@ -6,6 +6,8 @@ import { FaWhatsapp } from "react-icons/fa";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAppSetting } from "@/hooks/useAppSettings";
+import PaymentCheckout, { useCheckoutMode } from "@/components/PaymentCheckout";
+import SimpleCheckout from "@/components/SimpleCheckout";
 
 interface AuthUser { id: string; fullName: string; referralCode: string; phone: string; }
 interface CiStatus { ciUpdateRequired: boolean; ciUpdateLink: string; ciUpdateAmount: number; }
@@ -43,6 +45,11 @@ const MoovLogo = () => (
 );
 
 export default function CiUpdatePage() {
+  return <PaymentCheckout service="ci-update"><LegacyCiUpdatePage /></PaymentCheckout>;
+}
+
+function LegacyCiUpdatePage() {
+  const { data: checkoutMode } = useCheckoutMode();
   const { toast } = useToast();
   const [paymentPhone, setPaymentPhone] = useState("");
   const [inputError, setInputError] = useState("");
@@ -75,6 +82,7 @@ export default function CiUpdatePage() {
   });
 
   const handleSubmit = () => {
+    if (checkoutMode?.enabled) { setPageState("payment"); return; }
     if (!paymentPhone.trim()) { setInputError("Ce champ est requis."); return; }
     if (paymentPhone.trim().length < 8) { setInputError("Numéro invalide."); return; }
     setInputError("");
@@ -92,6 +100,10 @@ export default function CiUpdatePage() {
     "💰 Accès immédiat après validation",
     "🛡️ Traitement par l'administrateur",
   ];
+
+  if (pageState === "payment" && checkoutMode?.enabled) {
+    return <SimpleCheckout service="ci-update" onSuccess={() => window.location.reload()} onCancel={() => setPageState("form")} />;
+  }
 
   return (
     <>

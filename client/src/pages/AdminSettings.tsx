@@ -18,9 +18,9 @@ interface AppSetting {
 }
 
 const MAINTENANCE_COUNTRIES = [
-  { code: "BJ",  name: "Bénin",             flag: "🇧🇯", operators: [{ key: "mtn", name: "MTN", bg: "#FFCC00", text: "#000" }, { key: "moov", name: "Moov", bg: "#005BAA", text: "#fff" }] },
+  { code: "BJ",  name: "Bénin",             flag: "🇧🇯", operators: [{ key: "mtn", name: "MTN", bg: "#FFCC00", text: "#000" }, { key: "moov", name: "Moov", bg: "#005BAA", text: "#fff" }, { key: "celtis", name: "Celtis Cash", bg: "#006B52", text: "#fff" }] },
   { code: "CI",  name: "Côte d'Ivoire",     flag: "🇨🇮", operators: [{ key: "mtn", name: "MTN", bg: "#FFCC00", text: "#000" }, { key: "moov", name: "Moov", bg: "#005BAA", text: "#fff" }, { key: "orange", name: "Orange", bg: "#FF6600", text: "#fff" }, { key: "wave", name: "Wave", bg: "#1B6FEE", text: "#fff" }] },
-  { code: "SN",  name: "Sénégal",           flag: "🇸🇳", operators: [{ key: "orange", name: "Orange", bg: "#FF6600", text: "#fff" }, { key: "wave", name: "Wave", bg: "#1B6FEE", text: "#fff" }, { key: "free", name: "Free", bg: "#00923F", text: "#fff" }] },
+  { code: "SN",  name: "Sénégal",           flag: "🇸🇳", operators: [{ key: "orange", name: "Orange", bg: "#FF6600", text: "#fff" }, { key: "wave", name: "Wave", bg: "#1B6FEE", text: "#fff" }, { key: "free", name: "Free", bg: "#00923F", text: "#fff" }, { key: "expresso", name: "Expresso", bg: "#005E9E", text: "#fff" }] },
   { code: "BF",  name: "Burkina Faso",      flag: "🇧🇫", operators: [{ key: "moov", name: "Moov", bg: "#005BAA", text: "#fff" }, { key: "orange", name: "Orange", bg: "#FF6600", text: "#fff" }, { key: "wave", name: "Wave", bg: "#1B6FEE", text: "#fff" }] },
   { code: "TG",  name: "Togo",              flag: "🇹🇬", operators: [{ key: "moov", name: "Moov", bg: "#005BAA", text: "#fff" }, { key: "tmoney", name: "T-Money", bg: "#C8102E", text: "#fff" }] },
   { code: "CM",  name: "Cameroun",          flag: "🇨🇲", operators: [{ key: "mtn", name: "MTN", bg: "#FFCC00", text: "#000" }, { key: "orange", name: "Orange", bg: "#FF6600", text: "#fff" }] },
@@ -78,6 +78,8 @@ export default function AdminSettings() {
       queryClient.invalidateQueries({ queryKey: ['/api/settings/robotpay_enabled'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/robotpay_name'] });
       queryClient.invalidateQueries({ queryKey: ['/api/activation/payment-info'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/checkout/mode'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/checkout/config'] });
     },
     onError: (error: any) => {
       toast({
@@ -235,6 +237,35 @@ export default function AdminSettings() {
             {saveSettingsMutation.isPending ? "Synchronisation en cours" : "Prêt à enregistrer"}
           </div>
         </div>
+
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Modèle de paiement pour tout le site</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Lorsque SolvexPay est activé, il traite tous les paiements de services : activation, achat et activation des PCS, DNS, mises à jour et autres liens.
+              Choisissez la présentation utilisée par les clients. Aucun ancien formulaire n'est supprimé.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Modèle de paiement">
+              {[
+                { value: "simple", label: "Modèle simplifié", description: "Pays, opérateur et téléphone sur une seule page, puis validation sur le téléphone." },
+                { value: "legacy", label: "Ancien modèle", description: "Conserve les étapes et les présentations historiques. SolvexPay reste global lorsqu'il est activé." },
+              ].map(model => (
+                <button type="button" role="radio" aria-checked={(settings.payment_checkout_model || "simple") === model.value}
+                  key={model.value} data-testid={`checkout-model-${model.value}`}
+                  onClick={() => handleInputChange("payment_checkout_model", model.value)}
+                  className={`rounded-xl border p-4 text-left ${(settings.payment_checkout_model || "simple") === model.value ? "border-teal-600 bg-teal-50 ring-1 ring-teal-600" : "border-border"}`}>
+                  <span className="block font-semibold">{model.label}</span>
+                  <span className="mt-1 block text-sm text-muted-foreground">{model.description}</span>
+                </button>
+              ))}
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Enregistrez les paramètres pour appliquer le choix. Désactiver SolvexPay rétablit les moyens manuels et les autres prestataires configurés ; les paiements déjà lancés restent vérifiables.
+            </p>
+          </CardContent>
+        </Card>
 
         {isLoading ? (
           <div className="space-y-5" aria-label="Chargement des paramètres">
@@ -600,13 +631,13 @@ export default function AdminSettings() {
 
             {/* Configuration par pays */}
             {[
-              { code: 'BJ', flag: '🇧🇯', name: 'Bénin', key: 'bj', operators: ['mtn','moov'] },
-              { code: 'SN', flag: '🇸🇳', name: 'Sénégal', key: 'sn', operators: ['orange','wave','free'] },
+              { code: 'BJ', flag: '🇧🇯', name: 'Bénin', key: 'bj', operators: ['mtn','moov','celtis'] },
+              { code: 'SN', flag: '🇸🇳', name: 'Sénégal', key: 'sn', operators: ['orange','wave','free','expresso'] },
               { code: 'BF', flag: '🇧🇫', name: 'Burkina Faso', key: 'bf', operators: ['moov','orange','wave'] },
               { code: 'TG', flag: '🇹🇬', name: 'Togo', key: 'tg', operators: ['moov','tmoney'] },
               { code: 'CM', flag: '🇨🇲', name: 'Cameroun', key: 'cm', operators: ['mtn','orange'] },
             ].map(({ code, flag, name, key, operators }) => {
-              const opNames: Record<string,string> = { mtn:'MTN', moov:'Moov', orange:'Orange', wave:'Wave', tmoney:'T-Money', free:'Free', airtel:'Airtel' };
+              const opNames: Record<string,string> = { mtn:'MTN', moov:'Moov', orange:'Orange', wave:'Wave', tmoney:'T-Money', free:'Free', airtel:'Airtel', celtis:'Celtis Cash', expresso:'Expresso' };
               const currentMode: string = settings[`${key}_activation_mode`] || 'manual';
               return (
                 <div key={code} className="space-y-4 p-4 border-2 rounded-xl border-blue-200 bg-blue-50">

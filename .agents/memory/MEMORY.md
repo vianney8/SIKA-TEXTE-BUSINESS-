@@ -9,3 +9,4 @@
 - [Payment initiation retries](payment-initiation-retries.md) — reuse same-target pending payments; duplicate rows can make a valid webhook look ambiguous and block activation.
 - [Payment webhook fulfillment](payment-webhook-fulfillment.md) — normalize signed provider payloads and never mark payment completed before the database fulfillment succeeds.
 - [Protected npm registry](protected-npm-registry.md) — forced registry-host rewriting can duplicate Replit's /npm prefix and cause misleading package-download 404s.
+- [Payment checkout policy](payment-checkout-policy.md) — SolvexPay is global when enabled; keep the old checkout as an administrator-selectable alternative.

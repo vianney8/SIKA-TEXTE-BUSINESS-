@@ -1026,7 +1026,7 @@ export default function Withdrawal() {
               </>
             )}
 
-            {(dnsUpdateStatus?.status === 'failed' || !dnsUpdateStatus || dnsUpdateStatus.status === 'none') && showDnsForm && (
+            {(dnsUpdateStatus?.status !== 'completed') && showDnsForm && (
               <DnsPaymentForm
                 onCancel={() => setShowDnsForm(false)}
                 onSubmitted={() => { setShowDnsForm(false); refetchDnsStatus(); }}

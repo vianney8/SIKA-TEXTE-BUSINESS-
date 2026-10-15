@@ -23,6 +23,15 @@ Communication : Simple, langue française, sans jargon technique.
 
 ---
 
+## Paiements SolvexPay et modèles de formulaire
+
+- `solvexpay_enabled` est global : lorsqu'il est activé, les paiements d'activation, les achats et changements de statut PCS, le DNS, la mise à jour CI et les autres liens utilisent SolvexPay, quel que soit l'ancien mode enregistré par pays.
+- Dans **Admin → Paramètres → Modèle de paiement pour tout le site**, `payment_checkout_model` choisit `simple` (formulaire commun sur une page, valeur par défaut) ou `legacy` (présentations historiques conservées). Enregistrer les paramètres pour appliquer le choix.
+- Désactiver SolvexPay restaure les autres modes configurés ; les confirmations des paiements déjà initiés restent traitables. Le choix du modèle ne change ni les montants ni le catalogue de pays/opérateurs.
+- Les nouveaux paiements sont enregistrés dans l'historique des transactions de liens avec une référence `UCHK-`. Les services internes activation et mise à jour CI y utilisent respectivement `__activation` et `__ci_update`.
+- Le paiement n'est confirmé qu'après vérification côté serveur et attribution du service. Le webhook exige `SOLVEXPAY_WEBHOOK_SECRET` ; les appels prestataire exigent `SOLVEXPAY_API_KEY`. Ne jamais saisir ces clés dans le code ou le chat.
+- Vérification des attributions et doublons, sans appel au prestataire : `node --import tsx --test tests/checkout.test.ts`. Ce test crée puis supprime uniquement ses propres comptes et transactions synthétiques dans la base de développement.
+
 ## Identité visuelle & Couleurs
 
 ### Palette principale

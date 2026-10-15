@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import PaymentCheckout from "@/components/PaymentCheckout";
 import { useParams } from "wouter";
 import {
   CheckCircle, ChevronLeft, ChevronRight, Clock, Copy, ExternalLink, Globe, ImageIcon,
@@ -7,9 +8,9 @@ import {
 
 // ─── Config pays & opérateurs ────────────────────────────────────────────────
 const COUNTRIES = [
-  { code: "BJ",  name: "Bénin",         flag: "🇧🇯", prefix: "229", phonePlaceholder: "01 23 45 67 89", operators: ["mtn","moov"] },
+  { code: "BJ",  name: "Bénin",         flag: "🇧🇯", prefix: "229", phonePlaceholder: "01 23 45 67 89", operators: ["mtn","moov","celtis"] },
   { code: "CI",  name: "Côte d'Ivoire", flag: "🇨🇮", prefix: "225", phonePlaceholder: "05 12 34 56 78", operators: ["mtn","moov","orange","wave"] },
-  { code: "SN",  name: "Sénégal",       flag: "🇸🇳", prefix: "221", phonePlaceholder: "01 23 45 67", operators: ["orange","wave","free"] },
+  { code: "SN",  name: "Sénégal",       flag: "🇸🇳", prefix: "221", phonePlaceholder: "01 23 45 67", operators: ["orange","wave","free","expresso"] },
   { code: "BF",  name: "Burkina Faso",  flag: "🇧🇫", prefix: "226", phonePlaceholder: "01 23 45 67", operators: ["moov","orange","wave"] },
   { code: "TG",  name: "Togo",          flag: "🇹🇬", prefix: "228", phonePlaceholder: "01 23 45 67", operators: ["moov","tmoney"] },
   { code: "CM",  name: "Cameroun",      flag: "🇨🇲", prefix: "237", phonePlaceholder: "6 12 34 56 78", operators: ["mtn","orange"] },
@@ -25,6 +26,8 @@ const ROBOTPAY_OPERATORS: Record<string, string[]> = {
 };
 
 const OPERATORS: Record<string, { name: string; full: string; bg: string; text: string; border: string; initials: string }> = {
+  celtis: { name: "Celtis", full: "Celtis Cash", bg: "#006B52", text: "#fff", border: "#00513e", initials: "CC" },
+  expresso: { name: "Expresso", full: "Expresso", bg: "#005E9E", text: "#fff", border: "#004a7d", initials: "EX" },
   mtn:    { name: "MTN",     full: "MTN Mobile Money", bg: "#FFCC00", text: "#1a1a1a", border: "#e6b800", initials: "MTN" },
   moov:   { name: "Moov",    full: "Moov Money",       bg: "#005BAA", text: "#fff", border: "#004d99", initials: "MV" },
   orange: { name: "Orange",  full: "Orange Money",     bg: "#FF6600", text: "#fff", border: "#e55c00", initials: "OM" },
@@ -127,6 +130,11 @@ type FormStep = "country" | "operator" | "phone";
 type Step = FormStep | "manual" | "pending" | "success" | "failed" | "redirected" | "submitted";
 
 export default function PaymentLinkPage() {
+  const { linkId } = useParams<{ linkId: string }>();
+  return <PaymentCheckout service="link" linkId={linkId}><LegacyPaymentLinkPage /></PaymentCheckout>;
+}
+
+function LegacyPaymentLinkPage() {
   const params = useParams<{ linkId: string }>();
   const linkId = params.linkId;
 

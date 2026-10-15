@@ -42,6 +42,7 @@ import { eq, sql, and, desc, or, ilike, count, isNull, ne } from "drizzle-orm";
 import connectPg from "connect-pg-simple";
 import { randomBytes, createHmac, timingSafeEqual } from "crypto";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import { registerCheckoutRoutes, solvexEnabled } from "./checkout";
 import {
   classifyMoovPayment,
   parseMoovSmsBlock,
@@ -427,6 +428,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Setup sessions
   setupSessions(app);
+  registerCheckoutRoutes(app);
 
   // Upload en mémoire pour les captures d'écran de paiement manuel
   // (activation de compte, mise à jour DNS, etc.)
@@ -7429,6 +7431,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (value === undefined || value === null) {
         return res.status(400).json({ message: 'Valeur requise' });
       }
+      if (key === 'payment_checkout_model' && !['simple', 'legacy'].includes(value)) {
+        return res.status(400).json({ message: 'Modèle de paiement invalide' });
+      }
       await storage.updateAppSetting(key, value);
       res.json({ message: 'Paramètre mis à jour avec succès' });
     } catch (error) {
@@ -7680,6 +7685,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       else if (ciActivationModeSetting === 'robotpay') ciMode = 'robotpay';
       else if (ciActivationModeSetting === 'redirect') ciMode = 'redirect';
       else ciMode = ciManualActivation ? 'redirect' : 'solvexpay';
+      if (solvexEnabled(settings)) ciMode = 'solvexpay';
+      else if (ciMode === 'solvexpay') ciMode = 'manual';
       const ciRedirectUrl = settings.find((s: any) => s.key === 'ci_manual_activation_url')?.value || 'https://clp.ci/ETPXwo';
 
       // Modes pour tous les autres pays
@@ -7693,7 +7700,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const mode: PayMode = (rawMode === 'redirect' || rawMode === 'solvexpay' || rawMode === 'robotpay' || rawMode === 'manual')
           ? rawMode : 'manual';
         const redirectUrl = settings.find((s: any) => s.key === `${k}_redirect_url`)?.value || '';
-        countryModes[k.toUpperCase()] = { mode, redirectUrl };
+        countryModes[k.toUpperCase()] = { mode: solvexEnabled(settings) ? 'solvexpay' : (mode === 'solvexpay' ? 'manual' : mode), redirectUrl };
       }
       res.json({
         activationAmount,
@@ -8836,6 +8843,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         countryModes[k.toUpperCase()] = { mode, redirectUrl: rUrl };
       }
 
+      if (solvexEnabled(settings)) {
+        ciMode = 'solvexpay';
+        for (const config of Object.values(countryModes)) config.mode = 'solvexpay';
+      } else {
+        if (ciMode === 'solvexpay') ciMode = 'manual';
+        for (const config of Object.values(countryModes)) if (config.mode === 'solvexpay') config.mode = 'manual';
+      }
       res.setHeader('Cache-Control', 'no-store');
       res.json({
         id: link.id,
@@ -8847,7 +8861,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ciMode,
         ciRedirect: ciMode === 'redirect',
         ciRedirectUrl,
-        manualMode: isManual,
+        manualMode: !solvexEnabled(settings) && isManual,
         isPcs,
         countryModes,
         maintenanceMap: maintenanceMap2,
@@ -8992,6 +9006,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      if (!solvexEnabled(settings)) return res.status(503).json({ message: 'SolvexPay est désactivé. Utilisez le moyen de paiement configuré par l’administrateur.' });
       const apiKey = process.env.SOLVEXPAY_API_KEY;
       if (!apiKey) return res.status(500).json({ message: 'Clé API non configurée' });
 
