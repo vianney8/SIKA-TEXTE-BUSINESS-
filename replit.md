@@ -14,11 +14,12 @@ Communication : Simple, langue française, sans jargon technique.
 
 ## Lancer le projet sur Replit
 
-- Installation : `npm install`
+- Prérequis : Node.js 22 (Express 5). Installation : `npm install`
 - Démarrage (dev) : `npm run dev` (déjà configuré comme workflow "Start application", port 5000)
-- Les tables et paramètres de base de données sont créés/complétés automatiquement au démarrage du serveur (pas besoin de lancer `npm run db:push` sauf après modification du schéma dans `shared/`)
-- Secrets déjà configurés dans cet environnement : `DATABASE_URL`, `SESSION_SECRET`, `TELEGRAM_BOT_TOKEN`, `SOLVEXPAY_API_KEY`, `SOLVEXPAY_SECRET_KEY`, `SOLVEXPAY_WEBHOOK_SECRET`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `PRIVATE_OBJECT_DIR`, `PUBLIC_OBJECT_SEARCH_PATHS`
-- Secret RobotPay à ajouter avant activation : `ROBOTPAY_WEBHOOK_SECRET`
+- Base PostgreSQL : les tables de cet import ont été initialisées avec `npm run db:push`. Pour une nouvelle base vide, lancer cette commande une fois avant le serveur. Le démarrage complète ensuite les paramètres et tables auxiliaires existants.
+- `DATABASE_URL` est fourni par l'environnement et `SESSION_SECRET` est configuré. Cette base est neuve : les anciens comptes et données ne sont pas importés.
+- Les clés des services externes ne sont pas transférées avec le dépôt. Configurer les secrets des services utilisés avant de tester paiements, Telegram, e-mails, IA, appels Agora ou conversion vocale. Les anciens chemins de stockage présents dans `.replit` ne garantissent pas l'accès aux fichiers du projet source.
+- Vérification de cet import : démarrage et accueil confirmés, `npm run build` réussi. `npm run check` signale encore des erreurs de typage dans les routes et les anciens modules d'intégration ; elles restent à corriger.
 
 ---
 

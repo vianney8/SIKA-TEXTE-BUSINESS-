@@ -7598,9 +7598,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/profile-photos/:filename(*)', async (req, res) => {
+  app.get('/profile-photos/*filename', async (req, res) => {
     try {
-      const filename = req.params.filename;
+      const filename = Array.isArray(req.params.filename) ? req.params.filename.join('/') : req.params.filename;
       const photoPath = `/profile-photos/${filename}`;
       
       const objectStorageService = new ObjectStorageService();
