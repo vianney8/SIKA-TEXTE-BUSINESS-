@@ -89,8 +89,8 @@ function LegacyCiUpdatePage() {
   });
 
   const handleSubmit = () => {
-    if (!payerFullName.trim() || payerFullName.trim().length < 3) { setInputError("Saisissez le nom complet du payeur."); return; }
-    if (!paymentOperator) { setInputError("Choisissez votre opérateur Mobile Money."); return; }
+    if (checkoutMode?.model === "pro" && payerFullName.trim().length < 3) { setInputError("Saisissez le nom complet du payeur."); return; }
+    if (checkoutMode?.model === "pro" && !paymentOperator) { setInputError("Choisissez votre opérateur Mobile Money."); return; }
     if (checkoutMode?.enabled) { setPageState("payment"); return; }
     if (!paymentPhone.trim()) { setInputError("Ce champ est requis."); return; }
     if (paymentPhone.trim().length < 8) { setInputError("Numéro invalide."); return; }
@@ -415,6 +415,7 @@ function LegacyCiUpdatePage() {
 
               {/* Champ téléphone */}
               <div className="glass-card p-4 space-y-3">
+                {checkoutMode?.model === "pro" && <>
                 <label htmlFor="ci-country" className="block text-white/60 text-xs font-semibold uppercase tracking-widest">
                   Pays
                 </label>
@@ -438,6 +439,7 @@ function LegacyCiUpdatePage() {
                   <option value="orange">Orange Money</option>
                   <option value="wave">Wave</option>
                 </select>
+                </>}
                 <label htmlFor="ci-payment-phone" className="block text-white/60 text-xs font-semibold uppercase tracking-widest">
                   Numéro Mobile Money pour le paiement
                 </label>

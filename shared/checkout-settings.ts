@@ -3,6 +3,17 @@ const COUNTRY_MODE_KEYS = new Set([
   "bf_activation_mode", "tg_activation_mode", "cm_activation_mode",
 ]);
 
+export const CHECKOUT_MODELS = ["legacy", "simple", "pro"] as const;
+export type CheckoutModel = typeof CHECKOUT_MODELS[number];
+
+export function checkoutModel(value?: string | null): CheckoutModel {
+  return CHECKOUT_MODELS.includes(value as CheckoutModel) ? value as CheckoutModel : "simple";
+}
+
+export function usesUnifiedCheckout(model: CheckoutModel): boolean {
+  return model === "simple" || model === "pro";
+}
+
 export function changeCheckoutSetting(
   settings: Record<string, string>, key: string, value: string,
 ): Record<string, string> {

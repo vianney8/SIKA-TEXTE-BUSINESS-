@@ -151,7 +151,7 @@ function LegacyDnsPaymentForm({
   }
 
   // ── Étape 1 : Pays ──────────────────────────────────────────────────────
-  if (step === "country" || step === "operator" || step === "phone") {
+  if (checkoutMode?.model === "pro" && (step === "country" || step === "operator" || step === "phone")) {
     const canContinue = !!country && !!operator && phone.replace(/\D/g, "").length >= 6 && payerName.trim().length >= 3;
     return (
       <div className="payment-journey payment-content space-y-4">

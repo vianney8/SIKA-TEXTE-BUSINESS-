@@ -938,7 +938,7 @@ function LegacyPaymentLinkPage() {
   // ─────────────────────────────────────────────────────────────────────────────
   // ÉTAPE 1 : Sélection du pays
   // ─────────────────────────────────────────────────────────────────────────────
-  if (step === "country" || step === "operator" || step === "phone") {
+  if (checkoutMode?.model === "pro" && (step === "country" || step === "operator" || step === "phone")) {
     const canContinue = !!country && !!operator && phone.replace(/\D/g, "").length >= 6 &&
       payerFullName.trim().length >= 3 && (!link?.isPcs || !!email.trim());
     return (

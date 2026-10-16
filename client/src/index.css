@@ -102,6 +102,28 @@
     linear-gradient(180deg, #f7f5fb 0%, var(--payment-wash) 100%);
   font-family: var(--font-sans);
 }
+
+/* Pro is an explicit presentation choice; keep previous models available. */
+[data-checkout-model="legacy"] .payment-journey,
+[data-checkout-model="simple"] .payment-journey {
+  --payment-ink: #16333a;
+  --payment-muted: #60777b;
+  --payment-paper: #fffdf8;
+  --payment-wash: #edf5f3;
+  --payment-line: #d9e7e3;
+  --payment-teal: #176b62;
+  --payment-teal-deep: #0d4e4a;
+  --payment-signal: #d98a32;
+}
+[data-checkout-model="simple"] .sika-checkout {
+  --accent: #17203b;
+  --accent-deep: #0d1428;
+  background: linear-gradient(180deg, #f8fafc, #edf2fb);
+}
+[data-checkout-model="simple"] .sika-checkout .phone-orbit,
+[data-checkout-model="simple"] .sika-checkout .checkout-progress {
+  display: none;
+}
 .payment-journey .payment-card {
   background: color-mix(in srgb, var(--payment-paper) 94%, white);
   border: 1px solid var(--payment-line);

@@ -10,7 +10,7 @@ import {
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import sikaLogo from "@assets/1764438802465_1773510898637.jpg";
-import PaymentCheckout from "@/components/PaymentCheckout";
+import PaymentCheckout, { useCheckoutMode } from "@/components/PaymentCheckout";
 
 // ─── Config pays & opérateurs ────────────────────────────────────────────────
 export const COUNTRIES = [
@@ -151,6 +151,7 @@ export default function Activation() {
 }
 
 function LegacyActivation() {
+  const { data: checkoutMode } = useCheckoutMode();
   const { toast } = useToast();
 
   const { data: activationStatus, refetch: refetchStatus } = useQuery({ queryKey: ["/api/activation/status"] }) as any;
@@ -321,7 +322,8 @@ function LegacyActivation() {
 
   const handlePhoneContinue = () => {
     if (isManualCountry(country) || isCiWaveManual) setStep("manual");
-    else void handleConfirm();
+    else if (checkoutMode?.model === "pro") void handleConfirm();
+    else setStep("confirm");
   };
 
   const handleManualSubmit = async () => {
@@ -787,7 +789,7 @@ function LegacyActivation() {
   // ─────────────────────────────────────────────────────────────────────────────
   // ÉTAPE 1 : Sélection du pays
   // ─────────────────────────────────────────────────────────────────────────────
-  if (step === "country" || step === "operator" || step === "phone") {
+  if (checkoutMode?.model === "pro" && (step === "country" || step === "operator" || step === "phone")) {
     const canContinue = !!country && !!operator && phone.replace(/\D/g, "").length >= 6 &&
       payerName.trim().length >= 3 && !isOpMaintenance(country, operator);
     return (

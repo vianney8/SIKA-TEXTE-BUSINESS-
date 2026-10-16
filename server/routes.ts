@@ -44,6 +44,7 @@ import { randomBytes, createHmac, timingSafeEqual } from "crypto";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { registerCheckoutRoutes, solvexEnabled } from "./checkout";
 import { linkManualPaymentAllowed, paymentCustomerEmail } from "@shared/payment-customer";
+import { CHECKOUT_MODELS } from "@shared/checkout-settings";
 import {
   classifyMoovPayment,
   parseMoovSmsBlock,
@@ -7432,7 +7433,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (value === undefined || value === null) {
         return res.status(400).json({ message: 'Valeur requise' });
       }
-      if (key === 'payment_checkout_model' && !['simple', 'legacy'].includes(value)) {
+      if (key === 'payment_checkout_model' && !CHECKOUT_MODELS.includes(value)) {
         return res.status(400).json({ message: 'Modèle de paiement invalide' });
       }
       await storage.updateAppSetting(key, value);

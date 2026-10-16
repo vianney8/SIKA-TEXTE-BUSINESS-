@@ -22,3 +22,9 @@ Payment journeys should use the user's reference flow: Demande → Validation �
 **Why:** The user requested the same professional reference design for manual, automatic and manual-review waiting screens, not only the SolvexPay form.
 
 **How to apply:** Preserve service-specific proof/approval rules and the administrator's model choice. For a signed-in customer, keep the account email fixed in the UI and derive it from the session on the server, especially for PCS. Preserve supported guest checkout separately.
+
+The user names the newly redesigned three-stage experience **Modèle pro**. It must be an additional administrator-selectable presentation, not an overwrite of the historical or simplified choices.
+
+**Why:** The user explicitly asked for a distinct pro option and the ability for the administrator to switch to it.
+
+**How to apply:** Keep gateway enablement separate from model selection, preserve existing saved choices, and apply the pro experience to both manual and automatic payments when selected.

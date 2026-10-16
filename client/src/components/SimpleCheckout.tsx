@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { localPaymentPhone } from "@shared/payment-phone";
+import { type CheckoutModel, usesUnifiedCheckout } from "@shared/checkout-settings";
 import {
   AlertCircle,
   ArrowRight,
@@ -29,7 +30,7 @@ type Country = {
 };
 type CheckoutConfig = {
   enabled: boolean;
-  model: "legacy" | "simple";
+  model: CheckoutModel;
   label: string;
   amount: number;
   currency: string;
@@ -354,7 +355,7 @@ export default function SimpleCheckout({
   const canPay =
     Boolean(config?.enabled && country && selectedOperator && !selectedOperator.maintenance) &&
     validPhone &&
-    payerName.trim().length >= 3 &&
+    (config?.model !== "pro" || payerName.trim().length >= 3) &&
     validEmail &&
     (!needsOtp || /^\d{4,10}$/.test(otp.trim())) &&
     !locked &&
@@ -398,7 +399,7 @@ export default function SimpleCheckout({
     );
   }
 
-  if ((!config.enabled || config.model !== "simple") && !(transactionId && paymentStatus)) {
+  if ((!config.enabled || !usesUnifiedCheckout(config.model)) && !(transactionId && paymentStatus)) {
     return (
       <main className="sika-checkout min-h-[100dvh] flex items-center justify-center p-4">
         <section className="checkout-card w-full max-w-[440px] p-7 text-center">
@@ -523,10 +524,12 @@ export default function SimpleCheckout({
                 if (canPay) initMutation.mutate();
               }}
             >
+              {config.model === "pro" && <>
               <label className="checkout-label block" htmlFor="checkout-payer-name">Nom complet du payeur</label>
               <input id="checkout-payer-name" className="checkout-input mt-2 w-full" autoComplete="name"
                 value={payerName} onChange={event => setPayerName(event.target.value)} placeholder="Ex. Awa Kouassi" required disabled={locked} />
               <p className="checkout-muted mt-1 text-xs">Nom associé au moyen de paiement utilisé.</p>
+              </>}
               <label className="checkout-label" htmlFor="checkout-country">Pays</label>
               <div className="checkout-select-wrap mt-2">
                 <select

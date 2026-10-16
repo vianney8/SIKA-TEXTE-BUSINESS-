@@ -2,9 +2,10 @@ import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import SimpleCheckout from "./SimpleCheckout";
+import { type CheckoutModel, usesUnifiedCheckout } from "@shared/checkout-settings";
 
 export function useCheckoutMode() {
-  return useQuery<{ enabled: boolean; model: "legacy" | "simple"; customerId: string | null }>({
+  return useQuery<{ enabled: boolean; model: CheckoutModel; customerId: string | null }>({
     queryKey: ["/api/checkout/mode"],
     queryFn: async () => {
       const response = await fetch("/api/checkout/mode", { credentials: "include", cache: "no-store" });
@@ -34,6 +35,8 @@ export default function PaymentCheckout({
     const saved = JSON.parse(sessionStorage.getItem(`sika-checkout:${mode.data.customerId ?? "guest"}:${service}:${linkId ?? ""}`) || "null");
     resuming = typeof saved?.transactionId === "string";
   } catch { /* No recoverable payment in this browser session. */ }
-  if (!resuming && (!mode.data.enabled || mode.data.model !== "simple")) return <>{children}</>;
-  return <SimpleCheckout service={service} linkId={linkId} onSuccess={onSuccess} onCancel={onCancel} />;
+  const content = !resuming && (!mode.data.enabled || !usesUnifiedCheckout(mode.data.model))
+    ? children
+    : <SimpleCheckout service={service} linkId={linkId} onSuccess={onSuccess} onCancel={onCancel} />;
+  return <div className="contents" data-checkout-model={mode.data.model}>{content}</div>;
 }

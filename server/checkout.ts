@@ -8,6 +8,7 @@ import { accountStatus, linkManualRequests, paymentLinks, paymentLinkTransaction
 import { generatePcsCode, sendPcsEmail } from "./email";
 import { localPaymentPhone } from "@shared/payment-phone";
 import { paymentCustomerEmail } from "@shared/payment-customer";
+import { checkoutModel } from "@shared/checkout-settings";
 
 const CATALOG = [
   { code: "BJ", name: "Bénin", prefix: "229", operators: ["mtn", "moov", "celtis"], length: 10 },
@@ -252,7 +253,7 @@ export function registerCheckoutRoutes(app: Express) {
   app.get("/api/checkout/mode", wrap(async (_req, res) => {
     const settings = await storage.getAppSettings();
     res.setHeader("Cache-Control", "no-store");
-    res.json({ enabled: solvexEnabled(settings), customerId: authId(_req) || null, model: setting(settings, "payment_checkout_model", "simple") === "legacy" ? "legacy" : "simple" });
+    res.json({ enabled: solvexEnabled(settings), customerId: authId(_req) || null, model: checkoutModel(setting(settings, "payment_checkout_model")) });
   }));
   app.get("/api/checkout/config", wrap(async (req, res) => {
     const settings = await storage.getAppSettings();
@@ -262,7 +263,7 @@ export function registerCheckoutRoutes(app: Express) {
     const user = userId ? await storage.getUser(userId) : undefined;
     const maintenance = JSON.parse(setting(settings, "operator_maintenance", "{}"));
     res.setHeader("Cache-Control", "no-store");
-    res.json({ ...info, enabled: solvexEnabled(settings), model: setting(settings, "payment_checkout_model", "simple"),
+    res.json({ ...info, enabled: solvexEnabled(settings), model: checkoutModel(setting(settings, "payment_checkout_model")),
       customerId: user?.id || null, customerEmail: user?.email || "", customerName: user?.fullName || "", phone: user?.phone || "",
       requiresEmail: info.requiresEmail || (info.id === "eedbc622" && !userId),
       initialCountry: CATALOG.find(c => (user?.phone || "").replace(/\D/g, "").startsWith(c.prefix))?.code || "BJ",

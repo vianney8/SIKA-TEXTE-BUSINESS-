@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { changeCheckoutSetting } from "../shared/checkout-settings";
+import { changeCheckoutSetting, checkoutModel, usesUnifiedCheckout } from "../shared/checkout-settings";
 
 test("choosing SolvexPay for any supported country enables it globally", () => {
   for (const country of ["bj", "ci", "sn", "bf", "tg", "cm"]) {
@@ -32,4 +32,20 @@ test("explicit global disable and other providers remain available", () => {
   assert.equal(changeCheckoutSetting(
     { solvexpay_enabled: "false" }, "payment_checkout_model", "simple",
   ).solvexpay_enabled, "false");
+});
+
+test("pro is a separate persisted model without removing the existing models", () => {
+  for (const model of ["legacy", "simple", "pro"] as const) {
+    assert.equal(checkoutModel(model), model);
+    const result = changeCheckoutSetting(
+      { solvexpay_enabled: "false" }, "payment_checkout_model", model,
+    );
+    assert.equal(result.payment_checkout_model, model);
+    assert.equal(result.solvexpay_enabled, "false");
+  }
+  assert.equal(checkoutModel("unknown"), "simple");
+  assert.equal(checkoutModel(undefined), "simple");
+  assert.equal(usesUnifiedCheckout("pro"), true);
+  assert.equal(usesUnifiedCheckout("simple"), true);
+  assert.equal(usesUnifiedCheckout("legacy"), false);
 });

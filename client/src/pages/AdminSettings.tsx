@@ -250,17 +250,18 @@ export default function AdminSettings() {
             </p>
             {settings.solvexpay_enabled === "false" && (
               <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950" role="status">
-                <p>SolvexPay est désactivé globalement : le modèle simplifié ne sera pas affiché, même si SolvexPay est sélectionné par pays.</p>
+                <p>SolvexPay est désactivé globalement : les paiements suivent les moyens manuels et les autres prestataires configurés, y compris avec le modèle pro.</p>
                 <Button type="button" variant="outline" className="mt-3"
                   onClick={() => handleInputChange("solvexpay_enabled", "true")}>
                   Activer SolvexPay pour tout le site
                 </Button>
               </div>
             )}
-            <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Modèle de paiement">
+            <div className="grid gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Modèle de paiement">
               {[
                 { value: "simple", label: "Modèle simplifié", description: "Pays, opérateur et téléphone sur une seule page, puis validation sur le téléphone." },
                 { value: "legacy", label: "Ancien modèle", description: "Conserve les étapes et les présentations historiques. SolvexPay reste global lorsqu'il est activé." },
+                { value: "pro", label: "Modèle pro", description: "Nouveau format professionnel : Demande, Validation, Confirmation. Formulaire regroupé, dépôt et justificatifs en manuel, validation sur téléphone en automatique." },
               ].map(model => (
                 <button type="button" role="radio" aria-checked={(settings.payment_checkout_model || "simple") === model.value}
                   key={model.value} data-testid={`checkout-model-${model.value}`}
