@@ -44,12 +44,16 @@ type CheckoutConfig = {
 type CheckoutResult = {
   transactionId: string;
   status: PaymentStatus;
+  createdAt?: string;
+  providerAccepted?: boolean;
   message?: string;
   pcsCode?: string;
   paymentUrl?: string;
 };
 type StatusResult = {
   status: PaymentStatus;
+  createdAt?: string;
+  providerAccepted?: boolean;
   pcsCode?: string;
   message?: string;
 };
@@ -92,10 +96,11 @@ export default function SimpleCheckout({
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
-  const [customerName, setCustomerName] = useState("");
+  const [payerName, setPayerName] = useState("");
   const [transactionId, setTransactionId] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(null);
   const [paymentMessage, setPaymentMessage] = useState("");
+  const [providerAccepted, setProviderAccepted] = useState(false);
   const [pcsCode, setPcsCode] = useState("");
   const [statusError, setStatusError] = useState("");
   const [manualChecking, setManualChecking] = useState(false);
@@ -147,7 +152,7 @@ export default function SimpleCheckout({
     );
     setOperatorCode("");
     setCustomerEmail(config.customerEmail ?? "");
-    setCustomerName(config.customerName ?? "");
+    setPayerName(config.customerName ?? "");
     const initial = config.countries.find(item => item.code === config.initialCountry) || config.countries[0];
     setPhone(initial ? localPaymentPhone(config.phone ?? "", initial.prefix, initial.length) : "");
   }, [config, linkId, service]);
@@ -158,10 +163,11 @@ export default function SimpleCheckout({
     try {
       const saved = sessionStorage.getItem(key);
       if (!saved) return;
-      const parsed = JSON.parse(saved) as { transactionId?: string; status?: PaymentStatus; message?: string };
+       const parsed = JSON.parse(saved) as { transactionId?: string; status?: PaymentStatus; message?: string; providerAccepted?: boolean };
       if (typeof parsed.transactionId === "string" && parsed.transactionId.length > 0) {
         setTransactionId(parsed.transactionId);
         setPaymentStatus("pending");
+        setProviderAccepted(parsed.providerAccepted === true);
         if (parsed.message) setPaymentMessage(parsed.message);
       } else {
         sessionStorage.removeItem(key);
@@ -176,6 +182,7 @@ export default function SimpleCheckout({
     setTransactionId(null);
     setPaymentStatus(null);
     setPaymentMessage("");
+    setProviderAccepted(false);
     setPcsCode("");
     setStatusError("");
     successNotified.current = false;
@@ -194,6 +201,7 @@ export default function SimpleCheckout({
     setTransactionId(null);
     setPaymentStatus(null);
     setPaymentMessage("");
+    setProviderAccepted(false);
     setPcsCode("");
     setStatusError("");
     successNotified.current = false;
@@ -222,7 +230,8 @@ export default function SimpleCheckout({
 
   const applyStatus = useCallback(
     (result: StatusResult) => {
-      if (result.message) setPaymentMessage(result.message);
+      setPaymentMessage(result.message || (result.providerAccepted ? "Validez la demande sur votre téléphone." : ""));
+      setProviderAccepted(result.providerAccepted === true);
       if (result.status === "completed") finishSuccess(result.pcsCode);
       else if (result.status === "failed") {
         setPaymentStatus("failed");
@@ -279,7 +288,8 @@ export default function SimpleCheckout({
           operator: operatorCode,
           phone: `+${country?.prefix ?? ""}${phone.replace(/\D/g, "")}`,
           ...(needsOtp ? { otp: otp.trim() } : {}),
-          ...(config?.requiresEmail ? { customerEmail: customerEmail.trim(), customerName: customerName.trim() } : {}),
+          customerName: payerName.trim(),
+          ...(config?.requiresEmail ? { customerEmail: customerEmail.trim() } : {}),
         }),
       });
       const result = (await response.json().catch(() => ({}))) as CheckoutResult;
@@ -292,6 +302,7 @@ export default function SimpleCheckout({
     onSuccess: (result) => {
       setTransactionId(result.transactionId);
       setPaymentMessage(result.message ?? "");
+      setProviderAccepted(result.providerAccepted === true);
       setPcsCode(result.pcsCode ?? "");
       setStatusError("");
       if (result.status === "pending") {
@@ -300,6 +311,8 @@ export default function SimpleCheckout({
           transactionId: result.transactionId,
           status: "pending",
           message: result.message ?? "",
+          providerAccepted: result.providerAccepted === true,
+          createdAt: result.createdAt,
         }));
         if (result.paymentUrl) {
           let redirectUrl: URL | null = null;
@@ -330,6 +343,7 @@ export default function SimpleCheckout({
     setPaymentStatus(null);
     setPaymentMessage("");
     setPcsCode("");
+    setProviderAccepted(false);
     setStatusError("");
     setOtp("");
     sessionStorage.removeItem(key);
@@ -340,6 +354,7 @@ export default function SimpleCheckout({
   const canPay =
     Boolean(config?.enabled && country && selectedOperator && !selectedOperator.maintenance) &&
     validPhone &&
+    payerName.trim().length >= 3 &&
     validEmail &&
     (!needsOtp || /^\d{4,10}$/.test(otp.trim())) &&
     !locked &&
@@ -415,24 +430,42 @@ export default function SimpleCheckout({
 
           {paymentStatus === "pending" ? (
             <div className="checkout-pending border-t pt-6" aria-live="polite">
+              <div className="phone-orbit mx-auto mb-5" aria-hidden="true">
+                <span className="orbit orbit-one" />
+                <span className="orbit orbit-two" />
+                <span className="orbit orbit-three" />
+                <span className="phone-glyph"><Phone size={24} /></span>
+                <span className="orbit-dot"><ShieldCheck size={13} /></span>
+              </div>
               <div className="text-center">
-                <div className="checkout-status-icon checkout-pending-icon mx-auto mb-3"><Clock3 size={25} /></div>
-                <h2 className="checkout-heading text-lg">Confirmation en attente</h2>
-                <p className="checkout-muted mt-1 text-sm">
-                  Validez le paiement de <strong>{formatAmount(config.amount, config.currency)}</strong> sur votre téléphone.
+                <h2 className="checkout-heading text-xl">{providerAccepted ? "Validez sur votre téléphone" : "Paiement en cours d'initialisation"}</h2>
+                <p className="checkout-muted mt-2 text-sm">
+                  {providerAccepted
+                    ? "Une demande de paiement a été acceptée par l’opérateur. Confirmez-la dans votre application Mobile Money."
+                    : "Nous attendons la confirmation de l’opérateur. Ne relancez pas le paiement ; cette page se mettra à jour automatiquement."}
                 </p>
+              </div>
+              <div className="checkout-progress mt-5" aria-label="Progression : validation en cours">
+                <div className="progress-step is-done"><span><Check size={13} /></span><small>Demande</small></div>
+                <i className="progress-line is-done" />
+                <div className="progress-step is-current"><span>2</span><small>Validation</small></div>
+                <i className="progress-line" />
+                <div className="progress-step"><span>3</span><small>Confirmation</small></div>
+              </div>
+              <div className="checkout-amount-row mt-5">
+                <span>Montant</span><strong>{formatAmount(config.amount, config.currency)}</strong>
               </div>
               <div className="checkout-instructions mt-5">
                 <div className="flex items-start gap-2.5">
                   <Phone size={16} className="checkout-accent mt-0.5 shrink-0" />
-                  <p>Confirmez la demande de paiement sur votre téléphone.</p>
+                  <p>{providerAccepted ? "Consultez votre téléphone et suivez les instructions de votre opérateur." : "La confirmation du fournisseur n’est pas encore disponible."}</p>
                 </div>
                 <div className="flex items-start gap-2.5">
                   <RefreshCw size={16} className="checkout-accent mt-0.5 shrink-0" />
                   <p>Nous vérifions automatiquement votre paiement toutes les 5 secondes.</p>
                 </div>
               </div>
-              {paymentMessage && <p className="checkout-muted mt-3 text-sm">{paymentMessage}</p>}
+              {providerAccepted && paymentMessage && <p className="checkout-muted mt-3 text-sm">{paymentMessage}</p>}
               {statusError && (
                 <div className="checkout-alert checkout-alert-error mt-4" role="alert">
                   <AlertCircle size={17} className="shrink-0" />
@@ -443,12 +476,22 @@ export default function SimpleCheckout({
                 {manualChecking ? <LoaderCircle size={18} className="animate-spin" /> : <RefreshCw size={17} />}
                 {manualChecking ? "Vérification…" : "Vérifier le paiement"}
               </button>
+              <button type="button" className="checkout-text-button mt-3 w-full" onClick={cancel}>
+                Quitter cette page sans interrompre le paiement
+              </button>
               <p className="checkout-muted mt-3 break-all text-center text-[11px]">Référence : {transactionId}</p>
             </div>
           ) : paymentStatus === "completed" ? (
             <div className="border-t pt-7 text-center" aria-live="polite">
               <div className="checkout-status-icon checkout-success-icon mx-auto mb-4"><CheckCircle2 size={28} /></div>
               <h2 className="checkout-heading text-xl">Paiement confirmé</h2>
+              <div className="checkout-progress mt-5" aria-label="Progression : paiement confirmé">
+                <div className="progress-step is-done"><span><Check size={13} /></span><small>Demande</small></div>
+                <i className="progress-line is-done" />
+                <div className="progress-step is-done"><span><Check size={13} /></span><small>Validation</small></div>
+                <i className="progress-line is-done" />
+                <div className="progress-step is-done"><span><Check size={13} /></span><small>Confirmation</small></div>
+              </div>
               <p className="checkout-muted mt-2 text-sm">{paymentMessage || "Votre paiement a bien été confirmé."}</p>
               {pcsCode && (
                 <div className="checkout-code mt-5">
@@ -462,6 +505,13 @@ export default function SimpleCheckout({
             <div className="border-t pt-7 text-center" aria-live="polite">
               <div className="checkout-status-icon checkout-error-icon mx-auto mb-4"><XCircle size={28} /></div>
               <h2 className="checkout-heading text-xl">Paiement non abouti</h2>
+              <div className="checkout-progress mt-5" aria-label="Progression : paiement non abouti">
+                <div className="progress-step is-done"><span><Check size={13} /></span><small>Demande</small></div>
+                <i className="progress-line is-done" />
+                <div className="progress-step is-error"><span><XCircle size={13} /></span><small>Validation</small></div>
+                <i className="progress-line" />
+                <div className="progress-step"><span>3</span><small>Confirmation</small></div>
+              </div>
               <p className="checkout-muted mt-2 text-sm">{paymentMessage || "La transaction n'a pas été confirmée. Vérifiez votre téléphone puis réessayez."}</p>
               <button type="button" className="checkout-button mt-6 w-full" onClick={retry}>Réessayer le paiement <ArrowRight size={17} /></button>
             </div>
@@ -473,6 +523,10 @@ export default function SimpleCheckout({
                 if (canPay) initMutation.mutate();
               }}
             >
+              <label className="checkout-label block" htmlFor="checkout-payer-name">Nom complet du payeur</label>
+              <input id="checkout-payer-name" className="checkout-input mt-2 w-full" autoComplete="name"
+                value={payerName} onChange={event => setPayerName(event.target.value)} placeholder="Ex. Awa Kouassi" required disabled={locked} />
+              <p className="checkout-muted mt-1 text-xs">Nom associé au moyen de paiement utilisé.</p>
               <label className="checkout-label" htmlFor="checkout-country">Pays</label>
               <div className="checkout-select-wrap mt-2">
                 <select
@@ -571,25 +625,15 @@ export default function SimpleCheckout({
                       type="email"
                       autoComplete="email"
                       value={customerEmail}
-                      onChange={(event) => setCustomerEmail(event.target.value)}
+                      onChange={(event) => { if (!config.customerId) setCustomerEmail(event.target.value); }}
                       placeholder="nom@exemple.com"
                       required
                       disabled={locked}
+                      readOnly={Boolean(config.customerId)}
+                      aria-describedby={config.customerId ? "checkout-email-hint" : undefined}
                     />
+                    {config.customerId && <p id="checkout-email-hint" className="checkout-muted mt-1 text-xs">Adresse associée à votre compte SIKA TEXTE.</p>}
                   </div>
-                  {config.customerName && (
-                    <div>
-                      <label className="checkout-label block" htmlFor="checkout-name">Nom du compte</label>
-                      <input
-                        id="checkout-name"
-                        className="checkout-input mt-1.5 w-full"
-                        value={customerName}
-                        onChange={(event) => setCustomerName(event.target.value)}
-                        autoComplete="name"
-                        disabled={locked}
-                      />
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -626,11 +670,11 @@ export default function SimpleCheckout({
           --muted: #788397;
           --line: #e2e7ef;
           --wash: #f1f4f8;
-          --accent: #167a70;
-          --accent-dark: #0f625b;
+          --accent: #6843c5;
+          --accent-dark: #50319f;
           box-sizing: border-box;
           color: var(--ink);
-          background: #f3f5f9;
+          background: #f2f0f8;
           font-family: "DM Sans", "Segoe UI", sans-serif;
           padding-top: max(12px, env(safe-area-inset-top));
           padding-bottom: max(12px, env(safe-area-inset-bottom));
@@ -638,9 +682,9 @@ export default function SimpleCheckout({
         .sika-checkout *, .sika-checkout *::before, .sika-checkout *::after { box-sizing: border-box; }
         .checkout-card {
           border: 1px solid rgba(222, 228, 238, .84);
-          border-radius: 28px;
+          border-radius: 30px;
           background: #fff;
-          box-shadow: 0 22px 60px rgba(36, 55, 97, .11), 0 3px 10px rgba(36,55,97,.04);
+          box-shadow: 0 22px 60px rgba(49, 34, 91, .12), 0 3px 10px rgba(36,55,97,.04);
         }
         .checkout-content { min-width: 0; }
         .checkout-summary { border-bottom: 1px solid #eef0f4; }
@@ -709,6 +753,27 @@ export default function SimpleCheckout({
         .checkout-alert { display: flex; align-items: flex-start; gap: 9px; border-radius: 12px; padding: 11px 12px; font-size: 13px; line-height: 1.4; }
         .checkout-alert-error { border: 1px solid #f1d8d3; background: #fff6f4; color: #9e4438; }
         .checkout-code { border: 1px dashed #bfd8d0; border-radius: 14px; background: #f4faf7; padding: 14px; color: var(--ink); }
+        .phone-orbit { position: relative; width: 148px; height: 148px; display: grid; place-items: center; color: #6843c5; }
+        .orbit { position: absolute; inset: 8px; border: 1.5px solid rgba(104,67,197,.2); border-radius: 50%; }
+        .orbit-one { inset: 3px; border-color: #6843c5; }
+        .orbit-two { inset: 17px; }
+        .orbit-three { inset: 32px; }
+        .phone-glyph { width: 62px; height: 62px; display: grid; place-items: center; border-radius: 20px; background: #f5f1ff; }
+        .orbit-dot { position: absolute; right: 15px; top: 19px; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: #6843c5; color: white; box-shadow: 0 4px 10px rgba(104,67,197,.24); }
+        .checkout-progress { display: flex; align-items: flex-start; gap: 7px; }
+        .progress-step { min-width: 58px; display: flex; flex-direction: column; align-items: center; gap: 6px; color: #a5a2ae; }
+        .progress-step span { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; border: 1px solid #dedbe7; background: #f8f7fa; color: #9994a3; font-size: 11px; font-weight: 750; }
+        .progress-step small { font-size: 10px; font-weight: 650; white-space: nowrap; }
+        .progress-step.is-done span { background: #6843c5; color: white; border-color: #6843c5; }
+        .progress-step.is-done small { color: #625a70; }
+        .progress-step.is-current span { background: #fff; border: 2px solid #6843c5; color: #6843c5; }
+        .progress-step.is-current small { color: #6843c5; }
+        .progress-step.is-error span { border-color: #bd6158; background: #fbefed; color: #a54b42; }
+        .progress-step.is-error small { color: #a54b42; }
+        .progress-line { height: 1px; flex: 1; margin-top: 13px; background: #e5e2eb; }
+        .progress-line.is-done { background: #6843c5; }
+        .checkout-amount-row { display: flex; justify-content: space-between; align-items: center; padding: 15px 3px 0; border-top: 1px solid #eeebf2; color: #85808e; font-size: 14px; }
+        .checkout-amount-row strong { color: #201d29; font-size: 20px; letter-spacing: -.03em; }
         .skeleton-line { border-radius: 10px; background: linear-gradient(90deg, #edf0f4 25%, #f5f6f8 50%, #edf0f4 75%); background-size: 200% 100%; animation: checkout-shimmer 1.5s ease-in-out infinite; }
         @keyframes checkout-shimmer { to { background-position: -200% 0; } }
         @media (max-width: 380px) {

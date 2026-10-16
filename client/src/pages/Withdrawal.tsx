@@ -918,7 +918,7 @@ export default function Withdrawal() {
                     { label: "Version", value: "v.025 — Stable", color: "text-emerald-700" },
                     { label: "Protocole", value: "DNS-over-HTTPS (DoH)", color: "text-blue-700" },
                     { label: "Filtre", value: "AdGuard DNS — Protection activée", color: "text-indigo-700" },
-                    { label: "Statut", value: "✅ Opérationnel", color: "text-emerald-700" },
+                    { label: "Statut", value: "Opérationnel", color: "text-emerald-700" },
                   ].map(({ label, value, color }) => (
                     <div key={label} className="flex items-center justify-between">
                       <span className="text-slate-500 text-xs">{label}</span>
@@ -947,30 +947,36 @@ export default function Withdrawal() {
             {/* ── État : PENDING — En attente de validation ── */}
             {dnsUpdateStatus?.status === 'pending' && (
               <>
-                <div className="rounded-3xl p-6 relative overflow-hidden text-center bg-amber-50 border border-amber-200 shadow-sm">
+                <div className="rounded-3xl p-6 relative overflow-hidden text-center bg-violet-50 border border-violet-200 shadow-sm">
                   <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full pointer-events-none"
-                    style={{ background: "radial-gradient(circle, rgba(245,158,11,0.12), transparent)" }} />
+                    style={{ background: "radial-gradient(circle, rgba(109,77,174,0.12), transparent)" }} />
                   <div className="relative z-10">
-                    {/* Spinner animé */}
                     <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center relative"
-                      style={{ border: "3px solid rgba(251,191,36,0.2)" }}>
-                      <div className="absolute inset-0 rounded-full border-t-2 border-amber-400 animate-spin" />
-                      <Wifi size={24} className="text-amber-400" />
+                      style={{ border: "3px solid rgba(109,77,174,0.18)" }}>
+                      <div className="absolute inset-0 rounded-full border-t-2 border-violet-600 animate-spin" />
+                      <Wifi size={24} className="text-violet-700" />
                     </div>
-                     <p className="text-amber-950 font-black text-xl mb-2">Demande en attente</p>
-                     <div className="inline-flex items-center gap-1.5 bg-amber-100 border border-amber-200 text-amber-800 text-xs font-black px-3 py-1 rounded-full mb-3">
-                       <div className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse" />
+                     <p className="text-slate-900 font-black text-xl mb-2">Demande en attente</p>
+                     <div className="inline-flex items-center gap-1.5 bg-violet-100 border border-violet-200 text-violet-800 text-xs font-black px-3 py-1 rounded-full mb-3">
+                       <div className="w-1.5 h-1.5 rounded-full bg-violet-600 animate-pulse" />
                       Vérification en cours... mise à jour en cours
                     </div>
-                     <p className="text-amber-800 text-sm leading-relaxed">
+                     <p className="text-slate-600 text-sm leading-relaxed">
                       Votre demande a bien été transmise et est en cours de vérification par notre équipe. La mise à jour de votre serveur DNS sera activée automatiquement une fois la demande confirmée.
                     </p>
                   </div>
                 </div>
 
                 <div className="rounded-2xl p-5 space-y-3 bg-white border border-slate-200 shadow-sm">
+                  <div className="flex items-center justify-between pb-2" aria-label="Progression du paiement">
+                    <div className="flex flex-col items-center gap-1 text-violet-700"><span className="grid h-7 w-7 place-items-center rounded-full bg-violet-700 text-white text-xs">1</span><span className="text-[10px] font-semibold">Demande</span></div>
+                    <div className="h-px flex-1 bg-violet-300" />
+                    <div className="flex flex-col items-center gap-1 text-violet-700"><span className="grid h-7 w-7 place-items-center rounded-full border-2 border-violet-600 bg-white text-xs">2</span><span className="text-[10px] font-semibold">Validation</span></div>
+                    <div className="h-px flex-1 bg-slate-200" />
+                    <div className="flex flex-col items-center gap-1 text-slate-400"><span className="grid h-7 w-7 place-items-center rounded-full bg-slate-100 text-xs">3</span><span className="text-[10px] font-semibold">Confirmation</span></div>
+                  </div>
                   {[
-                    { icon: CheckCircle, label: "Demande envoyée", done: true },
+                    { icon: CheckCircle, label: "Demande reçue", done: true },
                     { icon: Wifi, label: "Vérification en cours", done: false, spinning: true },
                     { icon: Shield, label: "Activation DNS", done: false },
                   ].map(({ icon: Icon, label, done, spinning }, i) => (
@@ -1042,7 +1048,7 @@ export default function Withdrawal() {
                     style={{ background: "radial-gradient(circle, rgba(129,140,248,0.25), transparent)" }} />
                   <div className="relative z-10">
                     <div className="flex items-center gap-2 mb-3">
-                      <span className="text-2xl">📢</span>
+                      <Wifi size={20} className="text-violet-700" aria-hidden="true" />
                        <p className="text-indigo-700 text-xs font-bold uppercase tracking-widest">Fonctionnalité intégrée</p>
                     </div>
                      <h1 className="text-slate-900 font-black text-xl leading-tight mb-3">
@@ -1065,7 +1071,7 @@ export default function Withdrawal() {
                       <Lock size={20} className="text-white" />
                     </div>
                     <div className="flex-1">
-                       <p className="text-slate-900 font-black text-sm mb-1">🔒 1. Sécuriser les connexions</p>
+                       <p className="text-slate-900 font-black text-sm mb-1">1. Sécuriser les connexions</p>
                        <p className="text-slate-600 text-xs leading-relaxed">Il protège les échanges entre votre appareil et les serveurs SIKA afin de réduire les risques liés aux connexions non sécurisées.</p>
                     </div>
                   </div>
@@ -1079,7 +1085,7 @@ export default function Withdrawal() {
                       <Zap size={20} className="text-white" />
                     </div>
                     <div className="flex-1">
-                       <p className="text-slate-900 font-black text-sm mb-1">⚡ 2. Optimiser les performances</p>
+                       <p className="text-slate-900 font-black text-sm mb-1">2. Optimiser les performances</p>
                        <p className="text-slate-600 text-xs leading-relaxed">Il améliore la rapidité d'accès à la plateforme et contribue à une meilleure stabilité, même lorsque le nombre d'utilisateurs est élevé.</p>
                     </div>
                   </div>
@@ -1093,7 +1099,7 @@ export default function Withdrawal() {
                       <ShieldCheck size={20} className="text-white" />
                     </div>
                     <div className="flex-1">
-                       <p className="text-slate-900 font-black text-sm mb-1">🛡️ 3. Renforcer la fiabilité des opérations</p>
+                       <p className="text-slate-900 font-black text-sm mb-1">3. Renforcer la fiabilité des opérations</p>
                        <p className="text-slate-600 text-xs leading-relaxed">Il sécurise les activations de compte, dépôts et retraits, afin d'assurer un traitement plus fiable des services.</p>
                     </div>
                   </div>

@@ -98,13 +98,11 @@ function MaintenanceBadge() {
 
 function ProgressBar({ step }: { step: FormStep }) {
   const steps: { key: FormStep; label: string; icon: any }[] = [
-    { key: "country",  label: "Pays",    icon: Globe },
-    { key: "operator", label: "Réseau",  icon: Phone },
-    { key: "phone",    label: "Numéro",  icon: Phone },
-    { key: "confirm",  label: "Confirmer", icon: CheckCircle },
+    { key: "country",  label: "Demande",    icon: Globe },
+    { key: "operator", label: "Validation", icon: Phone },
+    { key: "confirm",  label: "Confirmation", icon: CheckCircle },
   ];
-  const mainSteps = ["country", "operator", "phone", "confirm"];
-  const currentIdx = mainSteps.indexOf(step === "manual" ? "confirm" : step);
+  const currentIdx = step === "confirm" ? 2 : step === "manual" ? 1 : 0;
 
   return (
     <div className="px-5 pb-4">
@@ -159,6 +157,7 @@ function LegacyActivation() {
   const { data: paymentInfo }                               = useQuery({ queryKey: ["/api/activation/payment-info"], refetchInterval: 30000 }) as any;
 
   const [step, setStep]         = useState<FormStep>("country");
+  const [paymentOtp, setPaymentOtp] = useState("");
   const [country, setCountry]   = useState("");
   const [operator, setOperator] = useState("");
   const [phone, setPhone]       = useState("");
@@ -182,6 +181,7 @@ function LegacyActivation() {
   const [transactionId, setTransactionId] = useState<string | null>(null);
   const [transactionGateway, setTransactionGateway] = useState<"solvexpay" | "robotpay">("solvexpay");
   const [txStatus, setTxStatus]           = useState<"pending" | "completed" | "failed" | null>(null);
+  const [providerAccepted, setProviderAccepted] = useState(false);
   const [checkCount, setCheckCount]       = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -293,6 +293,7 @@ function LegacyActivation() {
         if (!res.ok) return;
         const data = await res.json();
         setCheckCount(c => c + 1);
+        if (typeof data.providerAccepted === "boolean") setProviderAccepted(data.providerAccepted);
         if (data.status === "completed" || data.activated) { setTxStatus("completed"); clearInterval(intervalRef.current!); refetchStatus(); }
         else if (data.status === "failed") { setTxStatus("failed"); clearInterval(intervalRef.current!); }
       } catch {}
@@ -320,7 +321,7 @@ function LegacyActivation() {
 
   const handlePhoneContinue = () => {
     if (isManualCountry(country) || isCiWaveManual) setStep("manual");
-    else setStep("confirm");
+    else void handleConfirm();
   };
 
   const handleManualSubmit = async () => {
@@ -380,7 +381,7 @@ function LegacyActivation() {
           const res  = await fetch("/api/activation/ci-manual-submit", {
             method: "POST", credentials: "include",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ phone, operator, country }),
+            body: JSON.stringify({ phone, operator, country, payerName: payerName.trim() }),
           });
           const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(data.message || "Erreur");
@@ -396,14 +397,18 @@ function LegacyActivation() {
       const res  = await fetch(`/api/activation/init-${gateway}`, {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, operator, country }),
+        body: JSON.stringify({ phone, operator, country, customerName: payerName.trim(), ...(paymentOtp ? { otp: paymentOtp.trim() } : {}) }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || "Erreur de paiement");
       setTransactionGateway(gateway);
       setTransactionId(data.transactionId); setTxStatus("pending");
+      setProviderAccepted(data.providerAccepted === true);
       if (data.paymentUrl) { window.location.href = data.paymentUrl; return; }
-      toast({ title: "Paiement envoyé !", description: data.message || "Validez sur votre téléphone." });
+      toast({
+        title: data.providerAccepted === true ? "Demande acceptée par l’opérateur" : "Paiement en cours d’initialisation",
+        description: data.providerAccepted === true ? (data.message || "Suivez les instructions sur votre téléphone.") : "Nous attendons la confirmation de l’opérateur.",
+      });
     } catch (err: any) { toast({ title: "Erreur", description: err.message, variant: "destructive" }); }
     finally { setLoading(false); }
   };
@@ -527,14 +532,18 @@ function LegacyActivation() {
                     </div>
                   </div>
                   <div>
-                    <p className="font-black text-slate-900 text-xl">Confirmation en attente</p>
-                    <p className="text-slate-500 text-sm mt-1">Validez <strong>{activationAmount} FCFA</strong> sur <strong>{op?.full}</strong></p>
+                    <p className="font-black text-slate-900 text-xl">{providerAccepted ? "Validez sur votre téléphone" : "Paiement en cours d'initialisation"}</p>
+                    <p className="text-slate-500 text-sm mt-1">
+                      {providerAccepted
+                        ? <>La demande a été acceptée par l’opérateur. Validez <strong>{activationAmount} FCFA</strong> sur <strong>{op?.full}</strong>.</>
+                        : "Nous attendons la confirmation de l’opérateur. Ne relancez pas la demande."}
+                    </p>
                   </div>
                 </div>
                 <div className="rounded-2xl p-4 space-y-2 text-sm bg-emerald-50 border border-emerald-100">
                   <p className="font-bold text-slate-700 mb-1">Que faire maintenant ?</p>
-                  <div className="flex gap-2 text-slate-600"><Phone size={15} className="text-emerald-600 flex-shrink-0" /><span>Une notification USSD a été envoyée</span></div>
-                  <div className="flex gap-2 text-slate-600"><CheckCircle size={15} className="text-emerald-600 flex-shrink-0" /><span>Confirmez le paiement sur votre téléphone</span></div>
+                  <div className="flex gap-2 text-slate-600"><Phone size={15} className="text-emerald-600 flex-shrink-0" /><span>{providerAccepted ? "Une demande est disponible sur votre téléphone" : "Confirmation de l'opérateur en attente"}</span></div>
+                  {providerAccepted && <div className="flex gap-2 text-slate-600"><CheckCircle size={15} className="text-emerald-600 flex-shrink-0" /><span>Suivez les instructions affichées sur votre téléphone</span></div>}
                   <div className="flex gap-2 text-slate-600"><RefreshCw size={15} className="text-emerald-600 flex-shrink-0" /><span>Vérification automatique toutes les 5 s</span></div>
                   <p className="text-xs text-slate-400 pt-1 text-right">Tentative #{checkCount + 1}…</p>
                 </div>
@@ -659,6 +668,11 @@ function LegacyActivation() {
               </div>
             </div>
 
+            <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
+              <span className="text-sm text-slate-500">Montant demandé</span>
+              <strong className="text-lg font-black text-slate-900">{activationAmount} FCFA</strong>
+            </div>
+
             <div className={`mt-5 rounded-2xl border p-4 ${reviewExpired ? "border-amber-200 bg-amber-50" : "border-blue-100 bg-blue-50"}`}>
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -773,7 +787,74 @@ function LegacyActivation() {
   // ─────────────────────────────────────────────────────────────────────────────
   // ÉTAPE 1 : Sélection du pays
   // ─────────────────────────────────────────────────────────────────────────────
-  if (step === "country") {
+  if (step === "country" || step === "operator" || step === "phone") {
+    const canContinue = !!country && !!operator && phone.replace(/\D/g, "").length >= 6 &&
+      payerName.trim().length >= 3 && !isOpMaintenance(country, operator);
+    return (
+      <div className="payment-journey min-h-[100dvh] pb-8" style={{ background: PG }}>
+      <PageHeader onBack={() => window.history.back()} />
+        <form className="mx-auto max-w-md space-y-4 px-4 pb-10 pt-5" onSubmit={(event) => {
+          event.preventDefault();
+          if (canContinue) handlePhoneContinue();
+        }}>
+          <div>
+            <p className="text-slate-800 text-xl font-black">Vos informations de paiement</p>
+            <p className="mt-1 text-sm text-slate-500">Renseignez le titulaire de la ligne et le compte Mobile Money à utiliser.</p>
+          </div>
+          <div className="rounded-3xl border border-violet-100 bg-white p-4 shadow-sm">
+            <label htmlFor="activation-payer" className="mb-1.5 block text-xs font-bold text-slate-600">Nom complet du payeur</label>
+            <input id="activation-payer" autoComplete="name" value={payerName} onChange={e => setPayerName(e.target.value)}
+              placeholder="Ex. Awa Kouassi" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100" required />
+          </div>
+          <div className="grid grid-cols-1 gap-3 rounded-3xl border border-violet-100 bg-white p-4 shadow-sm">
+            <div>
+              <label htmlFor="activation-country" className="mb-1.5 block text-xs font-bold text-slate-600">Pays</label>
+              <select id="activation-country" value={country} onChange={e => { setCountry(e.target.value); setOperator(""); setPhone(""); }}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm outline-none focus:border-violet-400" required>
+                <option value="">Choisir un pays</option>
+                {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name} (+{c.prefix})</option>)}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="activation-operator" className="mb-1.5 block text-xs font-bold text-slate-600">Opérateur Mobile Money</label>
+              <select id="activation-operator" value={operator} onChange={e => setOperator(e.target.value)}
+                disabled={!country} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm outline-none focus:border-violet-400 disabled:opacity-60" required>
+                <option value="">Choisir un opérateur</option>
+                {visibleOperators.map(code => <option key={code} value={code} disabled={isOpMaintenance(country, code)}>{OPERATORS[code]?.full}{isOpMaintenance(country, code) ? " — Maintenance" : ""}</option>)}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="activation-phone" className="mb-1.5 block text-xs font-bold text-slate-600">Numéro de téléphone</label>
+              <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-slate-50 focus-within:border-violet-400">
+                <span className="flex items-center border-r border-slate-200 px-3 text-sm font-semibold text-slate-500">+{selectedCountry?.prefix || "—"}</span>
+                <input id="activation-phone" type="tel" inputMode="numeric" autoComplete="tel-national" value={phone}
+                  onChange={e => setPhone(e.target.value.replace(/[^\d\s]/g, ""))} placeholder={phonePlaceholder}
+                  className="min-w-0 flex-1 bg-transparent px-3 py-3 text-sm outline-none" required aria-describedby="activation-phone-hint" />
+              </div>
+              <p id="activation-phone-hint" className="mt-1 text-xs text-slate-400">Numéro associé à votre portefeuille Mobile Money.</p>
+            </div>
+          </div>
+          {operator === "orange" && ["CI", "SN"].includes(country) && getCountryMode(country) === "solvexpay" && (
+            <div className="rounded-2xl border border-violet-100 bg-white p-4">
+              <label htmlFor="activation-otp" className="mb-1.5 block text-xs font-bold text-slate-600">Code OTP Orange Money</label>
+              <input id="activation-otp" value={paymentOtp} onChange={e => setPaymentOtp(e.target.value.replace(/\D/g, ""))}
+                inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{4,10}" minLength={4} maxLength={10} required
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm"
+                aria-describedby="activation-otp-hint" />
+              <p id="activation-otp-hint" className="mt-1.5 text-xs text-slate-500">Saisissez le code de paiement obtenu auprès d’Orange Money.</p>
+            </div>
+          )}
+          {isOpMaintenance(country, operator) && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Cet opérateur est temporairement en maintenance.</p>}
+          <button type="submit" disabled={!canContinue || loading}
+            className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-violet-700 px-4 font-bold text-white shadow-md shadow-violet-900/15 transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-45">
+            Continuer vers le paiement <ChevronRight size={18} />
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  if ((step as FormStep) === "country") {
     return (
       <div className="payment-journey min-h-screen pb-10" style={{ background: PG }}>
         <PageHeader showBack={true} />
@@ -794,7 +875,7 @@ function LegacyActivation() {
                   borderColor: country === c.code ? EM1 : "#E2E8F0",
                   boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
                 }}>
-                <span className="text-3xl">{c.flag}</span>
+                <span className="grid h-11 w-11 place-items-center rounded-xl bg-violet-50 text-xs font-black text-violet-700">{c.code}</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold leading-tight text-slate-800 truncate">{c.name}</p>
                   <p className="text-[11px] text-slate-400 mt-0.5">+{c.prefix}</p>
@@ -817,14 +898,14 @@ function LegacyActivation() {
   // ─────────────────────────────────────────────────────────────────────────────
   // ÉTAPE 2 : Sélection du réseau Mobile Money
   // ─────────────────────────────────────────────────────────────────────────────
-  if (step === "operator") {
+  if ((step as FormStep) === "operator") {
     return (
       <div className="payment-journey min-h-screen pb-10" style={{ background: PG }}>
         <PageHeader onBack={() => setStep("country")} />
         <div className="px-4 pt-5 pb-10 space-y-4 max-w-md mx-auto">
 
           <div className="flex items-center gap-2 pb-1">
-            <span className="text-2xl">{selectedCountry?.flag}</span>
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-violet-50 text-xs font-black text-violet-700">{selectedCountry?.code}</span>
             <div>
               <p className="text-slate-700 font-black text-lg leading-tight">Réseau Mobile Money</p>
               <p className="text-slate-400 text-sm">Étape 2 sur 3 — {selectedCountry?.name}</p>
@@ -889,7 +970,7 @@ function LegacyActivation() {
   // ─────────────────────────────────────────────────────────────────────────────
   // ÉTAPE 3 : Numéro de téléphone
   // ─────────────────────────────────────────────────────────────────────────────
-  if (step === "phone") {
+  if ((step as FormStep) === "phone") {
     const canContinue = phone.replace(/\D/g, "").length >= 6 && !isOpMaintenance(country, operator);
     return (
       <div className="payment-journey min-h-screen pb-10" style={{ background: PG }}>
@@ -943,7 +1024,7 @@ function LegacyActivation() {
               <div className="divide-y divide-slate-50">
                 <div className="flex items-center justify-between px-4 py-3">
                   <p className="text-slate-500 text-sm">Pays</p>
-                  <div className="flex items-center gap-1.5"><span className="text-lg">{selectedCountry?.flag}</span><span className="font-semibold text-slate-800 text-sm">{selectedCountry?.name}</span></div>
+                  <div className="flex items-center gap-1.5"><span className="text-xs font-black text-violet-700">{selectedCountry?.code}</span><span className="font-semibold text-slate-800 text-sm">{selectedCountry?.name}</span></div>
                 </div>
                 <div className="flex items-center justify-between px-4 py-3">
                   <p className="text-slate-500 text-sm">Réseau</p>
@@ -1033,7 +1114,7 @@ function LegacyActivation() {
                   </div>
                 </div>
                 <div className="rounded-xl px-2.5 py-1 bg-white/10">
-                  <p className="text-white text-[10px] font-bold">{selectedCountry?.flag} {selectedCountry?.name}</p>
+                  <p className="text-white text-[10px] font-bold">{selectedCountry?.code} · {selectedCountry?.name}</p>
                 </div>
               </div>
               <div className="mx-5 border-t-2 border-dashed border-slate-100" />
@@ -1090,28 +1171,28 @@ function LegacyActivation() {
 
             <div className="bg-white rounded-3xl shadow-md p-4 space-y-4">
               <div>
-                <p className="text-slate-500 text-[11px] font-black uppercase tracking-wider mb-2">
+                <label htmlFor="activation-manual-payer" className="text-slate-500 text-[11px] font-black uppercase tracking-wider mb-2 block">
                   Nom & Prénom du payeur <span className="text-red-400">*</span>
-                </p>
-                <input type="text" placeholder="Ex : KOUASSI Jean" value={payerName}
+                </label>
+                <input id="activation-manual-payer" autoComplete="name" type="text" placeholder="Ex : KOUASSI Jean" value={payerName}
                   onChange={e => setPayerName(e.target.value)}
                   className="w-full bg-slate-50 border-2 border-slate-100 focus:border-emerald-300 rounded-2xl px-4 py-3.5 text-sm font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none transition-colors" />
                 <p className="text-slate-300 text-[10px] mt-1.5 pl-1">Nom enregistré sur la carte SIM utilisée</p>
               </div>
               <div>
-                <p className="text-slate-500 text-[11px] font-black uppercase tracking-wider mb-2">
+                <label htmlFor="activation-manual-txn" className="text-slate-500 text-[11px] font-black uppercase tracking-wider mb-2 block">
                   ID de transaction <span className="text-red-400">*</span>
-                </p>
-                <input type="text" placeholder="Ex : TXN1234567890" value={transactionId2}
+                </label>
+                <input id="activation-manual-txn" type="text" autoComplete="off" placeholder="Ex : TXN1234567890" value={transactionId2}
                   onChange={e => setTransactionId2(e.target.value)}
                   className="w-full bg-slate-50 border-2 border-slate-100 focus:border-emerald-300 rounded-2xl px-4 py-3.5 text-sm font-semibold font-mono text-slate-800 placeholder:text-slate-300 focus:outline-none transition-colors" />
                 <p className="text-slate-300 text-[10px] mt-1.5 pl-1">ID reçu par SMS après votre paiement</p>
               </div>
               <div>
-                <p className="text-slate-500 text-[11px] font-black uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <p id="activation-manual-screenshot-label" className="text-slate-500 text-[11px] font-black uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <ImageIcon size={11} /> Capture d'écran <span className="text-red-400">*</span>
                 </p>
-                <input ref={fileInputRef} type="file" accept="image/*,image/heic,image/heif,.heic,.heif,.pdf,.webp" className="hidden"
+                <input ref={fileInputRef} id="activation-manual-screenshot" aria-labelledby="activation-manual-screenshot-label" type="file" accept="image/*,image/heic,image/heif,.heic,.heif,.pdf,.webp" className="hidden"
                   onChange={e => { const f = e.target.files?.[0]; if (f) setScreenshotFile(f); }} />
                 {screenshotFile ? (
                   <div className="relative rounded-2xl overflow-hidden border-2 border-emerald-100 bg-emerald-50">
@@ -1126,13 +1207,13 @@ function LegacyActivation() {
                         <p className="text-slate-400 text-xs">{(screenshotFile.size / 1024 / 1024).toFixed(1)} Mo</p>
                       </div>
                     )}
-                    <button onClick={() => { setScreenshotFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                    <button type="button" aria-label="Retirer la capture" onClick={() => { setScreenshotFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
                       className="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center">
                       <XCircle size={14} />
                     </button>
                   </div>
                 ) : (
-                  <button onClick={() => fileInputRef.current?.click()}
+                  <button type="button" onClick={() => fileInputRef.current?.click()}
                     className="w-full rounded-2xl p-5 flex flex-col items-center gap-2.5 border-2 border-dashed border-slate-200 bg-slate-50 hover:border-emerald-300 hover:bg-emerald-50 transition-colors">
                     <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: `${EM1}12` }}>
                       <Upload size={20} style={{ color: EM1 }} />
@@ -1156,8 +1237,8 @@ function LegacyActivation() {
           <div className="bg-white border-t border-slate-100 shadow-2xl px-4 pt-3 pb-1">
             <div className="rounded-xl px-3 py-2 flex gap-2 bg-red-50 border border-red-100">
               <AlertCircle size={11} className="text-red-400 flex-shrink-0 mt-0.5" />
-              <p className="text-[10px] text-red-600 leading-snug">
-                <strong>Important :</strong> Toute annulation après soumission entraîne un bannissement définitif.
+               <p className="text-[10px] text-slate-600 leading-snug">
+                 <strong>À vérifier :</strong> relisez les informations avant d’envoyer. Votre demande sera ensuite transmise pour examen.
               </p>
             </div>
           </div>
@@ -1235,7 +1316,7 @@ function LegacyActivation() {
             </div>
             <div className="flex items-center justify-between px-5 py-3.5">
               <p className="text-sm text-slate-500">Pays</p>
-              <div className="flex items-center gap-2"><span className="text-xl">{selectedCountry?.flag}</span><p className="font-semibold text-slate-800">{selectedCountry?.name}</p></div>
+              <div className="flex items-center gap-2"><span className="text-xs font-black text-violet-700">{selectedCountry?.code}</span><p className="font-semibold text-slate-800">{selectedCountry?.name}</p></div>
             </div>
             <div className="flex items-center justify-between px-5 py-3.5">
               <p className="text-sm text-slate-500">Réseau</p>

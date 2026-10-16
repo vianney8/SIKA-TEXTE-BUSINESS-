@@ -43,6 +43,7 @@ import connectPg from "connect-pg-simple";
 import { randomBytes, createHmac, timingSafeEqual } from "crypto";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { registerCheckoutRoutes, solvexEnabled } from "./checkout";
+import { linkManualPaymentAllowed, paymentCustomerEmail } from "@shared/payment-customer";
 import {
   classifyMoovPayment,
   parseMoovSmsBlock,
@@ -8904,7 +8905,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           || '')
         : '';
       res.json({
-        enabled: isCiWaveManual || (globalEnabled && (isManualMode || (link.manualMode || false))),
+        enabled: linkManualPaymentAllowed({
+          solvexEnabled: solvexEnabled(settings), globalManualEnabled: globalEnabled,
+          linkManualMode: !!link.manualMode, countryMode: effectiveMode, country: countryLower, operator: opLower,
+        }),
         depositNumber,
         depositLabel,
         instruction,
@@ -8927,7 +8931,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!link) return res.status(404).json({ message: 'Lien introuvable' });
       if (!link.isActive) return res.status(403).json({ message: 'Ce lien est désactivé' });
 
-      const { phone, operator, country, otp, customerName, customerEmail } = req.body;
+      const { phone, operator, country, otp, customerName, customerEmail: submittedEmail } = req.body;
+      const accountUser = (req as any).session?.userId
+        ? await storage.getUser((req as any).session.userId) : undefined;
+      const customerEmail = paymentCustomerEmail(submittedEmail, accountUser?.email);
       if (!phone || !operator || !country) {
         return res.status(400).json({ message: 'Téléphone, opérateur et pays requis' });
       }
@@ -9285,7 +9292,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/public/payment-links/:linkId/manual-submit', async (req: any, res) => {
     try {
       const { linkId } = req.params;
-      const { phone, operator, country, customerName, customerEmail, transactionId, screenshotUrl } = req.body;
+      const { phone, operator, country, customerName, customerEmail: submittedEmail, transactionId, screenshotUrl } = req.body;
+      const accountUser = req.session?.userId ? await storage.getUser(req.session.userId) : undefined;
+      const customerEmail = paymentCustomerEmail(submittedEmail, accountUser?.email);
       if (!transactionId || !screenshotUrl) {
         return res.status(400).json({ message: 'ID de transaction et capture requis' });
       }
@@ -9298,11 +9307,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const countryLower = String(country || '').toLowerCase();
       const operatorLower = String(operator || '').toLowerCase();
       const configuredMode = manualSettings.find((s: any) => s.key === `${countryLower}_activation_mode`)?.value || 'manual';
-      const isCiWaveManual = countryLower === 'ci' && operatorLower === 'wave' && configuredMode === 'robotpay';
-      if (!link.manualMode && !isCiWaveManual) return res.status(400).json({ message: 'Ce lien n\'est pas en mode manuel' });
+      if (!linkManualPaymentAllowed({
+        solvexEnabled: solvexEnabled(manualSettings),
+        globalManualEnabled: manualSettings.find(s => s.key === 'link_manual_mode_global')?.value !== 'false',
+        linkManualMode: !!link.manualMode, countryMode: configuredMode,
+        country: countryLower, operator: operatorLower,
+      })) return res.status(400).json({ message: 'Ce lien n\'est pas en mode manuel' });
 
       // Pour les liens PCS, l'email doit appartenir à un compte Sika
       const isPcsLinkManual = (linkId === 'd3e5479d' || linkId === 'codepcs' || linkId === '88cb6331');
+      if (isPcsLinkManual && !customerEmail) return res.status(400).json({ message: 'L’adresse e-mail du compte Sika Texte est obligatoire pour ce service PCS.' });
       if (isPcsLinkManual && customerEmail) {
         const [sikaUser] = await db.select({ id: users.id }).from(users).where(eq(users.email, (customerEmail as string).toLowerCase().trim())).limit(1);
         if (!sikaUser) {
@@ -9395,7 +9409,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      res.json({ success: true, id: savedReq.id });
+      res.json({ success: true, id: savedReq.id, createdAt: savedReq.createdAt });
     } catch (err) {
       console.error('[LINK-MANUAL-SUBMIT] Error:', err);
       res.status(500).json({ message: 'Erreur serveur' });

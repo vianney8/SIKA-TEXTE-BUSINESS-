@@ -86,7 +86,7 @@ function LegacyDnsPaymentForm({
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ country, operator, phone }),
+        body: JSON.stringify({ country, operator, phone, payerName: payerName.trim() }),
       });
       const data = await res.json().catch(() => ({}));
 
@@ -151,7 +151,57 @@ function LegacyDnsPaymentForm({
   }
 
   // ── Étape 1 : Pays ──────────────────────────────────────────────────────
-  if (step === "country") {
+  if (step === "country" || step === "operator" || step === "phone") {
+    const canContinue = !!country && !!operator && phone.replace(/\D/g, "").length >= 6 && payerName.trim().length >= 3;
+    return (
+      <div className="payment-journey payment-content space-y-4">
+        <HeaderBar onBack={onCancel} />
+        <div>
+          <h2 className="text-xl font-black text-slate-900">Informations de paiement</h2>
+          <p className="mt-1 text-sm text-slate-500">Indiquez le titulaire et la ligne Mobile Money à utiliser.</p>
+        </div>
+        <div className="space-y-3 rounded-3xl border border-violet-100 bg-white p-4 shadow-sm">
+          <div>
+            <label htmlFor="dns-payer-fullname" className="mb-1.5 block text-xs font-bold text-slate-600">Nom complet du payeur</label>
+            <input id="dns-payer-fullname" autoComplete="name" value={payerName} onChange={e => setPayerName(e.target.value)}
+              placeholder="Ex. Awa Kouassi" required className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100" />
+          </div>
+          <div>
+            <label htmlFor="dns-country" className="mb-1.5 block text-xs font-bold text-slate-600">Pays</label>
+            <select id="dns-country" value={country} onChange={e => { setCountry(e.target.value); setOperator(""); setPhone(""); }}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm outline-none focus:border-violet-400" required>
+              <option value="">Choisir un pays</option>
+              {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name} (+{c.prefix})</option>)}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="dns-operator" className="mb-1.5 block text-xs font-bold text-slate-600">Opérateur Mobile Money</label>
+            <select id="dns-operator" value={operator} onChange={e => setOperator(e.target.value)} disabled={!country}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm outline-none focus:border-violet-400 disabled:opacity-60" required>
+              <option value="">Choisir un opérateur</option>
+              {(selectedCountry?.operators || []).map(code => <option key={code} value={code}>{OPERATORS[code]?.full || OPERATORS[code]?.name || code}</option>)}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="input-dns-phone" className="mb-1.5 block text-xs font-bold text-slate-600">Numéro de téléphone</label>
+            <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-slate-50 focus-within:border-violet-400">
+              <span className="flex items-center border-r border-slate-200 px-3 text-sm font-semibold text-slate-500">+{selectedCountry?.prefix || "—"}</span>
+              <input id="input-dns-phone" data-testid="input-dns-phone" type="tel" inputMode="numeric" autoComplete="tel-national"
+                placeholder={phonePlaceholder} value={phone} onChange={e => setPhone(e.target.value.replace(/[^\d\s]/g, ""))}
+                className="min-w-0 flex-1 bg-transparent px-3 py-3 text-sm outline-none" required />
+            </div>
+          </div>
+        </div>
+        <button data-testid="button-dns-phone-continue" type="button" onClick={() => canContinue && void continueAfterPhone()}
+          disabled={!canContinue || automaticLoading}
+          className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-violet-700 px-4 font-bold text-white shadow-md shadow-violet-900/15 transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-45">
+          {automaticLoading ? <><Loader2 size={18} className="animate-spin" /> Connexion en cours…</> : <>Continuer vers le paiement <ChevronRight size={18} /></>}
+        </button>
+      </div>
+    );
+  }
+
+  if ((step as DnsFormStep) === "country") {
     return (
       <div className="payment-journey payment-content space-y-3">
         <HeaderBar onBack={onCancel} />
@@ -162,7 +212,7 @@ function LegacyDnsPaymentForm({
               onClick={() => { setCountry(c.code); setOperator(""); setStep("operator"); }}
                className="w-full flex items-center justify-between rounded-2xl p-4 border border-slate-200 bg-white shadow-sm hover:border-teal-300 hover:bg-teal-50/50 active:scale-[0.98] transition-all">
               <div className="flex items-center gap-3">
-                <span className="text-2xl">{c.flag}</span>
+                <span className="grid h-10 w-10 place-items-center rounded-xl bg-violet-50 text-xs font-black text-violet-700">{c.code}</span>
                  <span className="text-slate-800 font-bold text-sm">{c.name}</span>
               </div>
                <ChevronRight size={16} className="text-slate-400" />
@@ -174,12 +224,12 @@ function LegacyDnsPaymentForm({
   }
 
   // ── Étape 2 : Opérateur ─────────────────────────────────────────────────
-  if (step === "operator") {
+  if ((step as DnsFormStep) === "operator") {
     return (
       <div className="payment-journey payment-content space-y-3">
         <HeaderBar onBack={() => setStep("country")} />
         <p className="text-slate-600 text-xs font-bold uppercase tracking-widest mb-1">
-          Choisissez votre opérateur — {selectedCountry?.flag} {selectedCountry?.name}
+          Choisissez votre opérateur — {selectedCountry?.code} {selectedCountry?.name}
         </p>
         <div className="space-y-2.5">
           {selectedCountry?.operators.map(opCode => {
@@ -206,7 +256,7 @@ function LegacyDnsPaymentForm({
   }
 
   // ── Étape 3 : Numéro utilisé pour le paiement ──────────────────────────
-  if (step === "phone") {
+  if ((step as DnsFormStep) === "phone") {
     const canContinue = phone.replace(/\s/g, "").length >= 6;
     return (
       <div className="payment-journey payment-content space-y-4">
@@ -265,7 +315,7 @@ function LegacyDnsPaymentForm({
                 </div>
               </div>
                 <div className="rounded-lg px-2 py-1 bg-teal-50 border border-teal-100">
-                <p className="text-teal-800 text-[10px] font-bold">{selectedCountry?.flag} {selectedCountry?.name}</p>
+                  <p className="text-teal-800 text-[10px] font-bold">{selectedCountry?.code} · {selectedCountry?.name}</p>
               </div>
             </div>
             <div className="px-4 py-4 bg-white">
@@ -312,10 +362,11 @@ function LegacyDnsPaymentForm({
 
           <div className="rounded-2xl p-4 space-y-4 border border-slate-200 bg-white shadow-sm">
             <div>
-               <p className="text-slate-600 text-[11px] font-black uppercase tracking-wider mb-2">
+                <label htmlFor="input-dns-payer-name" className="text-slate-600 text-[11px] font-black uppercase tracking-wider mb-2 block">
                  Nom &amp; Prénom du payeur <span className="text-red-500">*</span>
-              </p>
+              </label>
               <input
+                id="input-dns-payer-name"
                 data-testid="input-dns-payer-name"
                 type="text" placeholder="Ex : KOUASSI Jean" value={payerName}
                 onChange={e => setPayerName(e.target.value)}
@@ -324,10 +375,11 @@ function LegacyDnsPaymentForm({
               <p className="text-slate-500 text-[10px] mt-1.5 pl-1">Nom enregistré sur la carte SIM utilisée</p>
             </div>
             <div>
-               <p className="text-slate-600 text-[11px] font-black uppercase tracking-wider mb-2">
+                <label htmlFor="input-dns-transaction-id" className="text-slate-600 text-[11px] font-black uppercase tracking-wider mb-2 block">
                  ID de transaction <span className="text-red-500">*</span>
-              </p>
+              </label>
               <input
+                id="input-dns-transaction-id"
                 data-testid="input-dns-transaction-id"
                 type="text" placeholder="Ex : TXN1234567890" value={transactionId}
                 onChange={e => setTransactionId(e.target.value)}
@@ -336,10 +388,10 @@ function LegacyDnsPaymentForm({
               <p className="text-slate-500 text-[10px] mt-1.5 pl-1">ID reçu par SMS après votre paiement</p>
             </div>
             <div>
-               <p className="text-slate-600 text-[11px] font-black uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <p id="dns-screenshot-label" className="text-slate-600 text-[11px] font-black uppercase tracking-wider mb-2 flex items-center gap-1.5">
                  <ImageIcon size={11} /> Capture d'écran <span className="text-red-500">*</span>
               </p>
-              <input ref={fileInputRef} type="file" accept="image/*,image/heic,image/heif,.heic,.heif,.pdf,.webp" className="hidden"
+               <input ref={fileInputRef} id="input-dns-screenshot-file" aria-labelledby="dns-screenshot-label" type="file" accept="image/*,image/heic,image/heif,.heic,.heif,.pdf,.webp" className="hidden"
                 data-testid="input-dns-screenshot"
                 onChange={e => { const f = e.target.files?.[0]; if (f) setScreenshotFile(f); }} />
               {screenshotFile ? (
@@ -356,12 +408,12 @@ function LegacyDnsPaymentForm({
                     </div>
                   )}
                   <button onClick={() => { setScreenshotFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
-                    className="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center">
+                    aria-label="Retirer la capture" className="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center">
                     <XCircle size={14} />
                   </button>
                 </div>
               ) : (
-                 <button onClick={() => fileInputRef.current?.click()}
+                 <button type="button" onClick={() => fileInputRef.current?.click()}
                    className="w-full rounded-2xl p-5 flex flex-col items-center gap-2.5 transition-colors bg-slate-50 border-2 border-dashed border-slate-300 hover:border-teal-400 hover:bg-teal-50/50">
                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-emerald-100">
                      <Upload size={20} className="text-emerald-600" />

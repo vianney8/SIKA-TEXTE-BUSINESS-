@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import PaymentCheckout from "@/components/PaymentCheckout";
+import PaymentCheckout, { useCheckoutMode } from "@/components/PaymentCheckout";
 import { useParams } from "wouter";
 import {
   CheckCircle, ChevronLeft, ChevronRight, Clock, Copy, ExternalLink, Globe, ImageIcon,
@@ -83,7 +83,7 @@ function ProgressBar({ step, isPcs }: { step: FormStep; isPcs?: boolean }) {
   const steps = isPcs
     ? ["country","operator","phone"] as FormStep[]
     : ["country","operator","phone"] as FormStep[];
-  const labels = ["Pays", "Réseau", isPcs ? "Infos" : "Numéro"];
+  const labels = ["Demande", "Validation", "Confirmation"];
   const currentIdx = steps.indexOf(step);
 
   return (
@@ -135,6 +135,7 @@ export default function PaymentLinkPage() {
 }
 
 function LegacyPaymentLinkPage() {
+  const { data: checkoutMode } = useCheckoutMode();
   const params = useParams<{ linkId: string }>();
   const linkId = params.linkId;
 
@@ -144,10 +145,12 @@ function LegacyPaymentLinkPage() {
   const [country, setCountry]   = useState("");
   const [operator, setOperator] = useState("");
   const [phone, setPhone]       = useState("");
+  const [payerFullName, setPayerFullName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName]   = useState("");
   const [email, setEmail]         = useState("");
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
 
   const [depositInfo, setDepositInfo]               = useState<any>(null);
   const [depositLoading, setDepositLoading]         = useState(false);
@@ -163,6 +166,12 @@ function LegacyPaymentLinkPage() {
   const [txnId, setTxnId]           = useState("");
   const [pollCount, setPollCount]   = useState(0);
   const [submittedAt, setSubmittedAt] = useState<string | null>(null);
+  const [providerAccepted, setProviderAccepted] = useState(false);
+  const recoveryKey = `sika-link-checkout:${checkoutMode?.customerId ?? "guest"}:${linkId ?? ""}`;
+  const manualRecoveryKey = `sika-link-manual:${checkoutMode?.customerId ?? "guest"}:${linkId ?? ""}`;
+  const [manualRequestId, setManualRequestId] = useState("");
+  const [manualStatusError, setManualStatusError] = useState("");
+  const [manualCode, setManualCode] = useState("");
 
   const [step, setStep]         = useState<Step>("country");
   const [submitting, setSubmitting] = useState(false);
@@ -170,8 +179,51 @@ function LegacyPaymentLinkPage() {
 
   useEffect(() => {
     const ref = new URLSearchParams(window.location.search).get("localRef");
-    if (ref?.startsWith("WST-LINK-")) { setTxnId(ref); setStep("pending"); }
-  }, []);
+    let recovered: string | null = null;
+    try { recovered = sessionStorage.getItem(recoveryKey); } catch { recovered = null; }
+    const pendingId = ref?.startsWith("WST-LINK-") ? ref : recovered;
+    if (pendingId) { setTxnId(pendingId); setStep("pending"); sessionStorage.setItem(recoveryKey, pendingId); }
+  }, [recoveryKey]);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(manualRecoveryKey) || "null");
+      if (typeof saved?.requestId === "string") {
+        setManualRequestId(saved.requestId);
+        setSubmittedAt(saved.createdAt || null);
+        setStep("submitted");
+      }
+    } catch { /* Storage may be unavailable; current-page polling still works. */ }
+  }, [manualRecoveryKey]);
+
+  useEffect(() => {
+    if (step !== "submitted" || !manualRequestId) return;
+    let stopped = false;
+    let checking = false;
+    const poll = async () => {
+      if (checking) return;
+      checking = true;
+      try {
+        const response = await fetch(`/api/public/payment-links/${linkId}/manual-status/${manualRequestId}`, {
+          credentials: "include", cache: "no-store",
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || "Vérification temporairement indisponible.");
+        if (stopped) return;
+        setManualStatusError("");
+        if (data.status === "completed" || data.status === "failed") {
+          try { sessionStorage.removeItem(manualRecoveryKey); } catch { /* Optional recovery storage. */ }
+          setManualCode(data.pcsCode || "");
+          setStep(data.status === "completed" ? "success" : "failed");
+        }
+      } catch (err: any) {
+        if (!stopped) setManualStatusError(err.message || "La vérification reprendra automatiquement.");
+      } finally { checking = false; }
+    };
+    void poll();
+    const interval = setInterval(poll, 5000);
+    return () => { stopped = true; clearInterval(interval); };
+  }, [step, manualRequestId, linkId, manualRecoveryKey]);
 
   const selectedCountry = COUNTRIES.find(c => c.code === country);
   const selectedOp      = OPERATORS[operator];
@@ -218,7 +270,8 @@ function LegacyPaymentLinkPage() {
     fetch("/api/auth/user", { credentials: "include" })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data?.email) setCurrentUserEmail(data.email); })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setAuthChecked(true));
   }, []);
 
   // Pour le lien PCS (champ visible) et pour le lien DNS Privé (champ caché,
@@ -251,14 +304,15 @@ function LegacyPaymentLinkPage() {
         const res  = await fetch(`/api/public/payment-links/check/${txnId}`);
         const data = await res.json();
         if (cancelled) return;
-        if (data.status === "completed") { setStep("success"); return; }
-        if (data.status === "failed")    { setStep("failed");  return; }
+        if (typeof data.providerAccepted === "boolean") setProviderAccepted(data.providerAccepted);
+        if (data.status === "completed") { sessionStorage.removeItem(recoveryKey); setStep("success"); return; }
+        if (data.status === "failed")    { sessionStorage.removeItem(recoveryKey); setStep("failed");  return; }
         setPollCount(c => c + 1);
       } catch {}
     };
     const iv = setInterval(poll, 5000);
     return () => { cancelled = true; clearInterval(iv); };
-  }, [step, txnId]);
+  }, [step, txnId, recoveryKey]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const copyDepositNumber = () => {
@@ -288,11 +342,12 @@ function LegacyPaymentLinkPage() {
 
   const handleContinue = async () => {
     setError("");
+    const customerName = payerFullName.trim() || `${firstName.trim()} ${lastName.trim()}`.trim();
     if (!country)  { setError("Veuillez sélectionner un pays"); return; }
     if (!operator) { setError("Veuillez sélectionner un opérateur"); return; }
     if (!phone.replace(/\D/g, "").match(/^\d{6,}$/)) { setError("Veuillez saisir votre numéro Mobile Money"); return; }
+    if (customerName.length < 3) { setError("Veuillez saisir le nom complet du payeur"); return; }
     if (link?.isPcs) {
-      if (!firstName.trim() || !lastName.trim()) { setError("Veuillez saisir votre prénom et nom"); return; }
       if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError("Veuillez saisir une adresse e-mail valide"); return; }
       try {
         const r = await fetch(`/api/public/check-sika-email?email=${encodeURIComponent(email.trim())}`);
@@ -308,7 +363,7 @@ function LegacyPaymentLinkPage() {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             phone: phone.replace(/\s/g, ""), operator, country,
-            customerName: `${firstName.trim()} ${lastName.trim()}`, customerEmail: email.trim(),
+            customerName, customerEmail: email.trim(),
           }),
         });
       } catch {}
@@ -324,12 +379,14 @@ function LegacyPaymentLinkPage() {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             phone: phone.replace(/\s/g, ""), operator, country,
-            customerName: `${firstName.trim()} ${lastName.trim()}`, customerEmail: email.trim(),
+            customerName, customerEmail: email.trim(),
           }),
         });
         const data = await res.json();
         if (!res.ok) { setError(data.message || "Erreur lors du paiement"); return; }
         setTxnId(data.transactionId);
+        setProviderAccepted(data.providerAccepted === true);
+        sessionStorage.setItem(recoveryKey, data.transactionId);
         if (data.paymentUrl) { window.location.href = data.paymentUrl; return; }
         setStep("pending");
       } catch { setError("Erreur réseau. Vérifiez votre connexion."); }
@@ -347,7 +404,7 @@ function LegacyPaymentLinkPage() {
         body: JSON.stringify({
           phone: `${selectedCountry?.prefix}${phone.replace(/\s/g, "")}`,
           operator, country,
-          customerName: `${firstName.trim()} ${lastName.trim()}`,
+          customerName: payerFullName.trim() || `${firstName.trim()} ${lastName.trim()}`.trim(),
           customerEmail: email.trim(),
           transactionId: manualTxnId.trim(),
           screenshotUrl: manualScreenshotUrl,
@@ -355,16 +412,23 @@ function LegacyPaymentLinkPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Erreur serveur");
-      setSubmittedAt(new Date().toISOString()); setStep("submitted");
+      if (!data.id) throw new Error("La demande n’a pas retourné sa référence. Ne renvoyez pas votre paiement ; contactez l’administrateur.");
+      const createdAt = data.createdAt || new Date().toISOString();
+      setManualRequestId(data.id);
+      try { sessionStorage.setItem(manualRecoveryKey, JSON.stringify({ requestId: data.id, createdAt })); } catch { /* Keep polling without storage. */ }
+      setSubmittedAt(createdAt); setStep("submitted");
     } catch (e: any) { setError(e.message || "Erreur lors de l'envoi."); }
     finally { setManualSubmitting(false); }
   };
 
   const reset = () => {
-    setStep("country"); setCountry(""); setOperator(""); setPhone(""); setFirstName(""); setLastName("");
+    sessionStorage.removeItem(recoveryKey);
+    sessionStorage.removeItem(manualRecoveryKey);
+    setManualRequestId(""); setManualStatusError(""); setManualCode("");
+    setStep("country"); setCountry(""); setOperator(""); setPhone(""); setFirstName(""); setLastName(""); setPayerFullName("");
     if (!link?.isPcs || !currentUserEmail) setEmail("");
     setDepositInfo(null); setManualTxnId(""); setScreenshotFile(null); setManualScreenshotUrl("");
-    setTxnId(""); setPollCount(0); setError("");
+    setTxnId(""); setPollCount(0); setProviderAccepted(false); setError("");
   };
 
   const amount = link ? parseFloat(link.amount).toLocaleString("fr-FR") : "—";
@@ -460,6 +524,11 @@ function LegacyPaymentLinkPage() {
           <span className="text-slate-900 font-black text-xl">{amount} {link.currency}</span>
         </p>
         <p className="text-slate-400 text-sm">{link.label}</p>
+        <div className="my-5 flex items-center justify-center gap-3 text-xs font-semibold text-violet-700" aria-label="Confirmation du paiement">
+          <span>Demande</span><span aria-hidden="true">—</span><span>Validation</span><span aria-hidden="true">—</span><span>Confirmation</span>
+        </div>
+        {manualCode && <div className="mt-5 rounded-2xl bg-violet-50 p-4"><p className="text-xs text-violet-700">Votre code PCS</p><p className="mt-2 break-all font-mono font-bold text-violet-950">{manualCode}</p></div>}
+        <button type="button" onClick={() => { window.location.href = "/"; }} className="mt-5 w-full rounded-xl bg-violet-700 px-4 py-3 font-semibold text-white">Terminé</button>
         <div className="mt-8 pt-5 border-t border-slate-100">
           <p className="text-slate-300 text-xs flex items-center justify-center gap-1">
             <ShieldCheck size={10} /> Paiement sécurisé par <span className="text-slate-400 font-bold ml-1">SIKApay</span>
@@ -500,22 +569,23 @@ function LegacyPaymentLinkPage() {
           </div>
         </div>
         <div>
-          <h2 className="font-black text-slate-900 text-2xl mb-2">Validation en cours</h2>
+          <h2 className="font-black text-slate-900 text-2xl mb-2">{providerAccepted ? "Validez sur votre téléphone" : "Paiement en cours d'initialisation"}</h2>
           <p className="text-slate-500 text-sm">
-            Confirmez le paiement de{" "}
-            <span className="text-slate-900 font-black">{amount} {link.currency}</span>{" "}
-            sur votre téléphone.
+            {providerAccepted
+              ? <>Une demande de paiement a été acceptée par l’opérateur. Validez <span className="text-slate-900 font-black">{amount} {link.currency}</span> sur votre téléphone.</>
+              : "Nous attendons la confirmation de l’opérateur. Ne relancez pas le paiement ; le statut sera actualisé automatiquement."}
           </p>
-          <p className="text-slate-400 text-xs mt-2">
-            Notification sur <span className="text-slate-600 font-semibold">+{selectedCountry?.prefix} {phone}</span>
-          </p>
+          {providerAccepted && <p className="text-slate-400 text-xs mt-2">Ligne : <span className="text-slate-600 font-semibold">+{selectedCountry?.prefix} {phone}</span></p>}
         </div>
         <div className="rounded-2xl px-4 py-3 bg-emerald-50 border border-emerald-100 flex items-center justify-center gap-2 text-sm text-emerald-700 font-medium">
           <Loader2 size={14} className="animate-spin" />
           <span>En attente</span>
           <AnimatedDots />
         </div>
-        <button onClick={reset} className="text-xs text-slate-300 hover:text-slate-500 transition-colors underline">Annuler</button>
+        <button onClick={() => { sessionStorage.setItem(recoveryKey, txnId); window.history.back(); }}
+          className="text-xs text-slate-500 underline underline-offset-4 hover:text-slate-800 transition-colors">
+          Quitter cette page sans interrompre le paiement
+        </button>
       </div>
     </div>
   );
@@ -525,7 +595,7 @@ function LegacyPaymentLinkPage() {
     <div className="payment-journey min-h-screen flex items-center justify-center px-5" style={{ background: PG }}>
       <div className="bg-white rounded-3xl shadow-xl p-8 text-center max-w-sm w-full space-y-5">
         <div className="w-24 h-24 mx-auto rounded-full bg-orange-50 flex items-center justify-center">
-          <span className="text-5xl">{selectedCountry?.flag || <Globe size={42} className="text-orange-500" />}</span>
+          <span className="grid h-16 w-16 place-items-center rounded-2xl bg-violet-50 text-sm font-black text-violet-700">{selectedCountry?.code || <Globe size={32} />}</span>
         </div>
         <div>
           <h2 className="font-black text-slate-900 text-2xl mb-2">Redirection effectuée</h2>
@@ -549,13 +619,20 @@ function LegacyPaymentLinkPage() {
     return (
       <div className="payment-journey min-h-screen pb-8" style={{ background: PG }}>
         <style>{`@keyframes bounceDot{0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1}}`}</style>
-        <div className="px-5 pt-6 pb-4 flex items-center justify-between" style={{ background: HDR }}>
+        <div className="px-5 pt-6 pb-4 flex flex-wrap items-center justify-between gap-3" style={{ background: HDR }}>
           <div className="flex items-center gap-2.5">
             <img src="/logo.jpg" alt="SIKApay" className="w-9 h-9 rounded-xl object-cover ring-2 ring-white/15" />
             <div>
               <p className="text-[9px] font-bold uppercase tracking-widest text-white/60">SIKApay</p>
               <p className="text-white font-black text-sm">SIKA TEXTE</p>
             </div>
+          </div>
+          <div className="order-last flex w-full items-start justify-center gap-1.5 rounded-2xl bg-white p-4" aria-label="Progression du paiement : validation en cours">
+            <div className="flex min-w-[58px] flex-col items-center gap-1 text-violet-700"><span className="grid h-7 w-7 place-items-center rounded-full bg-violet-700 text-white"><CheckCircle size={13} /></span><small className="text-[10px] font-semibold">Demande</small></div>
+            <div className="mt-3.5 h-px flex-1 bg-violet-300" />
+            <div className="flex min-w-[58px] flex-col items-center gap-1 text-violet-700"><span className="grid h-7 w-7 place-items-center rounded-full border-2 border-violet-600 text-xs">2</span><small className="text-[10px] font-semibold">Validation</small></div>
+            <div className="mt-3.5 h-px flex-1 bg-slate-200" />
+            <div className="flex min-w-[58px] flex-col items-center gap-1 text-slate-400"><span className="grid h-7 w-7 place-items-center rounded-full bg-slate-100 text-xs">3</span><small className="text-[10px] font-semibold">Confirmation</small></div>
           </div>
           <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
             style={{ background: "rgba(251,191,36,0.15)", border: "1px solid rgba(251,191,36,0.3)" }}>
@@ -565,19 +642,24 @@ function LegacyPaymentLinkPage() {
         </div>
         <div className="px-4 py-5 space-y-4 max-w-md mx-auto">
           <div className="text-center pb-1">
+            <div className="relative mx-auto mb-5 flex h-28 w-28 items-center justify-center rounded-full border-[3px] border-violet-600 bg-violet-50" aria-hidden="true">
+              <span className="absolute inset-3 rounded-full border border-violet-200" />
+              <span className="absolute inset-6 rounded-full border border-violet-200" />
+              <ShieldCheck size={32} className="text-violet-700" />
+            </div>
             <h1 className="text-slate-900 font-black text-2xl mb-1">Vérification en cours</h1>
             <p className="text-slate-500 text-sm leading-relaxed">
               Votre demande a bien été reçue.<br />
-              <span className="text-slate-700 font-semibold">Nos agents vérifient votre paiement.</span>
+              <span className="text-slate-700 font-semibold">Votre justificatif attend la validation de l’administrateur.</span>
             </p>
           </div>
           <div className="bg-white rounded-3xl shadow-md p-4 flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "#D1FAE5" }}>
-              <span className="text-xl">👥</span>
+                    <ShieldCheck size={20} className="text-violet-700" />
             </div>
             <div className="flex-1">
-              <p className="text-slate-900 font-black text-sm">Équipes mobilisées</p>
-              <p className="text-slate-400 text-xs">Nos agents vérifient votre paiement activement</p>
+               <p className="text-slate-900 font-black text-sm">Justificatif transmis</p>
+               <p className="text-slate-400 text-xs">Votre demande attend la décision de l’administrateur.</p>
             </div>
             <div className="flex gap-1.5 flex-shrink-0">
               {[0,1,2].map(i => (
@@ -632,6 +714,13 @@ function LegacyPaymentLinkPage() {
               )}
             </div>
           </div>
+          {manualStatusError && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">{manualStatusError} Votre paiement n’est pas annulé ; la vérification continue.</p>}
+          <p className="text-center text-xs text-slate-500">Cette page se met à jour automatiquement après la décision de l’administrateur.</p>
+          <button type="button" onClick={() => { window.location.href = "/"; }}
+            className="w-full rounded-2xl border border-violet-200 bg-white px-4 py-3 text-sm font-semibold text-violet-800">
+            Quitter cette page
+          </button>
+          <p className="text-center text-xs text-slate-500">Quitter ne supprime pas la demande. Vous pourrez la retrouver en ouvrant ce lien dans ce navigateur.</p>
           <p className="text-slate-300 text-[10px] flex items-center justify-center gap-1.5 pb-2">
             <ShieldCheck size={9} /> Paiement sécurisé · SIKApay SIKA TEXTE
           </p>
@@ -681,7 +770,7 @@ function LegacyPaymentLinkPage() {
                   </div>
                 </div>
                 <div className="rounded-xl px-2.5 py-1 bg-white/10">
-                  <p className="text-white text-[10px] font-bold">{selectedCountry?.flag} {selectedCountry?.name}</p>
+                  <p className="text-white text-[10px] font-bold">{selectedCountry?.code} · {selectedCountry?.name}</p>
                 </div>
               </div>
               <div className="mx-5 border-t-2 border-dashed border-slate-100" />
@@ -699,7 +788,7 @@ function LegacyPaymentLinkPage() {
                         color: copied ? BLU2 : BLU,
                         border: `1px solid ${copied ? "#93C5FD" : `${BLU}30`}`
                       }}>
-                      <Copy size={13} /> {copied ? "Copié ✓" : "Copier"}
+                      <Copy size={13} /> {copied ? "Copié" : "Copier"}
                     </button>
                   )}
                 </div>
@@ -742,20 +831,20 @@ function LegacyPaymentLinkPage() {
 
             <div className="bg-white rounded-3xl shadow-md p-4 space-y-4">
               <div>
-                <p className="text-slate-500 text-[11px] font-black uppercase tracking-wider mb-2">
+                <label htmlFor="link-manual-txn" className="text-slate-500 text-[11px] font-black uppercase tracking-wider mb-2 block">
                   ID de transaction <span className="text-red-400">*</span>
-                </p>
-                <input type="text" value={manualTxnId} onChange={e => setManualTxnId(e.target.value)}
+                </label>
+                <input id="link-manual-txn" type="text" value={manualTxnId} onChange={e => setManualTxnId(e.target.value)}
                   placeholder="ex: TXN20240125ABCDE"
                   className="w-full bg-slate-50 border-2 border-slate-100 focus:border-blue-400 rounded-2xl px-4 py-3.5 text-sm font-semibold font-mono text-slate-800 placeholder:text-slate-300 focus:outline-none transition-colors" />
                 <p className="text-slate-300 text-[10px] mt-1.5 pl-1">ID reçu par SMS après votre paiement</p>
               </div>
 
               <div>
-                <p className="text-slate-500 text-[11px] font-black uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <p id="link-manual-screenshot-label" className="text-slate-500 text-[11px] font-black uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <ImageIcon size={11} /> Capture d'écran <span className="text-red-400">*</span>
                 </p>
-                <input ref={fileInputRef} type="file" accept="image/*,image/heic,image/heif,.heic,.heif,.pdf,.webp" className="hidden"
+                <input ref={fileInputRef} id="link-manual-screenshot" aria-labelledby="link-manual-screenshot-label" type="file" accept="image/*,image/heic,image/heif,.heic,.heif,.pdf,.webp" className="hidden"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleScreenshotSelect(f); }} />
                 {screenshotFile ? (
                   <div className="relative rounded-2xl overflow-hidden border-2 border-slate-100">
@@ -776,9 +865,9 @@ function LegacyPaymentLinkPage() {
                       </div>
                     )}
                     {!manualUploading && (
-                      <button onClick={() => { setScreenshotFile(null); setManualScreenshotUrl(""); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                      <button type="button" aria-label="Retirer la capture" onClick={() => { setScreenshotFile(null); setManualScreenshotUrl(""); if (fileInputRef.current) fileInputRef.current.value = ""; }}
                         className="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold">
-                        ✕
+                        <XCircle size={15} aria-hidden="true" />
                       </button>
                     )}
                     {manualScreenshotUrl && !manualUploading && (
@@ -790,7 +879,7 @@ function LegacyPaymentLinkPage() {
                     )}
                   </div>
                 ) : (
-                  <button onClick={() => fileInputRef.current?.click()}
+                  <button type="button" onClick={() => fileInputRef.current?.click()}
                     className="w-full rounded-2xl p-5 flex flex-col items-center gap-2.5 border-2 border-dashed border-slate-200 bg-slate-50 hover:border-blue-400 hover:bg-blue-50 transition-colors">
                     <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: `${BLU}12` }}>
                       <Upload size={20} style={{ color: BLU }} />
@@ -849,6 +938,64 @@ function LegacyPaymentLinkPage() {
   // ─────────────────────────────────────────────────────────────────────────────
   // ÉTAPE 1 : Sélection du pays
   // ─────────────────────────────────────────────────────────────────────────────
+  if (step === "country" || step === "operator" || step === "phone") {
+    const canContinue = !!country && !!operator && phone.replace(/\D/g, "").length >= 6 &&
+      payerFullName.trim().length >= 3 && (!link?.isPcs || !!email.trim());
+    return (
+      <div className="payment-journey min-h-[100dvh] pb-8" style={{ background: PG }}>
+        <PageHeader onBack={() => window.history.back()} showProgress formStep="country" />
+        <form className="mx-auto max-w-md space-y-4 px-4 pb-10 pt-5" onSubmit={(event) => { event.preventDefault(); if (canContinue) void handleContinue(); }}>
+          <div className="rounded-3xl border border-violet-100 bg-white p-4 shadow-sm">
+            <label htmlFor="link-payer-name" className="mb-1.5 block text-xs font-bold text-slate-600">Nom complet du payeur</label>
+            <input id="link-payer-name" autoComplete="name" value={payerFullName} onChange={e => setPayerFullName(e.target.value)}
+              placeholder="Ex. Awa Kouassi" required className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100" />
+          </div>
+          <div className="space-y-3 rounded-3xl border border-violet-100 bg-white p-4 shadow-sm">
+            <div>
+              <label htmlFor="link-country" className="mb-1.5 block text-xs font-bold text-slate-600">Pays</label>
+              <select id="link-country" value={country} onChange={e => { setCountry(e.target.value); setOperator(""); setPhone(""); }}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm outline-none focus:border-violet-400" required>
+                <option value="">Choisir un pays</option>
+                {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name} (+{c.prefix})</option>)}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="link-operator" className="mb-1.5 block text-xs font-bold text-slate-600">Opérateur Mobile Money</label>
+              <select id="link-operator" value={operator} onChange={e => setOperator(e.target.value)} disabled={!country}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm outline-none focus:border-violet-400 disabled:opacity-60" required>
+                <option value="">Choisir un opérateur</option>
+                {visibleOperators.map(code => <option key={code} value={code} disabled={isOpMaintenance(country, code)}>{OPERATORS[code]?.full}{isOpMaintenance(country, code) ? " — Maintenance" : ""}</option>)}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="link-phone" className="mb-1.5 block text-xs font-bold text-slate-600">Numéro de téléphone</label>
+              <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-slate-50 focus-within:border-violet-400">
+                <span className="flex items-center border-r border-slate-200 px-3 text-sm font-semibold text-slate-500">+{selectedCountry?.prefix || "—"}</span>
+                <input id="link-phone" type="tel" inputMode="numeric" autoComplete="tel-national" value={phone} onChange={e => setPhone(e.target.value.replace(/[^\d\s]/g, ""))}
+                  placeholder={selectedCountry?.phonePlaceholder || "Numéro local"} required className="min-w-0 flex-1 bg-transparent px-3 py-3 text-sm outline-none" />
+              </div>
+            </div>
+            {link?.isPcs && (
+              <div>
+                <label htmlFor="link-email" className="mb-1.5 block text-xs font-bold text-slate-600">E-mail du compte SIKA TEXTE</label>
+                <input id="link-email" type="email" autoComplete="email" value={email} onChange={e => { if (!currentUserEmail) setEmail(e.target.value); }}
+                  readOnly={Boolean(currentUserEmail)} disabled={!authChecked} required placeholder="nom@exemple.com"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm outline-none read-only:text-slate-500 focus:border-violet-400" />
+                {currentUserEmail && <p className="mt-1 text-xs text-slate-400">Adresse vérifiée de votre compte connecté.</p>}
+              </div>
+            )}
+          </div>
+          {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
+          <button type="submit" disabled={!canContinue || submitting}
+            className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-violet-700 px-4 font-bold text-white shadow-md shadow-violet-900/15 transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-45">
+            {submitting ? <Loader2 size={18} className="animate-spin" /> : null}
+            {submitting ? "Préparation…" : <>Continuer · {amount} {link?.currency}<ChevronRight size={18} /></>}
+          </button>
+        </form>
+      </div>
+    );
+  }
+
   if (step === "country") {
     return (
       <div className="payment-journey min-h-screen pb-10" style={{ background: PG }}>
@@ -869,7 +1016,7 @@ function LegacyPaymentLinkPage() {
                   borderColor: "#E2E8F0",
                   boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
                 }}>
-                <span className="text-3xl">{c.flag}</span>
+                <span className="grid h-11 w-11 place-items-center rounded-xl bg-violet-50 text-xs font-black text-violet-700">{c.code}</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold leading-tight text-slate-800 truncate">{c.name}</p>
                   <p className="text-[11px] text-slate-400 mt-0.5">+{c.prefix}</p>
@@ -900,7 +1047,7 @@ function LegacyPaymentLinkPage() {
         <div className="px-4 pt-5 pb-10 space-y-4 max-w-md mx-auto">
 
           <div className="flex items-center gap-2 pb-1">
-            <span className="text-2xl">{selectedCountry?.flag}</span>
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-violet-50 text-xs font-black text-violet-700">{selectedCountry?.code}</span>
             <div>
               <p className="text-slate-700 font-black text-lg leading-tight">Réseau Mobile Money</p>
               <p className="text-slate-400 text-sm">Étape 2 sur 3 — {selectedCountry?.name}</p>
@@ -1068,7 +1215,7 @@ function LegacyPaymentLinkPage() {
             <div className="divide-y divide-slate-50">
               <div className="flex items-center justify-between px-4 py-3">
                 <p className="text-slate-500 text-sm">Pays</p>
-                <div className="flex items-center gap-1.5"><span className="text-lg">{selectedCountry?.flag}</span><span className="font-semibold text-slate-800 text-sm">{selectedCountry?.name}</span></div>
+                <div className="flex items-center gap-1.5"><span className="text-xs font-black text-violet-700">{selectedCountry?.code}</span><span className="font-semibold text-slate-800 text-sm">{selectedCountry?.name}</span></div>
               </div>
               <div className="flex items-center justify-between px-4 py-3">
                 <p className="text-slate-500 text-sm">Réseau</p>

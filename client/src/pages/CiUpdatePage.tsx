@@ -52,6 +52,8 @@ function LegacyCiUpdatePage() {
   const { data: checkoutMode } = useCheckoutMode();
   const { toast } = useToast();
   const [paymentPhone, setPaymentPhone] = useState("");
+  const [payerFullName, setPayerFullName] = useState("");
+  const [paymentOperator, setPaymentOperator] = useState("");
   const [inputError, setInputError] = useState("");
   const [pageState, setPageState] = useState<PageState>("form");
   const [visible, setVisible] = useState(false);
@@ -74,7 +76,12 @@ function LegacyCiUpdatePage() {
 
   const submitMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest('POST', '/api/ci-update/submit', { paymentPhone: paymentPhone.trim() });
+      const res = await apiRequest('POST', '/api/ci-update/submit', {
+        paymentPhone: paymentPhone.trim(),
+        payerName: payerFullName.trim(),
+        country: "CI",
+        operator: paymentOperator,
+      });
       return res.json();
     },
     onSuccess: () => setPageState("payment"),
@@ -82,6 +89,8 @@ function LegacyCiUpdatePage() {
   });
 
   const handleSubmit = () => {
+    if (!payerFullName.trim() || payerFullName.trim().length < 3) { setInputError("Saisissez le nom complet du payeur."); return; }
+    if (!paymentOperator) { setInputError("Choisissez votre opérateur Mobile Money."); return; }
     if (checkoutMode?.enabled) { setPageState("payment"); return; }
     if (!paymentPhone.trim()) { setInputError("Ce champ est requis."); return; }
     if (paymentPhone.trim().length < 8) { setInputError("Numéro invalide."); return; }
@@ -95,10 +104,10 @@ function LegacyCiUpdatePage() {
     : null;
 
   const statusMessages = [
-    "🔒 Connexion sécurisée SSL",
-    "✅ Vérification en moins de 1 heure",
-    "💰 Accès immédiat après validation",
-    "🛡️ Traitement par l'administrateur",
+    "Connexion sécurisée SSL",
+    "Vérification en moins de 1 heure",
+    "Accès immédiat après validation",
+    "Traitement par l'administrateur",
   ];
 
   if (pageState === "payment" && checkoutMode?.enabled) {
@@ -242,6 +251,13 @@ function LegacyCiUpdatePage() {
         }
         .step-line { flex: 1; height: 2px; background: rgba(255,255,255,0.15); }
         .step-line-filled { height: 100%; background: linear-gradient(90deg,#10b981,#6366f1); transition: width 0.5s; }
+        @media (prefers-reduced-motion: reduce) {
+          .page-in, .slide-in, .logo-1, .logo-2, .logo-3, .logo-4, .ticker-run,
+          .badge-live, .dot-a, .dot-b, .dot-c, .btn-submit::after, .btn-pay::after {
+            animation: none !important;
+            transition: none !important;
+          }
+        }
       `}</style>
 
       <div className="min-h-screen relative overflow-hidden"
@@ -399,7 +415,30 @@ function LegacyCiUpdatePage() {
 
               {/* Champ téléphone */}
               <div className="glass-card p-4 space-y-3">
-                <label className="block text-white/60 text-xs font-semibold uppercase tracking-widest">
+                <label htmlFor="ci-country" className="block text-white/60 text-xs font-semibold uppercase tracking-widest">
+                  Pays
+                </label>
+                <select id="ci-country" value="CI" disabled className="ci-input w-full">
+                  <option value="CI">Côte d’Ivoire (+225)</option>
+                </select>
+                <label htmlFor="ci-payer-fullname" className="block text-white/60 text-xs font-semibold uppercase tracking-widest">
+                  Nom complet du payeur
+                </label>
+                <Input id="ci-payer-fullname" autoComplete="name" value={payerFullName}
+                  onChange={e => { setPayerFullName(e.target.value); if (inputError) setInputError(""); }}
+                  placeholder="Ex. Awa Kouassi" className="ci-input" />
+                <label htmlFor="ci-operator" className="block text-white/60 text-xs font-semibold uppercase tracking-widest">
+                  Opérateur Mobile Money
+                </label>
+                <select id="ci-operator" value={paymentOperator} onChange={e => setPaymentOperator(e.target.value)}
+                  className="ci-input w-full">
+                  <option value="">Choisir un opérateur</option>
+                  <option value="mtn">MTN Mobile Money</option>
+                  <option value="moov">Moov Money</option>
+                  <option value="orange">Orange Money</option>
+                  <option value="wave">Wave</option>
+                </select>
+                <label htmlFor="ci-payment-phone" className="block text-white/60 text-xs font-semibold uppercase tracking-widest">
                   Numéro Mobile Money pour le paiement
                 </label>
                 <div className="relative">
@@ -408,6 +447,7 @@ function LegacyCiUpdatePage() {
                     <Phone className="w-3.5 h-3.5 text-indigo-300" />
                   </div>
                   <Input
+                    id="ci-payment-phone"
                     type="tel"
                     value={paymentPhone}
                     onChange={e => { setPaymentPhone(e.target.value); if (inputError) setInputError(""); }}

@@ -16,3 +16,9 @@ Selecting SolvexPay for a country must also enable its global switch, without ch
 **Why:** Country settings can all show automatic SolvexPay while the global switch is off, leaving the historical pages visible and contradicting the administrator's expectation.
 
 **How to apply:** Synchronize the switch when the administrator selects SolvexPay, and explain the blocking global state beside the presentation choice. Do not infer activation from country settings on every read, as that would override an intentional global disable.
+
+Payment journeys should use the user's reference flow: Demande → Validation → Confirmation. Collect payer name, country, operator and phone together; manual validation shows the exact configured deposit details and existing proof fields, while automatic validation starts the transaction and shows telephone confirmation pending.
+
+**Why:** The user requested the same professional reference design for manual, automatic and manual-review waiting screens, not only the SolvexPay form.
+
+**How to apply:** Preserve service-specific proof/approval rules and the administrator's model choice. For a signed-in customer, keep the account email fixed in the UI and derive it from the session on the server, especially for PCS. Preserve supported guest checkout separately.

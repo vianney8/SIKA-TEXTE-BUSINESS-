@@ -4,9 +4,10 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { db } from "./db";
 import { storage } from "./storage";
-import { accountStatus, paymentLinks, paymentLinkTransactions, pcsCodes, referrals, users } from "@shared/schema";
+import { accountStatus, linkManualRequests, paymentLinks, paymentLinkTransactions, pcsCodes, referrals, users } from "@shared/schema";
 import { generatePcsCode, sendPcsEmail } from "./email";
 import { localPaymentPhone } from "@shared/payment-phone";
+import { paymentCustomerEmail } from "@shared/payment-customer";
 
 const CATALOG = [
   { code: "BJ", name: "Bénin", prefix: "229", operators: ["mtn", "moov", "celtis"], length: 10 },
@@ -138,7 +139,9 @@ async function getStatus(id: string, userId?: string) {
     await reconcileSolvexCheckout(payment, data);
   }
   const [updated] = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.id, payment.id));
-  return { transactionId: payment.id, status: updated.status, pcsCode: updated.pcsCode, amount: Number(updated.amount), message: updated.solvexpayTxnId ? undefined : "Demande transmise. Confirmation du prestataire en attente. Ne payez pas une seconde fois." };
+  return { transactionId: payment.id, status: updated.status, pcsCode: updated.pcsCode, amount: Number(updated.amount),
+    createdAt: updated.createdAt, providerAccepted: !!updated.solvexpayTxnId,
+    message: updated.solvexpayTxnId ? undefined : "Demande transmise. Confirmation du prestataire en attente. Ne payez pas une seconde fois." };
 }
 
 async function initiate(req: Request) {
@@ -162,7 +165,7 @@ async function initiate(req: Request) {
   if (input.operator === "orange" && ["CI", "SN"].includes(input.country) && !input.otp) throw error(400, "Saisissez le code OTP Orange indiqué dans le formulaire.");
   const owner = userId ? await storage.getUser(userId) : undefined;
   let targetId = userId;
-  const email = input.customerEmail || owner?.email?.toLowerCase();
+  const email = paymentCustomerEmail(input.customerEmail, owner?.email);
   if (service.requiresEmail || (service.id === "eedbc622" && !targetId)) {
     if (!email) throw error(400, "L'e-mail du compte Sika Texte est requis.");
     const [target] = await db.select().from(users).where(eq(users.email, email)).limit(1);
@@ -221,11 +224,31 @@ async function initiate(req: Request) {
   });
   if (payment.status === "failed") throw error(400, "failureMessage" in payment ? String(payment.failureMessage) : "Paiement refusé.");
   return { success: true, transactionId: payment.id, reference: payment.reference, status: "pending", amount: service.amount, gateway: "solvexpay",
+    createdAt: payment.createdAt, providerAccepted: !!payment.solvexpayTxnId,
     paymentUrl: "paymentUrl" in payment ? payment.paymentUrl : undefined,
     message: payment.solvexpayTxnId ? "Validez la demande sur votre téléphone." : "Demande transmise. Confirmation du prestataire en attente. Ne payez pas une seconde fois." };
 }
 
 export function registerCheckoutRoutes(app: Express) {
+  // The random receipt UUID is a guest capability; return no contact details or proof URL.
+  app.get("/api/public/payment-links/:linkId/manual-status/:requestId", wrap(async (req, res) => {
+    const id = z.string().uuid().safeParse(req.params.requestId);
+    if (!id.success) throw error(404, "Demande de paiement introuvable.");
+    const [receipt] = await db.select().from(linkManualRequests).where(and(
+      eq(linkManualRequests.id, id.data), eq(linkManualRequests.linkId, String(req.params.linkId)),
+    )).limit(1);
+    if (!receipt) throw error(404, "Demande de paiement introuvable.");
+    const owner = authId(req) ? await storage.getUser(authId(req)!) : undefined;
+    if (owner && receipt.customerEmail && paymentCustomerEmail(receipt.customerEmail) !== paymentCustomerEmail(owner.email)) {
+      throw error(403, "Cette demande ne correspond pas à votre compte.");
+    }
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      status: receipt.status === "approved" ? "completed" : receipt.status === "rejected" ? "failed" : "pending",
+      createdAt: receipt.createdAt, amount: Number(receipt.amount), currency: receipt.currency,
+      pcsCode: receipt.status === "approved" ? receipt.pcsCode : undefined,
+    });
+  }));
   app.get("/api/checkout/mode", wrap(async (_req, res) => {
     const settings = await storage.getAppSettings();
     res.setHeader("Cache-Control", "no-store");
