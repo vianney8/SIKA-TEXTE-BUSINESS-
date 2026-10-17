@@ -12,3 +12,4 @@
 - [Payment checkout policy](payment-checkout-policy.md) — SolvexPay is global when enabled; keep the old checkout as an administrator-selectable alternative.
 - [Imported media storage](imported-media-storage.md) — verify bucket access before activating replacement videos; upload-interface changes cannot repair storage authorization.
 - [Withdrawal PCS validation](withdrawal-pcs-eligibility.md) — accept owned inactive PCS codes initially, then atomically cancel, refund, and notify after one minute if still inactive.
+- [Optional PCS purchases](pcs-purchase-policy.md) — once a user owns a PCS code, buying another is optional; distinguish purchase from activation.

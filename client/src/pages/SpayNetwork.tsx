@@ -637,11 +637,18 @@ export default function SpayNetwork() {
 
             {/* CTA payer */}
             <Link href="/pay/codepcs">
-              <a className="block w-full py-3.5 rounded-xl text-sm font-black flex items-center justify-center gap-2 text-white active:scale-[0.98] transition-all shadow-md shadow-indigo-200"
+              <a className="block w-full px-4 py-3.5 rounded-xl text-sm text-center font-black flex items-center justify-center gap-2 text-white active:scale-[0.98] transition-all shadow-md shadow-indigo-200"
+                aria-describedby={userPcsCodes.length > 0 ? "pcs-purchase-optional" : undefined}
                 style={{ background: "linear-gradient(135deg,#4338ca,#7c3aed)" }}>
-                <CreditCard size={16} /> Payer mon code PCS Secure Pay
+                <CreditCard size={16} className="shrink-0" />
+                {userPcsCodes.length > 0 ? "Payer un nouveau code PCS" : "Payer mon code PCS Secure Pay"}
               </a>
             </Link>
+            {userPcsCodes.length > 0 && (
+              <p id="pcs-purchase-optional" className="text-[11px] text-slate-500 text-center leading-relaxed">
+                Vous possédez déjà au moins un code PCS. L’achat d’un nouveau code est désormais facultatif.
+              </p>
+            )}
 
             {/* Activer code inactif */}
             {userPcsCodes.some(c => c.status !== "actif") && (
