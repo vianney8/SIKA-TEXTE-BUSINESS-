@@ -339,10 +339,18 @@ export default function SpayNetwork() {
   const { data: paymentInfo } = useQuery<{ activationAmount?: string }>({ queryKey: ["/api/activation/payment-info"] });
   const { data: withdrawalData } = useQuery<WithdrawalData>({ queryKey: ["/api/withdrawal"] });
   const { data: settings, isLoading } = useQuery<SpaySettings>({ queryKey: ["/api/user/spay-settings"] });
-  const { data: userPcsCodes = [] } = useQuery<UserPcsCode[]>({
+  const {
+    data: userPcsCodes = [],
+    isPending: pcsCodesLoading,
+    isFetching: pcsCodesFetching,
+    isFetchedAfterMount: pcsCodesFetchedAfterMount,
+    isError: pcsCodesError,
+    refetch: refetchPcsCodes,
+  } = useQuery<UserPcsCode[]>({
     queryKey: ["/api/user/pcs-codes"],
     staleTime: 0, gcTime: 0, refetchInterval: 8000, refetchOnWindowFocus: true,
   });
+  const pcsCodesInitialCheck = pcsCodesLoading || (!pcsCodesFetchedAfterMount && pcsCodesFetching);
 
   useEffect(() => {
     const iv = setInterval(() => {
@@ -563,11 +571,25 @@ export default function SpayNetwork() {
               <p className="text-slate-800 font-black text-sm">Mes Codes PCS</p>
               <p className="text-slate-400 text-[9px] font-mono">auth/user-tokens</p>
             </div>
-            <span className="text-slate-400 text-[10px] font-mono">{userPcsCodes.length} code{userPcsCodes.length !== 1 ? "s" : ""}</span>
+            <span className="text-slate-400 text-[10px] font-mono" aria-live="polite">
+              {pcsCodesInitialCheck ? "Chargement…" : pcsCodesError && userPcsCodes.length === 0 ? "—" : `${userPcsCodes.length} code${userPcsCodes.length !== 1 ? "s" : ""}`}
+            </span>
           </div>
 
           <div className="px-5 py-4 space-y-3">
-            {userPcsCodes.length === 0 ? (
+            {pcsCodesInitialCheck && userPcsCodes.length === 0 ? (
+              <div className="rounded-xl px-4 py-4 bg-slate-50 border border-slate-100" role="status" aria-live="polite">
+                <div className="h-3 w-40 rounded bg-slate-200 animate-pulse" />
+                <p className="mt-3 text-slate-500 text-xs">Chargement de vos codes PCS…</p>
+              </div>
+            ) : pcsCodesError && userPcsCodes.length === 0 ? (
+              <div className="flex flex-col gap-2 rounded-xl px-4 py-3.5 bg-rose-50 border border-rose-200" role="alert">
+                <p className="text-rose-700 text-xs">Impossible de charger vos codes PCS.</p>
+                <button type="button" onClick={() => void refetchPcsCodes()} className="self-start text-xs font-bold text-rose-800 underline">
+                  Réessayer
+                </button>
+              </div>
+            ) : userPcsCodes.length === 0 ? (
               <div className="flex items-center gap-3 rounded-xl px-4 py-3.5 bg-amber-50 border border-amber-200">
                 <AlertTriangle size={15} className="text-amber-400 flex-shrink-0" />
                 <p className="text-amber-700 text-[11px]">Aucun code PCS attribué à votre compte.</p>
