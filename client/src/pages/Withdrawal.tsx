@@ -15,6 +15,7 @@ import { useAppSetting } from "@/hooks/useAppSettings";
 import { FaTelegram } from "react-icons/fa";
 import { formatFCFA } from "@/lib/utils";
 import DnsPaymentForm from "@/components/DnsPaymentForm";
+import { getDnsPaymentView, type DnsPaymentStatus } from "@shared/dns-payment-state";
 import {
   PCS_INACTIVE_WITHDRAWAL_FAILURE_MESSAGE,
   PCS_INACTIVE_WITHDRAWAL_NOTIFICATION_VISIBLE_MS,
@@ -93,10 +94,34 @@ export default function Withdrawal() {
     queryKey: ["/api/withdrawal/dns-eligibility"],
   });
 
-  const { data: dnsUpdateStatus, refetch: refetchDnsStatus, isFetching: isDnsRefetching } = useQuery<{ status: 'none' | 'pending' | 'completed' | 'failed' }>({
+  const { data: dnsUpdateStatus, refetch: refetchDnsStatus, isFetching: isDnsRefetching } = useQuery<DnsPaymentStatus>({
     queryKey: ["/api/withdrawal/dns-update-status"],
     refetchInterval: (q) => (q.state.data?.status === 'pending') ? 4000 : false,
     refetchOnWindowFocus: true,
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
+
+  const dnsView = getDnsPaymentView(dnsUpdateStatus, showDnsForm);
+  const retryDnsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/withdrawal/dns-update-retry", {
+        transactionId: dnsUpdateStatus?.transactionId,
+      });
+      return response.json() as Promise<DnsPaymentStatus>;
+    },
+    onSuccess: (status) => {
+      queryClient.setQueryData(["/api/withdrawal/dns-update-status"], status);
+      void refetchDnsStatus();
+    },
+    onError: () => {
+      void refetchDnsStatus();
+      toast({
+        title: "Impossible de préparer la nouvelle demande",
+        description: "Veuillez réessayer.",
+        variant: "destructive",
+      });
+    },
   });
 
   const { data: spaySettings } = useQuery<{ hasSavedPcsCode: boolean; savedPcsCodeMasked: string | null; lowLatencyMode: boolean }>({
@@ -934,7 +959,10 @@ export default function Withdrawal() {
           <div className="relative z-10 px-5 pb-10 space-y-5">
 
             {/* ── État : COMPLETED — Serveur à jour ── */}
-            {dnsUpdateStatus?.status === 'completed' && (
+            {dnsView === 'loading' && (
+              <p role="status" className="text-center text-sm text-slate-500 py-6">Chargement de votre demande DNS…</p>
+            )}
+            {dnsView === 'completed' && (
               <>
                 {/* Badge succès */}
                 <div className="rounded-3xl p-6 relative overflow-hidden text-center bg-emerald-50 border border-emerald-200 shadow-sm">
@@ -992,7 +1020,7 @@ export default function Withdrawal() {
             )}
 
             {/* ── État : PENDING — En attente de validation ── */}
-            {dnsUpdateStatus?.status === 'pending' && (
+            {dnsView === 'pending' && (
               <>
                 <div className="rounded-3xl p-6 relative overflow-hidden text-center bg-violet-50 border border-violet-200 shadow-sm">
                   <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full pointer-events-none"
@@ -1045,7 +1073,7 @@ export default function Withdrawal() {
             )}
 
             {/* ── État : FAILED — Mise à jour échouée ── */}
-            {dnsUpdateStatus?.status === 'failed' && !showDnsForm && (
+            {dnsView === 'failed' && (
               <>
                 <div className="rounded-3xl p-6 relative overflow-hidden text-center bg-red-50 border border-red-200 shadow-sm">
                   <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full pointer-events-none"
@@ -1069,25 +1097,30 @@ export default function Withdrawal() {
                 {!showDnsForm && (
                   <button
                     data-testid="button-dns-retry"
-                    onClick={() => setShowDnsForm(true)}
+                    onClick={() => retryDnsMutation.mutate()}
+                    disabled={retryDnsMutation.isPending}
                     className="w-full py-4 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 active:scale-[0.97] transition-all"
                     style={{ background: "linear-gradient(135deg, #059669, #10b981)", boxShadow: "0 6px 24px rgba(16,185,129,0.4)" }}
                   >
-                    <RefreshCw size={18} /> Réessayer
+                    <RefreshCw size={18} className={retryDnsMutation.isPending ? "animate-spin" : ""} />
+                    {retryDnsMutation.isPending ? "Préparation…" : "Réessayer"}
                   </button>
                 )}
               </>
             )}
 
-            {(dnsUpdateStatus?.status !== 'completed') && showDnsForm && (
+            {dnsView === 'form' && (
               <DnsPaymentForm
-                onCancel={() => setShowDnsForm(false)}
+                onCancel={() => {
+                  setShowDnsForm(false);
+                  if (dnsUpdateStatus?.retryRequested) setShowDnsPage(false);
+                }}
                 onSubmitted={() => { setShowDnsForm(false); refetchDnsStatus(); }}
               />
             )}
 
             {/* ── État : NONE — Bouton paiement + présentation ── */}
-            {(!dnsUpdateStatus || dnsUpdateStatus.status === 'none') && !showDnsForm && (
+            {dnsView === 'intro' && (
               <>
                 {/* Bannière principale */}
                 <div className="rounded-3xl p-6 relative overflow-hidden bg-indigo-50 border border-indigo-200 shadow-sm">

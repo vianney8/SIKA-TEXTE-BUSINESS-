@@ -491,6 +491,7 @@ export const paymentLinkTransactions = pgTable("payment_link_transactions", {
   pcsCode: varchar("pcs_code"),
   userId: varchar("user_id"),
   screenshotUrl: varchar("screenshot_url"),
+  dnsRetryRequested: boolean("dns_retry_requested").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

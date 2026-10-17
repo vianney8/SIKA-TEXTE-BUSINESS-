@@ -1313,17 +1313,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.session.userId;
 
       const txnResult = await db.execute(sql`
-        SELECT status FROM payment_link_transactions
+        SELECT id, status, dns_retry_requested FROM payment_link_transactions
         WHERE link_id = 'eedbc622' AND user_id = ${userId}
-        ORDER BY created_at DESC
+        ORDER BY created_at DESC, id DESC
         LIMIT 1
       `);
 
-      const txn = txnResult.rows?.[0] as { status: string } | undefined;
+      const txn = txnResult.rows?.[0] as { id: string; status: string; dns_retry_requested: boolean } | undefined;
 
       if (!txn) return res.json({ status: 'none' });
       if (txn.status === 'completed') return res.json({ status: 'completed' });
-      if (txn.status === 'failed') return res.json({ status: 'failed' });
+      if (txn.status === 'failed') return res.json({
+        status: 'failed',
+        transactionId: txn.id,
+        retryRequested: txn.dns_retry_requested,
+      });
       return res.json({ status: 'pending' });
     } catch (error) {
       console.error('[DNS-UPDATE-STATUS] Error:', error);
@@ -1332,6 +1336,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ── DNS Privé — paiement automatique RobotPay/WestPay ────────────────
+  // Acknowledging an old failure does not create or restart a payment.
+  app.post('/api/withdrawal/dns-update-retry', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const transactionId = req.body?.transactionId;
+      if (typeof transactionId !== 'string' || !transactionId) {
+        return res.status(400).json({ message: 'Demande DNS requise.' });
+      }
+      const result = await db.execute(sql`
+        UPDATE payment_link_transactions SET dns_retry_requested = true
+        WHERE id = ${transactionId} AND user_id = ${userId}
+          AND link_id = 'eedbc622' AND status = 'failed'
+          AND id = (
+            SELECT id FROM payment_link_transactions
+            WHERE user_id = ${userId} AND link_id = 'eedbc622'
+            ORDER BY created_at DESC, id DESC LIMIT 1
+          )
+        RETURNING id
+      `);
+      if (!result.rows?.length) {
+        return res.status(409).json({ message: 'Le statut de votre demande a changé. Veuillez réessayer.' });
+      }
+      res.json({ status: 'failed', transactionId, retryRequested: true });
+    } catch (error) {
+      console.error('[DNS-UPDATE-RETRY] Error:', error);
+      res.status(500).json({ message: 'Impossible de préparer la nouvelle demande DNS.' });
+    }
+  });
+
   // Route authentifiée : la transaction DNS est toujours rattachée au compte
   // connecté et ne dépend jamais d'un e-mail fourni par le navigateur.
   app.post('/api/withdrawal/dns-robotpay-init', requireAuth, async (req: any, res) => {

@@ -375,6 +375,7 @@ app.use((req, res, next) => {
   // téléphone/e-mail/prénom sur une transaction créée depuis une page externe.
   try {
     await db.execute(sql`ALTER TABLE payment_link_transactions ADD COLUMN IF NOT EXISTS user_id varchar`);
+    await db.execute(sql`ALTER TABLE payment_link_transactions ADD COLUMN IF NOT EXISTS dns_retry_requested boolean NOT NULL DEFAULT false`);
     log('payment_link_transactions.user_id column ready');
   } catch (err) {
     log('payment_link_transactions.user_id column skipped: ' + (err as Error).message);
