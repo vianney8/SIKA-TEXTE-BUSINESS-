@@ -143,6 +143,8 @@ export const withdrawals = pgTable("withdrawals", {
   cardNumber: varchar("card_number"),
   reference: varchar("reference"),
   status: varchar("status").notNull().default('pending'), // 'pending', 'completed', 'failed'
+  pcsCodeId: varchar("pcs_code_id"),
+  pcsValidationDueAt: timestamp("pcs_validation_due_at"),
   processedAt: timestamp("processed_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });

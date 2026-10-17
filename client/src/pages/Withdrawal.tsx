@@ -15,6 +15,10 @@ import { useAppSetting } from "@/hooks/useAppSettings";
 import { FaTelegram } from "react-icons/fa";
 import { formatFCFA } from "@/lib/utils";
 import DnsPaymentForm from "@/components/DnsPaymentForm";
+import {
+  PCS_INACTIVE_WITHDRAWAL_FAILURE_MESSAGE,
+  PCS_INACTIVE_WITHDRAWAL_NOTIFICATION_VISIBLE_MS,
+} from "@shared/withdrawal-policy";
 
 const renderTextWithLinks = (text: string) => {
   const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -61,6 +65,8 @@ export default function Withdrawal() {
   const [pcsError, setPcsError] = useState("");
   const [showPcsCode, setShowPcsCode] = useState(false);
   const pendingAmount = useRef<number>(0);
+  const pendingPcsValidationStartedAt = useRef<number | null>(null);
+  const handledPcsFailureNotificationId = useRef<string | null>(null);
 
   // Transfer animation state
   const [transferScreen, setTransferScreen] = useState<'idle' | 'processing' | 'success'>('idle');
@@ -93,7 +99,7 @@ export default function Withdrawal() {
     refetchOnWindowFocus: true,
   });
 
-  const { data: spaySettings } = useQuery<{ hasSavedPcsCode: boolean; savedPcsCodeActive: boolean; savedPcsCodeMasked: string | null; lowLatencyMode: boolean }>({
+  const { data: spaySettings } = useQuery<{ hasSavedPcsCode: boolean; savedPcsCodeMasked: string | null; lowLatencyMode: boolean }>({
     queryKey: ["/api/user/spay-settings"],
   });
 
@@ -118,6 +124,29 @@ export default function Withdrawal() {
   });
 
   useEffect(() => { refetchWithdrawalData(); }, []);
+
+  useEffect(() => {
+    const startedAt = pendingPcsValidationStartedAt.current;
+    if (startedAt === null) return;
+
+    const failure = (notifications as Notification[]).find((notification) => {
+      if (notification.message !== PCS_INACTIVE_WITHDRAWAL_FAILURE_MESSAGE) return false;
+      const createdAt = new Date(notification.createdAt).getTime();
+      return createdAt >= startedAt && createdAt <= startedAt + 120_000;
+    });
+    if (!failure || handledPcsFailureNotificationId.current === failure.id) return;
+
+    handledPcsFailureNotificationId.current = failure.id;
+    pendingPcsValidationStartedAt.current = null;
+    setTransferScreen("idle");
+    setAmount("");
+    refetchWithdrawalData();
+    toast({
+      title: "Échec du retrait",
+      description: PCS_INACTIVE_WITHDRAWAL_FAILURE_MESSAGE,
+      variant: "destructive",
+    });
+  }, [notifications, refetchWithdrawalData, toast]);
 
   const hasPendingActivation = pendingActivation?.found === true && pendingActivation.status === "pending";
 
@@ -147,11 +176,14 @@ export default function Withdrawal() {
       return json;
     },
     onSuccess: (data) => {
+      pendingPcsValidationStartedAt.current = data.pcsValidationPending
+        ? new Date(data.withdrawal?.createdAt || Date.now()).getTime()
+        : null;
       setShowPcsModal(false);
       setPcsCode("");
       setPcsError("");
       setTransferredAmount(pendingAmount.current);
-      setIsAutoWithdrawal(!!data.autoWithdrawal);
+      setIsAutoWithdrawal(!!data.autoWithdrawal && !data.pcsValidationPending);
       setCountdown(13);
       setAnimStep(0);
       setTransferScreen('processing');
@@ -159,7 +191,7 @@ export default function Withdrawal() {
       // Animate arrow after 1s
       setTimeout(() => setAnimStep(1), 800);
       setTimeout(() => setAnimStep(2), 2000);
-      if (data.autoWithdrawal) {
+      if (data.autoWithdrawal && !data.pcsValidationPending) {
         // Auto mode: show countdown, then success
         // countdown handled by useEffect
       } else {
@@ -200,17 +232,13 @@ export default function Withdrawal() {
     }
     pendingAmount.current = val;
     // If saved PCS code exists, bypass modal and submit directly
-    if (spaySettings?.hasSavedPcsCode && spaySettings.savedPcsCodeActive) {
+    if (spaySettings?.hasSavedPcsCode) {
       withdrawMutation.mutate({ amount: val, pcsCode: "" });
       return;
     }
     // Otherwise open PCS code modal
     setPcsCode("");
-    setPcsError(
-      spaySettings?.hasSavedPcsCode && !spaySettings.savedPcsCodeActive
-        ? "Votre code PCS enregistré est inactif. Saisissez un code activé par l’administrateur."
-        : ""
-    );
+    setPcsError("");
     setShowPcsModal(true);
   };
 
@@ -579,7 +607,10 @@ export default function Withdrawal() {
   /* ─── Compte actif ───────────────────────────────────── */
   const visibleNotifications = (notifications as Notification[]).filter(n => {
     if (!n.seenAt) return true;
-    return Date.now() - new Date(n.seenAt).getTime() < 60000;
+    const visibleDuration = n.message === PCS_INACTIVE_WITHDRAWAL_FAILURE_MESSAGE
+      ? PCS_INACTIVE_WITHDRAWAL_NOTIFICATION_VISIBLE_MS
+      : 60000;
+    return Date.now() - new Date(n.seenAt).getTime() < visibleDuration;
   });
 
   return (
@@ -595,7 +626,9 @@ export default function Withdrawal() {
               <div key={n.id} className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-[16px] p-3.5">
                 <AlertTriangle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
                 <p className="text-red-700 text-xs font-medium leading-relaxed">
-                  <strong>Alerte : </strong>{renderTextWithLinks(n.message)}
+                  {n.message === PCS_INACTIVE_WITHDRAWAL_FAILURE_MESSAGE
+                    ? renderTextWithLinks(n.message)
+                    : <><strong>Alerte : </strong>{renderTextWithLinks(n.message)}</>}
                 </p>
               </div>
             ))}

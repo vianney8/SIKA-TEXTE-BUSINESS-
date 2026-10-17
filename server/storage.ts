@@ -37,7 +37,8 @@ import {
   type InsertSupportMessage,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, and, inArray, like, ilike, or, notInArray } from "drizzle-orm";
+import { eq, desc, sql, and, inArray, like, ilike, or, notInArray, lte, isNotNull } from "drizzle-orm";
+import { PCS_INACTIVE_WITHDRAWAL_FAILURE_MESSAGE } from "@shared/withdrawal-policy";
 import bcrypt from "bcrypt";
 import { randomBytes } from "crypto";
 
@@ -89,13 +90,14 @@ export interface IStorage {
   deactivateAccount(userId: string): Promise<void>;
   
   // Withdrawal operations
-  createWithdrawal(userId: string, amount: number, phoneNumber: string, cardFirstName?: string, cardLastName?: string, cardNumber?: string, reference?: string): Promise<Withdrawal>;
+  createWithdrawal(userId: string, amount: number, phoneNumber: string, cardFirstName?: string, cardLastName?: string, cardNumber?: string, reference?: string, pcsCodeId?: string, pcsValidationDueAt?: Date): Promise<Withdrawal>;
   getUserWithdrawals(userId: string): Promise<Withdrawal[]>;
   getWithdrawalById(withdrawalId: string): Promise<Withdrawal | undefined>;
   updateWithdrawalStatus(withdrawalId: string, status: string): Promise<void>;
   deleteWithdrawal(withdrawalId: string): Promise<void>;
   deleteWithdrawalIfPending(withdrawalId: string): Promise<Withdrawal | null>;
   cancelWithdrawalAtomic(withdrawalId: string, description: string): Promise<{ success: boolean; withdrawal?: Withdrawal; error?: string }>;
+  processDuePcsWithdrawalChecks(): Promise<number>;
 
   // Identity verification operations
   createIdentityVerification(userId: string, frontIdPhoto: string, backIdPhoto: string, selfiePhoto: string): Promise<IdentityVerification>;
@@ -1072,7 +1074,7 @@ export class DatabaseStorage implements IStorage {
   }
   
   // Withdrawal operations
-  async createWithdrawal(userId: string, amount: number, phoneNumber: string, cardFirstName?: string, cardLastName?: string, cardNumber?: string, reference?: string): Promise<Withdrawal> {
+  async createWithdrawal(userId: string, amount: number, phoneNumber: string, cardFirstName?: string, cardLastName?: string, cardNumber?: string, reference?: string, pcsCodeId?: string, pcsValidationDueAt?: Date): Promise<Withdrawal> {
     const [withdrawal] = await db
       .insert(withdrawals)
       .values({
@@ -1083,6 +1085,8 @@ export class DatabaseStorage implements IStorage {
         cardLastName,
         cardNumber,
         reference,
+        pcsCodeId,
+        pcsValidationDueAt,
         status: 'pending',
       })
       .returning();
@@ -1137,6 +1141,10 @@ export class DatabaseStorage implements IStorage {
     if (!withdrawal) {
       console.error('[STORAGE] Withdrawal not found:', withdrawalId);
       throw new Error('Withdrawal not found');
+    }
+
+    if (status !== 'pending' && withdrawal.pcsValidationDueAt) {
+      throw new Error('PCS_WITHDRAWAL_VALIDATION_PENDING');
     }
     
     console.log('[STORAGE] Found withdrawal:', withdrawal);
@@ -1286,6 +1294,143 @@ export class DatabaseStorage implements IStorage {
       console.error('[STORAGE] Error in atomic cancel:', error);
       return { success: false, error: 'transaction_failed' };
     }
+  }
+
+  async processDuePcsWithdrawalChecks(): Promise<number> {
+    const dueRows = await db
+      .select({ id: withdrawals.id })
+      .from(withdrawals)
+      .where(and(
+        eq(withdrawals.status, 'pending'),
+        isNotNull(withdrawals.pcsCodeId),
+        isNotNull(withdrawals.pcsValidationDueAt),
+        lte(withdrawals.pcsValidationDueAt, new Date()),
+      ))
+      .limit(100);
+
+    let processed = 0;
+    for (const { id } of dueRows) {
+      try {
+        const outcome = await db.transaction(async (tx) => {
+          const [withdrawal] = await tx
+            .select()
+            .from(withdrawals)
+            .where(and(
+              eq(withdrawals.id, id),
+              eq(withdrawals.status, 'pending'),
+              isNotNull(withdrawals.pcsValidationDueAt),
+              lte(withdrawals.pcsValidationDueAt, new Date()),
+            ))
+            .for('update')
+            .limit(1);
+
+          if (!withdrawal) return 'skipped';
+
+          let pcsStatus: string | null = null;
+          if (withdrawal.pcsCodeId) {
+            const [code] = await tx
+              .select({ status: pcsCodes.status })
+              .from(pcsCodes)
+              .where(and(
+                eq(pcsCodes.id, withdrawal.pcsCodeId),
+                eq(pcsCodes.userId, withdrawal.userId),
+              ))
+              .for('update')
+              .limit(1);
+            pcsStatus = code?.status ?? null;
+          }
+
+          if (pcsStatus === 'actif') {
+            const modeResult = await tx.execute(sql`
+              SELECT COALESCE(auto_withdrawal_mode, 'manual') AS mode
+              FROM users
+              WHERE id = ${withdrawal.userId}
+            `);
+            const mode = (modeResult.rows?.[0] as any)?.mode;
+            const isAuto = mode === 'auto';
+            const now = new Date();
+
+            await tx
+              .update(withdrawals)
+              .set({
+                pcsValidationDueAt: null,
+                ...(isAuto ? { status: 'completed', processedAt: now } : {}),
+              })
+              .where(eq(withdrawals.id, withdrawal.id));
+
+            if (isAuto && withdrawal.reference) {
+              await tx
+                .update(transactions)
+                .set({ status: 'completed' })
+                .where(and(
+                  eq(transactions.reference, withdrawal.reference),
+                  eq(transactions.userId, withdrawal.userId),
+                  eq(transactions.type, 'withdrawal'),
+                  eq(transactions.status, 'pending'),
+                ));
+            }
+            return 'validated';
+          }
+
+          const now = new Date();
+          const [cancelled] = await tx
+            .update(withdrawals)
+            .set({
+              status: 'failed',
+              processedAt: now,
+              pcsValidationDueAt: null,
+            })
+            .where(and(
+              eq(withdrawals.id, withdrawal.id),
+              eq(withdrawals.status, 'pending'),
+            ))
+            .returning();
+          if (!cancelled) return 'skipped';
+
+          if (cancelled.reference) {
+            await tx
+              .update(transactions)
+              .set({ status: 'failed' })
+              .where(and(
+                eq(transactions.reference, cancelled.reference),
+                eq(transactions.userId, cancelled.userId),
+                eq(transactions.type, 'withdrawal'),
+                eq(transactions.status, 'pending'),
+              ));
+          }
+
+          await tx
+            .update(users)
+            .set({
+              balance: sql`${users.balance} + ${cancelled.amount}`,
+              updatedAt: now,
+            })
+            .where(eq(users.id, cancelled.userId));
+
+          await tx.insert(transactions).values({
+            userId: cancelled.userId,
+            type: 'deposit',
+            amount: cancelled.amount,
+            description: 'Remboursement automatique du retrait annulé (code PCS inactif)',
+            status: 'completed',
+          });
+
+          await tx.insert(notifications).values({
+            userId: cancelled.userId,
+            message: PCS_INACTIVE_WITHDRAWAL_FAILURE_MESSAGE,
+            isRead: false,
+          });
+
+          return 'cancelled';
+        });
+
+        if (outcome !== 'skipped') processed += 1;
+      } catch (error) {
+        console.error('[WITHDRAWAL PCS CHECK] Unable to process due withdrawal:', id, error);
+      }
+    }
+
+    return processed;
   }
 
   // Identity verification operations

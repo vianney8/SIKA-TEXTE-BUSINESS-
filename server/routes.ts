@@ -47,6 +47,7 @@ import { randomBytes, createHmac, timingSafeEqual } from "crypto";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { registerCheckoutRoutes, solvexEnabled } from "./checkout";
 import { linkManualPaymentAllowed, paymentCustomerEmail } from "@shared/payment-customer";
+import { PCS_INACTIVE_WITHDRAWAL_GRACE_MS } from "@shared/withdrawal-policy";
 import { CHECKOUT_MODELS } from "@shared/checkout-settings";
 import {
   classifyMoovPayment,
@@ -1687,25 +1688,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/user/spay-settings', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session.userId;
-      const result = await db.execute(sql`
-        SELECT
-          saved_pcs_code,
-          low_latency_mode,
-          EXISTS (
-            SELECT 1
-            FROM pcs_codes
-            WHERE pcs_codes.user_id = users.id
-              AND pcs_codes.code = users.saved_pcs_code
-              AND pcs_codes.status = 'actif'
-          ) AS saved_pcs_code_active
-        FROM users
-        WHERE id = ${userId}
-      `);
+      const result = await db.execute(sql`SELECT saved_pcs_code, low_latency_mode FROM users WHERE id = ${userId}`);
       const row = result.rows?.[0] as any;
       const hasSavedCode = !!(row?.saved_pcs_code);
       res.json({
         hasSavedPcsCode: hasSavedCode,
-        savedPcsCodeActive: !!row?.saved_pcs_code_active,
         savedPcsCodeMasked: hasSavedCode ? `${(row.saved_pcs_code as string).slice(0, 4)}${'*'.repeat(Math.max(0, (row.saved_pcs_code as string).length - 4))}` : null,
         lowLatencyMode: !!(row?.low_latency_mode),
       });
@@ -1813,12 +1800,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!matchingCode) {
         return res.status(400).json({ message: 'Code PCS Secure Pay invalide ou non associé à votre compte', requiresPcsCode: true });
       }
-      if (matchingCode.status !== 'actif') {
-        return res.status(400).json({
-          message: 'Code PCS Secure Pay inactif. Un retrait nécessite un code activé par l’administration.',
-          requiresPcsCode: true,
-        });
-      }
       
       // Check if user has a bank card
       const bankCard = await storage.getUserBankCard(userId);
@@ -1842,14 +1823,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Generate unique reference for linking withdrawal and transaction
       const reference = `WD${Date.now()}${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+      const pcsValidationDueAt = matchingCode.status === 'actif'
+        ? undefined
+        : new Date(Date.now() + PCS_INACTIVE_WITHDRAWAL_GRACE_MS);
 
-      if (withdrawalMode === 'auto') {
-        // Auto mode: create withdrawal and immediately mark as completed
-        const withdrawal = await storage.createWithdrawal(
-          userId, amount, userPhone,
-          bankCard.firstName, bankCard.lastName, bankCard.cardNumber, reference
-        );
-        await storage.updateUserBalance(userId, -amount);
+      const withdrawal = await storage.createWithdrawal(
+        userId,
+        amount,
+        userPhone,
+        bankCard.firstName,
+        bankCard.lastName,
+        bankCard.cardNumber,
+        reference,
+        matchingCode.id,
+        pcsValidationDueAt,
+      );
+      await storage.updateUserBalance(userId, -amount);
+
+      if (withdrawalMode === 'auto' && !pcsValidationDueAt) {
         // Mark withdrawal as completed immediately
         await db.execute(sql`UPDATE withdrawals SET status = 'completed' WHERE id = ${withdrawal.id}`);
         await storage.createTransaction({
@@ -1859,33 +1850,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         return res.json({ message: 'Retrait traité avec succès', withdrawal, autoWithdrawal: true });
       }
-      
-      // Create withdrawal request using bank card (save card info at time of withdrawal)
-      const withdrawal = await storage.createWithdrawal(
-        userId, 
-        amount, 
-        userPhone,
-        bankCard.firstName,
-        bankCard.lastName,
-        bankCard.cardNumber,
-        reference
-      );
-      
-      // Deduct from balance
-      await storage.updateUserBalance(userId, -amount);
-      
-      // Create transaction record with same reference
+
       await storage.createTransaction({
         userId,
         type: 'withdrawal',
         amount: amount.toString(),
         recipientPhone: userPhone,
-        description: 'Retrait sur carte bancaire',
+        description: withdrawalMode === 'auto'
+          ? 'Retrait automatique sur carte bancaire'
+          : 'Retrait sur carte bancaire',
         status: 'pending',
         reference
       });
-      
-      res.json({ message: 'Demande de retrait créée avec succès', withdrawal });
+
+      if (pcsValidationDueAt) {
+        const checkTimer = setTimeout(() => {
+          void storage.processDuePcsWithdrawalChecks().catch(error => {
+            console.error('[WITHDRAWAL PCS CHECK] Scheduled check failed:', error);
+          });
+        }, PCS_INACTIVE_WITHDRAWAL_GRACE_MS);
+        checkTimer.unref();
+      }
+
+      res.json({
+        message: pcsValidationDueAt
+          ? 'Demande enregistrée. Vérification du code PCS en cours.'
+          : 'Demande de retrait créée avec succès',
+        withdrawal,
+        autoWithdrawal: withdrawalMode === 'auto',
+        pcsValidationPending: !!pcsValidationDueAt,
+      });
     } catch (error: any) {
       console.error('Error creating withdrawal:', error);
       if (error.issues) {
@@ -2040,6 +2034,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/admin/withdrawals/:id/approve', requireAdmin, async (req: any, res) => {
     try {
       console.log('[ADMIN] Approving withdrawal:', req.params.id);
+      const withdrawal = await storage.getWithdrawalById(req.params.id);
+      if (!withdrawal) {
+        return res.status(404).json({ message: 'Retrait non trouvé' });
+      }
+      if (withdrawal.pcsValidationDueAt) {
+        return res.status(409).json({ message: 'Validation automatique du code PCS en cours. Réessayez après une minute.' });
+      }
       await storage.updateWithdrawalStatus(req.params.id, 'completed');
       console.log('[ADMIN] Withdrawal approved successfully:', req.params.id);
       res.json({ success: true });
@@ -2069,6 +2070,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           alreadyProcessed: true,
           currentStatus: withdrawal.status
         });
+      }
+      if (withdrawal.pcsValidationDueAt) {
+        return res.status(409).json({ message: 'Le contrôle automatique du code PCS est en cours. Réessayez après une minute.' });
       }
       
       // Get user info before refund
@@ -2140,16 +2144,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/admin/withdrawals/approve-all', requireAdmin, async (req: any, res) => {
     try {
       const pendingWithdrawals = await storage.getPendingWithdrawalsList();
-      
-      // Approve all pending withdrawals
-      for (const withdrawal of pendingWithdrawals) {
+      const eligibleWithdrawals = pendingWithdrawals.filter((withdrawal) =>
+        !withdrawal.pcsValidationDueAt
+      );
+
+      // Keep delayed PCS validation requests pending until their one-minute check has run.
+      for (const withdrawal of eligibleWithdrawals) {
         await storage.updateWithdrawalStatus(withdrawal.id, 'completed');
       }
       
       res.json({ 
         success: true, 
-        count: pendingWithdrawals.length,
-        message: `${pendingWithdrawals.length} retrait(s) approuvé(s) avec succès`
+        count: eligibleWithdrawals.length,
+        skippedPcsValidationCount: pendingWithdrawals.length - eligibleWithdrawals.length,
+        message: `${eligibleWithdrawals.length} retrait(s) approuvé(s) avec succès`
       });
     } catch (error) {
       console.error("Error approving all withdrawals:", error);
@@ -2168,8 +2176,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let refundedCount = 0;
       let totalRefunded = 0;
       
-      // Reject all pending withdrawals and refund users
-      for (const withdrawal of pendingWithdrawals) {
+      // Leave PCS requests to their scheduled validation; only process other pending requests.
+      const eligibleWithdrawals = pendingWithdrawals.filter((withdrawal) => !withdrawal.pcsValidationDueAt);
+      for (const withdrawal of eligibleWithdrawals) {
         const refundAmount = parseFloat(withdrawal.amount);
         
         // Refund the user
@@ -2198,6 +2207,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ 
         success: true, 
         count: refundedCount,
+        skippedPcsValidationCount: pendingWithdrawals.length - eligibleWithdrawals.length,
         totalRefunded: totalRefunded,
         message: `${refundedCount} retrait(s) rejeté(s) et ${totalRefunded} FCFA remboursé(s)`
       });
@@ -7412,6 +7422,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const withdrawal = await storage.getWithdrawalById(withdrawalId);
       if (!withdrawal) {
         return res.status(404).json({ message: 'Retrait non trouvé' });
+      }
+
+      if (withdrawal.pcsValidationDueAt) {
+        return res.status(409).json({ message: 'Le contrôle automatique du code PCS est en cours. Réessayez après une minute.' });
       }
       
       const oldStatus = withdrawal.status;

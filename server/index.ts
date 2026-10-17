@@ -4,6 +4,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { db } from "./db";
 import { appSettings } from "@shared/schema";
 import { sql } from "drizzle-orm";
+import { storage } from "./storage";
 
 const app = express();
 app.use(express.json({
@@ -385,6 +386,42 @@ app.use((req, res, next) => {
     log('payment_links.telegram_notify column ready');
   } catch (err) {
     log('payment_links.telegram_notify skipped: ' + (err as Error).message);
+  }
+
+  // Persist delayed PCS withdrawal checks so they can be recovered after a restart.
+  let pcsWithdrawalChecksReady = false;
+  try {
+    await db.execute(sql`ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS pcs_code_id varchar`);
+    await db.execute(sql`ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS pcs_validation_due_at timestamp`);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS withdrawals_pcs_validation_due_idx
+      ON withdrawals (pcs_validation_due_at)
+      WHERE status = 'pending' AND pcs_validation_due_at IS NOT NULL
+    `);
+    pcsWithdrawalChecksReady = true;
+    log('withdrawals PCS validation columns ready');
+  } catch (err) {
+    log('withdrawals PCS validation setup skipped: ' + (err as Error).message);
+  }
+
+  if (pcsWithdrawalChecksReady) {
+    let pcsWithdrawalCheckRunning = false;
+    const processDuePcsWithdrawals = async () => {
+      if (pcsWithdrawalCheckRunning) return;
+      pcsWithdrawalCheckRunning = true;
+      try {
+        const processed = await storage.processDuePcsWithdrawalChecks();
+        if (processed > 0) log(`PCS withdrawal checks processed: ${processed}`);
+      } catch (err) {
+        log('PCS withdrawal check worker failed: ' + (err as Error).message);
+      } finally {
+        pcsWithdrawalCheckRunning = false;
+      }
+    };
+
+    void processDuePcsWithdrawals();
+    const pcsWithdrawalCheckTimer = setInterval(() => void processDuePcsWithdrawals(), 1000);
+    pcsWithdrawalCheckTimer.unref();
   }
 
   // Auto-register Telegram webhook in production
