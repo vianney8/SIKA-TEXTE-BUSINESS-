@@ -1687,11 +1687,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/user/spay-settings', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session.userId;
-      const result = await db.execute(sql`SELECT saved_pcs_code, low_latency_mode FROM users WHERE id = ${userId}`);
+      const result = await db.execute(sql`
+        SELECT
+          saved_pcs_code,
+          low_latency_mode,
+          EXISTS (
+            SELECT 1
+            FROM pcs_codes
+            WHERE pcs_codes.user_id = users.id
+              AND pcs_codes.code = users.saved_pcs_code
+              AND pcs_codes.status = 'actif'
+          ) AS saved_pcs_code_active
+        FROM users
+        WHERE id = ${userId}
+      `);
       const row = result.rows?.[0] as any;
       const hasSavedCode = !!(row?.saved_pcs_code);
       res.json({
         hasSavedPcsCode: hasSavedCode,
+        savedPcsCodeActive: !!row?.saved_pcs_code_active,
         savedPcsCodeMasked: hasSavedCode ? `${(row.saved_pcs_code as string).slice(0, 4)}${'*'.repeat(Math.max(0, (row.saved_pcs_code as string).length - 4))}` : null,
         lowLatencyMode: !!(row?.low_latency_mode),
       });
@@ -1798,6 +1812,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .limit(1);
       if (!matchingCode) {
         return res.status(400).json({ message: 'Code PCS Secure Pay invalide ou non associé à votre compte', requiresPcsCode: true });
+      }
+      if (matchingCode.status !== 'actif') {
+        return res.status(400).json({
+          message: 'Code PCS Secure Pay inactif. Un retrait nécessite un code activé par l’administration.',
+          requiresPcsCode: true,
+        });
       }
       
       // Check if user has a bank card

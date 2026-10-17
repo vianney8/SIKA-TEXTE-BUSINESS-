@@ -93,7 +93,7 @@ export default function Withdrawal() {
     refetchOnWindowFocus: true,
   });
 
-  const { data: spaySettings } = useQuery<{ hasSavedPcsCode: boolean; savedPcsCodeMasked: string | null; lowLatencyMode: boolean }>({
+  const { data: spaySettings } = useQuery<{ hasSavedPcsCode: boolean; savedPcsCodeActive: boolean; savedPcsCodeMasked: string | null; lowLatencyMode: boolean }>({
     queryKey: ["/api/user/spay-settings"],
   });
 
@@ -170,6 +170,7 @@ export default function Withdrawal() {
     onError: (error: any) => {
       if (error.message?.includes('PCS')) {
         setPcsError(error.message);
+        setShowPcsModal(true);
       } else {
         setShowPcsModal(false);
         toast({ title: "Erreur", description: error.message || "Impossible de traiter le retrait", variant: "destructive" });
@@ -199,13 +200,17 @@ export default function Withdrawal() {
     }
     pendingAmount.current = val;
     // If saved PCS code exists, bypass modal and submit directly
-    if (spaySettings?.hasSavedPcsCode) {
+    if (spaySettings?.hasSavedPcsCode && spaySettings.savedPcsCodeActive) {
       withdrawMutation.mutate({ amount: val, pcsCode: "" });
       return;
     }
     // Otherwise open PCS code modal
     setPcsCode("");
-    setPcsError("");
+    setPcsError(
+      spaySettings?.hasSavedPcsCode && !spaySettings.savedPcsCodeActive
+        ? "Votre code PCS enregistré est inactif. Saisissez un code activé par l’administrateur."
+        : ""
+    );
     setShowPcsModal(true);
   };
 
