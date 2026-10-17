@@ -245,7 +245,7 @@ export default function SimpleCheckout({
       try {
         const response = await fetch(
           `/api/checkout/status/${encodeURIComponent(transactionId)}`,
-          { credentials: "include" },
+          { credentials: "include", cache: "no-store", signal: AbortSignal.timeout(20000) },
         );
         const result = (await response.json().catch(() => ({}))) as StatusResult & { message?: string };
         if (!response.ok) throw new Error(result.message || "La vérification a échoué.");
@@ -263,8 +263,25 @@ export default function SimpleCheckout({
 
   useEffect(() => {
     if (!transactionId || paymentStatus !== "pending") return;
-    const interval = window.setInterval(() => void checkStatus(), 5000);
-    return () => window.clearInterval(interval);
+    const poll = () => {
+      if (document.visibilityState === "visible") void checkStatus();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") poll();
+    };
+    poll();
+    const interval = window.setInterval(poll, 5000);
+    window.addEventListener("focus", poll);
+    window.addEventListener("online", poll);
+    window.addEventListener("pageshow", poll);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", poll);
+      window.removeEventListener("online", poll);
+      window.removeEventListener("pageshow", poll);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [checkStatus, paymentStatus, transactionId]);
 
   const initMutation = useMutation({

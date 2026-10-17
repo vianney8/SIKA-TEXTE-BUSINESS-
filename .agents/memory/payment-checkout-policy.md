@@ -23,6 +23,12 @@ Payment journeys should use the user's reference flow: Demande → Validation �
 
 **How to apply:** Preserve service-specific proof/approval rules and the administrator's model choice. For a signed-in customer, keep the account email fixed in the UI and derive it from the session on the server, especially for PCS. Preserve supported guest checkout separately.
 
+Automatic payments must leave the pending screen on their own when the provider confirms completion, rejection, cancellation or expiry; the customer must not have to press a status-check button.
+
+**Why:** The user reported that a rejected SolvexPay transaction stayed on the phone-approval screen until the customer manually checked it.
+
+**How to apply:** Poll without caching, start/check again immediately when the page returns to the foreground or network, and normalize provider terminal statuses. Keep temporary API/network errors retryable instead of treating them as payment failure.
+
 The user names the newly redesigned three-stage experience **Modèle pro**. It must be an additional administrator-selectable presentation, not an overwrite of the historical or simplified choices.
 
 **Why:** The user explicitly asked for a distinct pro option and the ability for the administrator to switch to it.

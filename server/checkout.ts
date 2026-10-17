@@ -3,6 +3,7 @@ import { and, eq, or, sql } from "drizzle-orm";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { matchesServiceQuote } from "@shared/service-pricing";
+import { normalizeSolvexStatus } from "@shared/solvex-status";
 import { countryPaymentMode, PAYMENT_COUNTRIES } from "@shared/checkout-settings";
 import { db } from "./db";
 import { storage } from "./storage";
@@ -124,8 +125,9 @@ function verifiedProviderData(payment: Checkout, payload: any) {
 
 export async function reconcileSolvexCheckout(payment: Checkout, payload: any) {
   const data = verifiedProviderData(payment, payload);
-  if (data.status === "completed") await fulfill(payment);
-  else if (["failed", "cancelled", "expired"].includes(data.status)) {
+  const status = normalizeSolvexStatus(data.status, payload?.event);
+  if (status === "completed") await fulfill(payment);
+  else if (status === "failed") {
     await db.update(paymentLinkTransactions).set({ status: "failed", updatedAt: new Date() })
       .where(and(eq(paymentLinkTransactions.id, payment.id), eq(paymentLinkTransactions.status, "pending")));
   }
@@ -283,7 +285,10 @@ export function registerCheckoutRoutes(app: Express) {
     });
   }));
   app.post("/api/checkout/init", wrap(async (req, res) => { res.json(await initiate(req)); }));
-  app.get("/api/checkout/status/:transactionId", wrap(async (req, res) => { res.json(await getStatus(String(req.params.transactionId), authId(req))); }));
+  app.get("/api/checkout/status/:transactionId", wrap(async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.json(await getStatus(String(req.params.transactionId), authId(req)));
+  }));
 
   // Both presentation models use the same secure SolvexPay engine.
   app.post("/api/activation/init-solvexpay", wrap(async (req, res) => {
@@ -324,7 +329,7 @@ export function registerCheckoutRoutes(app: Express) {
       await db.update(paymentLinkTransactions).set({ solvexpayTxnId: id }).where(eq(paymentLinkTransactions.id, known.id));
       known.solvexpayTxnId = id;
     }
-    await reconcileSolvexCheckout(known, data);
+    await reconcileSolvexCheckout(known, { ...data, event: req.body?.event });
     res.json({ received: true });
   }));
 }
