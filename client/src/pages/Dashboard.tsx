@@ -22,6 +22,11 @@ export default function Dashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: demoVideoUrl } = useAppSetting("demo_video_url");
+  const demoVideoSource =
+    typeof demoVideoUrl === "string" &&
+    demoVideoUrl.startsWith("/api/media/demo-video/")
+      ? "/promo.mp4"
+      : demoVideoUrl || "/promo.mp4";
   const { data: telegramSupervisor } = useAppSetting('telegram_supervisor');
   const { data: telegramGroup } = useAppSetting('telegram_group');
   const { data: whatsappGroup } = useAppSetting('whatsapp_group');
@@ -40,7 +45,7 @@ export default function Dashboard() {
     try { return localStorage.getItem('wa_notif_dismissed') !== '1'; } catch { return true; }
   });
 
-  useEffect(() => setDemoVideoError(false), [demoVideoUrl]);
+  useEffect(() => setDemoVideoError(false), [demoVideoSource]);
 
   const dismissWhatsApp = () => {
     try { localStorage.setItem('wa_notif_dismissed', '1'); } catch {}
@@ -392,8 +397,8 @@ export default function Dashboard() {
                 </p>
               ) : (
                 <video
-                  key={demoVideoUrl || "/promo.mp4"}
-                  src={demoVideoUrl || "/promo.mp4"}
+                  key={demoVideoSource}
+                  src={demoVideoSource}
                   controls
                   playsInline
                   className="w-full rounded-xl"
