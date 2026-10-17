@@ -19,6 +19,21 @@
   }
 }
 
+@keyframes sika-phone-ring {
+  0%, 72%, 100% {
+    transform: rotate(0);
+  }
+  75%, 81%, 87% {
+    transform: rotate(-9deg);
+  }
+  78%, 84%, 90% {
+    transform: rotate(9deg);
+  }
+  93% {
+    transform: rotate(0);
+  }
+}
+
 .payment-journey,
 .sika-checkout .checkout-card,
 .payment-journey .payment-card {
@@ -59,6 +74,12 @@
   transform-origin: center;
 }
 
+.sika-checkout .phone-orbit.is-pending .phone-glyph svg,
+.payment-journey .phone-orbit.is-pending .phone-glyph svg {
+  animation: sika-phone-ring 2.4s ease-in-out infinite;
+  transform-origin: center;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .payment-journey,
   .sika-checkout .checkout-card,
@@ -66,9 +87,11 @@
   .sika-checkout .checkout-operator,
   .payment-journey .operator-option,
   .sika-checkout .phone-orbit.is-pending,
+  .sika-checkout .phone-orbit.is-pending .phone-glyph svg,
   .sika-checkout .checkout-phone.is-pending,
   .sika-checkout input[data-validation="pending"],
   .payment-journey .phone-orbit.is-pending,
+  .payment-journey .phone-orbit.is-pending .phone-glyph svg,
   .payment-journey .phone-validation.is-pending,
   .payment-journey input[data-validation="pending"] {
     animation: none !important;
