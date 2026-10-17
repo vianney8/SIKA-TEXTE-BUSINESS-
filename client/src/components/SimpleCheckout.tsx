@@ -8,6 +8,7 @@ import type { CheckoutDetails } from "./CheckoutHandoff";
 import type { CountryPaymentMode } from "@shared/checkout-settings";
 import {
   AlertCircle,
+  ArrowLeft,
   ArrowRight,
   Check,
   CheckCircle2,
@@ -380,7 +381,8 @@ export default function SimpleCheckout({
 
   const cancel = () => {
     if (onCancel) onCancel();
-    else window.history.back();
+    else if (window.history.length > 1) window.history.back();
+    else window.location.assign("/");
   };
 
   if (configQuery.isPending || (!configQuery.isFetchedAfterMount && configQuery.isFetching) || (!!config && !resumeChecked)) {
@@ -547,6 +549,14 @@ export default function SimpleCheckout({
                 } else initMutation.mutate();
               }}
             >
+              <button
+                type="button"
+                className="checkout-text-button mb-5 inline-flex min-h-11 items-center gap-2"
+                onClick={cancel}
+              >
+                <ArrowLeft size={17} aria-hidden="true" />
+                Retour
+              </button>
               {config.model === "pro" && <>
               <label className="checkout-label block" htmlFor="checkout-payer-name">Nom complet du payeur</label>
               <input id="checkout-payer-name" className="checkout-input mt-2 w-full" autoComplete="name"
