@@ -453,7 +453,7 @@ function LegacyActivation() {
           </div>
           <div className="flex items-center gap-1.5 mt-1.5">
             <ShieldCheck size={11} style={{ color: EM1 }} />
-            <span className="text-xs font-semibold" style={{ color: `${EM1}80` }}>Upay · Paiement sécurisé</span>
+            <span className="text-xs font-semibold" style={{ color: `${EM1}80` }}>Paiement sécurisé par SIKApay</span>
           </div>
         </div>
         <ProgressBar step={step} />
@@ -1069,7 +1069,7 @@ function LegacyActivation() {
               Continuer <ChevronRight size={18} />
             </button>
             <p className="text-center text-[10px] text-slate-300 mt-2 flex items-center justify-center gap-1">
-              <ShieldCheck size={10} /> Paiement sécurisé · Upay SIKA TEXTE
+              <ShieldCheck size={10} /> Paiement sécurisé par SIKApay
             </p>
           </div>
         </div>
@@ -1259,7 +1259,7 @@ function LegacyActivation() {
               {manualSubmitting ? <><Loader2 size={18} className="animate-spin" /> Envoi en cours…</> : <><ShieldCheck size={18} /> Soumettre ma demande</>}
             </button>
             <p className="text-center text-[10px] text-slate-300 mt-2 flex items-center justify-center gap-1">
-              <ShieldCheck size={9} /> Upay · SIKA TEXTE · Sécurisé
+              <ShieldCheck size={9} /> Paiement sécurisé par SIKApay
             </p>
           </div>
         </div>
@@ -1398,7 +1398,7 @@ function LegacyActivation() {
             }
           </Button>
           <p className="text-center text-[10px] text-slate-300 mt-2 flex items-center justify-center gap-1">
-            <ShieldCheck size={10} /> Paiement sécurisé · Upay SIKA TEXTE
+            <ShieldCheck size={10} /> Paiement sécurisé par SIKApay
           </p>
         </div>
       </div>

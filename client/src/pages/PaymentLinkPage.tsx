@@ -535,7 +535,7 @@ function LegacyPaymentLinkPage() {
         <button type="button" onClick={() => { window.location.href = "/"; }} className="mt-5 w-full rounded-xl bg-violet-700 px-4 py-3 font-semibold text-white">Terminé</button>
         <div className="mt-8 pt-5 border-t border-slate-100">
           <p className="text-slate-300 text-xs flex items-center justify-center gap-1">
-            <ShieldCheck size={10} /> Paiement sécurisé par <span className="text-slate-400 font-bold ml-1">SIKApay</span>
+            <ShieldCheck size={10} /> Paiement sécurisé par SIKApay
           </p>
         </div>
       </div>
@@ -612,7 +612,7 @@ function LegacyPaymentLinkPage() {
         </button>
         <button onClick={reset} className="text-xs text-slate-300 hover:text-slate-500 transition-colors underline">Retour</button>
         <p className="text-slate-300 text-xs flex items-center justify-center gap-1">
-          <ShieldCheck size={10} /> Paiement sécurisé · SIKApay
+          <ShieldCheck size={10} /> Paiement sécurisé par SIKApay
         </p>
       </div>
     </div>
@@ -726,7 +726,7 @@ function LegacyPaymentLinkPage() {
           </button>
           <p className="text-center text-xs text-slate-500">Quitter ne supprime pas la demande. Vous pourrez la retrouver en ouvrant ce lien dans ce navigateur.</p>
           <p className="text-slate-300 text-[10px] flex items-center justify-center gap-1.5 pb-2">
-            <ShieldCheck size={9} /> Paiement sécurisé · SIKApay SIKA TEXTE
+            <ShieldCheck size={9} /> Paiement sécurisé par SIKApay
           </p>
         </div>
       </div>
@@ -931,7 +931,7 @@ function LegacyPaymentLinkPage() {
               {manualSubmitting ? <><Loader2 size={18} className="animate-spin" /> Envoi en cours…</> : <><ShieldCheck size={18} /> Envoyer la demande</>}
             </button>
             <p className="text-center text-[10px] text-slate-300 mt-2 flex items-center justify-center gap-1">
-              <ShieldCheck size={9} /> SIKApay · SIKA TEXTE · Sécurisé
+              <ShieldCheck size={9} /> Paiement sécurisé par SIKApay
             </p>
           </div>
         </div>
@@ -1272,7 +1272,7 @@ function LegacyPaymentLinkPage() {
             }
           </button>
           <p className="text-center text-[10px] text-slate-300 mt-2 flex items-center justify-center gap-1">
-            <ShieldCheck size={10} /> Paiement sécurisé · SIKApay SIKA TEXTE
+            <ShieldCheck size={10} /> Paiement sécurisé par SIKApay
           </p>
         </div>
       </div>

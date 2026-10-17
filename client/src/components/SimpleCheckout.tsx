@@ -414,11 +414,12 @@ export default function SimpleCheckout({
       <section className="checkout-card w-full max-w-[440px] overflow-hidden" aria-labelledby="checkout-title">
         <div className="checkout-content p-5 sm:p-7">
           <header className="checkout-summary flex items-center justify-between gap-3 pb-5">
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="checkout-brand-mark" aria-hidden="true">ST</div>
-              <div className="min-w-0">
-                <h1 id="checkout-title" className="checkout-heading truncate">{config.label || serviceNames[service]}</h1>
-                <p className="checkout-muted mt-0.5 text-xs">{config.customerName || "à SIKA TEXTE"}</p>
+            <div className="checkout-merchant flex min-w-0 flex-1 items-center gap-2.5">
+              <img src="/logo.jpg" alt="Logo SIKA Services" className="checkout-brand-logo" />
+              <div className="checkout-merchant-copy min-w-0 flex-1">
+                <h1 id="checkout-title" className="checkout-heading checkout-service-title">{config.label || serviceNames[service]}</h1>
+                <p className="checkout-merchant-name mt-1">SIKA TEXTE</p>
+                {config.customerName && <p className="checkout-muted checkout-customer-name">{config.customerName}</p>}
               </div>
             </div>
             <p className="checkout-price shrink-0">{formatAmount(paymentAmount?.amount ?? config.amount, paymentAmount?.currency ?? config.currency)}</p>
@@ -647,7 +648,7 @@ export default function SimpleCheckout({
               </button>
               <div className="checkout-secure mt-4 flex items-center justify-center gap-1.5">
                 <LockKeyhole size={13} />
-                <span>Paiement sécurisé</span>
+                <span>Paiement sécurisé par SIKApay</span>
               </div>
             </form>
           )}
@@ -656,7 +657,7 @@ export default function SimpleCheckout({
         {(paymentStatus === "pending" || paymentStatus === "completed" || paymentStatus === "failed") && (
           <footer className="checkout-footer flex items-center justify-center gap-1.5 px-4 py-4">
             <ShieldCheck size={14} />
-            <span>Paiement sécurisé</span>
+            <span>Paiement sécurisé par SIKApay</span>
           </footer>
         )}
       </section>
@@ -685,12 +686,18 @@ export default function SimpleCheckout({
         }
         .checkout-content { min-width: 0; }
         .checkout-summary { border-bottom: 1px solid #eef0f4; }
-        .checkout-brand-mark {
-          display: flex; width: 48px; height: 48px; flex: 0 0 48px;
-          align-items: center; justify-content: center; border-radius: 15px;
-          background: #10162d; color: #e8f2ee; font-size: 14px; font-weight: 800; letter-spacing: -.04em;
+        .checkout-brand-logo {
+          display: block; width: 50px; height: 50px; flex: 0 0 50px;
+          border: 1px solid #eef0f4; border-radius: 13px; background: #fff; object-fit: contain;
         }
         .checkout-heading { color: var(--ink); font-weight: 750; letter-spacing: -.035em; line-height: 1.2; }
+        .checkout-service-title {
+          overflow-wrap: anywhere; white-space: normal; font-size: clamp(14px, 3.8vw, 18px);
+        }
+        .checkout-merchant-name {
+          color: #454e60; font-size: 11px; font-weight: 750; letter-spacing: .04em; line-height: 1.2;
+        }
+        .checkout-customer-name { margin-top: 2px; overflow-wrap: anywhere; font-size: 11px; line-height: 1.25; }
         .checkout-muted { color: var(--muted); }
         .checkout-price { color: var(--ink); font-size: clamp(15px, 4vw, 19px); font-weight: 800; letter-spacing: -.025em; }
         .checkout-label { color: #596579; font-size: 13px; font-weight: 650; }
@@ -776,7 +783,7 @@ export default function SimpleCheckout({
         @media (max-width: 380px) {
           .checkout-card { border-radius: 22px; }
           .checkout-content { padding: 18px; }
-          .checkout-brand-mark { width: 42px; height: 42px; flex-basis: 42px; }
+          .checkout-brand-logo { width: 44px; height: 44px; flex-basis: 44px; }
           .checkout-operator { gap: 7px; padding: 8px; }
           .operator-initials { width: 28px; height: 28px; flex-basis: 28px; }
           .operator-label { font-size: 11px; }
