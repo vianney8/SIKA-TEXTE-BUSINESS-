@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { localPaymentPhone } from "@shared/payment-phone";
 import { type CheckoutModel } from "@shared/checkout-settings";
 import OperatorLogo from "./OperatorLogo";
+import type { CheckoutDetails } from "./CheckoutHandoff";
+import type { CountryPaymentMode } from "@shared/checkout-settings";
 import {
   AlertCircle,
   ArrowRight,
@@ -23,6 +25,7 @@ type PaymentStatus = "pending" | "completed" | "failed";
 
 type Operator = { code: string; name: string; maintenance: boolean };
 type Country = {
+  mode?: CountryPaymentMode;
   code: string;
   name: string;
   prefix: string;
@@ -65,6 +68,7 @@ type StatusResult = {
 };
 
 type SimpleCheckoutProps = {
+  onAlternativePayment?: (details: CheckoutDetails) => void;
   service: Service;
   linkId?: string;
   onSuccess?: () => void;
@@ -95,6 +99,7 @@ export default function SimpleCheckout({
   linkId,
   onSuccess,
   onCancel,
+  onAlternativePayment,
 }: SimpleCheckoutProps) {
   const queryClient = useQueryClient();
   const [countryCode, setCountryCode] = useState("");
@@ -136,10 +141,11 @@ export default function SimpleCheckout({
   const countries = config?.countries ?? [];
   const country = countries.find((item) => item.code === countryCode);
   const selectedOperator = country?.operators.find((item) => item.code === operatorCode);
-  const needsOtp =
+  const automaticCountry = !country?.mode || country.mode === "solvexpay";
+  const needsOtp = automaticCountry && (
     countryCode === "CI" || countryCode === "SN"
       ? operatorCode === "orange"
-      : false;
+      : false);
   const locked = paymentStatus === "pending";
   const key = useMemo(
     () => sessionKey(service, linkId, config?.customerId ?? null),
@@ -197,7 +203,7 @@ export default function SimpleCheckout({
       sessionStorage.removeItem(key);
       if (!successNotified.current) {
         successNotified.current = true;
-        const relevant = ["user", "account", "dns", "ci", "pcs"];
+        const relevant = ["user", "account", "dns", "ci", "pcs", "withdrawal", "activation", "balance"];
         void queryClient.invalidateQueries({
           predicate: (query) => {
             const queryKey = query.queryKey.map(String).join("/").toLowerCase();
@@ -517,7 +523,10 @@ export default function SimpleCheckout({
               className="checkout-form border-t pt-5"
               onSubmit={(event) => {
                 event.preventDefault();
-                if (canPay) initMutation.mutate();
+                if (!canPay) return;
+                if (!automaticCountry && country && onAlternativePayment) {
+                  onAlternativePayment({ country: country.code, operator: operatorCode, phone: localPaymentPhone(phone, country.prefix, country.length), payerName: payerName.trim(), customerEmail, mode: country.mode! });
+                } else initMutation.mutate();
               }}
             >
               {config.model === "pro" && <>
@@ -547,6 +556,12 @@ export default function SimpleCheckout({
                 <ChevronDown size={17} aria-hidden="true" />
               </div>
 
+              {country?.mode && <p className="checkout-muted mt-2 text-xs" role="status">
+                {country.mode === "manual" ? "Dépôt manuel : les coordonnées de dépôt et le justificatif seront demandés à l’étape suivante."
+                  : country.mode === "solvexpay" ? "Paiement automatique pour ce pays."
+                  : country.mode === "redirect" ? "Paiement par lien externe pour ce pays."
+                  : "Paiement via le prestataire configuré pour ce pays."}
+              </p>}
               <fieldset className="mt-5 min-w-0" disabled={locked || initMutation.isPending}>
                 <legend className="checkout-label mb-2">Moyen de paiement</legend>
                 {country?.operators.length ? (
@@ -644,7 +659,7 @@ export default function SimpleCheckout({
 
               <button type="submit" className="checkout-button mt-5 w-full" disabled={!canPay}>
                 {initMutation.isPending ? <LoaderCircle size={18} className="animate-spin" /> : null}
-                {initMutation.isPending ? "Connexion…" : <>Payer {formatAmount(config.amount, config.currency)} <ArrowRight size={18} /></>}
+                {initMutation.isPending ? "Connexion…" : <>{automaticCountry ? "Payer" : "Continuer ·"} {formatAmount(config.amount, config.currency)} <ArrowRight size={18} /></>}
               </button>
               <div className="checkout-secure mt-4 flex items-center justify-center gap-1.5">
                 <LockKeyhole size={13} />

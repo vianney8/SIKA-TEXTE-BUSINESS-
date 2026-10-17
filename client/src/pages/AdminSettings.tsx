@@ -79,9 +79,6 @@ export default function AdminSettings() {
       queryClient.invalidateQueries({ queryKey: ['/api/settings/telegram_group'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/ci_manual_activation'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/ci_manual_activation_url'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/settings/solvexpay_enabled'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/settings/solvexpay_name'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/settings/solvexpay_link'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/robotpay_enabled'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/robotpay_name'] });
       queryClient.invalidateQueries({ queryKey: ['/api/activation/payment-info'] });
@@ -253,22 +250,13 @@ export default function AdminSettings() {
           </CardHeader>
           <CardContent>
             <p className="mb-4 text-sm text-muted-foreground">
-              Lorsque SolvexPay est activé, il traite tous les paiements de services : activation, achat et activation des PCS, DNS, mises à jour et autres liens.
+              Chaque pays conserve son propre mode : SolvexPay, RobotPay, dépôt manuel ou redirection, pour tous les services.
               Choisissez la présentation utilisée par les clients. Aucun ancien formulaire n'est supprimé.
             </p>
-            {settings.solvexpay_enabled === "false" && (
-              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950" role="status">
-                <p>SolvexPay est désactivé globalement : les paiements suivent les moyens manuels et les autres prestataires configurés, y compris avec le modèle pro.</p>
-                <Button type="button" variant="outline" className="mt-3"
-                  onClick={() => handleInputChange("solvexpay_enabled", "true")}>
-                  Activer SolvexPay pour tout le site
-                </Button>
-              </div>
-            )}
             <div className="grid gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Modèle de paiement">
               {[
                 { value: "simple", label: "Modèle simplifié", description: "Pays, opérateur et téléphone sur une seule page, puis validation sur le téléphone." },
-                { value: "legacy", label: "Ancien modèle", description: "Conserve les étapes et les présentations historiques. SolvexPay reste global lorsqu'il est activé." },
+                { value: "legacy", label: "Ancien modèle", description: "Conserve les étapes et les présentations historiques, avec le mode choisi pour chaque pays." },
                 { value: "pro", label: "Modèle pro", description: "Nouveau format professionnel : Demande, Validation, Confirmation. Formulaire regroupé, dépôt et justificatifs en manuel, validation sur téléphone en automatique." },
               ].map(model => (
                 <button type="button" role="radio" aria-checked={(settings.payment_checkout_model || "simple") === model.value}
@@ -281,8 +269,7 @@ export default function AdminSettings() {
               ))}
             </div>
             <p className="mt-3 text-xs text-muted-foreground">
-              Enregistrez les paramètres pour appliquer le choix. Désactiver SolvexPay rétablit les moyens manuels et les autres prestataires configurés ; les paiements déjà lancés restent vérifiables.
-              Sélectionner SolvexPay dans les réglages d’un pays active aussi son interrupteur général, sans modifier votre choix de modèle.
+              Enregistrez les paramètres pour appliquer le choix. Les quatre options de chaque pays sont indépendantes des autres pays et de ce modèle. Les paiements déjà lancés restent vérifiables.
             </p>
           </CardContent>
         </Card>
@@ -572,7 +559,7 @@ export default function AdminSettings() {
                   { value: 'manual',   label: 'Dépôt manuel', desc: 'Numéros configurés' },
                   { value: 'redirect', label: 'Redirection', desc: 'Lien externe' },
                 ].map(opt => {
-                  const current = settings.ci_activation_mode || 'redirect';
+                  const current = settings.ci_activation_mode || 'manual';
                   const selected = current === opt.value;
                   return (
                     <button
@@ -593,7 +580,7 @@ export default function AdminSettings() {
               </div>
 
               {/* Mode "Redirection lien" : URL */}
-              {(settings.ci_activation_mode || 'redirect') === 'redirect' && (
+              {(settings.ci_activation_mode || 'manual') === 'redirect' && (
                 <div>
                   <Label htmlFor="ci_manual_activation_url" className="text-sm">URL de redirection CI</Label>
                   <Input
@@ -637,7 +624,7 @@ export default function AdminSettings() {
                 </div>
               )}
 
-              {(settings.ci_activation_mode || 'redirect') === 'solvexpay' && (
+              {(settings.ci_activation_mode || 'manual') === 'solvexpay' && (
                 <p className="text-xs text-orange-700 bg-orange-100 rounded-lg px-3 py-2">
                   SolvexPay traite automatiquement les paiements CI via l'API. Aucune configuration manuelle requise.
                 </p>
@@ -766,63 +753,6 @@ export default function AdminSettings() {
                 </div>
               );
             })}
-
-            {/* SolvexPay */}
-            <div className="space-y-3 p-4 border rounded-lg border-primary/30 bg-primary/5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-primary to-blue-700 flex items-center justify-center text-white font-bold text-sm">
-                    S
-                  </div>
-                  <div>
-                    <p className="font-medium">SolvexPay</p>
-                    <p className="text-sm text-muted-foreground">
-                      {settings.solvexpay_enabled !== 'false' ? '✓ Activé' : '✗ Désactivé'}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleInputChange('solvexpay_enabled', settings.solvexpay_enabled === 'false' ? 'true' : 'false')}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    settings.solvexpay_enabled !== 'false'
-                      ? 'bg-green-500 hover:bg-green-600 text-white'
-                      : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
-                  }`}
-                  data-testid="toggle-solvexpay-enabled"
-                >
-                  {settings.solvexpay_enabled !== 'false' ? 'Activé' : 'Désactivé'}
-                </button>
-              </div>
-              <div>
-                <Label htmlFor="solvexpay_name" className="text-sm">Nom personnalisé</Label>
-                <Input
-                  id="solvexpay_name"
-                  value={settings.solvexpay_name || 'SolvexPay — Mobile Money'}
-                  onChange={(e) => handleInputChange('solvexpay_name', e.target.value)}
-                  placeholder="SolvexPay — Mobile Money"
-                  data-testid="input-solvexpay-name"
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="solvexpay_link" className="text-sm">Lien de paiement SolvexPay</Label>
-                <Input
-                  id="solvexpay_link"
-                  value={settings.solvexpay_link || ''}
-                  onChange={(e) => handleInputChange('solvexpay_link', e.target.value)}
-                  placeholder="https://pay.sx/xxxxxxxx"
-                  data-testid="input-solvexpay-link"
-                  className="mt-1"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Lien de paiement créé depuis votre tableau de bord SolvexPay (Liens de Paiement). Les utilisateurs y seront redirigés directement.
-                </p>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                URL Webhook à configurer dans SolvexPay : <span className="font-mono">https://sikatexte.site/api/webhook/solvexpay</span>
-              </p>
-            </div>
 
             {/* RobotPay */}
             <div className="space-y-3 p-4 border rounded-lg border-emerald-300 bg-emerald-50">

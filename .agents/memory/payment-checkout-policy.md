@@ -3,7 +3,7 @@ name: Payment checkout policy
 description: User-defined scope for SolvexPay and the simplified versus historical payment presentations.
 ---
 
-When SolvexPay is enabled for payments, it must apply throughout the site's service payments, not only account activation: PCS purchases and activation, DNS, updates, and other payment links.
+The administrator selects the gateway independently for each country using its four choices: SolvexPay, RobotPay, manual deposit, or redirection. A country's choice applies to all its services: account activation, PCS purchases and activation, DNS, updates, and other payment links.
 
 Keep the historical checkout available. The administrator must be able to choose between the simplified common checkout and the old presentation without deleting either.
 
@@ -11,11 +11,11 @@ Keep the historical checkout available. The administrator must be able to choose
 
 **How to apply:** Treat gateway activation and checkout presentation as separate decisions. A presentation switch must not remove a service's SolvexPay support or prevent an already-started payment from being confirmed.
 
-Selecting SolvexPay for a country must also enable its global switch, without changing the selected presentation. An explicit global disable must remain possible.
+There must be no global SolvexPay switch or global SolvexPay configuration card controlling these country choices. Mixed modes must work: one country can use the API while another uses manual deposits.
 
-**Why:** Country settings can all show automatic SolvexPay while the global switch is off, leaving the historical pages visible and contradicting the administrator's expectation.
+**Why:** The user explicitly replaced the previous global policy with independent country-level activation and asked to remove the global option.
 
-**How to apply:** Synchronize the switch when the administrator selects SolvexPay, and explain the blocking global state beside the presentation choice. Do not infer activation from country settings on every read, as that would override an intentional global disable.
+**How to apply:** Treat the saved country mode as authoritative and ignore obsolete global SolvexPay values. Preserve independent presentation selection and recovery of already-started payments after a mode change.
 
 Payment journeys should use the user's reference flow: Demande → Validation → Confirmation. Collect payer name, country, operator and phone together; manual validation shows the exact configured deposit details and existing proof fields, while automatic validation starts the transaction and shows telephone confirmation pending.
 
@@ -41,8 +41,14 @@ Automatic DNS payments must collect country, operator and phone only once, with 
 
 **How to apply:** Route enabled automatic DNS directly into its payment form while retaining the configured model's presentation and the existing manual DNS flow when SolvexPay is disabled.
 
-The user requests no “Paiement sécurisé par SolvexPay” attribution on customer payment pages, distinct customized operator logos, payment animations, and administrator-editable prices for PCS purchases, PCS activation, DNS and other services.
+Payment branding uses the official SIKA logo, the name SIKA TEXTE, a fully visible service title, and the footer “Paiement sécurisé par SIKApay”, not SolvexPay. The user also requests distinct customized operator logos, payment animations, and administrator-editable prices for PCS purchases, PCS activation, DNS and other services.
 
 **Why:** The user explicitly requested these changes together with navigation/return fixes and automatic propagation of price changes throughout the site.
 
 **How to apply:** Preserve administrator-controlled historical/simple/pro choices. Use the existing service prices consistently across checkout and payment links, but never replace an already-created payment's amount with a newly configured tariff. Fixed-amount external provider links require separate provider-side updates.
+
+Do not display the inactive-account withdrawal page while activation data is missing, stale or still being checked.
+
+**Why:** The user repeatedly reports that an activated customer sees the inactive page until manually refreshing.
+
+**How to apply:** Require a fresh successful account-status result before displaying an inactive verdict; show a loading or explicit retry state instead of interpreting absent data as inactive.

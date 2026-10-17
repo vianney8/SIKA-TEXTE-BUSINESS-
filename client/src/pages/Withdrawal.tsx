@@ -97,9 +97,12 @@ export default function Withdrawal() {
     queryKey: ["/api/user/spay-settings"],
   });
 
-  const { data: withdrawalData, refetch: refetchWithdrawalData } = useQuery<WithdrawalData>({
+  const withdrawalQuery = useQuery<WithdrawalData>({
     queryKey: ["/api/withdrawal"],
+    staleTime: 0,
+    refetchOnMount: "always",
   });
+  const { data: withdrawalData, refetch: refetchWithdrawalData } = withdrawalQuery;
   const { data: pendingActivation } = useQuery<{
     found: boolean;
     status?: "pending" | "approved" | "rejected";
@@ -460,7 +463,13 @@ export default function Withdrawal() {
   }
 
   /* ─── Compte inactif ─────────────────────────────────── */
-  if (!withdrawalData?.isAccountActive) {
+  if (withdrawalQuery.isPending || (!withdrawalQuery.isFetchedAfterMount && withdrawalQuery.isFetching)) {
+    return <div className="min-h-screen flex items-center justify-center" role="status"><span>Vérification de votre compte…</span></div>;
+  }
+  if (withdrawalQuery.isError || !withdrawalData) {
+    return <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 text-center" role="alert"><p>Impossible de vérifier votre compte. Aucune conclusion n’a été tirée sur son activation.</p><button className="rounded-xl border px-5 py-3" onClick={() => void refetchWithdrawalData()}>Réessayer</button></div>;
+  }
+  if (!withdrawalData.isAccountActive) {
     return (
       <>
         <div className="sika-page">

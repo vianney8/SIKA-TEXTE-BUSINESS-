@@ -12,11 +12,11 @@ test("manual payment availability follows the configured gateway, not just the l
   const base = { solvexEnabled: false, globalManualEnabled: true, linkManualMode: false,
     countryMode: "manual", country: "bj", operator: "mtn" };
   assert.equal(linkManualPaymentAllowed(base), true);
-  assert.equal(linkManualPaymentAllowed({ ...base, countryMode: "solvexpay" }), true);
-  assert.equal(linkManualPaymentAllowed({ ...base, solvexEnabled: true }), false);
+  assert.equal(linkManualPaymentAllowed({ ...base, countryMode: "solvexpay" }), false);
+  assert.equal(linkManualPaymentAllowed({ ...base, solvexEnabled: true }), true);
   assert.equal(linkManualPaymentAllowed({ ...base, globalManualEnabled: false }), false);
   assert.equal(linkManualPaymentAllowed({ ...base, countryMode: "robotpay" }), false);
   assert.equal(linkManualPaymentAllowed({ ...base, country: "ci", operator: "wave", countryMode: "robotpay" }), true);
-  assert.equal(linkManualPaymentAllowed({ ...base, countryMode: "redirect", linkManualMode: true }), true);
+  assert.equal(linkManualPaymentAllowed({ ...base, countryMode: "redirect", linkManualMode: true }), false);
   assert.equal(linkManualPaymentAllowed({ ...base, countryMode: "redirect", linkManualMode: true, globalManualEnabled: false }), false);
 });

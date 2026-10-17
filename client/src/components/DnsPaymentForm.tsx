@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { COUNTRIES, OPERATORS } from "@/pages/Activation";
 import PaymentCheckout, { useCheckoutMode } from "./PaymentCheckout";
 import OperatorLogo from "./OperatorLogo";
+import { useCheckoutHandoff } from "./CheckoutHandoff";
 import { usePaymentRevision } from "@/hooks/useLiveUpdates";
 
 // ─── Formulaire de paiement pour la mise à jour DNS ──────────────────────────
@@ -38,13 +39,14 @@ function LegacyDnsPaymentForm({
   onSubmitted, onCancel,
 }: { onSubmitted: () => void; onCancel: () => void }) {
   const { toast } = useToast();
+  const handoff = useCheckoutHandoff();
   const { data: checkoutMode } = useCheckoutMode();
   const paymentRevision = usePaymentRevision();
-  const [step, setStep] = useState<DnsFormStep>("country");
-  const [country, setCountry] = useState("");
-  const [operator, setOperator] = useState("");
-  const [phone, setPhone] = useState("");
-  const [payerName, setPayerName] = useState("");
+  const [step, setStep] = useState<DnsFormStep>(handoff ? handoff.mode === "manual" ? "manual" : "phone" : "country");
+  const [country, setCountry] = useState(handoff?.country || "");
+  const [operator, setOperator] = useState(handoff?.operator || "");
+  const [phone, setPhone] = useState(handoff?.phone || "");
+  const [payerName, setPayerName] = useState(handoff?.payerName || "");
   const [transactionId, setTransactionId] = useState("");
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);

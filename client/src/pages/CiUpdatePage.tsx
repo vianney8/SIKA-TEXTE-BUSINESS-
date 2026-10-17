@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAppSetting } from "@/hooks/useAppSettings";
 import PaymentCheckout, { useCheckoutMode } from "@/components/PaymentCheckout";
 import SimpleCheckout from "@/components/SimpleCheckout";
+import { useCheckoutHandoff } from "@/components/CheckoutHandoff";
 
 interface AuthUser { id: string; fullName: string; referralCode: string; phone: string; }
 interface CiStatus { ciUpdateRequired: boolean; ciUpdateLink: string; ciUpdateAmount: number; }
@@ -49,11 +50,12 @@ export default function CiUpdatePage() {
 }
 
 function LegacyCiUpdatePage() {
+  const handoff = useCheckoutHandoff();
   const { data: checkoutMode } = useCheckoutMode();
   const { toast } = useToast();
-  const [paymentPhone, setPaymentPhone] = useState("");
-  const [payerFullName, setPayerFullName] = useState("");
-  const [paymentOperator, setPaymentOperator] = useState("");
+  const [paymentPhone, setPaymentPhone] = useState(handoff?.phone || "");
+  const [payerFullName, setPayerFullName] = useState(handoff?.payerName || "");
+  const [paymentOperator, setPaymentOperator] = useState(handoff?.operator || "");
   const [inputError, setInputError] = useState("");
   const [pageState, setPageState] = useState<PageState>("form");
   const [visible, setVisible] = useState(false);
@@ -91,7 +93,7 @@ function LegacyCiUpdatePage() {
   const handleSubmit = () => {
     if (checkoutMode?.model === "pro" && payerFullName.trim().length < 3) { setInputError("Saisissez le nom complet du payeur."); return; }
     if (checkoutMode?.model === "pro" && !paymentOperator) { setInputError("Choisissez votre opérateur Mobile Money."); return; }
-    if (checkoutMode?.enabled) { setPageState("payment"); return; }
+    if (checkoutMode?.countryModes?.CI === "solvexpay") { setPageState("payment"); return; }
     if (!paymentPhone.trim()) { setInputError("Ce champ est requis."); return; }
     if (paymentPhone.trim().length < 8) { setInputError("Numéro invalide."); return; }
     setInputError("");
@@ -110,7 +112,7 @@ function LegacyCiUpdatePage() {
     "Traitement par l'administrateur",
   ];
 
-  if (pageState === "payment" && checkoutMode?.enabled) {
+  if (pageState === "payment" && checkoutMode?.countryModes?.CI === "solvexpay") {
     return <SimpleCheckout service="ci-update" onSuccess={() => window.location.reload()} onCancel={() => setPageState("form")} />;
   }
 

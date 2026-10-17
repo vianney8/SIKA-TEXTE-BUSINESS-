@@ -1,12 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { changeCheckoutSetting, checkoutModel, usesUnifiedCheckout } from "../shared/checkout-settings";
+import { changeCheckoutSetting, checkoutModel, usesUnifiedCheckout, countryPaymentMode } from "../shared/checkout-settings";
 
-test("choosing SolvexPay for any supported country enables it globally", () => {
+test("choosing SolvexPay affects only that country, not the obsolete global switch", () => {
   for (const country of ["bj", "ci", "sn", "bf", "tg", "cm"]) {
     const initial = { solvexpay_enabled: "false", payment_checkout_model: "simple" };
     const result = changeCheckoutSetting(initial, `${country}_activation_mode`, "solvexpay");
-    assert.equal(result.solvexpay_enabled, "true");
+    assert.equal(result.solvexpay_enabled, "false");
+    assert.equal(countryPaymentMode(result, country), "solvexpay");
     assert.equal(result.payment_checkout_model, "simple");
     assert.equal(initial.solvexpay_enabled, "false");
   }
@@ -16,7 +17,7 @@ test("gateway activation does not force the simple presentation", () => {
   const result = changeCheckoutSetting(
     { payment_checkout_model: "legacy" }, "bj_activation_mode", "solvexpay",
   );
-  assert.equal(result.solvexpay_enabled, "true");
+  assert.equal(result.solvexpay_enabled, undefined);
   assert.equal(result.payment_checkout_model, "legacy");
 });
 
@@ -56,4 +57,15 @@ test("automatic DNS skips duplicate legacy collection without changing other che
   }
   assert.equal(usesUnifiedCheckout("legacy"), false);
   assert.equal(usesUnifiedCheckout("legacy", false), false);
+});
+
+test("mixed payment modes stay independent even with an old global value", () => {
+  for (const obsolete of ["true", "false"]) {
+    const settings = { solvexpay_enabled: obsolete, bj_activation_mode: "solvexpay", sn_activation_mode: "manual", ci_activation_mode: "redirect", cm_activation_mode: "robotpay" };
+    assert.equal(countryPaymentMode(settings, "BJ"), "solvexpay");
+    assert.equal(countryPaymentMode(settings, "SN"), "manual");
+    assert.equal(countryPaymentMode(settings, "CI"), "redirect");
+    assert.equal(countryPaymentMode(settings, "CM"), "robotpay");
+    assert.equal(countryPaymentMode(settings, "BF"), "manual");
+  }
 });

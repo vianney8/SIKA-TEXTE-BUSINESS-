@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import OperatorLogo from "@/components/OperatorLogo";
+import { useCheckoutHandoff } from "@/components/CheckoutHandoff";
 import { usePaymentRevision } from "@/hooks/useLiveUpdates";
 import PaymentCheckout, { useCheckoutMode } from "@/components/PaymentCheckout";
 import { useParams } from "wouter";
@@ -137,6 +138,7 @@ export default function PaymentLinkPage() {
 }
 
 function LegacyPaymentLinkPage() {
+  const handoff = useCheckoutHandoff();
   const paymentRevision = usePaymentRevision();
   const { data: checkoutMode } = useCheckoutMode();
   const params = useParams<{ linkId: string }>();
@@ -145,13 +147,13 @@ function LegacyPaymentLinkPage() {
   const [link, setLink]           = useState<any>(null);
   const [loadError, setLoadError] = useState("");
 
-  const [country, setCountry]   = useState("");
-  const [operator, setOperator] = useState("");
-  const [phone, setPhone]       = useState("");
-  const [payerFullName, setPayerFullName] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName]   = useState("");
-  const [email, setEmail]         = useState("");
+  const [country, setCountry]   = useState(handoff?.country || "");
+  const [operator, setOperator] = useState(handoff?.operator || "");
+  const [phone, setPhone]       = useState(handoff?.phone || "");
+  const [payerFullName, setPayerFullName] = useState(handoff?.payerName || "");
+  const [firstName, setFirstName] = useState(handoff?.payerName.split(" ")[0] || "");
+  const [lastName, setLastName]   = useState(handoff?.payerName.split(" ").slice(1).join(" ") || "");
+  const [email, setEmail]         = useState(handoff?.customerEmail || "");
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
 
@@ -176,7 +178,7 @@ function LegacyPaymentLinkPage() {
   const [manualStatusError, setManualStatusError] = useState("");
   const [manualCode, setManualCode] = useState("");
 
-  const [step, setStep]         = useState<Step>("country");
+  const [step, setStep]         = useState<Step>(handoff ? handoff.mode === "manual" ? "manual" : "phone" : "country");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]       = useState("");
 
@@ -252,8 +254,7 @@ function LegacyPaymentLinkPage() {
   // Exception CI : Wave reste manuel car WestPay ne le prend pas en charge.
   const useManual              = country !== "" && (
     useCiWaveManual ||
-    currentMode === "manual" ||
-    (currentMode !== "robotpay" && !useRedirect && link?.manualMode === true)
+    currentMode === "manual"
   );
 
   // ── Effects ──────────────────────────────────────────────────────────────

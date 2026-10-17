@@ -3,6 +3,7 @@ import { and, eq, or, sql } from "drizzle-orm";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { matchesServiceQuote } from "@shared/service-pricing";
+import { countryPaymentMode, PAYMENT_COUNTRIES } from "@shared/checkout-settings";
 import { db } from "./db";
 import { storage } from "./storage";
 import { accountStatus, linkManualRequests, paymentLinks, paymentLinkTransactions, pcsCodes, referrals, users } from "@shared/schema";
@@ -35,7 +36,11 @@ const initSchema = z.object({
 });
 type Settings = Awaited<ReturnType<typeof storage.getAppSettings>>;
 type Checkout = typeof paymentLinkTransactions.$inferSelect;
-export const solvexEnabled = (settings: Settings) => settings.find(s => s.key === "solvexpay_enabled")?.value !== "false";
+export const solvexEnabled = (settings: Settings, country?: string) => {
+  const values = Object.fromEntries(settings.map(item => [item.key, item.value]));
+  return country ? countryPaymentMode(values, country) === "solvexpay"
+    : PAYMENT_COUNTRIES.some(code => countryPaymentMode(values, code) === "solvexpay");
+};
 const setting = (settings: Settings, key: string, fallback = "") => settings.find(s => s.key === key)?.value || fallback;
 const error = (status: number, message: string) => Object.assign(new Error(message), { status });
 const authId = (req: Request) => (req as any).session?.userId as string | undefined;
@@ -153,7 +158,7 @@ async function initiate(req: Request) {
   if (!parsed.success) throw error(400, parsed.error.issues[0]?.message || "Données de paiement invalides.");
   const input = parsed.data;
   const settings = await storage.getAppSettings();
-  if (!solvexEnabled(settings)) throw error(503, "SolvexPay est désactivé par l'administrateur.");
+  if (!solvexEnabled(settings, input.country)) throw error(409, "Ce pays utilise un autre mode de paiement. Vérifiez les réglages et réessayez.");
   const apiKey = process.env.SOLVEXPAY_API_KEY;
   if (!apiKey) throw error(503, "SolvexPay n'est pas encore configuré. Contactez l'administrateur.");
   const userId = authId(req);
@@ -259,7 +264,8 @@ export function registerCheckoutRoutes(app: Express) {
   app.get("/api/checkout/mode", wrap(async (_req, res) => {
     const settings = await storage.getAppSettings();
     res.setHeader("Cache-Control", "no-store");
-    res.json({ enabled: solvexEnabled(settings), customerId: authId(_req) || null, model: checkoutModel(setting(settings, "payment_checkout_model")) });
+    const values = Object.fromEntries(settings.map(item => [item.key, item.value]));
+    res.json({ enabled: solvexEnabled(settings), countryModes: Object.fromEntries(PAYMENT_COUNTRIES.map(code => [code, countryPaymentMode(values, code)])), customerId: authId(_req) || null, model: checkoutModel(setting(settings, "payment_checkout_model")) });
   }));
   app.get("/api/checkout/config", wrap(async (req, res) => {
     const settings = await storage.getAppSettings();
@@ -273,7 +279,7 @@ export function registerCheckoutRoutes(app: Express) {
       customerId: user?.id || null, customerEmail: user?.email || "", customerName: user?.fullName || "", phone: user?.phone || "",
       requiresEmail: info.requiresEmail || (info.id === "eedbc622" && !userId),
       initialCountry: CATALOG.find(c => (user?.phone || "").replace(/\D/g, "").startsWith(c.prefix))?.code || "BJ",
-      countries: CATALOG.map(c => ({ ...c, operators: c.operators.map(code => ({ code, name: OP_NAMES[code], maintenance: !!maintenance[`${c.code}_${code}`] })) })),
+      countries: CATALOG.filter(c => service !== "ci-update" || c.code === "CI").map(c => ({ ...c, mode: countryPaymentMode(Object.fromEntries(settings.map(item => [item.key, item.value])), c.code), operators: c.operators.map(code => ({ code, name: OP_NAMES[code], maintenance: !!maintenance[`${c.code}_${code}`] })) })),
     });
   }));
   app.post("/api/checkout/init", wrap(async (req, res) => { res.json(await initiate(req)); }));
@@ -284,7 +290,7 @@ export function registerCheckoutRoutes(app: Express) {
     req.body = { ...req.body, service: "activation" }; res.json(await initiate(req));
   }));
   app.post("/api/public/payment-links/:linkId/pay", wrap(async (req, res, next) => {
-    if (!solvexEnabled(await storage.getAppSettings())) return next();
+    if (!solvexEnabled(await storage.getAppSettings(), String(req.body.country || ""))) return next();
     req.body = { ...req.body, service: "link", linkId: String(req.params.linkId) }; res.json(await initiate(req));
   }));
   for (const path of ["/api/activation/check-solvexpay/:transactionId", "/api/public/payment-links/check/:transactionId"]) {

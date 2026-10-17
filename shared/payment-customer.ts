@@ -11,9 +11,9 @@ export function linkManualPaymentAllowed(options: {
   country: string;
   operator: string;
 }): boolean {
-  if (options.solvexEnabled) return false;
-  const mode = options.countryMode === "solvexpay" ? "manual" : options.countryMode;
-  return (options.globalManualEnabled && (options.linkManualMode || mode === "manual"))
+  const mode = options.countryMode;
+  if (mode === "solvexpay") return false;
+  return (options.globalManualEnabled && mode === "manual")
     || (options.country.toLowerCase() === "ci"
       && options.operator.toLowerCase() === "wave" && mode === "robotpay");
 }

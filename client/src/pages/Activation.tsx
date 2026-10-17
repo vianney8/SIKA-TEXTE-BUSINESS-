@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import OperatorLogo from "@/components/OperatorLogo";
+import { useCheckoutHandoff } from "@/components/CheckoutHandoff";
 import { usePaymentRevision } from "@/hooks/useLiveUpdates";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -153,6 +154,7 @@ export default function Activation() {
 }
 
 function LegacyActivation() {
+  const handoff = useCheckoutHandoff();
   const paymentRevision = usePaymentRevision();
   const { data: checkoutMode } = useCheckoutMode();
   const { toast } = useToast();
@@ -160,16 +162,16 @@ function LegacyActivation() {
   const { data: activationStatus, refetch: refetchStatus } = useQuery({ queryKey: ["/api/activation/status"] }) as any;
   const { data: paymentInfo }                               = useQuery({ queryKey: ["/api/activation/payment-info"], refetchInterval: 30000 }) as any;
 
-  const [step, setStep]         = useState<FormStep>("country");
+  const [step, setStep]         = useState<FormStep>(handoff ? handoff.mode === "manual" ? "manual" : "confirm" : "country");
   const [paymentOtp, setPaymentOtp] = useState("");
-  const [country, setCountry]   = useState("");
-  const [operator, setOperator] = useState("");
-  const [phone, setPhone]       = useState("");
+  const [country, setCountry]   = useState(handoff?.country || "");
+  const [operator, setOperator] = useState(handoff?.operator || "");
+  const [phone, setPhone]       = useState(handoff?.phone || "");
   const [initializing, setInitializing] = useState(true);
 
   const [depositInfo, setDepositInfo]               = useState<any>(null);
   const [depositLoading, setDepositLoading]         = useState(false);
-  const [payerName, setPayerName]                   = useState("");
+  const [payerName, setPayerName]                   = useState(handoff?.payerName || "");
   const [transactionId2, setTransactionId2]         = useState("");
   const [screenshotFile, setScreenshotFile]         = useState<File | null>(null);
   const [screenshotPreview, setScreenshotPreview]   = useState<string | null>(null);

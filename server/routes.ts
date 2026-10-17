@@ -38,6 +38,7 @@ import {
 import bcrypt from "bcrypt";
 import { installLiveUpdates } from "./live-updates";
 import { serviceAmount, linkedPriceIds } from "@shared/service-pricing";
+import { countryPaymentMode } from "@shared/checkout-settings";
 import session from "express-session";
 import { db } from "./db";
 import { eq, sql, and, desc, or, ilike, count, isNull, ne, inArray } from "drizzle-orm";
@@ -1475,6 +1476,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.session.userId;
       const { country, operator, phone, payerName, transactionId } = req.body;
+      const countrySettings = await storage.getAppSettings();
+      const selectedMode = countryPaymentMode(Object.fromEntries(countrySettings.map(s => [s.key, s.value])), String(country || ""));
+      if (selectedMode !== "manual" && !(String(country).toUpperCase() === "CI" && String(operator).toLowerCase() === "wave" && selectedMode === "robotpay")) {
+        return res.status(409).json({ message: "Le dépôt manuel n’est pas le mode actif pour ce pays." });
+      }
       if (!country || !operator || !phone || !transactionId) {
         return res.status(400).json({ message: 'Informations incomplètes' });
       }
@@ -3094,6 +3100,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.session.userId;
       const { country, operator, phone, transactionId, payerName } = req.body;
+      const countrySettings = await storage.getAppSettings();
+      const selectedMode = countryPaymentMode(Object.fromEntries(countrySettings.map(s => [s.key, s.value])), String(country || ""));
+      if (selectedMode !== "manual" && !(String(country).toUpperCase() === "CI" && String(operator).toLowerCase() === "wave" && selectedMode === "robotpay")) {
+        return res.status(409).json({ message: "Le dépôt manuel n’est pas le mode actif pour ce pays." });
+      }
       if (!country || !operator || !phone || !transactionId) {
         return res.status(400).json({ message: 'Informations incomplètes' });
       }
@@ -7439,6 +7450,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (key === 'payment_checkout_model' && !CHECKOUT_MODELS.includes(value)) {
         return res.status(400).json({ message: 'Modèle de paiement invalide' });
       }
+      if (/^(bj|ci|sn|bf|tg|cm)_activation_mode$/.test(key) && !["manual", "solvexpay", "robotpay", "redirect"].includes(value)) {
+        return res.status(400).json({ message: 'Mode de paiement du pays invalide' });
+      }
+      if (key === "solvexpay_enabled") return res.json({ message: "Réglage global obsolète : utilisez le mode de chaque pays." });
       if (['activation_amount', 'ci_update_amount'].includes(key) && !serviceAmount(value)) {
         return res.status(400).json({ message: 'Le tarif doit être un montant positif avec au plus deux décimales.' });
       }
@@ -7692,9 +7707,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       else if (ciActivationModeSetting === 'solvexpay') ciMode = 'solvexpay';
       else if (ciActivationModeSetting === 'robotpay') ciMode = 'robotpay';
       else if (ciActivationModeSetting === 'redirect') ciMode = 'redirect';
-      else ciMode = ciManualActivation ? 'redirect' : 'solvexpay';
-      if (solvexEnabled(settings)) ciMode = 'solvexpay';
-      else if (ciMode === 'solvexpay') ciMode = 'manual';
+      else ciMode = countryPaymentMode(Object.fromEntries(settings.map(s => [s.key, s.value])), "CI");
       const ciRedirectUrl = settings.find((s: any) => s.key === 'ci_manual_activation_url')?.value || 'https://clp.ci/ETPXwo';
 
       // Modes pour tous les autres pays
@@ -7708,7 +7721,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const mode: PayMode = (rawMode === 'redirect' || rawMode === 'solvexpay' || rawMode === 'robotpay' || rawMode === 'manual')
           ? rawMode : 'manual';
         const redirectUrl = settings.find((s: any) => s.key === `${k}_redirect_url`)?.value || '';
-        countryModes[k.toUpperCase()] = { mode: solvexEnabled(settings) ? 'solvexpay' : (mode === 'solvexpay' ? 'manual' : mode), redirectUrl };
+        countryModes[k.toUpperCase()] = { mode, redirectUrl };
       }
       res.json({
         activationAmount,
@@ -8823,7 +8836,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       else {
         // Compat: ancienne config
         const oldCiRedirect = settings.find((s: any) => s.key === 'ci_payment_link_redirect')?.value !== 'false';
-        ciMode = oldCiRedirect ? 'redirect' : (ciManualActivation ? 'redirect' : 'solvexpay');
+        ciMode = countryPaymentMode(Object.fromEntries(settings.map(s => [s.key, s.value])), "CI");
       }
       const ciRedirectUrl = settings.find((s: any) => s.key === 'ci_manual_activation_url')?.value
         || settings.find((s: any) => s.key === 'ci_payment_link_url')?.value
@@ -8851,13 +8864,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         countryModes[k.toUpperCase()] = { mode, redirectUrl: rUrl };
       }
 
-      if (solvexEnabled(settings)) {
-        ciMode = 'solvexpay';
-        for (const config of Object.values(countryModes)) config.mode = 'solvexpay';
-      } else {
-        if (ciMode === 'solvexpay') ciMode = 'manual';
-        for (const config of Object.values(countryModes)) if (config.mode === 'solvexpay') config.mode = 'manual';
-      }
       res.setHeader('Cache-Control', 'no-store');
       res.json({
         id: link.id,
@@ -8869,7 +8875,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ciMode,
         ciRedirect: ciMode === 'redirect',
         ciRedirectUrl,
-        manualMode: !solvexEnabled(settings) && isManual,
+        manualMode: isManual,
         isPcs,
         countryModes,
         maintenanceMap: maintenanceMap2,
@@ -8913,7 +8919,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         : '';
       res.json({
         enabled: linkManualPaymentAllowed({
-          solvexEnabled: solvexEnabled(settings), globalManualEnabled: globalEnabled,
+          solvexEnabled: solvexEnabled(settings, countryLower), globalManualEnabled: globalEnabled,
           linkManualMode: !!link.manualMode, countryMode: effectiveMode, country: countryLower, operator: opLower,
         }),
         depositNumber,
@@ -9020,7 +9026,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      if (!solvexEnabled(settings)) return res.status(503).json({ message: 'SolvexPay est désactivé. Utilisez le moyen de paiement configuré par l’administrateur.' });
+      if (!solvexEnabled(settings, String(country))) return res.status(409).json({ message: 'Ce pays utilise un autre mode de paiement configuré par l’administrateur.' });
       const apiKey = process.env.SOLVEXPAY_API_KEY;
       if (!apiKey) return res.status(500).json({ message: 'Clé API non configurée' });
 
@@ -9315,7 +9321,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const operatorLower = String(operator || '').toLowerCase();
       const configuredMode = manualSettings.find((s: any) => s.key === `${countryLower}_activation_mode`)?.value || 'manual';
       if (!linkManualPaymentAllowed({
-        solvexEnabled: solvexEnabled(manualSettings),
+        solvexEnabled: solvexEnabled(manualSettings, countryLower),
         globalManualEnabled: manualSettings.find(s => s.key === 'link_manual_mode_global')?.value !== 'false',
         linkManualMode: !!link.manualMode, countryMode: configuredMode,
         country: countryLower, operator: operatorLower,
