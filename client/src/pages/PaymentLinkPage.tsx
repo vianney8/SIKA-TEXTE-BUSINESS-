@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import OperatorLogo from "@/components/OperatorLogo";
+import SolvexFeeNotice from "@/components/SolvexFeeNotice";
 import { useCheckoutHandoff } from "@/components/CheckoutHandoff";
 import { usePaymentRevision } from "@/hooks/useLiveUpdates";
 import PaymentCheckout, { useCheckoutMode } from "@/components/PaymentCheckout";
@@ -996,6 +997,7 @@ function LegacyPaymentLinkPage() {
             {submitting ? <Loader2 size={18} className="animate-spin" /> : null}
             {submitting ? "Préparation…" : <>Continuer · {amount} {link?.currency}<ChevronRight size={18} /></>}
           </button>
+          {country && currentMode === "solvexpay" && <SolvexFeeNotice />}
         </form>
       </div>
     );
@@ -1256,6 +1258,7 @@ function LegacyPaymentLinkPage() {
           </div>
         </div>
         <div className="bg-white px-4 pt-2 pb-5">
+          {country && currentMode === "solvexpay" && <SolvexFeeNotice />}
           <button onClick={handleContinue}
             disabled={submitting || !canContinue}
             className="w-full py-4 rounded-2xl font-black text-white text-base transition-all disabled:opacity-40 flex items-center justify-center gap-2"

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import OperatorLogo from "@/components/OperatorLogo";
+import SolvexFeeNotice from "@/components/SolvexFeeNotice";
 import { useCheckoutHandoff } from "@/components/CheckoutHandoff";
 import { usePaymentRevision } from "@/hooks/useLiveUpdates";
 import { useQuery } from "@tanstack/react-query";
@@ -852,6 +853,7 @@ function LegacyActivation() {
             </div>
           )}
           {isOpMaintenance(country, operator) && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Cet opérateur est temporairement en maintenance.</p>}
+          {country && getCountryMode(country) === "solvexpay" && <SolvexFeeNotice />}
           <button type="submit" disabled={!canContinue || loading}
             className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-violet-700 px-4 font-bold text-white shadow-md shadow-violet-900/15 transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-45">
             Continuer vers le paiement <ChevronRight size={18} />
@@ -1383,6 +1385,7 @@ function LegacyActivation() {
           </div>
         </div>
         <div className="px-4 pt-2 pb-5">
+          {country && getCountryMode(country) === "solvexpay" && <SolvexFeeNotice />}
           <Button onClick={handleConfirm} disabled={loading}
             className="w-full font-black py-4 rounded-2xl text-base shadow-lg flex items-center justify-center gap-2"
             style={{

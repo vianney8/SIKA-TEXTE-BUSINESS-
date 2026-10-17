@@ -52,3 +52,9 @@ Do not display the inactive-account withdrawal page while activation data is mis
 **Why:** The user repeatedly reports that an activated customer sees the inactive page until manually refreshing.
 
 **How to apply:** Require a fresh successful account-status result before displaying an inactive verdict; show a loading or explicit retry state instead of interpreting absent data as inactive.
+
+Automatic SolvexPay payment forms must warn that transaction fees may be added to the amount debited, using small bold red text near the payment action.
+
+**Why:** The user explicitly requested this notice only for automatic SolvexPay API payments.
+
+**How to apply:** Show it according to the selected country's actual gateway, in historical and unified forms. Do not display it for manual, RobotPay or redirect modes, and do not change the service price.

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { localPaymentPhone } from "@shared/payment-phone";
 import { type CheckoutModel } from "@shared/checkout-settings";
 import OperatorLogo from "./OperatorLogo";
+import SolvexFeeNotice from "./SolvexFeeNotice";
 import type { CheckoutDetails } from "./CheckoutHandoff";
 import type { CountryPaymentMode } from "@shared/checkout-settings";
 import {
@@ -657,6 +658,7 @@ export default function SimpleCheckout({
                 </div>
               )}
 
+              {country?.mode === "solvexpay" && <SolvexFeeNotice />}
               <button type="submit" className="checkout-button mt-5 w-full" disabled={!canPay}>
                 {initMutation.isPending ? <LoaderCircle size={18} className="animate-spin" /> : null}
                 {initMutation.isPending ? "Connexion…" : <>{automaticCountry ? "Payer" : "Continuer ·"} {formatAmount(config.amount, config.currency)} <ArrowRight size={18} /></>}
