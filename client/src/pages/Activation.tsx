@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import OperatorLogo from "@/components/OperatorLogo";
 import SolvexFeeNotice from "@/components/SolvexFeeNotice";
 import { useCheckoutHandoff } from "@/components/CheckoutHandoff";
-import { usePaymentRevision } from "@/hooks/useLiveUpdates";
+import { useManualDepositInfo } from "@/hooks/useManualDepositInfo";
+import PaymentPhotoInput from "@/components/PaymentPhotoInput";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
@@ -156,7 +157,6 @@ export default function Activation() {
 
 function LegacyActivation() {
   const handoff = useCheckoutHandoff();
-  const paymentRevision = usePaymentRevision();
   const { data: checkoutMode } = useCheckoutMode();
   const { toast } = useToast();
 
@@ -170,8 +170,6 @@ function LegacyActivation() {
   const [phone, setPhone]       = useState(handoff?.phone || "");
   const [initializing, setInitializing] = useState(true);
 
-  const [depositInfo, setDepositInfo]               = useState<any>(null);
-  const [depositLoading, setDepositLoading]         = useState(false);
   const [payerName, setPayerName]                   = useState(handoff?.payerName || "");
   const [transactionId2, setTransactionId2]         = useState("");
   const [screenshotFile, setScreenshotFile]         = useState<File | null>(null);
@@ -224,12 +222,10 @@ function LegacyActivation() {
   const isCiWaveManual        = country === "CI" && operator === "wave" && getCountryMode(country) === "robotpay";
 
   // Effects
-  useEffect(() => {
-    if (step !== "manual" || !country || !operator) return;
-    setDepositLoading(true);
-    fetch(`/api/activation/manual-deposit-info?country=${country}&operator=${operator}`, { credentials: "include" })
-      .then(r => r.json()).then(d => setDepositInfo(d)).catch(() => setDepositInfo(null)).finally(() => setDepositLoading(false));
-  }, [step, country, operator, paymentRevision]);
+  const { depositInfo, depositLoading } = useManualDepositInfo(
+    `/api/activation/manual-deposit-info?country=${country}&operator=${operator}`,
+    step === "manual" && !!country && !!operator,
+  );
 
   useEffect(() => {
     if (!screenshotFile) { setScreenshotPreview(null); return; }
@@ -364,7 +360,7 @@ function LegacyActivation() {
     setTransactionId(null); setTxStatus(null); setCheckCount(0);
     setStep("country"); setCountry(""); setOperator(""); setPhone("");
     setPayerName(""); setTransactionId2(""); setScreenshotFile(null);
-    setManualSubmitted(false); setDepositInfo(null); setPendingCreatedAt(null); setReviewTimeLeft(null); setRejectionNote(null);
+    setManualSubmitted(false); setPendingCreatedAt(null); setReviewTimeLeft(null); setRejectionNote(null);
     if (intervalRef.current) clearInterval(intervalRef.current);
   };
 
@@ -1201,8 +1197,8 @@ function LegacyActivation() {
                 <p id="activation-manual-screenshot-label" className="text-slate-500 text-[11px] font-black uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <ImageIcon size={11} /> Capture d'écran <span className="text-red-400">*</span>
                 </p>
-                <input ref={fileInputRef} id="activation-manual-screenshot" aria-labelledby="activation-manual-screenshot-label" type="file" accept="image/*,image/heic,image/heif,.heic,.heif,.pdf,.webp" className="hidden"
-                  onChange={e => { const f = e.target.files?.[0]; if (f) setScreenshotFile(f); }} />
+                <PaymentPhotoInput ref={fileInputRef} id="activation-manual-screenshot" aria-labelledby="activation-manual-screenshot-label" className="hidden"
+                  onPhoto={setScreenshotFile} />
                 {screenshotFile ? (
                   <div className="relative rounded-2xl overflow-hidden border-2 border-emerald-100 bg-emerald-50">
                     {screenshotFile.type.startsWith("image/") && screenshotPreview ? (
@@ -1227,8 +1223,8 @@ function LegacyActivation() {
                     <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: `${EM1}12` }}>
                       <Upload size={20} style={{ color: EM1 }} />
                     </div>
-                    <p className="text-slate-600 text-sm font-semibold">Ajouter une capture d'écran</p>
-                    <p className="text-slate-400 text-xs">JPG, PNG, HEIC, PDF, WebP — Max 20 Mo</p>
+                    <p className="text-slate-600 text-sm font-semibold">Choisir une photo</p>
+                    <p className="text-slate-400 text-xs">Photos uniquement — JPG, PNG, HEIC, WebP — Max 20 Mo</p>
                   </button>
                 )}
               </div>

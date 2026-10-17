@@ -3,6 +3,12 @@ name: Payment checkout policy
 description: User-defined scope for SolvexPay and the simplified versus historical payment presentations.
 ---
 
+Payment pages must use the pale lavender surrounding the checkout card as a continuous edge-to-edge page background, rather than a colored rectangle inside another white page. Keep the checkout card and input styling distinct.
+
+**Why:** The user requested that the existing outer checkout color cover the entire background on every payment page.
+
+**How to apply:** Apply the same canvas to embedded DNS checkout, payment steps and status screens without changing payment routing or administrator model choices.
+
 The administrator selects the gateway independently for each country using its four choices: SolvexPay, RobotPay, manual deposit, or redirection. A country's choice applies to all its services: account activation, PCS purchases and activation, DNS, updates, and other payment links.
 
 Keep the historical checkout available. The administrator must be able to choose between the simplified common checkout and the old presentation without deleting either.

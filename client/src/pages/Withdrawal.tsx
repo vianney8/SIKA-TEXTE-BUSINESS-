@@ -930,7 +930,7 @@ export default function Withdrawal() {
       {/* ── Page DNS Privé AdGuard (plein écran animé) ─────────────── */}
       {showDnsPage && (
         <div
-          className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-gradient-to-br from-slate-50 via-white to-teal-50 text-slate-900"
+          className="payment-journey fixed inset-0 z-50 flex flex-col overflow-y-auto text-slate-900"
         >
           {/* Orbes décoratifs */}
           <div className="fixed top-0 left-1/2 -translate-x-1/2 w-96 h-96 rounded-full pointer-events-none"

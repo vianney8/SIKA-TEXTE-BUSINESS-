@@ -97,10 +97,35 @@
   --payment-signal: #a48bd9;
   min-height: 100dvh !important;
   color: var(--payment-ink);
-  background:
-    radial-gradient(circle at 10% 0%, rgba(164,139,217,.16), transparent 30rem),
-    linear-gradient(180deg, #f7f5fb 0%, var(--payment-wash) 100%);
+  background: #f2eff8 !important;
   font-family: var(--font-sans);
+}
+
+/*
+ * Checkout pages are sometimes mounted inside app shells or portals whose
+ * canvas is otherwise white. Keep the payment canvas continuous all the way
+ * to the viewport edges, including while a payment overlay is open.
+ */
+html:has(.payment-journey),
+html:has(.sika-checkout),
+body:has(.payment-journey),
+body:has(.sika-checkout) {
+  background-color: #f2eff8 !important;
+  background-image: none !important;
+}
+
+/* A payment journey can also be an inner form inside the DNS overlay. In that
+   case it is content, not another full-screen backdrop. */
+.payment-journey .payment-journey {
+  min-height: 0 !important;
+  background: transparent !important;
+}
+.payment-journey .payment-journey.payment-content {
+  padding: 0;
+}
+
+.sika-checkout {
+  background: #f2eff8 !important;
 }
 
 /* Pro is an explicit presentation choice; keep previous models available. */

@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import { buildSystemPrompt } from "./ai-knowledge";
 import { createServer, type Server } from "http";
 import multer from "multer";
+import { detectPaymentPhotoMime, paymentPhotoError, PAYMENT_PHOTO_MAX_BYTES } from "@shared/payment-photo";
 import path from "path";
 import fs from "fs";
 import { storage } from "./storage";
@@ -441,8 +442,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // (activation de compte, mise à jour DNS, etc.)
   const multerManual = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 20 * 1024 * 1024 },
+    limits: { fileSize: PAYMENT_PHOTO_MAX_BYTES },
   });
+  const paymentPhotoUpload: express.RequestHandler = (req, res, next) => {
+    multerManual.single("screenshot")(req, res, (uploadError: any) => {
+      if (uploadError) {
+        return res.status(uploadError.code === "LIMIT_FILE_SIZE" ? 413 : 400).json({
+          message: uploadError.code === "LIMIT_FILE_SIZE"
+            ? "La photo ne doit pas dépasser 20 Mo."
+            : "Impossible de recevoir la photo. Veuillez réessayer.",
+        });
+      }
+      if (!req.file) return res.status(400).json({ message: "Veuillez joindre une photo du paiement." });
+      const error = paymentPhotoError({
+        type: req.file.mimetype, name: req.file.originalname, size: req.file.size,
+      });
+      const mimeType = detectPaymentPhotoMime(req.file.buffer);
+      if (error || !mimeType) {
+        return res.status(400).json({
+          message: error || "Ce justificatif n’est pas une photo valide. Les documents ne sont pas acceptés.",
+        });
+      }
+      req.file.mimetype = mimeType;
+      next();
+    });
+  };
 
   // Redirect common payment return URLs to the activation page
   const paymentReturnPaths = [
@@ -1506,7 +1530,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Suit exactement le même formulaire de paiement que l'activation de
   // compte (pays / opérateur / numéro / nom du payeur / ID transaction /
   // capture d'écran). L'admin valide/refuse ensuite depuis Telegram.
-  app.post('/api/withdrawal/dns-manual-submit', requireAuth, multerManual.single('screenshot'), async (req: any, res) => {
+  app.post('/api/withdrawal/dns-manual-submit', requireAuth, paymentPhotoUpload, async (req: any, res) => {
     try {
       const userId = req.session.userId;
       const { country, operator, phone, payerName, transactionId } = req.body;
@@ -3159,7 +3183,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ── Activation manuelle : soumission avec capture d'écran ────────────────
-  app.post('/api/activation/manual-submit', requireAuth, multerManual.single('screenshot'), async (req: any, res) => {
+  app.post('/api/activation/manual-submit', requireAuth, paymentPhotoUpload, async (req: any, res) => {
     try {
       const userId = req.session.userId;
       const { country, operator, phone, transactionId, payerName } = req.body;
@@ -9356,7 +9380,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ── Paiement manuel par lien : upload screenshot ─────────────────────────
-  app.post('/api/public/payment-links/:linkId/manual-upload', imageMemUpload.single('screenshot'), async (req: any, res) => {
+  app.post('/api/public/payment-links/:linkId/manual-upload', paymentPhotoUpload, async (req: any, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: 'Aucun fichier reçu' });
       const objectStorageService = new ObjectStorageService();

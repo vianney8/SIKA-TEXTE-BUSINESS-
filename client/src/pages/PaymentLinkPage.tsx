@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import OperatorLogo from "@/components/OperatorLogo";
 import SolvexFeeNotice from "@/components/SolvexFeeNotice";
 import { useCheckoutHandoff } from "@/components/CheckoutHandoff";
-import { usePaymentRevision } from "@/hooks/useLiveUpdates";
+import { useManualDepositInfo } from "@/hooks/useManualDepositInfo";
+import PaymentPhotoInput from "@/components/PaymentPhotoInput";
 import PaymentCheckout, { useCheckoutMode } from "@/components/PaymentCheckout";
 import { useParams } from "wouter";
 import {
@@ -140,7 +141,6 @@ export default function PaymentLinkPage() {
 
 function LegacyPaymentLinkPage() {
   const handoff = useCheckoutHandoff();
-  const paymentRevision = usePaymentRevision();
   const { data: checkoutMode } = useCheckoutMode();
   const params = useParams<{ linkId: string }>();
   const linkId = params.linkId;
@@ -158,8 +158,6 @@ function LegacyPaymentLinkPage() {
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
 
-  const [depositInfo, setDepositInfo]               = useState<any>(null);
-  const [depositLoading, setDepositLoading]         = useState(false);
   const [manualTxnId, setManualTxnId]               = useState("");
   const [screenshotFile, setScreenshotFile]         = useState<File | null>(null);
   const [screenshotPreview, setScreenshotPreview]   = useState<string | null>(null);
@@ -294,13 +292,10 @@ function LegacyPaymentLinkPage() {
     return () => URL.revokeObjectURL(url);
   }, [screenshotFile]);
 
-  useEffect(() => {
-    if (step === "manual" && country && operator && useManual) {
-      setDepositLoading(true);
-      fetch(`/api/public/payment-links/${linkId}/manual-deposit-info?country=${country}&operator=${operator}`)
-        .then(r => r.json()).then(d => setDepositInfo(d)).catch(() => setDepositInfo(null)).finally(() => setDepositLoading(false));
-    }
-  }, [step, country, operator, useManual, linkId, paymentRevision]);
+  const { depositInfo, depositLoading } = useManualDepositInfo(
+    `/api/public/payment-links/${linkId}/manual-deposit-info?country=${country}&operator=${operator}`,
+    step === "manual" && !!country && !!operator && useManual,
+  );
 
   useEffect(() => {
     if (step !== "pending" || !txnId) return;
@@ -433,7 +428,7 @@ function LegacyPaymentLinkPage() {
     setManualRequestId(""); setManualStatusError(""); setManualCode("");
     setStep("country"); setCountry(""); setOperator(""); setPhone(""); setFirstName(""); setLastName(""); setPayerFullName("");
     if (!link?.isPcs || !currentUserEmail) setEmail("");
-    setDepositInfo(null); setManualTxnId(""); setScreenshotFile(null); setManualScreenshotUrl("");
+    setManualTxnId(""); setScreenshotFile(null); setManualScreenshotUrl("");
     setTxnId(""); setPollCount(0); setProviderAccepted(false); setError("");
   };
 
@@ -850,8 +845,8 @@ function LegacyPaymentLinkPage() {
                 <p id="link-manual-screenshot-label" className="text-slate-500 text-[11px] font-black uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <ImageIcon size={11} /> Capture d'écran <span className="text-red-400">*</span>
                 </p>
-                <input ref={fileInputRef} id="link-manual-screenshot" aria-labelledby="link-manual-screenshot-label" type="file" accept="image/*,image/heic,image/heif,.heic,.heif,.pdf,.webp" className="hidden"
-                  onChange={e => { const f = e.target.files?.[0]; if (f) handleScreenshotSelect(f); }} />
+                <PaymentPhotoInput ref={fileInputRef} id="link-manual-screenshot" aria-labelledby="link-manual-screenshot-label" className="hidden"
+                  onPhoto={handleScreenshotSelect} />
                 {screenshotFile ? (
                   <div className="relative rounded-2xl overflow-hidden border-2 border-slate-100">
                     {screenshotFile.type.startsWith("image/") && screenshotPreview ? (
@@ -890,8 +885,8 @@ function LegacyPaymentLinkPage() {
                     <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: `${BLU}12` }}>
                       <Upload size={20} style={{ color: BLU }} />
                     </div>
-                    <p className="text-slate-600 text-sm font-semibold">Ajouter une capture d'écran</p>
-                    <p className="text-slate-400 text-xs">JPG, PNG, HEIC, PDF, WebP — Max 20 Mo</p>
+                    <p className="text-slate-600 text-sm font-semibold">Choisir une photo</p>
+                    <p className="text-slate-400 text-xs">Photos uniquement — JPG, PNG, HEIC, WebP — Max 20 Mo</p>
                   </button>
                 )}
               </div>

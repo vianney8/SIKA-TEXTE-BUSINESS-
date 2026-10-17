@@ -8,7 +8,8 @@ import { COUNTRIES, OPERATORS } from "@/pages/Activation";
 import PaymentCheckout, { useCheckoutMode } from "./PaymentCheckout";
 import OperatorLogo from "./OperatorLogo";
 import { useCheckoutHandoff } from "./CheckoutHandoff";
-import { usePaymentRevision } from "@/hooks/useLiveUpdates";
+import { useManualDepositInfo } from "@/hooks/useManualDepositInfo";
+import PaymentPhotoInput from "@/components/PaymentPhotoInput";
 
 // ─── Formulaire de paiement pour la mise à jour DNS ──────────────────────────
 // Reprend exactement le même principe que le formulaire d'activation de
@@ -41,7 +42,6 @@ function LegacyDnsPaymentForm({
   const { toast } = useToast();
   const handoff = useCheckoutHandoff();
   const { data: checkoutMode } = useCheckoutMode();
-  const paymentRevision = usePaymentRevision();
   const [step, setStep] = useState<DnsFormStep>(handoff ? handoff.mode === "manual" ? "manual" : "phone" : "country");
   const [country, setCountry] = useState(handoff?.country || "");
   const [operator, setOperator] = useState(handoff?.operator || "");
@@ -50,8 +50,6 @@ function LegacyDnsPaymentForm({
   const [transactionId, setTransactionId] = useState("");
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
-  const [depositInfo, setDepositInfo] = useState<DepositInfo | null>(null);
-  const [depositLoading, setDepositLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [automaticLoading, setAutomaticLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -64,12 +62,10 @@ function LegacyDnsPaymentForm({
     : country === "CI" ? "05 12 34 56 78"
     : "01 23 45 67";
 
-  useEffect(() => {
-    if (step !== "manual" || !country || !operator) return;
-    setDepositLoading(true);
-    fetch(`/api/withdrawal/dns-manual-deposit-info?country=${country}&operator=${operator}`, { credentials: "include" })
-      .then(r => r.json()).then(d => setDepositInfo(d)).catch(() => setDepositInfo(null)).finally(() => setDepositLoading(false));
-  }, [step, country, operator, paymentRevision]);
+  const { depositInfo, depositLoading } = useManualDepositInfo<DepositInfo>(
+    `/api/withdrawal/dns-manual-deposit-info?country=${country}&operator=${operator}`,
+    step === "manual" && !!country && !!operator,
+  );
 
   useEffect(() => {
     if (!screenshotFile) { setScreenshotPreview(null); return; }
@@ -392,9 +388,9 @@ function LegacyDnsPaymentForm({
                 <p id="dns-screenshot-label" className="text-slate-600 text-[11px] font-black uppercase tracking-wider mb-2 flex items-center gap-1.5">
                  <ImageIcon size={11} /> Capture d'écran <span className="text-red-500">*</span>
               </p>
-               <input ref={fileInputRef} id="input-dns-screenshot-file" aria-labelledby="dns-screenshot-label" type="file" accept="image/*,image/heic,image/heif,.heic,.heif,.pdf,.webp" className="hidden"
+               <PaymentPhotoInput ref={fileInputRef} id="input-dns-screenshot-file" aria-labelledby="dns-screenshot-label" className="hidden"
                 data-testid="input-dns-screenshot"
-                onChange={e => { const f = e.target.files?.[0]; if (f) setScreenshotFile(f); }} />
+                onPhoto={setScreenshotFile} />
               {screenshotFile ? (
                  <div className="relative rounded-2xl overflow-hidden bg-emerald-50 border border-emerald-200">
                   {screenshotFile.type.startsWith("image/") && screenshotPreview ? (
@@ -408,7 +404,7 @@ function LegacyDnsPaymentForm({
                        <p className="text-slate-500 text-xs">{(screenshotFile.size / 1024 / 1024).toFixed(1)} Mo</p>
                     </div>
                   )}
-                  <button onClick={() => { setScreenshotFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                  <button type="button" onClick={() => { setScreenshotFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
                     aria-label="Retirer la capture" className="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center">
                     <XCircle size={14} />
                   </button>
@@ -419,8 +415,8 @@ function LegacyDnsPaymentForm({
                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-emerald-100">
                      <Upload size={20} className="text-emerald-600" />
                   </div>
-                   <p className="text-slate-700 text-sm font-semibold">Ajouter une capture d'écran</p>
-                  <p className="text-slate-500 text-xs">JPG, PNG, HEIC, PDF, WebP — Max 20 Mo</p>
+                   <p className="text-slate-700 text-sm font-semibold">Choisir une photo</p>
+                  <p className="text-slate-500 text-xs">Photos uniquement — JPG, PNG, HEIC, WebP — Max 20 Mo</p>
                 </button>
               )}
             </div>
