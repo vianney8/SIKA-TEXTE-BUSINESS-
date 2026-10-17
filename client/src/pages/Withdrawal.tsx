@@ -998,7 +998,7 @@ export default function Withdrawal() {
             )}
 
             {/* ── État : FAILED — Mise à jour échouée ── */}
-            {dnsUpdateStatus?.status === 'failed' && (
+            {dnsUpdateStatus?.status === 'failed' && !showDnsForm && (
               <>
                 <div className="rounded-3xl p-6 relative overflow-hidden text-center bg-red-50 border border-red-200 shadow-sm">
                   <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full pointer-events-none"

@@ -28,3 +28,9 @@ The user names the newly redesigned three-stage experience **Modèle pro**. It m
 **Why:** The user explicitly asked for a distinct pro option and the ability for the administrator to switch to it.
 
 **How to apply:** Keep gateway enablement separate from model selection, preserve existing saved choices, and apply the pro experience to both manual and automatic payments when selected.
+
+Legacy presentations can explicitly delegate to the common SolvexPay form. That form must check gateway availability, not reject the administrator's presentation choice.
+
+**Why:** A second presentation check blocked DNS and CI automatic payments after the historical flow had intentionally opened the common gateway.
+
+**How to apply:** Select the presentation at the outer checkout boundary only; allow an enabled gateway in any presentation and preserve pending-payment recovery after configuration changes.

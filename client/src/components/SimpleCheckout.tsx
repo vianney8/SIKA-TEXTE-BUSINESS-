@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { localPaymentPhone } from "@shared/payment-phone";
-import { type CheckoutModel, usesUnifiedCheckout } from "@shared/checkout-settings";
+import { type CheckoutModel } from "@shared/checkout-settings";
 import {
   AlertCircle,
   ArrowRight,
@@ -399,14 +399,16 @@ export default function SimpleCheckout({
     );
   }
 
-  if ((!config.enabled || !usesUnifiedCheckout(config.model)) && !(transactionId && paymentStatus)) {
+  // The caller selects the presentation. Legacy DNS/CI forms also delegate to
+  // this gateway, so a presentation choice must never disable an enabled API.
+  if (!config.enabled && !(transactionId && paymentStatus)) {
     return (
       <main className="sika-checkout min-h-[100dvh] flex items-center justify-center p-4">
         <section className="checkout-card w-full max-w-[440px] p-7 text-center">
           <div className="checkout-status-icon checkout-error-icon mx-auto mb-4"><AlertCircle size={24} /></div>
-          <h1 className="checkout-heading text-xl">{config.enabled ? "Paiement à effectuer autrement" : "Paiements indisponibles"}</h1>
+          <h1 className="checkout-heading text-xl">Paiements indisponibles</h1>
           <p className="checkout-muted mt-2 text-sm">
-            {config.enabled ? "Ce service utilise un parcours de paiement différent." : "Le paiement de ce service est momentanément désactivé. Veuillez réessayer plus tard."}
+            Le paiement de ce service est momentanément désactivé. Veuillez réessayer plus tard.
           </p>
           <button type="button" className="checkout-text-button mt-5" onClick={cancel}>Retour</button>
         </section>
