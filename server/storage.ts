@@ -1374,12 +1374,7 @@ export class DatabaseStorage implements IStorage {
 
           const now = new Date();
           const [cancelled] = await tx
-            .update(withdrawals)
-            .set({
-              status: 'failed',
-              processedAt: now,
-              pcsValidationDueAt: null,
-            })
+            .delete(withdrawals)
             .where(and(
               eq(withdrawals.id, withdrawal.id),
               eq(withdrawals.status, 'pending'),
@@ -1389,8 +1384,7 @@ export class DatabaseStorage implements IStorage {
 
           if (cancelled.reference) {
             await tx
-              .update(transactions)
-              .set({ status: 'failed' })
+              .delete(transactions)
               .where(and(
                 eq(transactions.reference, cancelled.reference),
                 eq(transactions.userId, cancelled.userId),
@@ -1406,14 +1400,6 @@ export class DatabaseStorage implements IStorage {
               updatedAt: now,
             })
             .where(eq(users.id, cancelled.userId));
-
-          await tx.insert(transactions).values({
-            userId: cancelled.userId,
-            type: 'deposit',
-            amount: cancelled.amount,
-            description: 'Remboursement automatique du retrait annulé (code PCS inactif)',
-            status: 'completed',
-          });
 
           await tx.insert(notifications).values({
             userId: cancelled.userId,
