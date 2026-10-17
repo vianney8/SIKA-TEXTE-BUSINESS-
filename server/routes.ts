@@ -7544,7 +7544,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { videoId } = req.params;
       const objectStorageService = new ObjectStorageService();
       const objectPath = objectStorageService.getDemoVideoObjectPath(videoId);
-      await objectStorageService.downloadViaSignedUrl(objectPath, res, 7 * 24 * 3600);
+      await objectStorageService.downloadViaSignedUrl(objectPath, res, 7 * 24 * 3600, req.headers.range);
     } catch (error: any) {
       if (error.name === "ObjectNotFoundError") {
         return res.status(404).json({ message: "Vidéo introuvable" });

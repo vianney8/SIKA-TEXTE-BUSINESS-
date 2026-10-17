@@ -104,21 +104,32 @@ export class ObjectStorageService {
   }
 
   // Télécharge un fichier via URL signée GET (contourne la validation du nom de bucket GCS)
-  async downloadViaSignedUrl(objectPath: string, res: Response, cacheTtlSec: number = 3600) {
+  async downloadViaSignedUrl(objectPath: string, res: Response, cacheTtlSec: number = 3600, rangeHeader?: string) {
     const { bucketName, objectName } = parseObjectPath(objectPath);
     const getUrl = await signObjectURL({ bucketName, objectName, method: "GET", ttlSec: 300 });
-    const upstream = await fetch(getUrl);
+    const upstream = await fetch(getUrl, rangeHeader ? { headers: { Range: rangeHeader } } : undefined);
+    if (upstream.status === 416) {
+      const contentRange = upstream.headers.get("content-range");
+      if (contentRange) res.setHeader("Content-Range", contentRange);
+      res.setHeader("Accept-Ranges", "bytes");
+      return res.status(416).end();
+    }
     if (!upstream.ok) {
       if (upstream.status === 404) throw new ObjectNotFoundError();
       throw new Error(`Storage fetch failed: ${upstream.status}`);
     }
     const contentType = upstream.headers.get("content-type") || "application/octet-stream";
     const contentLength = upstream.headers.get("content-length");
+    const contentRange = upstream.headers.get("content-range");
     res.set({
       "Content-Type": contentType,
       "Cache-Control": `public, max-age=${cacheTtlSec}`,
+      "Accept-Ranges": "bytes",
     });
     if (contentLength) res.set("Content-Length", contentLength);
+    if (contentRange) res.set("Content-Range", contentRange);
+    res.status(upstream.status);
+    if (!upstream.body) return res.end();
     const { Readable } = await import("stream");
     const nodeStream = Readable.fromWeb(upstream.body as any);
     nodeStream.on("error", (err: Error) => {

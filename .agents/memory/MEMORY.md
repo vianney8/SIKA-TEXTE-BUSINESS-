@@ -10,3 +10,4 @@
 - [Payment webhook fulfillment](payment-webhook-fulfillment.md) — normalize signed provider payloads and never mark payment completed before the database fulfillment succeeds.
 - [Protected npm registry](protected-npm-registry.md) — forced registry-host rewriting can duplicate Replit's /npm prefix and cause misleading package-download 404s.
 - [Payment checkout policy](payment-checkout-policy.md) — SolvexPay is global when enabled; keep the old checkout as an administrator-selectable alternative.
+- [Imported media storage](imported-media-storage.md) — verify bucket access before activating replacement videos; upload-interface changes cannot repair storage authorization.

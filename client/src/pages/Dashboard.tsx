@@ -18,6 +18,7 @@ export default function Dashboard() {
   const [pointageDone, setPointageDone] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [isInstalled, setIsInstalled]   = useState(false);
+  const [demoVideoError, setDemoVideoError] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: demoVideoUrl } = useAppSetting("demo_video_url");
@@ -38,6 +39,8 @@ export default function Dashboard() {
   const [showWhatsAppNotif, setShowWhatsAppNotif] = useState(() => {
     try { return localStorage.getItem('wa_notif_dismissed') !== '1'; } catch { return true; }
   });
+
+  useEffect(() => setDemoVideoError(false), [demoVideoUrl]);
 
   const dismissWhatsApp = () => {
     try { localStorage.setItem('wa_notif_dismissed', '1'); } catch {}
@@ -383,15 +386,21 @@ export default function Dashboard() {
               <p className="text-gray-800 font-bold text-sm">Exemple de retrait</p>
             </div>
             <div className="px-4 pb-4">
-              <video
-                key={demoVideoUrl || "/promo.mp4"}
-                src={demoVideoUrl || "/promo.mp4"}
-                controls
-                playsInline
-                className="w-full rounded-xl"
-                style={{ maxHeight: "300px" }}
-                onError={(e) => { (e.target as HTMLVideoElement).src = "/promo.mp4"; }}
-              />
+              {demoVideoError ? (
+                <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800" role="alert">
+                  La vidéo de démonstration n’a pas pu être lue. Vérifiez que le fichier est un MP4 compatible.
+                </p>
+              ) : (
+                <video
+                  key={demoVideoUrl || "/promo.mp4"}
+                  src={demoVideoUrl || "/promo.mp4"}
+                  controls
+                  playsInline
+                  className="w-full rounded-xl"
+                  style={{ maxHeight: "300px" }}
+                  onError={() => setDemoVideoError(true)}
+                />
+              )}
             </div>
           </div>
 

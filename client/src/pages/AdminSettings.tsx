@@ -139,8 +139,39 @@ export default function AdminSettings() {
     setVideoPreview(url);
   };
 
+  const uploadVideoThroughServer = (file: File) => new Promise<{ url: string }>((resolve, reject) => {
+    const form = new FormData();
+    form.append("video", file);
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/admin/upload-demo-video", true);
+    xhr.withCredentials = true;
+    xhr.upload.addEventListener("progress", (event) => {
+      if (event.lengthComputable) {
+        setUploadProgress(5 + Math.round((event.loaded / event.total) * 90));
+      }
+    });
+    xhr.addEventListener("load", () => {
+      let result: { url?: string; message?: string } = {};
+      try {
+        result = JSON.parse(xhr.responseText || "{}");
+      } catch {
+        reject(new Error("Réponse invalide du serveur pendant l’envoi de la vidéo"));
+        return;
+      }
+      if (xhr.status >= 200 && xhr.status < 300 && typeof result.url === "string") {
+        resolve({ url: result.url });
+      } else {
+        reject(new Error(result.message || `Le serveur a refusé la vidéo (${xhr.status})`));
+      }
+    });
+    xhr.addEventListener("error", () => reject(new Error("Échec de l’envoi de secours de la vidéo")));
+    xhr.addEventListener("abort", () => reject(new Error("Envoi de la vidéo annulé")));
+    xhr.send(form);
+  });
+
   const handleVideoUpload = async () => {
     if (!videoFile) return;
+    const fileToUpload = videoFile;
     setIsUploadingVideo(true);
     setUploadProgress(0);
     try {
@@ -149,7 +180,7 @@ export default function AdminSettings() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileName: videoFile.name }),
+        body: JSON.stringify({ fileName: fileToUpload.name }),
       });
       const uploadUrlData = await uploadUrlResponse.json().catch(() => ({}));
       if (!uploadUrlResponse.ok || !uploadUrlData.uploadUrl || !uploadUrlData.videoId) {
@@ -160,40 +191,55 @@ export default function AdminSettings() {
 
       // Envoyer directement la vidéo dans le stockage objet pour éviter les
       // limites de taille et les coupures de la requête multipart serveur.
-      await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("PUT", uploadUrlData.uploadUrl, true);
-        xhr.setRequestHeader("Content-Type", videoFile.type || "video/mp4");
-        xhr.upload.addEventListener("progress", (e) => {
-          if (e.lengthComputable) {
-            setUploadProgress(3 + Math.round((e.loaded / e.total) * 92));
-          }
+      let savedVideoUrl = "";
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("PUT", uploadUrlData.uploadUrl, true);
+          xhr.setRequestHeader("Content-Type", fileToUpload.type || "video/mp4");
+          xhr.upload.addEventListener("progress", (e) => {
+            if (e.lengthComputable) {
+              setUploadProgress(3 + Math.round((e.loaded / e.total) * 92));
+            }
+          });
+          xhr.addEventListener("load", () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve();
+            } else {
+              reject(new Error(`Le stockage a refusé la vidéo (${xhr.status})`));
+            }
+          });
+          xhr.addEventListener("error", () => reject(new Error("Erreur réseau lors de l'envoi direct de la vidéo")));
+          xhr.addEventListener("abort", () => reject(new Error("Upload annulé")));
+          xhr.send(fileToUpload);
         });
-        xhr.addEventListener("load", () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            resolve();
-          } else {
-            reject(new Error(`Le stockage a refusé la vidéo (${xhr.status})`));
-          }
-        });
-        xhr.addEventListener("error", () => reject(new Error("Erreur réseau lors de l'envoi direct de la vidéo")));
-        xhr.addEventListener("abort", () => reject(new Error("Upload annulé")));
-        xhr.send(videoFile);
-      });
-
-      setUploadProgress(96);
-      const confirmResponse = await fetch("/api/admin/demo-video/confirm", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ videoId: uploadUrlData.videoId }),
-      });
-      const confirmData = await confirmResponse.json().catch(() => ({}));
-      if (!confirmResponse.ok) {
-        throw new Error(confirmData.message || "La vidéo a été envoyée mais n'a pas pu être activée");
+      } catch (directUploadError) {
+        console.warn("[DEMO-VIDEO] Envoi direct impossible, tentative via le serveur.", directUploadError);
+        setUploadProgress(0);
+        savedVideoUrl = (await uploadVideoThroughServer(fileToUpload)).url;
       }
+
+      if (!savedVideoUrl) {
+        setUploadProgress(96);
+        const confirmResponse = await fetch("/api/admin/demo-video/confirm", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ videoId: uploadUrlData.videoId }),
+        });
+        const confirmData = await confirmResponse.json().catch(() => ({}));
+        if (!confirmResponse.ok || typeof confirmData.url !== "string") {
+          throw new Error(confirmData.message || "La vidéo a été envoyée mais n'a pas pu être activée");
+        }
+        savedVideoUrl = confirmData.url;
+      }
+
       setUploadProgress(100);
 
+      setSettings(current => ({ ...current, demo_video_url: savedVideoUrl }));
+      queryClient.setQueryData<AppSetting[]>(["/api/admin/settings"], current =>
+        current?.map(setting => setting.key === "demo_video_url" ? { ...setting, value: savedVideoUrl } : setting)
+      );
       toast({ title: "✅ Vidéo mise à jour !", description: "La vidéo de démonstration a été remplacée avec succès" });
       queryClient.invalidateQueries({ queryKey: ["/api/settings/demo_video_url"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
@@ -935,7 +981,7 @@ export default function AdminSettings() {
                 playsInline
                 className="w-full"
                 style={{ maxHeight: "220px" }}
-                key={videoPreview || "current"}
+                key={videoPreview || settings.demo_video_url || "/promo.mp4"}
               />
             </div>
 
