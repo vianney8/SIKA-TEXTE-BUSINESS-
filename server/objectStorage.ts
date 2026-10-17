@@ -205,9 +205,7 @@ export class ObjectStorageService {
   async getDemoVideoUploadURL(originalFileName: string): Promise<{ uploadUrl: string; videoId: string }> {
     const ext = (originalFileName.split(".").pop() || "mp4").toLowerCase().replace("quicktime", "mov");
     const videoId = `${randomUUID()}.${ext}`;
-    let entityDir = this.getPrivateObjectDir();
-    if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
-    const objectPath = `${entityDir}demo-videos/${videoId}`;
+    const objectPath = this.getDemoVideoObjectPath(videoId);
     const { bucketName, objectName } = parseObjectPath(objectPath);
     const uploadUrl = await signObjectURL({ bucketName, objectName, method: "PUT", ttlSec: 3600 });
     return { uploadUrl, videoId };
@@ -217,17 +215,13 @@ export class ObjectStorageService {
     const ext = mimeType.split("/")[1] || "mp4";
     const videoId = randomUUID();
     const fileName = `${videoId}.${ext}`;
-    let entityDir = this.getPrivateObjectDir();
-    if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
-    const objectPath = `${entityDir}demo-videos/${fileName}`;
+    const objectPath = this.getDemoVideoObjectPath(fileName);
     await this.uploadViaSignedUrl(buffer, mimeType, objectPath);
     return `/api/media/demo-video/${videoId}.${ext}`;
   }
 
   async getDemoVideoFile(videoId: string): Promise<File> {
-    let entityDir = this.getPrivateObjectDir();
-    if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
-    const objectPath = `${entityDir}demo-videos/${videoId}`;
+    const objectPath = this.getDemoVideoObjectPath(videoId);
     const { bucketName, objectName } = parseObjectPath(objectPath);
     const bucket = objectStorageClient.bucket(bucketName);
     const file = bucket.file(objectName);
@@ -238,6 +232,8 @@ export class ObjectStorageService {
 
   // Récupère le chemin GCS d'une vidéo de démo (pour streaming via URL signée)
   getDemoVideoObjectPath(videoId: string): string {
+    const demoDir = process.env.DEMO_VIDEO_OBJECT_DIR?.trim();
+    if (demoDir) return `${demoDir.replace(/\/+$/, "")}/${videoId}`;
     let entityDir = this.getPrivateObjectDir();
     if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
     return `${entityDir}demo-videos/${videoId}`;
@@ -245,9 +241,7 @@ export class ObjectStorageService {
 
   async deleteDemoVideo(videoId: string): Promise<void> {
     try {
-      let entityDir = this.getPrivateObjectDir();
-      if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
-      const objectPath = `${entityDir}demo-videos/${videoId}`;
+      const objectPath = this.getDemoVideoObjectPath(videoId);
       const exists = await this.existsViaSignedUrl(objectPath);
       if (exists) {
         const { bucketName, objectName } = parseObjectPath(objectPath);
