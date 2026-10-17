@@ -49,3 +49,11 @@ test("pro is a separate persisted model without removing the existing models", (
   assert.equal(usesUnifiedCheckout("simple"), true);
   assert.equal(usesUnifiedCheckout("legacy"), false);
 });
+
+test("automatic DNS skips duplicate legacy collection without changing other checkouts", () => {
+  for (const model of ["legacy", "simple", "pro"] as const) {
+    assert.equal(usesUnifiedCheckout(model, true), true);
+  }
+  assert.equal(usesUnifiedCheckout("legacy"), false);
+  assert.equal(usesUnifiedCheckout("legacy", false), false);
+});

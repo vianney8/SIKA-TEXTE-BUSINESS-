@@ -34,3 +34,9 @@ Legacy presentations can explicitly delegate to the common SolvexPay form. That 
 **Why:** A second presentation check blocked DNS and CI automatic payments after the historical flow had intentionally opened the common gateway.
 
 **How to apply:** Select the presentation at the outer checkout boundary only; allow an enabled gateway in any presentation and preserve pending-payment recovery after configuration changes.
+
+Automatic DNS payments must collect country, operator and phone only once, with the pay action starting the transaction directly. Do not prepend a historical form that subsequently opens another payment form.
+
+**Why:** The user reported having to fill out the DNS details again after completing the initial form.
+
+**How to apply:** Route enabled automatic DNS directly into its payment form while retaining the configured model's presentation and the existing manual DNS flow when SolvexPay is disabled.

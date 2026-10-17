@@ -19,13 +19,15 @@ export function useCheckoutMode() {
 }
 
 export default function PaymentCheckout({
-  service, linkId, children, onSuccess, onCancel,
+  service, linkId, children, onSuccess, onCancel, directGateway = false,
 }: {
   service: "activation" | "dns" | "ci-update" | "link";
   linkId?: string;
   children: ReactNode;
   onSuccess?: () => void;
   onCancel?: () => void;
+  /** Skip a legacy pre-form when it would only reopen the same API form. */
+  directGateway?: boolean;
 }) {
   const mode = useCheckoutMode();
   if (mode.isPending) return <div className="flex min-h-48 items-center justify-center" role="status"><Loader2 className="h-6 w-6 animate-spin" /><span className="sr-only">Chargement du paiement</span></div>;
@@ -35,7 +37,7 @@ export default function PaymentCheckout({
     const saved = JSON.parse(sessionStorage.getItem(`sika-checkout:${mode.data.customerId ?? "guest"}:${service}:${linkId ?? ""}`) || "null");
     resuming = typeof saved?.transactionId === "string";
   } catch { /* No recoverable payment in this browser session. */ }
-  const content = !resuming && (!mode.data.enabled || !usesUnifiedCheckout(mode.data.model))
+  const content = !resuming && (!mode.data.enabled || !usesUnifiedCheckout(mode.data.model, directGateway))
     ? children
     : <SimpleCheckout service={service} linkId={linkId} onSuccess={onSuccess} onCancel={onCancel} />;
   return <div className="contents" data-checkout-model={mode.data.model}>{content}</div>;

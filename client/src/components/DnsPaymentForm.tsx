@@ -6,13 +6,12 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { COUNTRIES, OPERATORS } from "@/pages/Activation";
 import PaymentCheckout, { useCheckoutMode } from "./PaymentCheckout";
-import SimpleCheckout from "./SimpleCheckout";
 
 // ─── Formulaire de paiement pour la mise à jour DNS ──────────────────────────
 // Reprend exactement le même principe que le formulaire d'activation de
 // compte : sélection pays/opérateur, numéro de dépôt lu en direct depuis les
 // réglages admin, puis nom du payeur + ID de transaction + capture d'écran.
-type DnsFormStep = "country" | "operator" | "phone" | "manual" | "solvexpay";
+type DnsFormStep = "country" | "operator" | "phone" | "manual";
 
 interface DepositInfo {
   depositNumber: string;
@@ -28,7 +27,9 @@ interface DepositInfo {
 export default function DnsPaymentForm({
   onSubmitted, onCancel,
 }: { onSubmitted: () => void; onCancel: () => void }) {
-  return <PaymentCheckout service="dns" onSuccess={onSubmitted} onCancel={onCancel}><LegacyDnsPaymentForm onSubmitted={onSubmitted} onCancel={onCancel} /></PaymentCheckout>;
+  // Automatic DNS uses one form only. The old pre-form collected the same
+  // country/operator/phone before opening this gateway a second time.
+  return <PaymentCheckout service="dns" directGateway onSuccess={onSubmitted} onCancel={onCancel}><LegacyDnsPaymentForm onSubmitted={onSubmitted} onCancel={onCancel} /></PaymentCheckout>;
 }
 
 function LegacyDnsPaymentForm({
@@ -79,7 +80,6 @@ function LegacyDnsPaymentForm({
   };
 
   const continueAfterPhone = async () => {
-    if (checkoutMode?.enabled) { setStep("solvexpay"); return; }
     setAutomaticLoading(true);
     try {
       const res = await fetch("/api/withdrawal/dns-robotpay-init", {
@@ -145,10 +145,6 @@ function LegacyDnsPaymentForm({
       <p className="text-slate-900 font-black text-sm">Mise à jour DNS — Paiement</p>
     </div>
   );
-
-  if (step === "solvexpay") {
-    return <SimpleCheckout service="dns" onSuccess={onSubmitted} onCancel={() => setStep("phone")} />;
-  }
 
   // ── Étape 1 : Pays ──────────────────────────────────────────────────────
   if (checkoutMode?.model === "pro" && (step === "country" || step === "operator" || step === "phone")) {
