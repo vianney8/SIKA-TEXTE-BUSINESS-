@@ -5,6 +5,7 @@ import { db } from "./db";
 import { appSettings } from "@shared/schema";
 import { sql } from "drizzle-orm";
 import { storage } from "./storage";
+import { BUNDLED_DEMO_VIDEO_URL, LEGACY_DEMO_VIDEO_URL } from "@shared/demo-video";
 
 const app = express();
 app.use(express.json({
@@ -96,7 +97,7 @@ app.use((req, res, next) => {
     { key: 'robotpay_pcs_activation_link', value: '',                                               label: 'Lien WestPay activation PCS' },
     { key: 'robotpay_dns_link',         value: '',                                                  label: 'Lien WestPay mise à jour DNS' },
     { key: 'whatsapp_admin_contact',    value: '',                                                  label: 'WhatsApp Administrateur (Contact Mise à jour)' },
-    { key: 'demo_video_url',            value: '/promo.mp4',                                       label: 'Vidéo démonstration accueil' },
+    { key: 'demo_video_url',            value: BUNDLED_DEMO_VIDEO_URL,                             label: 'Vidéo démonstration accueil' },
     { key: 'international_deposit_note_bj_mtn',    value: '', label: 'Note dépôt Bénin MTN' },
     { key: 'international_deposit_note_bj_moov',   value: '', label: 'Note dépôt Bénin Moov' },
     { key: 'international_deposit_note_sn_orange', value: '', label: 'Note dépôt Sénégal Orange' },
@@ -121,6 +122,14 @@ app.use((req, res, next) => {
         ON CONFLICT (key) DO NOTHING
       `);
     }
+    // Migrate only the known imported video and the bundled default.
+    // Do not replace other videos selected by the administrator.
+    await db.execute(sql`
+      UPDATE app_settings
+      SET value = ${BUNDLED_DEMO_VIDEO_URL}
+      WHERE key = 'demo_video_url'
+        AND value IN (${LEGACY_DEMO_VIDEO_URL}, '/promo.mp4')
+    `);
     log('App settings seeded');
   } catch (err) {
     log('App settings seed skipped (DB temporarily unavailable): ' + (err as Error).message);

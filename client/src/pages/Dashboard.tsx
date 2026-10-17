@@ -8,6 +8,7 @@ import MiddleNotification from "@/components/MiddleNotification";
 import TestimonialsSlider from "@/components/TestimonialsSlider";
 import { useToast } from "@/hooks/use-toast";
 import { useAppSetting } from "@/hooks/useAppSettings";
+import { resolveDemoVideoSource } from "@shared/demo-video";
 import { FaTelegram, FaWhatsapp } from "react-icons/fa";
 import { Link } from "wouter";
 import { Zap, ChevronRight, Sparkles, Download, Smartphone, Server, HeadphonesIcon } from "lucide-react";
@@ -22,11 +23,7 @@ export default function Dashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: demoVideoUrl } = useAppSetting("demo_video_url");
-  const demoVideoSource =
-    typeof demoVideoUrl === "string" &&
-    demoVideoUrl.startsWith("/api/media/demo-video/")
-      ? "/promo.mp4"
-      : demoVideoUrl || "/promo.mp4";
+  const demoVideoSource = resolveDemoVideoSource(demoVideoUrl);
   const { data: telegramSupervisor } = useAppSetting('telegram_supervisor');
   const { data: telegramGroup } = useAppSetting('telegram_group');
   const { data: whatsappGroup } = useAppSetting('whatsapp_group');

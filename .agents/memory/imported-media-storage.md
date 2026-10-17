@@ -10,3 +10,7 @@ Replit App Storage is tied to Replit's runtime and is not directly accessible fr
 **Why:** In this imported project, signed uploads failed despite an existing storage directory. Creating an App Storage bucket restored default SDK access, but did not update the imported directory configuration. The new video storage was connected separately to avoid changing the location of unrelated media.
 
 **How to apply:** When provisioning storage for an imported project, verify both access to the new bucket and the application's configured media location. Keep unrelated media locations unchanged unless a migration is requested. For Render, bundle public assets or configure reachable external storage rather than relying on Replit App Storage. Preserve the previous media setting until the new object is accessible, and do not hide a failed custom-video load by silently showing the bundled old video.
+
+When migrating an imported demo video to a bundled file, match only the known imported source. Never override every storage video URL with the bundled clip.
+
+**Why:** A blanket override makes future administrator replacements appear to save successfully while users continue seeing the bundled video.
