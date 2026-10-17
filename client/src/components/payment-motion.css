@@ -1,0 +1,77 @@
+/* Restrained motion for the public SIKA payment flows only. */
+@keyframes sika-payment-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes sika-phone-pending {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.025);
+  }
+}
+
+.payment-journey,
+.sika-checkout .checkout-card,
+.payment-journey .payment-card {
+  animation: sika-payment-arrive 440ms cubic-bezier(.2, .7, .25, 1) both;
+}
+
+.sika-checkout .checkout-card {
+  animation-delay: 45ms;
+}
+
+.payment-journey .payment-card {
+  animation-delay: 75ms;
+}
+
+.sika-checkout .checkout-operator,
+.payment-journey .operator-option {
+  transition: transform 180ms ease, opacity 180ms ease;
+}
+
+.sika-checkout .checkout-operator:not(:disabled):hover,
+.payment-journey .operator-option:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.sika-checkout .checkout-operator.is-selected,
+.payment-journey .operator-option[aria-pressed="true"],
+.payment-journey .operator-option[aria-checked="true"] {
+  transform: translateY(-1px);
+}
+
+.sika-checkout .phone-orbit.is-pending,
+.sika-checkout .checkout-phone.is-pending,
+.sika-checkout input[data-validation="pending"],
+.payment-journey .phone-orbit.is-pending,
+.payment-journey .phone-validation.is-pending,
+.payment-journey input[data-validation="pending"] {
+  animation: sika-phone-pending 1.45s ease-in-out infinite;
+  transform-origin: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .payment-journey,
+  .sika-checkout .checkout-card,
+  .payment-journey .payment-card,
+  .sika-checkout .checkout-operator,
+  .payment-journey .operator-option,
+  .sika-checkout .phone-orbit.is-pending,
+  .sika-checkout .checkout-phone.is-pending,
+  .sika-checkout input[data-validation="pending"],
+  .payment-journey .phone-orbit.is-pending,
+  .payment-journey .phone-validation.is-pending,
+  .payment-journey input[data-validation="pending"] {
+    animation: none !important;
+    transition: none !important;
+  }
+}

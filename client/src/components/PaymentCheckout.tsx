@@ -30,7 +30,7 @@ export default function PaymentCheckout({
   directGateway?: boolean;
 }) {
   const mode = useCheckoutMode();
-  if (mode.isPending) return <div className="flex min-h-48 items-center justify-center" role="status"><Loader2 className="h-6 w-6 animate-spin" /><span className="sr-only">Chargement du paiement</span></div>;
+  if (mode.isPending || (!mode.isFetchedAfterMount && mode.isFetching)) return <div className="flex min-h-48 items-center justify-center" role="status"><Loader2 className="h-6 w-6 animate-spin" /><span className="sr-only">Chargement du paiement</span></div>;
   if (mode.isError) return <div className="p-6 text-center" role="alert"><p>Impossible de charger le modèle de paiement.</p><button className="mt-3 underline" onClick={() => mode.refetch()}>Réessayer</button></div>;
   let resuming = false;
   try {

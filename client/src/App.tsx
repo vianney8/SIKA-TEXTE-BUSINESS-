@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
 import { useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
+import useLiveUpdates from "@/hooks/useLiveUpdates";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/Landing";
 import MaintenancePage from "@/pages/MaintenancePage";
@@ -222,6 +223,7 @@ function Router() {
 }
 
 function App() {
+  useLiveUpdates();
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>

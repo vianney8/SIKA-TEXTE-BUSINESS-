@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { localPaymentPhone } from "@shared/payment-phone";
 import { type CheckoutModel } from "@shared/checkout-settings";
+import OperatorLogo from "./OperatorLogo";
 import {
   AlertCircle,
   ArrowRight,
@@ -43,6 +44,8 @@ type CheckoutConfig = {
   customerId: string | null;
 };
 type CheckoutResult = {
+  amount?: number;
+  currency?: string;
   transactionId: string;
   status: PaymentStatus;
   createdAt?: string;
@@ -52,6 +55,8 @@ type CheckoutResult = {
   paymentUrl?: string;
 };
 type StatusResult = {
+  amount?: number;
+  currency?: string;
   status: PaymentStatus;
   createdAt?: string;
   providerAccepted?: boolean;
@@ -100,6 +105,7 @@ export default function SimpleCheckout({
   const [payerName, setPayerName] = useState("");
   const [transactionId, setTransactionId] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState<{ amount: number; currency: string } | null>(null);
   const [paymentMessage, setPaymentMessage] = useState("");
   const [providerAccepted, setProviderAccepted] = useState(false);
   const [pcsCode, setPcsCode] = useState("");
@@ -108,7 +114,6 @@ export default function SimpleCheckout({
   const [resumeChecked, setResumeChecked] = useState(false);
   const successNotified = useRef(false);
   const checkingRef = useRef(false);
-  const knownCustomer = useRef<{ initialized: boolean; id: string | null }>({ initialized: false, id: null });
   const initializedConfig = useRef("");
 
   const configQuery = useQuery<CheckoutConfig>({
@@ -158,55 +163,31 @@ export default function SimpleCheckout({
     setPhone(initial ? localPaymentPhone(config.phone ?? "", initial.prefix, initial.length) : "");
   }, [config, linkId, service]);
 
+  const paymentIdentity = config ? `${service}:${linkId ?? ""}:${config.customerId ?? "guest"}` : null;
   useEffect(() => {
-    if (!config || resumeChecked) return;
-    setResumeChecked(true);
+    if (!paymentIdentity) return;
+    setTransactionId(null);
+    setPaymentStatus(null);
+    setPaymentAmount(null);
+    setPaymentMessage("");
+    setProviderAccepted(false);
+    setPcsCode("");
+    setStatusError("");
+    successNotified.current = false;
     try {
-      const saved = sessionStorage.getItem(key);
-      if (!saved) return;
-       const parsed = JSON.parse(saved) as { transactionId?: string; status?: PaymentStatus; message?: string; providerAccepted?: boolean };
-      if (typeof parsed.transactionId === "string" && parsed.transactionId.length > 0) {
+      const parsed = JSON.parse(sessionStorage.getItem(key) || "null");
+      if (typeof parsed?.transactionId === "string" && parsed.transactionId.length > 0) {
         setTransactionId(parsed.transactionId);
         setPaymentStatus("pending");
         setProviderAccepted(parsed.providerAccepted === true);
-        if (parsed.message) setPaymentMessage(parsed.message);
-      } else {
-        sessionStorage.removeItem(key);
-      }
-    } catch {
-      sessionStorage.removeItem(key);
-    }
-  }, [config, key, resumeChecked]);
-
-  useEffect(() => {
-    setResumeChecked(false);
-    setTransactionId(null);
-    setPaymentStatus(null);
-    setPaymentMessage("");
-    setProviderAccepted(false);
-    setPcsCode("");
-    setStatusError("");
-    successNotified.current = false;
-  }, [service, linkId]);
-
-  useEffect(() => {
-    if (!config) return;
-    const currentCustomerId = config.customerId ?? null;
-    if (!knownCustomer.current.initialized) {
-      knownCustomer.current = { initialized: true, id: currentCustomerId };
-      return;
-    }
-    if (knownCustomer.current.id === currentCustomerId) return;
-    knownCustomer.current = { initialized: true, id: currentCustomerId };
-    setResumeChecked(false);
-    setTransactionId(null);
-    setPaymentStatus(null);
-    setPaymentMessage("");
-    setProviderAccepted(false);
-    setPcsCode("");
-    setStatusError("");
-    successNotified.current = false;
-  }, [config]);
+        if (typeof parsed.message === "string") setPaymentMessage(parsed.message);
+        if (typeof parsed.amount === "number" && Number.isFinite(parsed.amount) && typeof parsed.currency === "string") {
+          setPaymentAmount({ amount: parsed.amount, currency: parsed.currency });
+        }
+      } else sessionStorage.removeItem(key);
+    } catch { sessionStorage.removeItem(key); }
+    setResumeChecked(true);
+  }, [paymentIdentity, key]);
 
   const finishSuccess = useCallback(
     (code?: string) => {
@@ -231,6 +212,9 @@ export default function SimpleCheckout({
 
   const applyStatus = useCallback(
     (result: StatusResult) => {
+      if (typeof result.amount === "number" && Number.isFinite(result.amount)) {
+        setPaymentAmount({ amount: result.amount, currency: result.currency || config?.currency || "XOF" });
+      }
       setPaymentMessage(result.message || (result.providerAccepted ? "Validez la demande sur votre téléphone." : ""));
       setProviderAccepted(result.providerAccepted === true);
       if (result.status === "completed") finishSuccess(result.pcsCode);
@@ -243,7 +227,7 @@ export default function SimpleCheckout({
         setPaymentStatus("pending");
       }
     },
-    [finishSuccess, key],
+    [finishSuccess, key, config?.currency],
   );
 
   const checkStatus = useCallback(
@@ -290,17 +274,24 @@ export default function SimpleCheckout({
           phone: `+${country?.prefix ?? ""}${phone.replace(/\D/g, "")}`,
           ...(needsOtp ? { otp: otp.trim() } : {}),
           customerName: payerName.trim(),
+          expectedAmount: config?.amount,
+          expectedCurrency: config?.currency,
           ...(config?.requiresEmail ? { customerEmail: customerEmail.trim() } : {}),
         }),
       });
       const result = (await response.json().catch(() => ({}))) as CheckoutResult;
-      if (!response.ok) throw new Error(result.message || "Le paiement n'a pas pu être lancé.");
+      if (!response.ok) {
+        if (response.status === 409) void configQuery.refetch();
+        throw new Error(result.message || "Le paiement n'a pas pu être lancé.");
+      }
       if (!result.transactionId || !["pending", "completed", "failed"].includes(result.status)) {
         throw new Error("Réponse de paiement invalide. Veuillez réessayer.");
       }
       return result;
     },
     onSuccess: (result) => {
+      const chargedAmount = { amount: result.amount ?? config!.amount, currency: result.currency || config!.currency };
+      setPaymentAmount(chargedAmount);
       setTransactionId(result.transactionId);
       setPaymentMessage(result.message ?? "");
       setProviderAccepted(result.providerAccepted === true);
@@ -314,6 +305,7 @@ export default function SimpleCheckout({
           message: result.message ?? "",
           providerAccepted: result.providerAccepted === true,
           createdAt: result.createdAt,
+          ...chargedAmount,
         }));
         if (result.paymentUrl) {
           let redirectUrl: URL | null = null;
@@ -340,6 +332,7 @@ export default function SimpleCheckout({
   });
 
   const retry = () => {
+    setPaymentAmount(null);
     setTransactionId(null);
     setPaymentStatus(null);
     setPaymentMessage("");
@@ -366,7 +359,7 @@ export default function SimpleCheckout({
     else window.history.back();
   };
 
-  if (configQuery.isPending) {
+  if (configQuery.isPending || (!configQuery.isFetchedAfterMount && configQuery.isFetching) || (!!config && !resumeChecked)) {
     return (
       <main className="sika-checkout min-h-[100dvh] flex items-center justify-center p-4">
         <section className="checkout-card w-full max-w-[440px] p-6" aria-label="Chargement du paiement">
@@ -383,7 +376,7 @@ export default function SimpleCheckout({
     );
   }
 
-  if (configQuery.isError || !config) {
+  if ((configQuery.isError && !transactionId) || !config) {
     return (
       <main className="sika-checkout min-h-[100dvh] flex items-center justify-center p-4">
         <section className="checkout-card w-full max-w-[440px] p-7 text-center">
@@ -428,12 +421,12 @@ export default function SimpleCheckout({
                 <p className="checkout-muted mt-0.5 text-xs">{config.customerName || "à SIKA TEXTE"}</p>
               </div>
             </div>
-            <p className="checkout-price shrink-0">{formatAmount(config.amount, config.currency)}</p>
+            <p className="checkout-price shrink-0">{formatAmount(paymentAmount?.amount ?? config.amount, paymentAmount?.currency ?? config.currency)}</p>
           </header>
 
           {paymentStatus === "pending" ? (
             <div className="checkout-pending border-t pt-6" aria-live="polite">
-              <div className="phone-orbit mx-auto mb-5" aria-hidden="true">
+              <div className="phone-orbit is-pending mx-auto mb-5" aria-hidden="true">
                 <span className="orbit orbit-one" />
                 <span className="orbit orbit-two" />
                 <span className="orbit orbit-three" />
@@ -456,7 +449,7 @@ export default function SimpleCheckout({
                 <div className="progress-step"><span>3</span><small>Confirmation</small></div>
               </div>
               <div className="checkout-amount-row mt-5">
-                <span>Montant</span><strong>{formatAmount(config.amount, config.currency)}</strong>
+                <span>Montant</span><strong>{formatAmount(paymentAmount?.amount ?? config.amount, paymentAmount?.currency ?? config.currency)}</strong>
               </div>
               <div className="checkout-instructions mt-5">
                 <div className="flex items-start gap-2.5">
@@ -529,7 +522,7 @@ export default function SimpleCheckout({
               {config.model === "pro" && <>
               <label className="checkout-label block" htmlFor="checkout-payer-name">Nom complet du payeur</label>
               <input id="checkout-payer-name" className="checkout-input mt-2 w-full" autoComplete="name"
-                value={payerName} onChange={event => setPayerName(event.target.value)} placeholder="Ex. Awa Kouassi" required disabled={locked} />
+                value={payerName} onChange={event => setPayerName(event.target.value)} placeholder="Ex. Awa Kouassi" required disabled={locked || initMutation.isPending} />
               <p className="checkout-muted mt-1 text-xs">Nom associé au moyen de paiement utilisé.</p>
               </>}
               <label className="checkout-label" htmlFor="checkout-country">Pays</label>
@@ -545,7 +538,7 @@ export default function SimpleCheckout({
                     setOtp("");
                   }}
                   required
-                  disabled={locked}
+                  disabled={locked || initMutation.isPending}
                 >
                   <option value="" disabled>Choisir un pays</option>
                   {countries.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
@@ -553,13 +546,12 @@ export default function SimpleCheckout({
                 <ChevronDown size={17} aria-hidden="true" />
               </div>
 
-              <fieldset className="mt-5 min-w-0" disabled={locked}>
+              <fieldset className="mt-5 min-w-0" disabled={locked || initMutation.isPending}>
                 <legend className="checkout-label mb-2">Moyen de paiement</legend>
                 {country?.operators.length ? (
                   <div className="grid grid-cols-2 gap-2.5">
                     {country.operators.map((operator) => {
                       const selected = operator.code === operatorCode;
-                      const initials = operator.code.replace(/[^a-z0-9]/gi, "").slice(0, 3).toUpperCase();
                       return (
                         <button
                           key={operator.code}
@@ -569,7 +561,7 @@ export default function SimpleCheckout({
                           aria-pressed={selected}
                           className={`checkout-operator${selected ? " is-selected" : ""}${operator.maintenance ? " is-maintenance" : ""}`}
                         >
-                          <span className="operator-initials" aria-hidden="true">{initials}</span>
+                          <OperatorLogo code={operator.code} size={36} />
                           <span className="operator-label">{operator.name}</span>
                           {selected && <Check size={15} className="operator-check" aria-hidden="true" />}
                           {operator.maintenance && <span className="operator-maintenance">Maintenance</span>}
@@ -596,7 +588,7 @@ export default function SimpleCheckout({
                   placeholder="Votre numéro"
                   aria-describedby="phone-hint"
                   required
-                  disabled={locked}
+                  disabled={locked || initMutation.isPending}
                 />
               </div>
               <p id="phone-hint" className="checkout-muted mt-1.5 text-xs">Saisissez le numéro associé à votre compte Mobile Money.</p>
@@ -615,7 +607,7 @@ export default function SimpleCheckout({
                     onChange={(event) => setOtp(event.target.value)}
                     placeholder="Code reçu par SMS"
                     required
-                    disabled={locked}
+                    disabled={locked || initMutation.isPending}
                   />
                 </div>
               )}
@@ -633,7 +625,7 @@ export default function SimpleCheckout({
                       onChange={(event) => { if (!config.customerId) setCustomerEmail(event.target.value); }}
                       placeholder="nom@exemple.com"
                       required
-                      disabled={locked}
+                      disabled={locked || initMutation.isPending}
                       readOnly={Boolean(config.customerId)}
                       aria-describedby={config.customerId ? "checkout-email-hint" : undefined}
                     />
@@ -655,7 +647,7 @@ export default function SimpleCheckout({
               </button>
               <div className="checkout-secure mt-4 flex items-center justify-center gap-1.5">
                 <LockKeyhole size={13} />
-                <span>Paiement sécurisé par SolvexPay</span>
+                <span>Paiement sécurisé</span>
               </div>
             </form>
           )}
@@ -664,7 +656,7 @@ export default function SimpleCheckout({
         {(paymentStatus === "pending" || paymentStatus === "completed" || paymentStatus === "failed") && (
           <footer className="checkout-footer flex items-center justify-center gap-1.5 px-4 py-4">
             <ShieldCheck size={14} />
-            <span>Paiement sécurisé par SolvexPay</span>
+            <span>Paiement sécurisé</span>
           </footer>
         )}
       </section>

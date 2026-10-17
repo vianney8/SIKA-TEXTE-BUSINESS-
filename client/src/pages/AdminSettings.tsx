@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import AdminServicePrices from "@/components/AdminServicePrices";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ const MAINTENANCE_COUNTRIES = [
 export default function AdminSettings() {
   const { toast } = useToast();
   const [settings, setSettings] = useState<{[key: string]: string}>({});
+  const dirtySettings = useRef(new Set<string>());
   const [videoFile, setVideoFile]     = useState<File | null>(null);
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
   const [isUploadingVideo, setIsUploadingVideo] = useState(false);
@@ -47,7 +49,10 @@ export default function AdminSettings() {
       appSettings.forEach(setting => {
         settingsObj[setting.key] = setting.value;
       });
-      setSettings(settingsObj);
+      setSettings(current => {
+        dirtySettings.current.forEach(key => { if (key in current) settingsObj[key] = current[key]; });
+        return settingsObj;
+      });
     }
   }, [appSettings]);
 
@@ -59,6 +64,7 @@ export default function AdminSettings() {
       await Promise.all(promises);
     },
     onSuccess: () => {
+      dirtySettings.current.clear();
       toast({
         title: "Paramètres sauvegardés",
         description: "Les paramètres ont été mis à jour avec succès"
@@ -115,6 +121,7 @@ export default function AdminSettings() {
   });
 
   const handleInputChange = (key: string, value: string) => {
+    dirtySettings.current.add(key);
     setSettings(prev => changeCheckoutSetting(prev, key, value));
   };
 
@@ -239,6 +246,7 @@ export default function AdminSettings() {
           </div>
         </div>
 
+        <div className="mb-6"><AdminServicePrices /></div>
         <Card className="mb-6">
           <CardHeader>
             <CardTitle>Modèle de paiement pour tout le site</CardTitle>
@@ -864,9 +872,9 @@ export default function AdminSettings() {
               </div>
               {[
                 ['robotpay_activation_link', 'Activation du compte — 3 800 XOF'],
-                ['robotpay_pcs_purchase_link', 'Achat de code PCS — 5 240 XOF'],
+                ['robotpay_pcs_purchase_link', 'Achat de code PCS'],
                 ['robotpay_pcs_activation_link', 'Activation PCS — 2 400 XOF'],
-                ['robotpay_dns_link', 'Mise à jour DNS — 3 400 XOF'],
+                ['robotpay_dns_link', 'Mise à jour DNS'],
               ].map(([key, label]) => (
                 <div key={key}>
                   <Label htmlFor={key} className="text-sm">{label}</Label>

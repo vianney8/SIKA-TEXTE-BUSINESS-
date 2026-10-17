@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import OperatorLogo from "@/components/OperatorLogo";
+import { usePaymentRevision } from "@/hooks/useLiveUpdates";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
@@ -75,7 +77,7 @@ function OperatorBadge({ code, size = "md" }: { code: string; size?: "sm" | "md"
   return (
     <div className={`${s} rounded-2xl flex items-center justify-center font-black shadow border-2 flex-shrink-0`}
       style={{ backgroundColor: op.bg, color: op.text, borderColor: op.border }}>
-      {op.initials}
+      <OperatorLogo code={code} size={size === "lg" ? 56 : size === "sm" ? 32 : 40} />
     </div>
   );
 }
@@ -151,6 +153,7 @@ export default function Activation() {
 }
 
 function LegacyActivation() {
+  const paymentRevision = usePaymentRevision();
   const { data: checkoutMode } = useCheckoutMode();
   const { toast } = useToast();
 
@@ -223,7 +226,7 @@ function LegacyActivation() {
     setDepositLoading(true);
     fetch(`/api/activation/manual-deposit-info?country=${country}&operator=${operator}`, { credentials: "include" })
       .then(r => r.json()).then(d => setDepositInfo(d)).catch(() => setDepositInfo(null)).finally(() => setDepositLoading(false));
-  }, [step, country, operator]);
+  }, [step, country, operator, paymentRevision]);
 
   useEffect(() => {
     if (!screenshotFile) { setScreenshotPreview(null); return; }

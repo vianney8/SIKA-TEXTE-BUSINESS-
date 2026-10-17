@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import OperatorLogo from "@/components/OperatorLogo";
+import { usePaymentRevision } from "@/hooks/useLiveUpdates";
 import PaymentCheckout, { useCheckoutMode } from "@/components/PaymentCheckout";
 import { useParams } from "wouter";
 import {
@@ -54,7 +56,7 @@ function OperatorBadge({ code, size = "md" }: { code: string; size?: "sm" | "md"
   return (
     <div className={`${s} rounded-2xl flex items-center justify-center font-black shadow border-2 flex-shrink-0`}
       style={{ backgroundColor: op.bg, color: op.text, borderColor: op.border }}>
-      {op.initials}
+      <OperatorLogo code={code} size={size === "lg" ? 56 : size === "sm" ? 32 : 40} />
     </div>
   );
 }
@@ -131,10 +133,11 @@ type Step = FormStep | "manual" | "pending" | "success" | "failed" | "redirected
 
 export default function PaymentLinkPage() {
   const { linkId } = useParams<{ linkId: string }>();
-  return <PaymentCheckout service="link" linkId={linkId}><LegacyPaymentLinkPage /></PaymentCheckout>;
+  return <PaymentCheckout key={linkId} service="link" linkId={linkId}><LegacyPaymentLinkPage /></PaymentCheckout>;
 }
 
 function LegacyPaymentLinkPage() {
+  const paymentRevision = usePaymentRevision();
   const { data: checkoutMode } = useCheckoutMode();
   const params = useParams<{ linkId: string }>();
   const linkId = params.linkId;
@@ -259,11 +262,12 @@ function LegacyPaymentLinkPage() {
     const fetchLink = () =>
       fetch(`/api/public/payment-links/${linkId}`, { cache: "no-store" })
         .then(r => { if (!r.ok) return r.json().then(d => { throw new Error(d.message || "Lien invalide"); }); return r.json(); })
-        .then(data => setLink(data))
+        .then(data => { setLink(data); setLoadError(""); })
         .catch(err => setLoadError(err.message));
     fetchLink();
     const interval = setInterval(fetchLink, 30000);
-    return () => clearInterval(interval);
+    window.addEventListener("sika:refresh", fetchLink);
+    return () => { clearInterval(interval); window.removeEventListener("sika:refresh", fetchLink); };
   }, [linkId]);
 
   useEffect(() => {
@@ -294,7 +298,7 @@ function LegacyPaymentLinkPage() {
       fetch(`/api/public/payment-links/${linkId}/manual-deposit-info?country=${country}&operator=${operator}`)
         .then(r => r.json()).then(d => setDepositInfo(d)).catch(() => setDepositInfo(null)).finally(() => setDepositLoading(false));
     }
-  }, [step, country, operator, useManual, linkId]);
+  }, [step, country, operator, useManual, linkId, paymentRevision]);
 
   useEffect(() => {
     if (step !== "pending" || !txnId) return;

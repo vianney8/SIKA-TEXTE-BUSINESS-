@@ -40,3 +40,9 @@ Automatic DNS payments must collect country, operator and phone only once, with 
 **Why:** The user reported having to fill out the DNS details again after completing the initial form.
 
 **How to apply:** Route enabled automatic DNS directly into its payment form while retaining the configured model's presentation and the existing manual DNS flow when SolvexPay is disabled.
+
+The user requests no “Paiement sécurisé par SolvexPay” attribution on customer payment pages, distinct customized operator logos, payment animations, and administrator-editable prices for PCS purchases, PCS activation, DNS and other services.
+
+**Why:** The user explicitly requested these changes together with navigation/return fixes and automatic propagation of price changes throughout the site.
+
+**How to apply:** Preserve administrator-controlled historical/simple/pro choices. Use the existing service prices consistently across checkout and payment links, but never replace an already-created payment's amount with a newly configured tariff. Fixed-amount external provider links require separate provider-side updates.

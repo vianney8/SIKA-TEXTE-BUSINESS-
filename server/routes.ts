@@ -36,9 +36,11 @@ import {
   platformNotifications,
 } from "@shared/schema";
 import bcrypt from "bcrypt";
+import { installLiveUpdates } from "./live-updates";
+import { serviceAmount, linkedPriceIds } from "@shared/service-pricing";
 import session from "express-session";
 import { db } from "./db";
-import { eq, sql, and, desc, or, ilike, count, isNull, ne } from "drizzle-orm";
+import { eq, sql, and, desc, or, ilike, count, isNull, ne, inArray } from "drizzle-orm";
 import connectPg from "connect-pg-simple";
 import { randomBytes, createHmac, timingSafeEqual } from "crypto";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
@@ -430,6 +432,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Setup sessions
   setupSessions(app);
+  installLiveUpdates(app);
   registerCheckoutRoutes(app);
 
   // Upload en mémoire pour les captures d'écran de paiement manuel
@@ -7436,6 +7439,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (key === 'payment_checkout_model' && !CHECKOUT_MODELS.includes(value)) {
         return res.status(400).json({ message: 'Modèle de paiement invalide' });
       }
+      if (['activation_amount', 'ci_update_amount'].includes(key) && !serviceAmount(value)) {
+        return res.status(400).json({ message: 'Le tarif doit être un montant positif avec au plus deux décimales.' });
+      }
       await storage.updateAppSetting(key, value);
       res.json({ message: 'Paramètre mis à jour avec succès' });
     } catch (error) {
@@ -9539,14 +9545,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { label, amount, description, imageUrl, manualMode, manualDepositNumber, manualDepositLabel, manualInstruction } = req.body;
       const updates: Record<string, any> = {};
       if (label !== undefined) updates.label = label;
-      if (amount !== undefined) updates.amount = parseFloat(amount).toString();
+      if (amount !== undefined) {
+        const validAmount = serviceAmount(amount, current.currency || "XOF");
+        if (!validAmount) return res.status(400).json({ message: 'Le tarif doit être un montant positif avec au plus deux décimales.' });
+        updates.amount = validAmount;
+      }
       if (description !== undefined) updates.description = description || null;
       if (imageUrl !== undefined) updates.imageUrl = imageUrl || null;
       if (manualMode !== undefined) updates.manualMode = Boolean(manualMode);
       if (manualDepositNumber !== undefined) updates.manualDepositNumber = manualDepositNumber || null;
       if (manualDepositLabel !== undefined) updates.manualDepositLabel = manualDepositLabel || null;
       if (manualInstruction !== undefined) updates.manualInstruction = manualInstruction || null;
-      const [updated] = await db.update(paymentLinks).set(updates).where(eq(paymentLinks.id, id)).returning();
+      const updated = await db.transaction(async tx => {
+        if (amount !== undefined) {
+          await tx.update(paymentLinks).set({ amount: updates.amount }).where(inArray(paymentLinks.id, linkedPriceIds(String(id))));
+        }
+        const [link] = await tx.update(paymentLinks).set(updates).where(eq(paymentLinks.id, id)).returning();
+        return link;
+      });
       res.json(updated);
     } catch (err) {
       console.error('[PAYMENT-LINKS] Update error:', err);

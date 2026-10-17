@@ -2,6 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { and, eq, or, sql } from "drizzle-orm";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
+import { matchesServiceQuote } from "@shared/service-pricing";
 import { db } from "./db";
 import { storage } from "./storage";
 import { accountStatus, linkManualRequests, paymentLinks, paymentLinkTransactions, pcsCodes, referrals, users } from "@shared/schema";
@@ -29,6 +30,8 @@ const initSchema = z.object({
   otp: z.string().trim().regex(/^\d{4,10}$/).optional(),
   customerEmail: z.string().trim().toLowerCase().email().optional(),
   customerName: z.string().trim().max(150).optional(),
+  expectedAmount: z.number().positive().finite().optional(),
+  expectedCurrency: z.string().length(3).optional(),
 });
 type Settings = Awaited<ReturnType<typeof storage.getAppSettings>>;
 type Checkout = typeof paymentLinkTransactions.$inferSelect;
@@ -140,7 +143,7 @@ async function getStatus(id: string, userId?: string) {
     await reconcileSolvexCheckout(payment, data);
   }
   const [updated] = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.id, payment.id));
-  return { transactionId: payment.id, status: updated.status, pcsCode: updated.pcsCode, amount: Number(updated.amount),
+  return { transactionId: payment.id, status: updated.status, pcsCode: updated.pcsCode, amount: Number(updated.amount), currency: updated.currency,
     createdAt: updated.createdAt, providerAccepted: !!updated.solvexpayTxnId,
     message: updated.solvexpayTxnId ? undefined : "Demande transmise. Confirmation du prestataire en attente. Ne payez pas une seconde fois." };
 }
@@ -156,6 +159,9 @@ async function initiate(req: Request) {
   const userId = authId(req);
   const service = await resolveService(input.service, input.linkId, settings, userId);
   if (!Number.isFinite(service.amount) || service.amount <= 0) throw error(503, "Montant du service invalide.");
+  if (!matchesServiceQuote({ amount: input.expectedAmount, currency: input.expectedCurrency }, service)) {
+    throw error(409, "Le tarif du service a changé. Vérifiez le nouveau montant avant de payer.");
+  }
   const country = CATALOG.find(c => c.code === input.country);
   if (!country || !country.operators.includes(input.operator)) throw error(400, "Ce moyen de paiement n'est pas proposé pour ce pays.");
   const maintenance = JSON.parse(setting(settings, "operator_maintenance", "{}"));
@@ -224,7 +230,7 @@ async function initiate(req: Request) {
     }
   });
   if (payment.status === "failed") throw error(400, "failureMessage" in payment ? String(payment.failureMessage) : "Paiement refusé.");
-  return { success: true, transactionId: payment.id, reference: payment.reference, status: "pending", amount: service.amount, gateway: "solvexpay",
+  return { success: true, transactionId: payment.id, reference: payment.reference, status: "pending", amount: Number(payment.amount), currency: payment.currency, gateway: "solvexpay",
     createdAt: payment.createdAt, providerAccepted: !!payment.solvexpayTxnId,
     paymentUrl: "paymentUrl" in payment ? payment.paymentUrl : undefined,
     message: payment.solvexpayTxnId ? "Validez la demande sur votre téléphone." : "Demande transmise. Confirmation du prestataire en attente. Ne payez pas une seconde fois." };

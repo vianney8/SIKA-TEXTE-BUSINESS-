@@ -6,6 +6,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { COUNTRIES, OPERATORS } from "@/pages/Activation";
 import PaymentCheckout, { useCheckoutMode } from "./PaymentCheckout";
+import OperatorLogo from "./OperatorLogo";
+import { usePaymentRevision } from "@/hooks/useLiveUpdates";
 
 // ─── Formulaire de paiement pour la mise à jour DNS ──────────────────────────
 // Reprend exactement le même principe que le formulaire d'activation de
@@ -37,6 +39,7 @@ function LegacyDnsPaymentForm({
 }: { onSubmitted: () => void; onCancel: () => void }) {
   const { toast } = useToast();
   const { data: checkoutMode } = useCheckoutMode();
+  const paymentRevision = usePaymentRevision();
   const [step, setStep] = useState<DnsFormStep>("country");
   const [country, setCountry] = useState("");
   const [operator, setOperator] = useState("");
@@ -64,7 +67,7 @@ function LegacyDnsPaymentForm({
     setDepositLoading(true);
     fetch(`/api/withdrawal/dns-manual-deposit-info?country=${country}&operator=${operator}`, { credentials: "include" })
       .then(r => r.json()).then(d => setDepositInfo(d)).catch(() => setDepositInfo(null)).finally(() => setDepositLoading(false));
-  }, [step, country, operator]);
+  }, [step, country, operator, paymentRevision]);
 
   useEffect(() => {
     if (!screenshotFile) { setScreenshotPreview(null); return; }
@@ -238,7 +241,7 @@ function LegacyDnsPaymentForm({
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs"
                     style={{ backgroundColor: op.bg, color: op.text }}>
-                    {op.initials}
+                    <OperatorLogo code={opCode} size={36} />
                   </div>
                    <span className="text-slate-800 font-bold text-sm">{op.full}</span>
                 </div>
