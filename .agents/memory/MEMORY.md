@@ -14,5 +14,6 @@
 - [Withdrawal PCS validation](withdrawal-pcs-eligibility.md) — accept owned inactive PCS codes initially, then atomically cancel, refund, and notify after one minute if still inactive.
 - [Optional PCS purchases](pcs-purchase-policy.md) — once a user owns a PCS code, buying another is optional; distinguish purchase from activation.
 - [DNS retry navigation](dns-retry-navigation.md) — after choosing retry, return to the payment process rather than showing the same acknowledged failure again.
+- [DNS release policy](dns-release-policy.md) — version publication makes old approvals obsolete; repeat notices per withdrawal visit without forcing pending payments to pay twice.
 - [Development server restarts](development-server-restarts.md) — obsolete servers can share the preview port; a successful restart alone does not prove requests reach current code.
 - [Manual payment photos](manual-payment-photos.md) — photos only; returning from the gallery and background refreshes must not reset the payment form.

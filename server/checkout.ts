@@ -13,6 +13,7 @@ import { localPaymentPhone } from "@shared/payment-phone";
 import { requiresPaymentOtp, paymentOtpError } from "@shared/payment-otp";
 import { paymentCustomerEmail } from "@shared/payment-customer";
 import { checkoutModel } from "@shared/checkout-settings";
+import { getDnsUpdateStatus } from "./dns-versions";
 
 const CATALOG = [
   { code: "BJ", name: "Bénin", prefix: "229", operators: ["mtn", "moov", "celtis"], length: 10 },
@@ -193,6 +194,9 @@ async function initiate(req: Request) {
     if (state?.isActive) throw error(409, "Votre compte est déjà activé.");
   }
   if (service.id === "__ci_update" && owner?.ciUpdateValidated) throw error(409, "Cette mise à jour est déjà validée.");
+  if (service.id === "eedbc622" && targetId && (await getDnsUpdateStatus(targetId)).status === "completed") {
+    throw error(409, "Votre serveur DNS dispose déjà de la version actuelle.");
+  }
   if (service.id === "88cb6331") {
     const [inactive] = await db.select().from(pcsCodes).where(and(eq(pcsCodes.userId, targetId!), eq(pcsCodes.status, "inactif"))).limit(1);
     if (!inactive) throw error(409, "Aucun code PCS inactif à activer.");

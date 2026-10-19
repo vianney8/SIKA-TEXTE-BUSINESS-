@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import AdminServicePrices from "@/components/AdminServicePrices";
+import AdminDnsVersion from "@/components/AdminDnsVersion";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -290,6 +291,7 @@ export default function AdminSettings() {
         </div>
 
         <div className="mb-6"><AdminServicePrices /></div>
+        <AdminDnsVersion />
         <Card className="mb-6">
           <CardHeader>
             <CardTitle>Modèle de paiement pour tout le site</CardTitle>

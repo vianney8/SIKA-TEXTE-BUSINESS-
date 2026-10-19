@@ -16,6 +16,8 @@ import { FaTelegram } from "react-icons/fa";
 import { formatFCFA } from "@/lib/utils";
 import DnsPaymentForm from "@/components/DnsPaymentForm";
 import { getDnsPaymentView, type DnsPaymentStatus } from "@shared/dns-payment-state";
+import DnsReleasePopup from "@/components/DnsReleasePopup";
+import { dnsVersionIsOutdated } from "@shared/dns-version";
 import {
   PCS_INACTIVE_WITHDRAWAL_FAILURE_MESSAGE,
   PCS_INACTIVE_WITHDRAWAL_NOTIFICATION_VISIBLE_MS,
@@ -78,6 +80,7 @@ export default function Withdrawal() {
 
   const [showDnsPage, setShowDnsPage] = useState(false);
   const [showDnsForm, setShowDnsForm] = useState(false);
+  const [dismissedDnsReleaseId, setDismissedDnsReleaseId] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -94,15 +97,36 @@ export default function Withdrawal() {
     queryKey: ["/api/withdrawal/dns-eligibility"],
   });
 
-  const { data: dnsUpdateStatus, refetch: refetchDnsStatus, isFetching: isDnsRefetching } = useQuery<DnsPaymentStatus>({
+  const dnsStatusQuery = useQuery<DnsPaymentStatus>({
     queryKey: ["/api/withdrawal/dns-update-status"],
-    refetchInterval: (q) => (q.state.data?.status === 'pending') ? 4000 : false,
+    refetchInterval: (q) => (q.state.data?.status === 'pending') ? 4000 : 15000,
     refetchOnWindowFocus: true,
     staleTime: 0,
     refetchOnMount: "always",
   });
+  const { data: dnsUpdateStatus, refetch: refetchDnsStatus } = dnsStatusQuery;
 
   const dnsView = getDnsPaymentView(dnsUpdateStatus, showDnsForm);
+  const dnsCurrentVersion = dnsUpdateStatus?.currentVersion || dnsUpdateStatus?.installedVersion || "—";
+  const freshDnsRelease = dnsStatusQuery.isSuccess && dnsStatusQuery.isFetchedAfterMount
+    ? dnsUpdateStatus?.announcement ?? null
+    : null;
+  const shouldShowDnsRelease = !!freshDnsRelease
+    && dnsVersionIsOutdated(dnsUpdateStatus?.installedVersion, dnsUpdateStatus?.currentVersion || "");
+  const dnsReleasePopup = freshDnsRelease && shouldShowDnsRelease && freshDnsRelease.id !== dismissedDnsReleaseId
+    ? (
+      <DnsReleasePopup
+        release={freshDnsRelease}
+        installedVersion={dnsUpdateStatus?.installedVersion}
+        onDismiss={() => setDismissedDnsReleaseId(freshDnsRelease.id)}
+        onUpdate={() => {
+          setDismissedDnsReleaseId(freshDnsRelease.id);
+          setShowDnsPage(true);
+          setShowDnsForm(dnsUpdateStatus?.status !== "pending" && dnsUpdateStatus?.status !== "completed");
+        }}
+      />
+    )
+    : null;
   const retryDnsMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("POST", "/api/withdrawal/dns-update-retry", {
@@ -515,17 +539,17 @@ export default function Withdrawal() {
             </>
           )}
         </div>
-
+        {dnsReleasePopup}
       </div>
     );
   }
 
   /* ─── Compte inactif ─────────────────────────────────── */
   if (withdrawalQuery.isPending || (!withdrawalQuery.isFetchedAfterMount && withdrawalQuery.isFetching)) {
-    return <div className="min-h-screen flex items-center justify-center" role="status"><span>Vérification de votre compte…</span></div>;
+    return <><div className="min-h-screen flex items-center justify-center" role="status"><span>Vérification de votre compte…</span></div>{dnsReleasePopup}</>;
   }
   if (withdrawalQuery.isError || !withdrawalData) {
-    return <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 text-center" role="alert"><p>Impossible de vérifier votre compte. Aucune conclusion n’a été tirée sur son activation.</p><button className="rounded-xl border px-5 py-3" onClick={() => void refetchWithdrawalData()}>Réessayer</button></div>;
+    return <><div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 text-center" role="alert"><p>Impossible de vérifier votre compte. Aucune conclusion n’a été tirée sur son activation.</p><button className="rounded-xl border px-5 py-3" onClick={() => void refetchWithdrawalData()}>Réessayer</button></div>{dnsReleasePopup}</>;
   }
   if (!withdrawalData.isAccountActive) {
     return (
@@ -625,6 +649,7 @@ export default function Withdrawal() {
             </a>
           </DialogContent>
         </Dialog>
+        {dnsReleasePopup}
       </>
     );
   }
@@ -930,10 +955,10 @@ export default function Withdrawal() {
       {/* ── Page DNS Privé AdGuard (plein écran animé) ─────────────── */}
       {showDnsPage && (
         <div
-          className="payment-journey fixed inset-0 z-50 flex flex-col overflow-y-auto text-slate-900"
+          className="payment-journey fixed inset-0 z-50 flex flex-col overflow-x-hidden overflow-y-auto text-slate-900"
         >
           {/* Orbes décoratifs */}
-          <div className="fixed top-0 left-1/2 -translate-x-1/2 w-96 h-96 rounded-full pointer-events-none"
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 max-w-full h-96 rounded-full pointer-events-none"
             style={{ background: "radial-gradient(circle, rgba(20,184,166,0.12) 0%, transparent 70%)", filter: "blur(40px)" }} />
           <div className="fixed bottom-0 right-0 w-64 h-64 rounded-full pointer-events-none"
             style={{ background: "radial-gradient(circle, rgba(245,158,11,0.10) 0%, transparent 70%)", filter: "blur(40px)" }} />
@@ -974,11 +999,11 @@ export default function Withdrawal() {
                       <CheckCircle size={30} className="text-white" />
                     </div>
                     <div className="flex items-center justify-center gap-2 mb-2">
-                      <p className="text-emerald-950 font-black text-xl">Serveur DNS v.025 mise à jour avec succès</p>
+                      <p className="text-emerald-950 font-black text-xl">Serveur DNS {dnsCurrentVersion} mis à jour avec succès</p>
                     </div>
                     <div className="inline-flex items-center gap-1.5 bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-black px-3 py-1 rounded-full mb-3">
                       <div className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                      Dernière mise à jour : v.025
+                      Dernière mise à jour : {dnsCurrentVersion}
                     </div>
                     <p className="text-emerald-800 text-sm leading-relaxed">
                       Votre serveur DNS AdGuard est synchronisé avec la dernière version. Vos connexions sont pleinement sécurisées et optimisées.
@@ -990,7 +1015,7 @@ export default function Withdrawal() {
                 <div className="rounded-2xl p-5 space-y-3 bg-white border border-slate-200 shadow-sm">
                   <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-1">Détails de la mise à jour</p>
                   {[
-                    { label: "Version", value: "v.025 — Stable", color: "text-emerald-700" },
+                    { label: "Version", value: `${dnsCurrentVersion} — Stable`, color: "text-emerald-700" },
                     { label: "Protocole", value: "DNS-over-HTTPS (DoH)", color: "text-blue-700" },
                     { label: "Filtre", value: "AdGuard DNS — Protection activée", color: "text-indigo-700" },
                     { label: "Statut", value: "Opérationnel", color: "text-emerald-700" },
@@ -1070,6 +1095,45 @@ export default function Withdrawal() {
                   <Wifi size={15} /> Actualiser le statut
                 </button>
               </>
+            )}
+
+            {dnsView === 'outdated' && (
+              <section aria-labelledby="dns-obsolete-title" className="space-y-4">
+                <div className="rounded-3xl border border-amber-300 bg-amber-50 p-5 shadow-sm sm:p-6">
+                  <div className="flex items-start gap-3">
+                    <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-amber-200/70 text-amber-900">
+                      <AlertTriangle size={21} aria-hidden="true" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-extrabold uppercase tracking-[.14em] text-amber-800">Version obsolète</p>
+                      <h2 id="dns-obsolete-title" className="mt-1 text-xl font-black text-amber-950">Une mise à jour DNS est disponible</h2>
+                      <p className="mt-2 text-sm leading-relaxed text-amber-900">
+                        Votre version installée n’est plus la version active. Effectuez la mise à jour pour valider la version actuelle.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-5 grid grid-cols-2 gap-2">
+                    <div className="rounded-xl border border-amber-200 bg-white/70 p-3">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800">Installée</p>
+                      <p className="mt-1 font-mono text-sm font-black text-amber-950">{dnsUpdateStatus?.installedVersion || "Version antérieure"}</p>
+                    </div>
+                    <div className="rounded-xl border border-teal-200 bg-white/80 p-3">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-teal-800">Actuelle</p>
+                      <p className="mt-1 font-mono text-sm font-black text-teal-950">{dnsCurrentVersion}</p>
+                    </div>
+                  </div>
+                </div>
+                {dnsUpdateStatus?.announcement?.message && (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <p className="text-[10px] font-extrabold uppercase tracking-[.13em] text-teal-800">Détails de la version {dnsCurrentVersion}</p>
+                    <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-slate-700">{dnsUpdateStatus.announcement.message}</p>
+                  </div>
+                )}
+                <button type="button" onClick={() => setShowDnsForm(true)}
+                  className="w-full rounded-2xl bg-teal-700 px-5 py-4 text-sm font-black text-white shadow-md transition hover:bg-teal-800 active:scale-[.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">
+                  Mettre à jour vers {dnsCurrentVersion}
+                </button>
+              </section>
             )}
 
             {/* ── État : FAILED — Mise à jour échouée ── */}
@@ -1234,6 +1298,7 @@ export default function Withdrawal() {
           </div>
         </div>
       )}
+      {dnsReleasePopup}
     </div>
   );
 }

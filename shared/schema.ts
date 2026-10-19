@@ -492,10 +492,18 @@ export const paymentLinkTransactions = pgTable("payment_link_transactions", {
   userId: varchar("user_id"),
   screenshotUrl: varchar("screenshot_url"),
   dnsRetryRequested: boolean("dns_retry_requested").notNull().default(false),
+  dnsVersion: varchar("dns_version").notNull().default("v.025"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 export type PaymentLinkTransaction = typeof paymentLinkTransactions.$inferSelect;
+
+export const dnsReleases = pgTable("dns_releases", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  version: varchar("version", { length: 48 }).notNull().unique(),
+  message: text("message").notNull(),
+  publishedAt: timestamp("published_at", { withTimezone: true }).notNull().default(sql`clock_timestamp()`),
+});
 
 // Table pour les demandes de paiement manuel par lien (mode dépôt manuel)
 export const linkManualRequests = pgTable("link_manual_requests", {

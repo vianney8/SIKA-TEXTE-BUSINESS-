@@ -48,6 +48,7 @@ import connectPg from "connect-pg-simple";
 import { randomBytes, createHmac, timingSafeEqual } from "crypto";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { registerCheckoutRoutes, solvexEnabled } from "./checkout";
+import { ensureDnsVersionSchema, getDnsUpdateStatus, currentDnsRelease, registerDnsVersionRoutes } from "./dns-versions";
 import { linkManualPaymentAllowed, paymentCustomerEmail } from "@shared/payment-customer";
 import { PCS_INACTIVE_WITHDRAWAL_GRACE_MS } from "@shared/withdrawal-policy";
 import { CHECKOUT_MODELS } from "@shared/checkout-settings";
@@ -429,6 +430,7 @@ async function notifyWestPayLinkRequest(
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  await ensureDnsVersionSchema();
   // Serve uploaded files (videos, etc.)
   const uploadsDir = path.join(process.cwd(), "uploads");
   if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
@@ -437,6 +439,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup sessions
   setupSessions(app);
   installLiveUpdates(app);
+  registerDnsVersionRoutes(app, requireAdmin);
   registerCheckoutRoutes(app);
 
   // Upload en mémoire pour les captures d'écran de paiement manuel
@@ -1335,25 +1338,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // (voir /api/withdrawal/dns-update/request) avec le user_id renseigné.
   app.get('/api/withdrawal/dns-update-status', requireAuth, async (req: any, res) => {
     try {
-      const userId = req.session.userId;
-
-      const txnResult = await db.execute(sql`
-        SELECT id, status, dns_retry_requested FROM payment_link_transactions
-        WHERE link_id = 'eedbc622' AND user_id = ${userId}
-        ORDER BY created_at DESC, id DESC
-        LIMIT 1
-      `);
-
-      const txn = txnResult.rows?.[0] as { id: string; status: string; dns_retry_requested: boolean } | undefined;
-
-      if (!txn) return res.json({ status: 'none' });
-      if (txn.status === 'completed') return res.json({ status: 'completed' });
-      if (txn.status === 'failed') return res.json({
-        status: 'failed',
-        transactionId: txn.id,
-        retryRequested: txn.dns_retry_requested,
-      });
-      return res.json({ status: 'pending' });
+      res.set('Cache-Control', 'no-store').json(await getDnsUpdateStatus(req.session.userId));
     } catch (error) {
       console.error('[DNS-UPDATE-STATUS] Error:', error);
       res.status(500).json({ message: 'Erreur serveur' });
@@ -1434,6 +1419,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const digitsOnly = String(bodyPhone).replace(/\D/g, '');
       const fullPhone = `+${digitsOnly.startsWith(prefix) ? digitsOnly : prefix + digitsOnly}`;
 
+      if ((await getDnsUpdateStatus(userId)).status === 'completed') {
+        return res.json({ success: true, status: 'completed', alreadyCompleted: true });
+      }
       const existingRows = await db.select().from(paymentLinkTransactions)
         .where(and(
           eq(paymentLinkTransactions.linkId, 'eedbc622'),
@@ -1442,7 +1430,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .orderBy(desc(paymentLinkTransactions.createdAt))
         .limit(1);
       const existing = existingRows[0];
-      if (existing?.status === 'completed') {
+      if (existing?.status === 'completed' && existing.dnsVersion === (await currentDnsRelease()).version) {
         return res.json({ success: true, status: 'completed', alreadyCompleted: true });
       }
       if (existing?.status === 'pending') {
@@ -1553,11 +1541,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(userId);
       if (!user) return res.status(404).json({ message: 'Utilisateur introuvable' });
 
-      // Empêche les doublons : si une demande est déjà en attente ou déjà
-      // validée, on renvoie simplement son statut au lieu d'en recréer une.
+      // Keep pending requests, but an old approved version must allow renewal.
+      const release = await currentDnsRelease();
       const existing = await db.execute(sql`
         SELECT status FROM payment_link_transactions
-        WHERE link_id = 'eedbc622' AND user_id = ${userId} AND status IN ('pending', 'completed')
+        WHERE link_id = 'eedbc622' AND user_id = ${userId}
+          AND (status = 'pending' OR (status = 'completed' AND dns_version = ${release.version}))
         ORDER BY created_at DESC LIMIT 1
       `);
       const existingTxn = existing.rows?.[0] as { status: string } | undefined;
