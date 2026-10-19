@@ -253,7 +253,7 @@ body:has(.sika-checkout) {
 
   /* Compatibility skin for legacy Tailwind markup inside authenticated views.
      Deliberately scoped: public/auth pages keep their own composition. */
-  .sika-page .bg-white { background-color: hsl(var(--card) / .92); }
+  .sika-page .bg-white { background-color: var(--card); }
   .sika-page .bg-gray-50, .sika-page .bg-slate-50, .sika-page .bg-gray-100,
   .sika-page .bg-slate-100 { background-color: hsl(var(--muted) / .58); }
   .sika-page .border-gray-50, .sika-page .border-gray-100, .sika-page .border-gray-200,
