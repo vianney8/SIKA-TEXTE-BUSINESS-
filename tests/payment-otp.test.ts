@@ -9,6 +9,7 @@ test("Orange Burkina Faso requires a valid payment code", () => {
   assert.ok(paymentOtpError("BF", "orange", "123"));
   assert.equal(paymentOtpError("BF", "orange", " 8562 "), null);
   assert.match(paymentOtpInstructions("BF"), /Burkina Faso/);
+  assert.match(paymentOtpInstructions("BF"), /Composez le #144#/);
 });
 
 test("Orange Senegal no longer requires an OTP", () => {
