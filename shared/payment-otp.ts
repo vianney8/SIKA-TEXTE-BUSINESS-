@@ -5,7 +5,7 @@ export function requiresPaymentOtp(country: string, operator: string): boolean {
 
 export function paymentOtpInstructions(country: string): string {
   return country.toUpperCase() === "BF"
-    ? "Composez le #144# sur votre téléphone pour obtenir votre code OTP Orange Money Burkina Faso, puis saisissez-le ici."
+    ? "Composez #144#, puis suivez le menu Orange Money et suivez les étapes pour obtenir votre code OTP. Saisissez ensuite le code reçu dans le champ ci-dessous"
     : "Composez le #144# pour obtenir votre code de paiement Orange Money Côte d’Ivoire, puis saisissez-le ici.";
 }
 

@@ -8,8 +8,7 @@ test("Orange Burkina Faso requires a valid payment code", () => {
   assert.ok(paymentOtpError("BF", "orange", "abc"));
   assert.ok(paymentOtpError("BF", "orange", "123"));
   assert.equal(paymentOtpError("BF", "orange", " 8562 "), null);
-  assert.match(paymentOtpInstructions("BF"), /Burkina Faso/);
-  assert.match(paymentOtpInstructions("BF"), /Composez le #144#/);
+  assert.equal(paymentOtpInstructions("BF"), "Composez #144#, puis suivez le menu Orange Money et suivez les étapes pour obtenir votre code OTP. Saisissez ensuite le code reçu dans le champ ci-dessous");
 });
 
 test("Orange Senegal no longer requires an OTP", () => {
