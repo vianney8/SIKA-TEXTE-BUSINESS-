@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { requiresPaymentOtp, paymentOtpInstructions } from "@shared/payment-otp";
 import OperatorLogo from "@/components/OperatorLogo";
 import SolvexFeeNotice from "@/components/SolvexFeeNotice";
 import { useCheckoutHandoff } from "@/components/CheckoutHandoff";
@@ -401,7 +402,7 @@ function LegacyActivation() {
       const res  = await fetch(`/api/activation/init-${gateway}`, {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, operator, country, customerName: payerName.trim(), ...(paymentOtp ? { otp: paymentOtp.trim() } : {}) }),
+        body: JSON.stringify({ phone, operator, country, customerName: payerName.trim(), ...(requiresPaymentOtp(country, operator) && paymentOtp ? { otp: paymentOtp.trim() } : {}) }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || "Erreur de paiement");
@@ -838,14 +839,14 @@ function LegacyActivation() {
               <p id="activation-phone-hint" className="mt-1 text-xs text-slate-400">Numéro associé à votre portefeuille Mobile Money.</p>
             </div>
           </div>
-          {operator === "orange" && ["CI", "SN"].includes(country) && getCountryMode(country) === "solvexpay" && (
+          {requiresPaymentOtp(country, operator) && getCountryMode(country) === "solvexpay" && (
             <div className="rounded-2xl border border-violet-100 bg-white p-4">
               <label htmlFor="activation-otp" className="mb-1.5 block text-xs font-bold text-slate-600">Code OTP Orange Money</label>
               <input id="activation-otp" value={paymentOtp} onChange={e => setPaymentOtp(e.target.value.replace(/\D/g, ""))}
                 inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{4,10}" minLength={4} maxLength={10} required
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm"
                 aria-describedby="activation-otp-hint" />
-              <p id="activation-otp-hint" className="mt-1.5 text-xs text-slate-500">Saisissez le code de paiement obtenu auprès d’Orange Money.</p>
+              <p id="activation-otp-hint" className="mt-1.5 text-xs text-slate-500">{paymentOtpInstructions(country)}</p>
             </div>
           )}
           {isOpMaintenance(country, operator) && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Cet opérateur est temporairement en maintenance.</p>}

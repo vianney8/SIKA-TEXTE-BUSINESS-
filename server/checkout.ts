@@ -10,6 +10,7 @@ import { storage } from "./storage";
 import { accountStatus, linkManualRequests, paymentLinks, paymentLinkTransactions, pcsCodes, referrals, users } from "@shared/schema";
 import { generatePcsCode, sendPcsEmail } from "./email";
 import { localPaymentPhone } from "@shared/payment-phone";
+import { requiresPaymentOtp, paymentOtpError } from "@shared/payment-otp";
 import { paymentCustomerEmail } from "@shared/payment-customer";
 import { checkoutModel } from "@shared/checkout-settings";
 
@@ -176,7 +177,8 @@ async function initiate(req: Request) {
   const local = localPaymentPhone(input.phone, country.prefix, country.length);
   if (local.length !== country.length) throw error(400, "Le numéro de téléphone n'a pas la longueur attendue pour ce pays.");
   const phone = country.prefix + local;
-  if (input.operator === "orange" && ["CI", "SN"].includes(input.country) && !input.otp) throw error(400, "Saisissez le code OTP Orange indiqué dans le formulaire.");
+  const otpError = paymentOtpError(input.country, input.operator, input.otp);
+  if (otpError) throw error(400, otpError);
   const owner = userId ? await storage.getUser(userId) : undefined;
   let targetId = userId;
   const email = paymentCustomerEmail(input.customerEmail, owner?.email);
@@ -218,7 +220,7 @@ async function initiate(req: Request) {
         signal: AbortSignal.timeout(20000),
         body: JSON.stringify({ amount: service.amount, currency: service.currency, phone, operator: input.operator, country: input.country,
           description: `${service.label} — SIKA TEXTE`, reference: created.reference,
-          customer_name: created.customerName || undefined, customer_email: email, ...(input.otp ? { otp: input.otp } : {}) }),
+          customer_name: created.customerName || undefined, customer_email: email, ...(requiresPaymentOtp(input.country, input.operator) ? { otp: input.otp } : {}) }),
       });
       const payload = await response.json();
       const data = payload?.transaction || payload?.data || payload;

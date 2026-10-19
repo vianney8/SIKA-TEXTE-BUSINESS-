@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { localPaymentPhone } from "@shared/payment-phone";
+import { requiresPaymentOtp, paymentOtpInstructions } from "@shared/payment-otp";
 import { type CheckoutModel } from "@shared/checkout-settings";
 import OperatorLogo from "./OperatorLogo";
 import SolvexFeeNotice from "./SolvexFeeNotice";
@@ -144,10 +145,7 @@ export default function SimpleCheckout({
   const country = countries.find((item) => item.code === countryCode);
   const selectedOperator = country?.operators.find((item) => item.code === operatorCode);
   const automaticCountry = !country?.mode || country.mode === "solvexpay";
-  const needsOtp = automaticCountry && (
-    countryCode === "CI" || countryCode === "SN"
-      ? operatorCode === "orange"
-      : false);
+  const needsOtp = automaticCountry && requiresPaymentOtp(countryCode, operatorCode);
   const locked = paymentStatus === "pending";
   const key = useMemo(
     () => sessionKey(service, linkId, config?.customerId ?? null),
@@ -640,7 +638,7 @@ export default function SimpleCheckout({
               {needsOtp && (
                 <div className="checkout-otp-panel mt-4">
                   <p className="checkout-otp-title">Confirmation Orange Money</p>
-                  <p className="checkout-muted mt-1 text-xs">Sur votre téléphone, composez <strong>#144#</strong> ou <strong>#144*82#</strong>, puis saisissez le code reçu.</p>
+                  <p className="checkout-muted mt-1 text-xs">{paymentOtpInstructions(countryCode)}</p>
                   <label className="checkout-label mt-3 block" htmlFor="checkout-otp">Code de confirmation</label>
                   <input
                     id="checkout-otp"
@@ -649,7 +647,7 @@ export default function SimpleCheckout({
                     autoComplete="one-time-code"
                     value={otp}
                     onChange={(event) => setOtp(event.target.value)}
-                    placeholder="Code reçu par SMS"
+                    placeholder="Code de paiement Orange Money"
                     required
                     disabled={locked || initMutation.isPending}
                   />

@@ -37,6 +37,7 @@ import {
   platformNotifications,
 } from "@shared/schema";
 import bcrypt from "bcrypt";
+import { requiresPaymentOtp, paymentOtpInstructions, paymentOtpError } from "@shared/payment-otp";
 import { installLiveUpdates } from "./live-updates";
 import { serviceAmount, linkedPriceIds } from "@shared/service-pricing";
 import { countryPaymentMode } from "@shared/checkout-settings";
@@ -7784,7 +7785,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const rawPhone = user.phone || '';
       const phoneWithPlus = rawPhone.startsWith('+') ? rawPhone : `+${rawPhone}`;
       const { operator, country } = rawPhone ? detectOperatorCountry(phoneWithPlus) : { operator: 'mtn', country: 'BJ' };
-      const requiresOTP = operator === 'orange' && (country === 'CI' || country === 'SN');
+      const requiresOTP = requiresPaymentOtp(country, operator);
 
       const maskedPhone = rawPhone
         ? rawPhone.replace(/(\d{3})\d+(\d{3})/, '$1****$2')
@@ -7827,7 +7828,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ciRedirectUrl,
         countryModes,
         otpInstructions: requiresOTP
-          ? (country === 'CI' ? 'Composez le #144# pour obtenir votre OTP Orange CI' : 'Composez le #144*82# pour obtenir votre OTP Orange SN')
+          ? paymentOtpInstructions(country)
           : null
       });
     } catch (error) {
@@ -7912,11 +7913,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         phone = phoneWithPlus.replace(/^\+/, '');
       }
 
-      // OTP requis pour Orange CI/SN
-      const requiresOTP = operator === 'orange' && (country === 'CI' || country === 'SN');
-      if (requiresOTP && !otp) {
-        return res.status(400).json({ message: 'Un OTP est requis pour Orange. Composez le #144# (CI) ou #144*82# (SN).' });
-      }
+      // OTP requis pour Orange CI/BF uniquement.
+      const requiresOTP = requiresPaymentOtp(country, operator);
+      const otpError = paymentOtpError(country, operator, otp);
+      if (otpError) return res.status(400).json({ message: otpError });
 
       const apiKey = process.env.SOLVEXPAY_API_KEY;
       if (!apiKey) {
@@ -7956,7 +7956,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         customer_name: user.fullName || [user.firstName, user.lastName].filter(Boolean).join(' ') || undefined,
         customer_email: user.email || undefined,
       };
-      if (otp) srPayload.otp = otp;
+      if (requiresOTP) srPayload.otp = otp.trim();
 
       const apiResponse = await fetch('https://solvexpay.com/api/v1/sr/pay', {
         method: 'POST',
@@ -9118,6 +9118,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (!solvexEnabled(settings, String(country))) return res.status(409).json({ message: 'Ce pays utilise un autre mode de paiement configuré par l’administrateur.' });
+      const otpError = paymentOtpError(String(country), String(operator), otp);
+      if (otpError) return res.status(400).json({ message: otpError });
       const apiKey = process.env.SOLVEXPAY_API_KEY;
       if (!apiKey) return res.status(500).json({ message: 'Clé API non configurée' });
 
@@ -9130,7 +9132,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         customer_name: customerName || undefined,
         customer_email: customerEmail || undefined,
       };
-      if (otp) payload.otp = otp;
+      if (requiresPaymentOtp(String(country), String(operator))) payload.otp = otp.trim();
 
       console.log('[PAYMENT-LINKS-PAY] Initiating SR for link:', linkId, 'amount:', link.amount, 'phone:', fullPhone, 'operator:', operator);
 

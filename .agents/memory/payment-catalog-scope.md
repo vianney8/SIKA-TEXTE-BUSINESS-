@@ -16,3 +16,9 @@ The user explicitly requested adding Celtis for Bénin and Expresso for Sénéga
 **Why:** User-specified additions to the supported operator catalog, not an invitation to add other countries or networks.
 
 **How to apply:** Include these operators in SolvexPay and historical forms, server validation and administrator controls. Do not assume this establishes support by another payment provider.
+
+Orange Burkina Faso must request a payment OTP; Orange Sénégal must not request one. Keep the existing Côte d’Ivoire requirement unchanged.
+
+**Why:** The user explicitly requested moving the Orange OTP section from Sénégal to Burkina Faso.
+
+**How to apply:** Keep this rule consistent across automatic payment forms and server checks for every service. Do not apply it to manual deposits or infer changes to other gateways.
