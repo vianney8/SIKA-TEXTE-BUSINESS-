@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { localPaymentPhone } from "@shared/payment-phone";
+import { paymentCurrency } from "@shared/payment-currency";
 import { requiresPaymentOtp, paymentOtpInstructions } from "@shared/payment-otp";
 import { type CheckoutModel } from "@shared/checkout-settings";
 import OperatorLogo from "./OperatorLogo";
@@ -145,6 +146,9 @@ export default function SimpleCheckout({
   const country = countries.find((item) => item.code === countryCode);
   const selectedOperator = country?.operators.find((item) => item.code === operatorCode);
   const automaticCountry = !country?.mode || country.mode === "solvexpay";
+  const checkoutCurrency = automaticCountry
+    ? paymentCurrency(countryCode, config?.currency || "XOF")
+    : config?.currency || "XOF";
   const needsOtp = automaticCountry && requiresPaymentOtp(countryCode, operatorCode);
   const locked = paymentStatus === "pending";
   const key = useMemo(
@@ -298,7 +302,7 @@ export default function SimpleCheckout({
           ...(needsOtp ? { otp: otp.trim() } : {}),
           customerName: payerName.trim(),
           expectedAmount: config?.amount,
-          expectedCurrency: config?.currency,
+          expectedCurrency: checkoutCurrency,
           ...(config?.requiresEmail ? { customerEmail: customerEmail.trim() } : {}),
         }),
       });
@@ -446,7 +450,7 @@ export default function SimpleCheckout({
                 {config.customerName && <p className="checkout-muted checkout-customer-name">{config.customerName}</p>}
               </div>
             </div>
-            <p className="checkout-price shrink-0">{formatAmount(paymentAmount?.amount ?? config.amount, paymentAmount?.currency ?? config.currency)}</p>
+            <p className="checkout-price shrink-0">{formatAmount(paymentAmount?.amount ?? config.amount, paymentAmount?.currency ?? checkoutCurrency)}</p>
           </header>
 
           {paymentStatus === "pending" ? (
@@ -474,7 +478,7 @@ export default function SimpleCheckout({
                 <div className="progress-step"><span>3</span><small>Confirmation</small></div>
               </div>
               <div className="checkout-amount-row mt-5">
-                <span>Montant</span><strong>{formatAmount(paymentAmount?.amount ?? config.amount, paymentAmount?.currency ?? config.currency)}</strong>
+                <span>Montant</span><strong>{formatAmount(paymentAmount?.amount ?? config.amount, paymentAmount?.currency ?? checkoutCurrency)}</strong>
               </div>
               <div className="checkout-instructions mt-5">
                 <div className="flex items-start gap-2.5">
@@ -686,7 +690,7 @@ export default function SimpleCheckout({
               {country?.mode === "solvexpay" && <SolvexFeeNotice />}
               <button type="submit" className="checkout-button mt-5 w-full" disabled={!canPay}>
                 {initMutation.isPending ? <LoaderCircle size={18} className="animate-spin" /> : null}
-                {initMutation.isPending ? "Connexion…" : <>{automaticCountry ? "Payer" : "Continuer ·"} {formatAmount(config.amount, config.currency)} <ArrowRight size={18} /></>}
+                {initMutation.isPending ? "Connexion…" : <>{automaticCountry ? "Payer" : "Continuer ·"} {formatAmount(config.amount, checkoutCurrency)} <ArrowRight size={18} /></>}
               </button>
               <div className="checkout-secure mt-4 flex items-center justify-center gap-1.5">
                 <LockKeyhole size={13} />

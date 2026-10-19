@@ -14,6 +14,7 @@ import { requiresPaymentOtp, paymentOtpError } from "@shared/payment-otp";
 import { paymentCustomerEmail } from "@shared/payment-customer";
 import { checkoutModel } from "@shared/checkout-settings";
 import { getDnsUpdateStatus } from "./dns-versions";
+import { paymentCurrency, matchesPaymentCurrency } from "@shared/payment-currency";
 
 const CATALOG = [
   { code: "BJ", name: "Bénin", prefix: "229", operators: ["mtn", "moov", "celtis"], length: 10 },
@@ -118,7 +119,7 @@ function verifiedProviderData(payment: Checkout, payload: any) {
   const data = payload?.transaction || payload?.data || payload;
   if (!data || String(data.id) !== payment.solvexpayTxnId) throw error(409, "Référence du paiement non concordante.");
   if (data.amount == null || Number(data.amount) !== Number(payment.amount)) throw error(409, "Montant du paiement non concordant.");
-  if (data.currency && String(data.currency).toUpperCase() !== payment.currency) throw error(409, "Devise du paiement non concordante.");
+  if (data.currency && !matchesPaymentCurrency(payment.country, payment.currency, String(data.currency))) throw error(409, "Devise du paiement non concordante.");
   if (data.country && String(data.country).toUpperCase() !== payment.country) throw error(409, "Pays du paiement non concordant.");
   if (data.operator && String(data.operator).toLowerCase() !== payment.operator) throw error(409, "Opérateur du paiement non concordant.");
   if (data.phone && String(data.phone).replace(/\D/g, "") !== String(payment.phone).replace(/\D/g, "")) throw error(409, "Téléphone du paiement non concordant.");
@@ -127,6 +128,12 @@ function verifiedProviderData(payment: Checkout, payload: any) {
 
 export async function reconcileSolvexCheckout(payment: Checkout, payload: any) {
   const data = verifiedProviderData(payment, payload);
+  // Old CM receipts were incorrectly labelled XOF. Correct pending receipts
+  // only after the provider's identity, amount, country, operator and phone match.
+  if (data.currency && payment.currency !== paymentCurrency(payment.country, payment.currency)) {
+    await db.update(paymentLinkTransactions).set({ currency: paymentCurrency(payment.country, payment.currency) })
+      .where(and(eq(paymentLinkTransactions.id, payment.id), eq(paymentLinkTransactions.status, "pending")));
+  }
   const status = normalizeSolvexStatus(data.status, payload?.event);
   if (status === "completed") await fulfill(payment);
   else if (status === "failed") {
@@ -152,7 +159,7 @@ async function getStatus(id: string, userId?: string) {
     await reconcileSolvexCheckout(payment, data);
   }
   const [updated] = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.id, payment.id));
-  return { transactionId: payment.id, status: updated.status, pcsCode: updated.pcsCode, amount: Number(updated.amount), currency: updated.currency,
+  return { transactionId: payment.id, status: updated.status, pcsCode: updated.pcsCode, amount: Number(updated.amount), currency: paymentCurrency(updated.country, updated.currency),
     createdAt: updated.createdAt, providerAccepted: !!updated.solvexpayTxnId,
     message: updated.solvexpayTxnId ? undefined : "Demande transmise. Confirmation du prestataire en attente. Ne payez pas une seconde fois." };
 }
@@ -167,6 +174,7 @@ async function initiate(req: Request) {
   if (!apiKey) throw error(503, "SolvexPay n'est pas encore configuré. Contactez l'administrateur.");
   const userId = authId(req);
   const service = await resolveService(input.service, input.linkId, settings, userId);
+  service.currency = paymentCurrency(input.country, service.currency);
   if (!Number.isFinite(service.amount) || service.amount <= 0) throw error(503, "Montant du service invalide.");
   if (!matchesServiceQuote({ amount: input.expectedAmount, currency: input.expectedCurrency }, service)) {
     throw error(409, "Le tarif du service a changé. Vérifiez le nouveau montant avant de payer.");
@@ -243,7 +251,7 @@ async function initiate(req: Request) {
     }
   });
   if (payment.status === "failed") throw error(400, "failureMessage" in payment ? String(payment.failureMessage) : "Paiement refusé.");
-  return { success: true, transactionId: payment.id, reference: payment.reference, status: "pending", amount: Number(payment.amount), currency: payment.currency, gateway: "solvexpay",
+  return { success: true, transactionId: payment.id, reference: payment.reference, status: "pending", amount: Number(payment.amount), currency: paymentCurrency(payment.country, payment.currency), gateway: "solvexpay",
     createdAt: payment.createdAt, providerAccepted: !!payment.solvexpayTxnId,
     paymentUrl: "paymentUrl" in payment ? payment.paymentUrl : undefined,
     message: payment.solvexpayTxnId ? "Validez la demande sur votre téléphone." : "Demande transmise. Confirmation du prestataire en attente. Ne payez pas une seconde fois." };

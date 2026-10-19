@@ -88,6 +88,20 @@ test("SolvexPay fulfillment is validated and idempotent across every service", a
       assert.equal((await status(row.id)).status, "failed");
       assert.equal((await status(row.id)).pcsCode, null);
     });
+    await t.test("Cameroon XAF confirmations recover mislabelled pending receipts without weakening amount checks", async () => {
+      const initial = await payment("77450fbc", "3800");
+      const [row] = await db.update(paymentLinkTransactions).set({
+        country: "CM", phone: "237690000000",
+      }).where(eq(paymentLinkTransactions.id, initial.id)).returning();
+      await assert.rejects(() => reconcileSolvexCheckout(row, { ...payload(row), currency: "XAF", amount: 1 }));
+      assert.equal((await status(row.id)).currency, "XOF");
+      await assert.rejects(() => reconcileSolvexCheckout(row, { ...payload(row), currency: "EUR" }));
+      await reconcileSolvexCheckout(row, { ...payload(row), currency: "XAF" });
+      assert.equal((await status(row.id)).status, "completed");
+      assert.equal((await status(row.id)).currency, "XAF");
+      await reconcileSolvexCheckout(row, { ...payload(row), currency: "XAF" });
+      assert.equal((await status(row.id)).status, "completed");
+    });
   } finally {
     if (paymentIds.length) await db.delete(paymentLinkTransactions).where(inArray(paymentLinkTransactions.id, paymentIds));
     await db.delete(pcsCodes).where(eq(pcsCodes.userId, ownerId));

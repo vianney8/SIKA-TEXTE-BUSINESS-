@@ -17,3 +17,4 @@
 - [DNS release policy](dns-release-policy.md) — version publication makes old approvals obsolete; repeat notices per withdrawal visit without forcing pending payments to pay twice.
 - [Development server restarts](development-server-restarts.md) — obsolete servers can share the preview port; a successful restart alone does not prove requests reach current code.
 - [Manual payment photos](manual-payment-photos.md) — photos only; returning from the gallery and background refreshes must not reset the payment form.
+- [Cameroon payment currency](cameroon-payment-currency.md) — settle CFA payments in XAF; recover old pending labels without weakening other currency checks.
