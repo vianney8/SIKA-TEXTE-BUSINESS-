@@ -14,6 +14,13 @@ export function isSafeGroupPhoto(value: string) {
   }
 }
 
+export function detectGroupImageMime(buffer: Buffer): "image/jpeg" | "image/png" | "image/webp" | null {
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return "image/jpeg";
+  if (buffer.length >= 8 && [137, 80, 78, 71, 13, 10, 26, 10].every((byte, index) => buffer[index] === byte)) return "image/png";
+  if (buffer.length >= 12 && buffer.toString("ascii", 0, 4) === "RIFF" && buffer.toString("ascii", 8, 12) === "WEBP") return "image/webp";
+  return null;
+}
+
 /** A custom header prevents cross-site form submissions, even without Origin. */
 export const groupRequestSecurity: RequestHandler = (req, res, next) => {
   res.setHeader("Cache-Control", "private, no-store");
@@ -32,11 +39,15 @@ export const groupRequestSecurity: RequestHandler = (req, res, next) => {
         return res.status(403).json({ message: "Origine de la requête non autorisée." });
       }
     }
-    if (req.method !== "DELETE" && !req.is("application/json")) {
-      return res.status(415).json({ message: "Envoyez des données JSON. Les pièces jointes ne sont pas acceptées dans les groupes." });
+    const originalPath = req.originalUrl.split("?")[0];
+    const groupImagePath = req.method === "POST" && /^\/api\/groups\/[^/]+\/images$/.test(originalPath);
+    const isGroupImageUpload = groupImagePath && req.is("multipart/form-data");
+    if (req.method !== "DELETE" && !req.is("application/json") && !isGroupImageUpload) {
+      return res.status(415).json({ message: "Format de demande non accepté dans les groupes." });
     }
-    if (Number(req.get("Content-Length") || 0) > 65536 ||
-      Buffer.byteLength(JSON.stringify(req.body ?? {})) > 65536) {
+    const maxBodyBytes = isGroupImageUpload ? 5 * 1024 * 1024 + 64 * 1024 : 65536;
+    if (Number(req.get("Content-Length") || 0) > maxBodyBytes ||
+      Buffer.byteLength(JSON.stringify(req.body ?? {})) > maxBodyBytes) {
       return res.status(413).json({ message: "La demande est trop volumineuse." });
     }
   }

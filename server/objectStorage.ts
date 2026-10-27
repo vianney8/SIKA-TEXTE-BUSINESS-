@@ -104,7 +104,7 @@ export class ObjectStorageService {
   }
 
   // Télécharge un fichier via URL signée GET (contourne la validation du nom de bucket GCS)
-  async downloadViaSignedUrl(objectPath: string, res: Response, cacheTtlSec: number = 3600, rangeHeader?: string) {
+  async downloadViaSignedUrl(objectPath: string, res: Response, cacheTtlSec: number = 3600, rangeHeader?: string, cacheControl?: string) {
     const { bucketName, objectName } = parseObjectPath(objectPath);
     const getUrl = await signObjectURL({ bucketName, objectName, method: "GET", ttlSec: 300 });
     const upstream = await fetch(getUrl, rangeHeader ? { headers: { Range: rangeHeader } } : undefined);
@@ -123,7 +123,7 @@ export class ObjectStorageService {
     const contentRange = upstream.headers.get("content-range");
     res.set({
       "Content-Type": contentType,
-      "Cache-Control": `public, max-age=${cacheTtlSec}`,
+      "Cache-Control": cacheControl || `public, max-age=${cacheTtlSec}`,
       "Accept-Ranges": "bytes",
     });
     if (contentLength) res.set("Content-Length", contentLength);
@@ -263,6 +263,25 @@ export class ObjectStorageService {
     const objectPath = `${entityDir}payment-link-images/${fileName}`;
     await this.uploadViaSignedUrl(buffer, mimeType, objectPath);
     return `/api/media/payment-link-image/${fileName}`;
+  }
+
+  async uploadGroupImage(buffer: Buffer, mimeType: string, groupId: string): Promise<string> {
+    if (!/^[0-9a-f-]{36}$/i.test(groupId)) throw new Error("Groupe invalide.");
+    const ext = mimeToExt(mimeType);
+    const fileName = `${randomUUID()}.${ext}`;
+    let privateDir = this.getPrivateObjectDir();
+    if (!privateDir.endsWith("/")) privateDir = `${privateDir}/`;
+    await this.uploadViaSignedUrl(buffer, mimeType, `${privateDir}group-images/${groupId}/${fileName}`);
+    return fileName;
+  }
+
+  getGroupImageObjectPath(groupId: string, fileName: string): string {
+    if (!/^[0-9a-f-]{36}$/i.test(groupId) || !/^[0-9a-f-]{36}\.(?:jpg|jpeg|png|webp)$/i.test(fileName)) {
+      throw new ObjectNotFoundError();
+    }
+    let privateDir = this.getPrivateObjectDir();
+    if (!privateDir.endsWith("/")) privateDir = `${privateDir}/`;
+    return `${privateDir}group-images/${groupId}/${fileName}`;
   }
 
   async uploadActivationScreenshot(buffer: Buffer, mimeType: string): Promise<string> {

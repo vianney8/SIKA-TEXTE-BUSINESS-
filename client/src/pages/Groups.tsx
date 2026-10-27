@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, BadgeCheck, BellOff, CircleAlert, Copy, Crown, Flag, Sparkles,
   Globe2, LockKeyhole, LogOut, MessagesSquare, MoreHorizontal,
-  Pin, Plus, Search, Send, Settings2, Shield, Users, UserPlus, X, MessageSquareOff,
+  ImagePlus, Pin, Plus, Search, Send, Settings2, Shield, Users, UserPlus, X, MessageSquareOff,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -32,7 +33,7 @@ type Group = {
 };
 type Member = { id: string; fullName: string; photoUrl?: string; role: string; joinedAt?: string; online?: boolean; status?: string; postingBlocked?: boolean };
 type Message = {
-  id: string; content: string; type: "text" | "system"; senderId?: string; senderName: string; senderIsAdmin: boolean;
+  id: string; content: string; type: "text" | "system" | "image"; senderId?: string; senderName: string; senderIsAdmin: boolean;
   photoUrl?: string | null; createdAt: string; editedAt?: string | null; deleted: boolean; pinned: boolean;
   replyTo?: { id: string; content: string; senderName: string } | null;
   reactions: { emoji: string; count: number; reacted: boolean; adminCount?: number }[];
@@ -62,6 +63,33 @@ const sendJson = async <T,>(url: string, method: string, body?: unknown): Promis
 };
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join("").toUpperCase() || "S";
 const fullDate = (value: string) => new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+const ADMIN_LINK_PATTERN = /(?:https?:\/\/[^\s<]+|www\.[^\s<]+|(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}(?:\/[^\s<]*)?)/gi;
+function renderAdminLinks(content: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  let lastIndex = 0;
+  let index = 0;
+  ADMIN_LINK_PATTERN.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = ADMIN_LINK_PATTERN.exec(content)) !== null) {
+    const start = match.index;
+    const raw = match[0];
+    const urlText = raw.replace(/[.,!?;:)\]}]+$/g, "");
+    if (!urlText) continue;
+    if (start > lastIndex) nodes.push(content.slice(lastIndex, start));
+    const href = /^https?:\/\//i.test(urlText) ? urlText : `https://${urlText}`;
+    try {
+      const url = new URL(href);
+      if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("Invalid link");
+      nodes.push(<a key={`admin-link-${index++}`} href={url.href} target="_blank" rel="noopener noreferrer" className="break-all text-teal-800 underline underline-offset-2">{urlText}</a>);
+    } catch {
+      nodes.push(urlText);
+    }
+    if (raw.length > urlText.length) nodes.push(raw.slice(urlText.length));
+    lastIndex = start + raw.length;
+  }
+  if (lastIndex < content.length) nodes.push(content.slice(lastIndex));
+  return nodes;
+}
 
 export default function Groups() {
   const { user } = useAuth();
@@ -92,6 +120,7 @@ function GroupsWorkspace() {
   const [hasOlder,setHasOlder]=useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const groupImageInputRef = useRef<HTMLInputElement>(null);
   const redeemedInvite = useRef("");
   const draftNonce=useRef(crypto.randomUUID());
   const unreadSnapshot=useRef<Map<string,number>|null>(null);
@@ -213,6 +242,20 @@ function GroupsWorkspace() {
     mutationFn: () => sendJson(`/api/groups/${encodeURIComponent(activeSlug)}/messages`, "POST", { content: messageText, clientNonce:draftNonce.current, ...(reply ? { replyToId: Number(reply.id) } : {}) }),
     onSuccess: () => { draftNonce.current=crypto.randomUUID(); setMessageText(""); setReply(null); setFailedDraft(false); refreshGroupData(); },
     onError: (error: Error) => { setFailedDraft(true); refreshGroupData(); toast({title:"Envoi impossible",description:error.message,variant:"destructive"}); },
+  });
+  const sendGroupImage = useMutation({
+    mutationFn: async (file: File) => {
+      const form = new FormData();
+      form.append("image", file);
+      const response = await fetch(`/api/groups/${encodeURIComponent(activeSlug)}/images`, {
+        method: "POST", credentials: "include", headers: { "X-Sika-Groups": "1" }, body: form,
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.message || "La photo n’a pas pu être envoyée.");
+      return result;
+    },
+    onSuccess: () => { refreshGroupData(); toast({ title: "Photo envoyée dans le groupe" }); },
+    onError: (error: Error) => toast({ title: "Envoi de la photo impossible", description: error.message, variant: "destructive" }),
   });
 
   useEffect(() => {
@@ -411,7 +454,7 @@ function GroupsWorkspace() {
                     {messagesQuery.error&&<div className="rounded-xl bg-red-50 p-3 text-sm text-red-700">Impossible d’actualiser les messages. <button className="font-semibold underline" onClick={()=>void messagesQuery.refetch()}>Réessayer</button></div>}
                     {!messagesQuery.isLoading&&!messages.length&&<div className="py-10 text-center text-sm text-slate-500">{search?"Aucun message ne correspond à cette recherche.":"La conversation commence ici. Envoyez le premier message."}</div>}
                     {messagesQuery.data?.hasMore&&hasOlder&&!search&&<Button variant="outline" size="sm" className="mx-auto flex" onClick={async()=>{const before=messages[0]?.id;if(!before)return;try{const older=await getJson<{messages:Message[];hasMore:boolean}>(`/api/groups/${activeSlug}/messages?before=${before}`);setLoadedOlder(previous=>[...older.messages,...previous]);setHasOlder(older.hasMore)}catch(e){toast({title:"Historique indisponible",description:(e as Error).message,variant:"destructive"})}}}>Afficher les anciens messages</Button>}
-                    {messages.map(message=>message.type==="system"?<div key={message.id} className="py-1 text-center text-xs text-slate-400">{message.content} · {fullDate(message.createdAt)}</div>
+                  {messages.map(message=>message.type==="system"?<div key={message.id} className="py-1 text-center text-xs text-slate-400">{message.content} · {fullDate(message.createdAt)}</div>
                       :<SwipeToReply key={message.id} disabled={message.deleted||!canReply} onReply={()=>beginReply(message)}
                         className={`max-w-[92%] sm:max-w-[78%] ${message.senderId===(user as any)?.id?"ml-auto":""}`}
                         bubbleClassName={`rounded-2xl border p-3 shadow-sm ${message.senderId===(user as any)?.id?"bg-teal-50":"bg-white"} ${message.pinned?"border-amber-300":"border-slate-100"}`}>
@@ -448,7 +491,11 @@ function GroupsWorkspace() {
                           </DropdownMenu>}
                         </div>
                         {message.replyTo&&<div className="mt-2 border-l-2 border-teal-400 pl-2 text-xs text-slate-500">{message.replyTo.senderName} : {message.replyTo.content}</div>}
-                        <p className="mt-1 whitespace-pre-wrap break-words text-sm">{message.content}</p>
+                        {message.type==="image"&&!message.deleted
+                          ? <a href={message.content} target="_blank" rel="noopener noreferrer" className="mt-2 block overflow-hidden rounded-xl border border-slate-100" aria-label={`Ouvrir la photo envoyée par ${message.senderName}`}>
+                              <img src={message.content} alt={`Photo envoyée par ${message.senderName}`} loading="lazy" className="max-h-80 w-full object-contain"/>
+                            </a>
+                          : <p className="mt-1 whitespace-pre-wrap break-words text-sm">{message.senderIsAdmin&&!message.deleted?renderAdminLinks(message.content):message.content}</p>}
                         {!message.deleted&&message.reactions.some(item=>isGroupReaction(item.emoji))&&<div className="mt-2 flex flex-wrap gap-1">{message.reactions.filter(item=>isGroupReaction(item.emoji)).map(item=><button key={item.emoji} disabled={act.isPending} aria-pressed={item.reacted} aria-label={`Réagir ${item.emoji} · ${item.count}`} className={`min-h-8 rounded-full border px-2.5 py-1 text-xs disabled:opacity-50 ${item.reacted?"border-teal-300 bg-teal-50":"border-slate-200"}`} onClick={()=>doGroupAction(`/api/groups/${activeSlug}/messages/${message.id}/reactions`,"POST",{emoji:item.emoji})}>{item.emoji} {item.count}</button>)}</div>}
                         {!message.deleted&&<GroupMessageActions canReply={canReply} pending={act.isPending} onReply={()=>beginReply(message)}
                           onReact={emoji=>doGroupAction(`/api/groups/${activeSlug}/messages/${message.id}/reactions`,"POST",{emoji})}/>}
@@ -460,11 +507,18 @@ function GroupsWorkspace() {
                     {(detail.group.membersCanPost===false||detail.membership.postingBlocked)&&!canManage
                       ? <p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{detail.membership.postingBlocked?"Un administrateur a bloqué votre envoi de messages dans ce groupe. Vous pouvez toujours lire les discussions.":"L’envoi des messages est réservé aux administrateurs. Vous pouvez toujours lire les discussions."}</p>
                       : <div className="flex items-end gap-2">
+                          {canManage&&<>
+                            <input ref={groupImageInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" aria-label="Choisir une photo pour le groupe"
+                              onChange={event=>{const file=event.target.files?.[0];event.target.value="";if(file)sendGroupImage.mutate(file)}}/>
+                            <Button type="button" variant="outline" aria-label="Envoyer une photo" title="Envoyer une photo" disabled={sendGroupImage.isPending}
+                              onClick={()=>groupImageInputRef.current?.click()} className="h-12 w-12 shrink-0 rounded-2xl p-0">
+                              {sendGroupImage.isPending?<span className="text-xs">…</span>:<ImagePlus className="h-5 w-5"/>}
+                            </Button>
+                          </>}
                           <Textarea ref={composerRef} aria-label="Votre message" disabled={sendMessage.isPending} value={messageText}
                             onChange={event=>{if(failedDraft){draftNonce.current=crypto.randomUUID();setFailedDraft(false)}setMessageText(event.target.value)}}
-                            onKeyDown={event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();send(event)}}}
-                            maxLength={4000} rows={1} placeholder="Écrire un message…"
-                            className="min-h-[48px] max-h-32 resize-none rounded-2xl bg-slate-50"/>
+                            maxLength={4000} rows={2} placeholder="Écrire un message… (Entrée pour aller à la ligne)"
+                            className="min-h-[48px] max-h-36 resize-y rounded-2xl bg-slate-50"/>
                           <Button aria-label="Envoyer le message" type="submit" disabled={!messageText.trim()||sendMessage.isPending} className="h-12 w-12 shrink-0 rounded-2xl bg-teal-700 p-0"><Send className="h-4 w-4"/></Button>
                         </div>}
                     {failedDraft&&<p role="alert" className="mt-1 text-xs text-red-600">{sendMessage.error?.message||"Envoi impossible."} Votre texte est conservé ; vous pouvez le modifier ou réessayer.</p>}

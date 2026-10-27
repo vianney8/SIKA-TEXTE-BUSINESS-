@@ -163,6 +163,16 @@ test("Sika group endpoints enforce membership and persist identity-scoped messag
       const announcement=await request(userC,`/api/groups/${slug}/admin/announcements`,"POST",{content:"Annonce synthétique"});
       assert.equal(announcement.status,201);
       assert.equal((await request(principal.id,`/api/groups/${slug}/admin/groups`,"PATCH",{membersCanPost:true})).status,200);
+       assert.equal((await request(userA,`/api/groups/${slug}/images`,"POST",{image:"forged"})).status,403);
+       assert.equal((await request(userC,`/api/groups/${slug}/images`,"POST",{image:"missing"})).status,415);
+       assert.equal((await request(userC,`/api/groups/${slug}/admin/moderation`,"PATCH",{enabled:true})).status,200);
+       const blockedLink=await request(userA,`/api/groups/${slug}/messages`,"POST",{content:"Consultez https://example.com"});
+       assert.equal(blockedLink.status,422);
+       const blockedPhone=await request(userA,`/api/groups/${slug}/messages`,"POST",{content:"Appelez-moi au +229 01 57 88 04 38"});
+       assert.equal(blockedPhone.status,422);
+       const adminLink=await request(userC,`/api/groups/${slug}/messages`,"POST",{content:"Annonce : https://sikatexte.site/groupeOfcl"});
+       assert.equal(adminLink.status,201);
+       assert.equal((await request(userC,`/api/groups/${slug}/admin/moderation`,"PATCH",{enabled:false})).status,200);
       assert.equal((await request(userA,`/api/groups/${slug}/admin/posting`,"POST",{membersCanPost:false})).status,403);
       assert.equal((await request(userA,`/api/groups/${slug}/admin/members/${userB}`,"POST",{action:"restrict_posting"})).status,403);
       const priorMessage=await request(userA,`/api/groups/${slug}/messages`,"POST",{content:"Avant la restriction"});

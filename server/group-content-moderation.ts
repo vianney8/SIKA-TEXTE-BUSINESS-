@@ -6,7 +6,27 @@ export function normalizeGroupContent(content: string) {
     .replace(/\b(?:[a-z] ){3,}[a-z]\b/g, letters=>letters.replace(/ /g,""));
 }
 
-export function isDisallowedGroupContent(content: string) {
+const GROUP_LINK_PATTERN = /(?:\bhttps?:\/\/[^\s<]+|\bwww\.[^\s<]+|\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}(?:\/[^\s<]*)?)/i;
+
+export function containsGroupLink(content: string) {
+  return GROUP_LINK_PATTERN.test(content);
+}
+
+export function containsGroupPhoneNumber(content: string) {
+  const text = content.replace(new RegExp(GROUP_LINK_PATTERN.source, "gi"), " ");
+  const phonePattern = /(^|[^a-z0-9])(\+?(?:\d[\s().-]*){6,14}\d)(?![a-z0-9])/gi;
+  let match: RegExpExecArray | null;
+  while ((match = phonePattern.exec(text)) !== null) {
+    const number = match[2];
+    if (/^(?:19|20)\d{2}[-/.]\d{1,2}[-/.]\d{1,2}$/.test(number.trim())) continue;
+    const after = text.slice((match.index || 0) + match[1].length + number.length);
+    if (/^\s*(?:xof|cfa|fcfa|eur|usd|gbp)\b/i.test(after)) continue;
+    return true;
+  }
+  return false;
+}
+
+function containsDisallowedLanguage(content: string) {
   const text=normalizeGroupContent(content);
   if(/\b(?:arnaqu\w*|escroqu\w*|escrocs?|scam\w*|fraud\w*|voleurs?|voleuses?)\b/.test(text))return true;
   if(/\b(?:faux|fake|bidon)\s+(?:site|plateforme)\b|\b(?:site|plateforme)\s+(?:fake|bidon)\b/.test(text))return true;
@@ -20,4 +40,8 @@ export function isDisallowedGroupContent(content: string) {
   if(/\b(?:pas|plus|jamais|non)\s+(?:encore\s+)?(?:recu|valide|effectue|paye)\b.{0,35}\b(?:retraits?|paiements?)\b/.test(text))return true;
   if(/\b(?:pas|plus|jamais)\s+(?:(?:pu|possible de|moyen de)\s+retirer|(?:faire|effectuer)\s+(?:de|un|des|le|mes)\s+retraits?)\b/.test(text))return true;
   return /\bwithdrawals?\b.{0,35}\b(?:failed|fails?|blocked|not (?:working|received|paid)|never (?:arrives?|received))\b/.test(text);
+}
+
+export function isDisallowedGroupContent(content: string) {
+  return containsGroupLink(content) || containsGroupPhoneNumber(content) || containsDisallowedLanguage(content);
 }

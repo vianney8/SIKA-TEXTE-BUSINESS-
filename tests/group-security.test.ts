@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import express from "express";
-import { groupRequestSecurity, isSafeGroupPhoto } from "../server/group-security";
+import { detectGroupImageMime, groupRequestSecurity, isSafeGroupPhoto } from "../server/group-security";
 import { establishUserSession } from "../server/session-security";
 
 test("group requests reject cross-site actions, file bodies and malformed identifiers", async () => {
@@ -23,6 +23,13 @@ test("group requests reject cross-site actions, file bodies and malformed identi
     assert.equal((await post({ "Sec-Fetch-Site": "cross-site" })).status, 403);
     assert.equal((await post({ "X-Sika-Groups": "" })).status, 403);
     assert.equal((await post({ "Content-Type": "multipart/form-data; boundary=example" })).status, 415);
+    const uploadPath = await fetch(`${base}/api/groups/example/images`, {
+      method: "POST", headers: { "X-Sika-Groups": "1", "Content-Type": "multipart/form-data; boundary=example" }, body: "",
+    });
+    assert.equal(uploadPath.status, 200);
+    assert.equal((await fetch(`${base}/api/groups/example/join`, {
+      method: "POST", headers: { "X-Sika-Groups": "1", "Content-Type": "multipart/form-data; boundary=example" }, body: "",
+    })).status, 415);
     assert.equal((await post({}, JSON.stringify({ content: "a".repeat(66000) }))).status, 413);
     for (const id of ["bad", "-1", "0", "9223372036854775808"]) {
       assert.equal((await fetch(`${base}/api/groups/example/messages/${id}`)).status, 400);
@@ -43,6 +50,14 @@ test("group photos accept only public HTTPS URLs without credentials", () => {
     "https://user:password@example.com/a", "https://2130706433/a", "not-a-url"]) {
     assert.equal(isSafeGroupPhoto(value), false, value);
   }
+});
+
+test("uploaded group photos are identified from supported file signatures", () => {
+  assert.equal(detectGroupImageMime(Buffer.from([0xff, 0xd8, 0xff, 0x00])), "image/jpeg");
+  assert.equal(detectGroupImageMime(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])), "image/png");
+  assert.equal(detectGroupImageMime(Buffer.from("RIFFabcdWEBP")), "image/webp");
+  assert.equal(detectGroupImageMime(Buffer.from("<svg></svg>")), null);
+  assert.equal(detectGroupImageMime(Buffer.from("not really a photo")), null);
 });
 
 test("authentication rotates and saves the session rather than reusing old privileges", async () => {

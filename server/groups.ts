@@ -2,12 +2,14 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createHash, randomBytes } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
+import multer from "multer";
 import { db } from "./db";
 import { storage } from "./storage";
-import { groupRequestSecurity, isSafeGroupPhoto } from "./group-security";
+import { detectGroupImageMime, groupRequestSecurity, isSafeGroupPhoto } from "./group-security";
 import { GROUP_REACTIONS, isGroupReaction } from "@shared/group-reactions";
 import { isDisallowedGroupContent } from "./group-content-moderation";
 import { listModerationMembers, liftMembershipRestriction } from "./group-moderation";
+import { ObjectNotFoundError, ObjectStorageService } from "./objectStorage";
 
 const PRINCIPAL_EMAIL = "sikatexte@gmail.com";
 const SYSTEM_GROUP_SLUG = "sika-texte-groupe-officiel";
@@ -79,7 +81,7 @@ export async function ensureGroupsSchema() {
       user_id varchar REFERENCES users(id) ON DELETE SET NULL,
       sender_label varchar,
       content text NOT NULL,
-      message_type varchar NOT NULL DEFAULT 'text' CHECK (message_type IN ('text','system')),
+      message_type varchar NOT NULL DEFAULT 'text' CHECK (message_type IN ('text','system','image')),
       reply_to_id bigint REFERENCES discussion_group_messages(id) ON DELETE SET NULL,
       created_at timestamptz NOT NULL DEFAULT now(),
       edited_at timestamptz,
@@ -87,6 +89,8 @@ export async function ensureGroupsSchema() {
       pinned_at timestamptz
     )
   `);
+  await db.execute(sql`ALTER TABLE discussion_group_messages DROP CONSTRAINT IF EXISTS discussion_group_messages_message_type_check`);
+  await db.execute(sql`ALTER TABLE discussion_group_messages ADD CONSTRAINT discussion_group_messages_message_type_check CHECK (message_type IN ('text','system','image'))`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS discussion_messages_group_cursor ON discussion_group_messages(group_id,id DESC)`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS discussion_members_user_status ON discussion_group_members(user_id,status)`);
   await db.execute(sql`
@@ -229,7 +233,7 @@ async function requirePostingAccess(userId: string, group: any) {
 
 async function requireAllowedGroupContent(userId:string,group:any,content:string) {
   if(group.smartModerationEnabled&&isDisallowedGroupContent(content)&&!await canManageGroup(userId,group.id))
-    throw httpError(422,"Envoi impossible. Ce message contient des mots ou expressions non autorisés dans ce groupe.");
+    throw httpError(422,"Envoi impossible. Le filtre intelligent refuse les liens, les numéros de téléphone et certains termes dans ce groupe.");
 }
 
 async function audit(groupId: string, actorId: string, action: string, targetUserId?: string, messageId?: string, details: any = {}) {
@@ -253,6 +257,10 @@ function publicMessage(row: any) {
 
 export function registerGroupRoutes(app: Express, requireAuth: any) {
   app.use(["/api/groups", "/api/group-invites"], groupRequestSecurity);
+  const groupImageUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 0, parts: 1 },
+  });
   app.get("/api/groups", requireAuth, wrap(async (req, res) => {
     const userId = currentUserId(req)!;
     const principal = await isPrincipalAdmin(userId);
@@ -263,7 +271,7 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
         count(DISTINCT m.user_id) FILTER (WHERE u.last_seen > now() - interval '5 minutes')::int AS "onlineCount",
         coalesce(own.status,'none') AS "membershipStatus",coalesce(own.muted,false) AS muted,
         CASE WHEN own.status='active' THEN (SELECT count(*)::int FROM discussion_group_messages unread
-          WHERE unread.group_id=g.id AND unread.message_type='text' AND unread.deleted_at IS NULL
+          WHERE unread.group_id=g.id AND unread.message_type IN ('text','image') AND unread.deleted_at IS NULL
             AND unread.user_id <> ${userId} AND unread.created_at > coalesce(own.last_read_at, 'epoch'::timestamptz)) ELSE 0 END AS "unreadCount"
       FROM discussion_groups g
       LEFT JOIN discussion_group_members m ON m.group_id=g.id AND m.status='active'
@@ -281,7 +289,7 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     const stats=resultRows(await db.execute(sql`SELECT
       (SELECT count(*)::int FROM discussion_groups WHERE archived_at IS NULL) AS "groupCount",
       (SELECT count(DISTINCT user_id)::int FROM discussion_group_members WHERE status='active') AS "memberCount",
-      (SELECT count(*)::int FROM discussion_group_messages WHERE message_type='text' AND deleted_at IS NULL) AS "messageCount",
+      (SELECT count(*)::int FROM discussion_group_messages WHERE message_type IN ('text','image') AND deleted_at IS NULL) AS "messageCount",
       (SELECT count(DISTINCT user_id)::int FROM discussion_group_members WHERE status='active' AND joined_at > now()-interval '7 days') AS "newMembers7d",
       (SELECT count(DISTINCT user_id)::int FROM discussion_group_members WHERE status='active' AND user_id IN
         (SELECT id FROM users WHERE last_seen > now()-interval '5 minutes')) AS "onlineCount"`))[0];
@@ -457,7 +465,8 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
             WHERE security.principal_user_id=m.user_id))
         )) AS sender_is_admin,
         reply.id AS visible_reply_id,
-        CASE WHEN reply.deleted_at IS NOT NULL THEN 'Message supprimé' ELSE reply.content END AS reply_content,
+         CASE WHEN reply.deleted_at IS NOT NULL THEN 'Message supprimé'
+           WHEN reply.message_type='image' THEN 'Photo' ELSE reply.content END AS reply_content,
         reply_user.full_name AS reply_sender,
         coalesce((SELECT jsonb_agg(
           jsonb_build_object('emoji',r.emoji,'count',r.total,'reacted',r.reacted) ||
@@ -490,6 +499,58 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     await db.execute(sql`UPDATE discussion_group_members SET last_read_at=now() WHERE group_id=${group.id} AND user_id=${userId}`);
     res.setHeader("Cache-Control", "no-store");
     res.json({ messages: rows.reverse().map(publicMessage), hasMore: rows.length === 50, deletions });
+  }));
+
+  app.post("/api/groups/:slug/images", requireAuth, wrap(async (req, res) => {
+    const userId = currentUserId(req)!;
+    const group = await getGroup(String(req.params.slug));
+    if (!group) throw httpError(404, "Groupe introuvable.");
+    await requirePostingAccess(userId, group);
+    if (!await canManageGroup(userId, group.id)) throw httpError(403, "Seuls les administrateurs peuvent envoyer des photos dans le groupe.");
+    if (!req.is("multipart/form-data")) throw httpError(415, "Sélectionnez une photo à envoyer.");
+
+    const file = await new Promise<Express.Multer.File>((resolve, reject) => {
+      groupImageUpload.single("image")(req, res, error => {
+        if (error) {
+          const message = (error as any).code === "LIMIT_FILE_SIZE"
+            ? "La photo ne doit pas dépasser 5 Mo."
+            : "La photo n’a pas pu être reçue.";
+          reject(httpError((error as any).code === "LIMIT_FILE_SIZE" ? 413 : 400, message));
+          return;
+        }
+        const uploaded = (req as Request & { file?: Express.Multer.File }).file;
+        if (uploaded) resolve(uploaded);
+        else reject(httpError(400, "Veuillez sélectionner une photo."));
+      });
+    });
+    const detectedMime = detectGroupImageMime(file.buffer);
+    if (!detectedMime || detectedMime !== file.mimetype) {
+      throw httpError(400, "Format de photo non accepté. Utilisez une image JPEG, PNG ou WebP valide.");
+    }
+
+    const objectStorage = new ObjectStorageService();
+    const fileName = await objectStorage.uploadGroupImage(file.buffer, detectedMime, group.id);
+    const imageUrl = `/api/groups/${encodeURIComponent(group.slug)}/media/${fileName}`;
+    const saved = resultRows(await db.execute(sql`
+      INSERT INTO discussion_group_messages (group_id,user_id,content,message_type)
+      VALUES (${group.id},${userId},${imageUrl},'image') RETURNING id
+    `))[0];
+    res.status(201).json({ id: String(saved.id) });
+  }));
+
+  app.get("/api/groups/:slug/media/:fileName", requireAuth, wrap(async (req, res) => {
+    const userId = currentUserId(req)!;
+    const group = await getGroup(String(req.params.slug));
+    if (!group) throw httpError(404, "Groupe introuvable.");
+    await requireMembership(userId, group.id);
+    try {
+      const objectStorage = new ObjectStorageService();
+      const objectPath = objectStorage.getGroupImageObjectPath(group.id, String(req.params.fileName));
+      await objectStorage.downloadViaSignedUrl(objectPath, res, 0, undefined, "private, no-store");
+    } catch (error) {
+      if (error instanceof ObjectNotFoundError) throw httpError(404, "Photo introuvable.");
+      throw error;
+    }
   }));
 
   app.post("/api/groups/:slug/messages", requireAuth, wrap(async (req, res) => {

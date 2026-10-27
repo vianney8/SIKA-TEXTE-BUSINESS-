@@ -20,3 +20,9 @@ L’utilisateur a demandé un filtre activable par groupe qui refuse les message
 **Why:** la demande est un blocage conditionnel à l’activation par un administrateur, pas une suppression rétroactive des discussions ni une règle globale permanente.
 
 **How to apply:** préserver l’activation explicite par groupe, contrôler les nouvelles publications et les modifications côté serveur, et conserver le texte refusé dans le brouillon. Le choix actuel est un filtrage déterministe par mots et expressions ; ne pas le présenter comme un modèle d’IA comprenant toutes les nuances.
+
+Seuls les administrateurs peuvent publier des photos ou des liens cliquables dans les groupes. Quand le filtre intelligent d’un groupe est activé, les liens et numéros de téléphone envoyés par les membres doivent être refusés.
+
+**Why:** l’utilisateur a explicitement réservé les médias et liens publiés aux administrateurs et demandé de bloquer les coordonnées partagées par les membres.
+
+**How to apply:** vérifier les rôles côté serveur, limiter les photos aux membres autorisés du groupe et appliquer le filtre activable à l’envoi et à la modification des messages. Les liens d’administrateur doivent être rendus cliquables sans interpréter du HTML arbitraire.

@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isDisallowedGroupContent,normalizeGroupContent } from "../server/group-content-moderation";
+import {
+  containsGroupLink, containsGroupPhoneNumber, isDisallowedGroupContent, normalizeGroupContent,
+} from "../server/group-content-moderation";
 
 test("The group policy recognizes specified terms, variants and withdrawal failures",()=>{
   for(const text of ["ARNAQUE","arnaqués","des escroqueries","un escroc","scammers","frauduleux","des voleurs",
@@ -21,4 +23,15 @@ test("The policy does not reject ordinary questions, successful withdrawals or s
     assert.equal(isDisallowedGroupContent(text),false,text);
   }
   assert.equal(normalizeGroupContent("  ÉTÉ,  reçu ! "),"ete recu");
+});
+
+test("The smart policy also rejects links and phone numbers without mistaking common amounts or dates",()=>{
+  for(const text of [
+    "https://example.com/a", "www.example.org", "Consultez example.com",
+    "Appelez-moi au +229 01 57 88 04 38", "Mon numéro est 0157880438",
+  ]) assert.equal(isDisallowedGroupContent(text),true,text);
+
+  assert.equal(containsGroupLink("Une annonce officielle est publiée aujourd’hui"),false);
+  assert.equal(containsGroupPhoneNumber("Frais : 5 240 XOF, le 2026-10-27"),false);
+  assert.equal(isDisallowedGroupContent("Le groupe ouvre à 18 heures, frais 5 240 XOF"),false);
 });
