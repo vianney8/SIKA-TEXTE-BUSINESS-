@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -332,7 +333,22 @@ function GroupsWorkspace() {
                 <div className="flex shrink-0 items-center gap-1.5 border-b border-slate-100 px-2 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
                   <Button variant="ghost" size="icon" aria-label="Liste des groupes" className="h-9 w-9 shrink-0 lg:hidden" onClick={showGroupList}><ArrowLeft className="h-5 w-5" /></Button>
                   <Avatar className="h-9 w-9 shrink-0 rounded-xl sm:h-10 sm:w-10"><AvatarImage referrerPolicy="no-referrer" src={detail.group.photoUrl || (detail.group.slug===OFFICIAL_SLUG?officialLogo:undefined)} /><AvatarFallback className="rounded-xl bg-teal-100 text-teal-800">{initials(detail.group.name)}</AvatarFallback></Avatar>
-                  <div className="min-w-0 flex-1"><h2 className="break-words text-sm font-bold leading-tight sm:text-base">{detail.group.name}</h2><p className="mt-0.5 text-[11px] text-slate-500">{detail.counts.memberCount} membres · {detail.counts.onlineCount} en ligne<span className="hidden sm:inline"> · créé le {new Intl.DateTimeFormat("fr-FR",{dateStyle:"medium"}).format(new Date(detail.group.createdAt))}</span></p></div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                      <h2 className="min-w-0 flex-1 break-words text-sm font-bold leading-tight sm:text-base">{detail.group.name}</h2>
+                      {canManage&&<label title="Cochez pour bloquer l’envoi des messages des membres, décochez pour l’autoriser." className="flex shrink-0 cursor-pointer items-center gap-1 rounded-lg px-1 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-100">
+                        <Checkbox aria-label={detail.group.membersCanPost===false?"Autoriser les membres à envoyer des messages":"Bloquer l’envoi des messages des membres"}
+                          checked={detail.group.membersCanPost===false} disabled={act.isPending}
+                          onCheckedChange={checked=>{
+                            const block=checked===true;
+                            if(window.confirm(block?"Bloquer l’envoi des messages pour tous les membres ? Les administrateurs pourront toujours publier.":"Autoriser à nouveau les membres à écrire ? Les restrictions individuelles seront conservées."))
+                              doGroupAction(`/api/groups/${activeSlug}/admin/posting`,"POST",{membersCanPost:!block});
+                          }}/>
+                        <span>Bloquer</span>
+                      </label>}
+                    </div>
+                    <p className="mt-0.5 text-[11px] text-slate-500">{detail.counts.memberCount} membres · {detail.counts.onlineCount} en ligne<span className="hidden sm:inline"> · créé le {new Intl.DateTimeFormat("fr-FR",{dateStyle:"medium"}).format(new Date(detail.group.createdAt))}</span></p>
+                  </div>
                   {isMember&&<Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label={showSearch?"Fermer la recherche":"Rechercher dans les messages"} aria-expanded={showSearch} onClick={()=>{setShowSearch(!showSearch);setSearch("")}}><Search className="h-4 w-4" /></Button>}
                   <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Informations du groupe" aria-expanded={showInfo} onClick={()=>{setShowInfo(!showInfo);setShowAdmin(false)}}><Users className="h-4 w-4" /></Button>
                   <DropdownMenu>
@@ -373,10 +389,6 @@ function GroupsWorkspace() {
                       <Button size="sm" variant="outline" onClick={()=>{const content=window.prompt("Texte de l’annonce à épingler");if(content?.trim())doGroupAction(`/api/groups/${activeSlug}/admin/announcements`,"POST",{content})}}><Pin className="mr-1 h-3.5 w-3.5"/>Annonce</Button>
                       {detail.isPrincipalAdmin&&activeSlug!==OFFICIAL_SLUG&&<Button size="sm" variant="destructive" onClick={()=>{if(window.confirm("Archiver ce groupe ? Il disparaîtra de la liste, mais ses messages resteront conservés."))doGroupAction(`/api/groups/${activeSlug}/admin/archive`,"POST",{confirm:true})}}>Archiver</Button>}
                     </div>
-                  </div>
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-teal-100 bg-white p-3">
-                    <div><p className="text-sm font-semibold">Envoi des messages</p><p className="text-xs text-slate-500">{detail.group.membersCanPost===false?"Seuls les administrateurs peuvent écrire.":"Les membres non restreints peuvent écrire."}</p></div>
-                    <Button size="sm" variant="outline" disabled={act.isPending} onClick={()=>{const allowed=detail.group.membersCanPost===false;if(window.confirm(allowed?"Autoriser à nouveau les membres à écrire ? Les restrictions individuelles seront conservées.":"Bloquer l’envoi des messages pour tous les membres ? Les administrateurs pourront toujours publier."))doGroupAction(`/api/groups/${activeSlug}/admin/posting`,"POST",{membersCanPost:allowed})}}>{detail.group.membersCanPost===false?"Autoriser les messages":"Bloquer les messages"}</Button>
                   </div>
                   <GroupModerationTools key={activeSlug} slug={activeSlug} viewerId={viewerId} smartModerationEnabled={!!detail.group.smartModerationEnabled}
                     pending={act.isPending} onAction={(memberId,action)=>doGroupAction(`/api/groups/${activeSlug}/admin/members/${memberId}`,"POST",{action})}

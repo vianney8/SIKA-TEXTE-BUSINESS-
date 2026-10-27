@@ -323,6 +323,12 @@ test("Sika group endpoints enforce membership and persist identity-scoped messag
       assert.equal((await request(userA,`/api/groups/${publicSlug}/messages`,"POST",{content:"Test arnaque : autre groupe sans filtre"})).status,201);
       assert.equal((await request(userC,`/api/groups/${slug}/admin/moderation`,"PATCH",{enabled:false})).status,200);
       assert.equal((await request(userA,`/api/groups/${slug}/messages`,"POST",{content:"Test scam après désactivation"})).status,201);
+      assert.equal((await request(userA,`/api/groups/${slug}/admin/posting`,"POST",{membersCanPost:false})).status,403);
+      assert.equal((await request(userC,`/api/groups/${slug}/admin/posting`,"POST",{membersCanPost:false})).status,200);
+      assert.equal((await request(principal.id,`/api/groups/${slug}`)).body.group.membersCanPost,false);
+      assert.equal((await request(userA,`/api/groups/${slug}/messages`,"POST",{content:"Message bloqué pendant la fermeture générale"})).status,403);
+      assert.equal((await request(userC,`/api/groups/${slug}/admin/posting`,"POST",{membersCanPost:true})).status,200);
+      assert.equal((await request(principal.id,`/api/groups/${slug}`)).body.group.membersCanPost,true);
       await request(principal.id,`/api/groups/${slug}/admin/members/${userC}`,"POST",{action:"demote"});
       assert.equal((await request(userC,`/api/groups/${slug}/admin/moderation`,"PATCH",{enabled:true})).status,403);
 
