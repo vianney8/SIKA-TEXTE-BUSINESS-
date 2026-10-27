@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, BadgeCheck, BellOff, CircleAlert, Copy, Crown, Flag,
+  ArrowLeft, BadgeCheck, BellOff, CircleAlert, Copy, Crown, Flag, Sparkles,
   Globe2, LockKeyhole, LogOut, MessagesSquare, MoreHorizontal,
   Pin, Plus, Search, Send, Settings2, Shield, Users, UserPlus, X, MessageSquareOff,
 } from "lucide-react";
@@ -21,6 +21,7 @@ import GroupFormDialog, { type GroupFormValue } from "@/components/groups/GroupF
 import GroupMessageActions from "@/components/groups/GroupMessageActions";
 import SwipeToReply from "@/components/groups/SwipeToReply";
 import GroupModerationTools from "@/components/groups/GroupModerationTools";
+import GroupAdminReactionDialog from "@/components/groups/GroupAdminReactionDialog";
 import { isGroupReaction } from "@shared/group-reactions";
 
 type Group = {
@@ -34,7 +35,7 @@ type Message = {
   id: string; content: string; type: "text" | "system"; senderId?: string; senderName: string; senderIsAdmin: boolean;
   photoUrl?: string | null; createdAt: string; editedAt?: string | null; deleted: boolean; pinned: boolean;
   replyTo?: { id: string; content: string; senderName: string } | null;
-  reactions: { emoji: string; count: number; reacted: boolean }[];
+  reactions: { emoji: string; count: number; reacted: boolean; adminCount?: number }[];
 };
 type GroupDetail = {
   group: Group; counts: { memberCount: number; onlineCount: number };
@@ -85,6 +86,7 @@ function GroupsWorkspace() {
   const [showSearch, setShowSearch] = useState(false);
   const [groupForm, setGroupForm] = useState(initialGroupForm);
   const [showGroupSettings, setShowGroupSettings] = useState(false);
+  const [adminReactionMessage, setAdminReactionMessage] = useState<Message | null>(null);
   const [failedDraft, setFailedDraft] = useState(false);
   const [loadedOlder, setLoadedOlder] = useState<Message[]>([]);
   const [hasOlder,setHasOlder]=useState(true);
@@ -430,6 +432,7 @@ function GroupsWorkspace() {
                               <DropdownMenuItem onSelect={async()=>{try{const text=`${detail.group.name} — ${message.senderName} : ${message.content}`;if(navigator.share)await navigator.share({text});else{await navigator.clipboard.writeText(text);toast({title:"Message copié pour le partager"})}}catch(error){if((error as Error).name!=="AbortError")toast({title:"Partage impossible",variant:"destructive"})}}}>Partager</DropdownMenuItem>
                               <DropdownMenuItem onSelect={()=>{const reason=window.prompt("Pourquoi signalez-vous ce message ?");if(reason)doGroupAction(`/api/groups/${activeSlug}/messages/${message.id}/report`,"POST",{reason})}}><Flag className="mr-2 h-4 w-4"/>Signaler</DropdownMenuItem>
                               {canManage&&<DropdownMenuItem onSelect={()=>doGroupAction(`/api/groups/${activeSlug}/admin/messages/${message.id}/pin`,"POST",{pinned:!message.pinned})}><Pin className="mr-2 h-4 w-4"/>{message.pinned?"Désépingler":"Épingler"}</DropdownMenuItem>}
+                              {canManage&&message.senderId===(user as any)?.id&&<DropdownMenuItem onSelect={()=>setAdminReactionMessage(message)}><Sparkles className="mr-2 h-4 w-4"/>Attribuer des réactions</DropdownMenuItem>}
                               {canManage&&!message.senderIsAdmin&&message.senderId!==(user as any)?.id&&(()=>{
                                 const member=detail.members.find(member=>member.id===message.senderId&&member.role==="member");
                                 if(!member)return null;
@@ -475,6 +478,11 @@ function GroupsWorkspace() {
       <GroupFormDialog open={showCreate||showGroupSettings} mode={showCreate?"create":"edit"} value={groupForm}
         onChange={setGroupForm} onClose={()=>{setShowCreate(false);setShowGroupSettings(false)}}
         onSubmit={()=>showCreate?createGroup.mutate():patchGroup.mutate()} pending={createGroup.isPending||patchGroup.isPending}/>
+      <GroupAdminReactionDialog message={adminReactionMessage} onClose={()=>setAdminReactionMessage(null)}
+        onSave={async(messageId,counts)=>{
+          await sendJson(`/api/groups/${encodeURIComponent(activeSlug)}/messages/${messageId}/admin-reactions`,"PUT",{counts});
+          refreshGroupData();
+        }}/>
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { db } from "./db";
 import { storage } from "./storage";
 import { groupRequestSecurity, isSafeGroupPhoto } from "./group-security";
-import { isGroupReaction } from "@shared/group-reactions";
+import { GROUP_REACTIONS, isGroupReaction } from "@shared/group-reactions";
 import { isDisallowedGroupContent } from "./group-content-moderation";
 import { listModerationMembers, liftMembershipRestriction } from "./group-moderation";
 
@@ -96,6 +96,16 @@ export async function ensureGroupsSchema() {
       emoji varchar NOT NULL,
       created_at timestamptz NOT NULL DEFAULT now(),
       PRIMARY KEY (message_id,user_id,emoji)
+    )
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS discussion_group_admin_reactions (
+      message_id bigint NOT NULL REFERENCES discussion_group_messages(id) ON DELETE CASCADE,
+      emoji varchar(16) NOT NULL,
+      reaction_count integer NOT NULL CHECK (reaction_count >= 0 AND reaction_count <= 10000),
+      updated_by varchar REFERENCES users(id) ON DELETE SET NULL,
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (message_id,emoji)
     )
   `);
   await db.execute(sql`
@@ -449,9 +459,19 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
         reply.id AS visible_reply_id,
         CASE WHEN reply.deleted_at IS NOT NULL THEN 'Message supprimé' ELSE reply.content END AS reply_content,
         reply_user.full_name AS reply_sender,
-        coalesce((SELECT jsonb_agg(jsonb_build_object('emoji',r.emoji,'count',r.total,'reacted',r.reacted))
-          FROM (SELECT emoji,count(*)::int AS total,bool_or(user_id=${userId}) AS reacted
-                FROM discussion_group_reactions WHERE message_id=m.id GROUP BY emoji) r),'[]'::jsonb) AS reactions
+        coalesce((SELECT jsonb_agg(
+          jsonb_build_object('emoji',r.emoji,'count',r.total,'reacted',r.reacted) ||
+          CASE WHEN ${manager} THEN jsonb_build_object('adminCount',r.admin_total) ELSE '{}'::jsonb END)
+          FROM (
+            SELECT emoji,sum(user_total+admin_total)::int AS total,bool_or(reacted) AS reacted,sum(admin_total)::int AS admin_total
+            FROM (
+              SELECT emoji,count(*)::int AS user_total,bool_or(user_id=${userId}) AS reacted,0::int AS admin_total
+              FROM discussion_group_reactions WHERE message_id=m.id GROUP BY emoji
+              UNION ALL
+              SELECT emoji,0::int AS user_total,false AS reacted,reaction_count AS admin_total
+              FROM discussion_group_admin_reactions WHERE message_id=m.id AND reaction_count>0
+            ) totals GROUP BY emoji
+          ) r),'[]'::jsonb) AS reactions
       FROM discussion_group_messages m
       LEFT JOIN users u ON u.id=m.user_id
       LEFT JOIN discussion_group_messages reply ON reply.id=m.reply_to_id AND reply.group_id=m.group_id AND reply.removed_at IS NULL
@@ -536,6 +556,7 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
       `);
       if (!resultRows(result).length) throw httpError(404, "Message introuvable ou suppression non autorisée.");
       await tx.execute(sql`DELETE FROM discussion_group_reactions WHERE message_id=${req.params.id}`);
+      await tx.execute(sql`DELETE FROM discussion_group_admin_reactions WHERE message_id=${req.params.id}`);
       if (manager) await tx.execute(sql`
         INSERT INTO discussion_group_audit (group_id,actor_id,action,message_id,details)
         VALUES (${group.id},${userId},${complete ? "message.removed" : "message.deleted"},${req.params.id},'{}'::jsonb)
@@ -558,6 +579,36 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     if(!removed) await db.execute(sql`INSERT INTO discussion_group_reactions (message_id,user_id,emoji)
       VALUES (${req.params.id},${userId},${emoji.data}) ON CONFLICT DO NOTHING`);
     res.json({ success: true });
+  }));
+
+  app.put("/api/groups/:slug/messages/:id/admin-reactions", requireAuth, wrap(async (req, res) => {
+    const userId = currentUserId(req)!;
+    const countSchema = z.number().int().min(0).max(10000);
+    const countsSchema = z.object(Object.fromEntries(
+      GROUP_REACTIONS.map(emoji=>[emoji,countSchema.optional()])
+    )).strict().refine(value=>Object.values(value).some(count=>count!==undefined),"Précisez au moins une réaction.");
+    const parsed = z.object({counts:countsSchema}).strict().safeParse(req.body);
+    if(!parsed.success)throw httpError(400,"Les nombres de réactions sont invalides.");
+    const group = await getGroup(String(req.params.slug));
+    if(!group)throw httpError(404,"Groupe introuvable.");
+    await requireMembership(userId,group.id);
+    if(!await canManageGroup(userId,group.id))throw httpError(403,"Action réservée aux administrateurs du groupe.");
+    const message=resultRows(await db.execute(sql`SELECT id FROM discussion_group_messages
+      WHERE id=${req.params.id} AND group_id=${group.id} AND user_id=${userId}
+        AND message_type='text' AND deleted_at IS NULL AND removed_at IS NULL`))[0];
+    if(!message)throw httpError(404,"Vous pouvez uniquement attribuer des réactions à vos messages actifs.");
+    await db.transaction(async tx=>{
+      for(const [emoji,count] of Object.entries(parsed.data.counts)){
+        if(count===undefined)continue;
+        if(count===0)await tx.execute(sql`DELETE FROM discussion_group_admin_reactions WHERE message_id=${req.params.id} AND emoji=${emoji}`);
+        else await tx.execute(sql`INSERT INTO discussion_group_admin_reactions(message_id,emoji,reaction_count,updated_by)
+          VALUES (${req.params.id},${emoji},${count},${userId})
+          ON CONFLICT(message_id,emoji) DO UPDATE SET reaction_count=EXCLUDED.reaction_count,updated_by=EXCLUDED.updated_by,updated_at=now()`);
+      }
+      await tx.execute(sql`INSERT INTO discussion_group_audit(group_id,actor_id,action,message_id,details)
+        VALUES (${group.id},${userId},'message.reactions.adjusted',${req.params.id},${JSON.stringify(parsed.data.counts)}::jsonb)`);
+    });
+    res.json({success:true});
   }));
 
   app.post("/api/groups/:slug/messages/:id/report", requireAuth, wrap(async (req, res) => {

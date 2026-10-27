@@ -95,12 +95,14 @@ test("Sika group endpoints enforce membership and persist identity-scoped messag
       assert.equal(timeline.body.messages.find((m:any)=>m.id===sent.body.id).reactions.find((r:any)=>r.emoji===emoji).count,1);
       assert.equal((await request(userA, `/api/groups/${publicSlug}/messages/${sent.body.id}/reactions`, "POST", { emoji })).status,200);
     }
-    for(const emoji of ["👍","😂","🙏","😮","😢","💎"]){
+    for(const emoji of ["👍","😂","🙏","😮","😢","💎","🤕"]){
       assert.equal((await request(userA, `/api/groups/${publicSlug}/messages/${sent.body.id}/reactions`, "POST", { emoji })).status,400);
     }
-    assert.equal((await request(userA, `/api/groups/${publicSlug}/messages`)).body.messages.find((m: any) => m.id === sent.body.id).reactions.length, 0);
+    assert.equal((await request(userA,`/api/groups/${publicSlug}/messages`)).body.messages.find((m:any)=>m.id===sent.body.id).reactions.length,0);
     await db.execute(sql`INSERT INTO discussion_group_reactions (message_id,user_id,emoji) VALUES (${sent.body.id},${userA},'👍')`);
-    assert.equal((await request(userA, `/api/groups/${publicSlug}/messages`)).body.messages.find((m: any) => m.id === sent.body.id).reactions.length, 0);
+    assert.equal((await request(userA,`/api/groups/${publicSlug}/messages`)).body.messages.find((m:any)=>m.id===sent.body.id).reactions.length,0);
+    assert.equal((await request(userB,`/api/groups/${publicSlug}/messages/${sent.body.id}/reactions`,"POST",{emoji:"😍"})).status,200);
+    assert.equal((await request(userA,`/api/groups/${publicSlug}/messages`)).body.messages.find((m:any)=>m.id===sent.body.id).reactions.find((r:any)=>r.emoji==="😍").count,1);
 
     await db.execute(sql`UPDATE discussion_groups SET visibility='private' WHERE id=${privateId}`);
     const preview=await request(userC,`/api/groups/${privateSlug}`);
@@ -207,7 +209,32 @@ test("Sika group endpoints enforce membership and persist identity-scoped messag
       const adminOwn=await request(userC,`/api/groups/${slug}/messages`,"POST",{content:"Message administrateur à supprimer"});
       assert.equal(adminOwn.status,201);
       assert.equal((await request(userA,`/api/groups/${slug}/messages`)).body.messages.find((m:any)=>m.id===adminOwn.body.id).senderIsAdmin,true);
-      assert.equal((await request(userC,`/api/groups/${slug}/messages/${adminOwn.body.id}`,"DELETE",{mode:"standard"})).status,200);
+       const adminReactionUrl=`/api/groups/${slug}/messages/${adminOwn.body.id}/admin-reactions`;
+       assert.equal((await request(userA,adminReactionUrl,"PUT",{counts:{"😍":50,"👀":50}})).status,403);
+       assert.equal((await request(principal.id,adminReactionUrl,"PUT",{counts:{"😍":50}})).status,404);
+       assert.equal((await request(userC,adminReactionUrl,"PUT",{counts:{"😍":50,"👀":50}})).status,200);
+       const memberTimeline=(await request(userA,`/api/groups/${slug}/messages`)).body.messages;
+       const memberAdminReactionMessage=memberTimeline.find((m:any)=>m.id===adminOwn.body.id);
+       assert.equal(memberAdminReactionMessage.reactions.find((r:any)=>r.emoji==="😍").count,50);
+       assert.equal(memberAdminReactionMessage.reactions.find((r:any)=>r.emoji==="👀").count,50);
+       assert.equal(memberAdminReactionMessage.reactions.find((r:any)=>r.emoji==="😍").adminCount,undefined);
+       assert.equal((await request(userA,`/api/groups/${slug}/messages/${adminOwn.body.id}/reactions`,"POST",{emoji:"😍"})).status,200);
+       assert.equal((await request(userA,`/api/groups/${slug}/messages/${adminOwn.body.id}/reactions`,"POST",{emoji:"👀"})).status,200);
+       const managerTimeline=(await request(userC,`/api/groups/${slug}/messages`)).body.messages;
+       const managerAdminReactionMessage=managerTimeline.find((m:any)=>m.id===adminOwn.body.id);
+       assert.equal(managerAdminReactionMessage.reactions.find((r:any)=>r.emoji==="😍").count,51);
+       assert.equal(managerAdminReactionMessage.reactions.find((r:any)=>r.emoji==="😍").adminCount,50);
+       assert.equal(managerAdminReactionMessage.reactions.find((r:any)=>r.emoji==="👀").count,51);
+       assert.equal((await request(userC,adminReactionUrl,"PUT",{counts:{"😍":0,"👀":75}})).status,200);
+       const adjustedTimeline=(await request(userA,`/api/groups/${slug}/messages`)).body.messages;
+       const adjustedAdminReactionMessage=adjustedTimeline.find((m:any)=>m.id===adminOwn.body.id);
+       assert.equal(adjustedAdminReactionMessage.reactions.find((r:any)=>r.emoji==="😍").count,1);
+       assert.equal(adjustedAdminReactionMessage.reactions.find((r:any)=>r.emoji==="👀").count,76);
+       assert.equal((await request(userC,adminReactionUrl,"PUT",{counts:{"😍":10001}})).status,400);
+       assert.equal((await request(userC,adminReactionUrl,"PUT",{counts:{"🤕":50}})).status,400);
+       assert.equal((await request(userC,adminReactionUrl,"PUT",{counts:{"😍":50},updatedBy:userA})).status,400);
+       assert.equal((await request(userC,`/api/groups/${slug}/messages/${adminOwn.body.id}`,"DELETE",{mode:"standard"})).status,200);
+       assert.equal((await db.execute(sql`SELECT 1 FROM discussion_group_admin_reactions WHERE message_id=${adminOwn.body.id}`)).rows.length,0);
       assert.equal((await request(userC,`/api/groups/${slug}/messages`)).body.messages.some((m:any)=>m.id===adminOwn.body.id),false);
       assert.equal((await request(userA,`/api/groups/${slug}/messages`)).body.messages.find((m:any)=>m.id===adminOwn.body.id).content,"Message supprimé");
       const adminOwnComplete=await request(userC,`/api/groups/${slug}/messages`,"POST",{content:"Message administrateur à supprimer pour tous"});
