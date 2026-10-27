@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db } from "./db";
 import { storage } from "./storage";
 import { groupRequestSecurity, isSafeGroupPhoto } from "./group-security";
+import { isGroupReaction } from "@shared/group-reactions";
 
 const PRINCIPAL_EMAIL = "sikatexte@gmail.com";
 const SYSTEM_GROUP_SLUG = "sika-texte-groupe-officiel";
@@ -226,7 +227,7 @@ function publicMessage(row: any) {
     photoUrl: row.profile_image_url || null, createdAt: row.created_at, editedAt: row.edited_at,
     deleted: !!row.deleted_at, pinned: !!row.pinned_at,
     replyTo: !row.deleted_at && row.visible_reply_id ? { id: String(row.visible_reply_id), content: row.reply_content, senderName: row.reply_sender || "Membre" } : null,
-    reactions: row.reactions || [],
+    reactions: (row.reactions || []).filter((reaction: {emoji:string})=>isGroupReaction(reaction.emoji)),
   };
 }
 
@@ -533,8 +534,7 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
   app.post("/api/groups/:slug/messages/:id/reactions", requireAuth, wrap(async (req, res) => {
     const userId = currentUserId(req)!;
     const emoji = z.string().min(1).max(16).safeParse(req.body?.emoji);
-    const allowedEmojis = new Set(["👍","❤️","😂","🎉","🙏","🔥","😮","😢"]);
-    if (!emoji.success || !allowedEmojis.has(emoji.data)) throw httpError(400, "Réaction invalide.");
+    if (!emoji.success || !isGroupReaction(emoji.data)) throw httpError(400, "Réaction invalide.");
     const group = await getGroup(String(req.params.slug));
     if (!group) throw httpError(404, "Groupe introuvable.");
     await requireMembership(userId, group.id);

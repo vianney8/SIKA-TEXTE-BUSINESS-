@@ -6,6 +6,7 @@ import { db, pool } from "../server/db";
 import { ensureGroupsSchema, registerGroupRoutes } from "../server/groups";
 import { users } from "../shared/schema";
 import { sql } from "drizzle-orm";
+import { GROUP_REACTIONS } from "../shared/group-reactions";
 
 test("Sika group endpoints enforce membership and persist identity-scoped messages", async () => {
   await ensureGroupsSchema();
@@ -86,9 +87,18 @@ test("Sika group endpoints enforce membership and persist identity-scoped messag
     assert.equal(edit.status, 200);
     assert.equal((await request(userA, `/api/groups/${publicSlug}/messages`)).body.messages.find((m: any) => m.id === sent.body.id).content, "Texte modifié");
 
-    const reaction = await request(userA, `/api/groups/${publicSlug}/messages/${sent.body.id}/reactions`, "POST", { emoji: "👍" });
-    assert.equal(reaction.status, 200);
-    await request(userA, `/api/groups/${publicSlug}/messages/${sent.body.id}/reactions`, "POST", { emoji: "👍" });
+    for(const emoji of GROUP_REACTIONS){
+      const reaction = await request(userA, `/api/groups/${publicSlug}/messages/${sent.body.id}/reactions`, "POST", { emoji });
+      assert.equal(reaction.status, 200);
+      const timeline=await request(userA, `/api/groups/${publicSlug}/messages`);
+      assert.equal(timeline.body.messages.find((m:any)=>m.id===sent.body.id).reactions.find((r:any)=>r.emoji===emoji).count,1);
+      assert.equal((await request(userA, `/api/groups/${publicSlug}/messages/${sent.body.id}/reactions`, "POST", { emoji })).status,200);
+    }
+    for(const emoji of ["👍","😂","🙏","😮","😢","💎"]){
+      assert.equal((await request(userA, `/api/groups/${publicSlug}/messages/${sent.body.id}/reactions`, "POST", { emoji })).status,400);
+    }
+    assert.equal((await request(userA, `/api/groups/${publicSlug}/messages`)).body.messages.find((m: any) => m.id === sent.body.id).reactions.length, 0);
+    await db.execute(sql`INSERT INTO discussion_group_reactions (message_id,user_id,emoji) VALUES (${sent.body.id},${userA},'👍')`);
     assert.equal((await request(userA, `/api/groups/${publicSlug}/messages`)).body.messages.find((m: any) => m.id === sent.body.id).reactions.length, 0);
 
     await db.execute(sql`UPDATE discussion_groups SET visibility='private' WHERE id=${privateId}`);
@@ -187,7 +197,7 @@ test("Sika group endpoints enforce membership and persist identity-scoped messag
       const responseToRemove=await request(userA,`/api/groups/${slug}/messages`,"POST",{content:"Réponse conservée",replyToId:Number(toRemove.body.id)});
       assert.equal(responseToRemove.status,201);
       assert.equal((await request(userA,`/api/groups/${slug}/messages`)).body.messages.find((m:any)=>m.id===responseToRemove.body.id).replyTo.content,"Contenu synthétique à retirer complètement");
-      assert.equal((await request(userA,`/api/groups/${slug}/messages/${toRemove.body.id}/reactions`,"POST",{emoji:"👍"})).status,200);
+      assert.equal((await request(userA,`/api/groups/${slug}/messages/${toRemove.body.id}/reactions`,"POST",{emoji:"🔥"})).status,200);
       assert.equal((await request(userB,`/api/groups/${slug}/messages/${toRemove.body.id}`,"DELETE",{mode:"complete"})).status,403);
       assert.equal((await request(userA,`/api/groups/${slug}/messages/${toRemove.body.id}`,"DELETE",{mode:"complete",role:"admin"})).status,400);
       assert.equal((await request(userC,`/api/groups/${slug}/messages/${sent.body.id}`,"DELETE",{mode:"complete"})).status,404);

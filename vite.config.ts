@@ -20,11 +20,16 @@ export default defineConfig({
       : []),
   ],
   resolve: {
+    // Keep the app, renderer and lazily optimized UI dependencies on one React instance.
+    dedupe: ["react", "react-dom"],
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),
       "@shared": path.resolve(import.meta.dirname, "shared"),
       "@assets": path.resolve(import.meta.dirname, "attached_assets"),
     },
+  },
+  optimizeDeps: {
+    include: ["react", "react-dom", "react-dom/client", "react/jsx-dev-runtime"],
   },
   root: path.resolve(import.meta.dirname, "client"),
   build: {

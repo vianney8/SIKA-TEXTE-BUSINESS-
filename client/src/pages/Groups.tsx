@@ -3,21 +3,23 @@ import { useLocation } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, BadgeCheck, BellOff, CircleAlert, Copy, Crown, Flag,
-  Globe2, LockKeyhole, LogOut, MessageCircle, MessagesSquare, MoreHorizontal,
-  Pin, Plus, Search, Send, Settings2, Shield, Smile, Users, UserPlus, X,
+  Globe2, LockKeyhole, LogOut, MessagesSquare, MoreHorizontal,
+  Pin, Plus, Search, Send, Settings2, Shield, Users, UserPlus, X,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
-  DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import officialLogo from "@assets/1764438802465_1773510898637.jpg";
 import GroupFormDialog, { type GroupFormValue } from "@/components/groups/GroupFormDialog";
+import GroupMessageActions from "@/components/groups/GroupMessageActions";
+import SwipeToReply from "@/components/groups/SwipeToReply";
+import { isGroupReaction } from "@shared/group-reactions";
 
 type Group = {
   id: string; slug: string; name: string; photoUrl?: string | null; description: string;
@@ -85,6 +87,7 @@ function GroupsWorkspace() {
   const [loadedOlder, setLoadedOlder] = useState<Message[]>([]);
   const [hasOlder,setHasOlder]=useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const redeemedInvite = useRef("");
   const draftNonce=useRef(crypto.randomUUID());
   const unreadSnapshot=useRef<Map<string,number>|null>(null);
@@ -241,6 +244,12 @@ function GroupsWorkspace() {
     }
   },[groupsQuery.data,notificationsAllowed,activeSlug,navigate,toast]);
 
+  const canReply = !!isMember && (canManage || (detail?.group.membersCanPost !== false && !detail?.membership.postingBlocked)) && !sendMessage.isPending;
+  const beginReply = (message: Message) => {
+    if (!canReply || message.deleted) return;
+    setReply(message);
+    composerRef.current?.focus({ preventScroll: true });
+  };
   const send = (event: React.FormEvent) => {
     event.preventDefault();
     if (!messageText.trim() || sendMessage.isPending) return;
@@ -382,7 +391,9 @@ function GroupsWorkspace() {
                     {!messagesQuery.isLoading&&!messages.length&&<div className="py-10 text-center text-sm text-slate-500">{search?"Aucun message ne correspond à cette recherche.":"La conversation commence ici. Envoyez le premier message."}</div>}
                     {messagesQuery.data?.hasMore&&hasOlder&&!search&&<Button variant="outline" size="sm" className="mx-auto flex" onClick={async()=>{const before=messages[0]?.id;if(!before)return;try{const older=await getJson<{messages:Message[];hasMore:boolean}>(`/api/groups/${activeSlug}/messages?before=${before}`);setLoadedOlder(previous=>[...older.messages,...previous]);setHasOlder(older.hasMore)}catch(e){toast({title:"Historique indisponible",description:(e as Error).message,variant:"destructive"})}}}>Afficher les anciens messages</Button>}
                     {messages.map(message=>message.type==="system"?<div key={message.id} className="py-1 text-center text-xs text-slate-400">{message.content} · {fullDate(message.createdAt)}</div>
-                      :<article key={message.id} className={`group relative max-w-[92%] rounded-2xl border p-3 shadow-sm sm:max-w-[78%] ${message.senderId===(user as any)?.id?"ml-auto bg-teal-50":"bg-white"} ${message.pinned?"border-amber-300":"border-slate-100"}`}>
+                      :<SwipeToReply key={message.id} disabled={message.deleted||!canReply} onReply={()=>beginReply(message)}
+                        className={`max-w-[92%] sm:max-w-[78%] ${message.senderId===(user as any)?.id?"ml-auto":""}`}
+                        bubbleClassName={`rounded-2xl border p-3 shadow-sm ${message.senderId===(user as any)?.id?"bg-teal-50":"bg-white"} ${message.pinned?"border-amber-300":"border-slate-100"}`}>
                         {message.pinned&&<p className="mb-1 flex items-center gap-1 text-[10px] font-semibold text-amber-700"><Pin className="h-3 w-3"/>Message épinglé</p>}
                         <div className="flex items-center gap-2">
                           <Avatar className="h-7 w-7 shrink-0"><AvatarImage referrerPolicy="no-referrer" src={message.photoUrl||undefined}/><AvatarFallback className="text-[10px]">{initials(message.senderName)}</AvatarFallback></Avatar>
@@ -394,15 +405,8 @@ function GroupsWorkspace() {
                             <time dateTime={message.createdAt} className="block text-[10px] text-slate-400">{fullDate(message.createdAt)}{message.editedAt?" · modifié":""}</time>
                           </span>
                           {!message.deleted&&<DropdownMenu>
-                            <DropdownMenuTrigger asChild><button className="ml-auto shrink-0 rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" aria-label={`Options du message de ${message.senderName}`}><MoreHorizontal className="h-4 w-4"/></button></DropdownMenuTrigger>
+                            <DropdownMenuTrigger asChild><button className="ml-auto inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg px-1.5 text-[11px] font-medium text-slate-500 hover:bg-slate-100" aria-label={`Options du message de ${message.senderName}`}><MoreHorizontal className="h-4 w-4"/>Options</button></DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-52">
-                              {(canManage||detail.group.membersCanPost!==false&&!detail.membership.postingBlocked)&&<DropdownMenuItem onSelect={()=>setReply(message)}><MessageCircle className="mr-2 h-4 w-4"/>Répondre</DropdownMenuItem>}
-                              <DropdownMenuSub>
-                                <DropdownMenuSubTrigger><Smile className="mr-2 h-4 w-4"/>Réagir</DropdownMenuSubTrigger>
-                                <DropdownMenuSubContent className="grid grid-cols-4 gap-1 p-2">
-                                  {["👍","❤️","😂","🎉","🙏","🔥","😮","😢"].map(emoji=><DropdownMenuItem key={emoji} className="justify-center text-lg" aria-label={`Réagir ${emoji}`} onSelect={()=>doGroupAction(`/api/groups/${activeSlug}/messages/${message.id}/reactions`,"POST",{emoji})}>{emoji}</DropdownMenuItem>)}
-                                </DropdownMenuSubContent>
-                              </DropdownMenuSub>
                               <DropdownMenuItem onSelect={()=>void navigator.clipboard.writeText(message.content).then(()=>toast({title:"Message copié"})).catch(()=>toast({title:"Copie impossible",variant:"destructive"}))}><Copy className="mr-2 h-4 w-4"/>Copier</DropdownMenuItem>
                               <DropdownMenuItem onSelect={async()=>{try{const text=`${detail.group.name} — ${message.senderName} : ${message.content}`;if(navigator.share)await navigator.share({text});else{await navigator.clipboard.writeText(text);toast({title:"Message copié pour le partager"})}}catch(error){if((error as Error).name!=="AbortError")toast({title:"Partage impossible",variant:"destructive"})}}}>Partager</DropdownMenuItem>
                               <DropdownMenuItem onSelect={()=>{const reason=window.prompt("Pourquoi signalez-vous ce message ?");if(reason)doGroupAction(`/api/groups/${activeSlug}/messages/${message.id}/report`,"POST",{reason})}}><Flag className="mr-2 h-4 w-4"/>Signaler</DropdownMenuItem>
@@ -415,8 +419,10 @@ function GroupsWorkspace() {
                         </div>
                         {message.replyTo&&<div className="mt-2 border-l-2 border-teal-400 pl-2 text-xs text-slate-500">{message.replyTo.senderName} : {message.replyTo.content}</div>}
                         <p className="mt-1 whitespace-pre-wrap break-words text-sm">{message.content}</p>
-                        {!message.deleted&&message.reactions.length>0&&<div className="mt-2 flex flex-wrap gap-1">{message.reactions.map(item=><button key={item.emoji} className={`rounded-full border px-2 py-0.5 text-xs ${item.reacted?"border-teal-300 bg-teal-50":"border-slate-200"}`} onClick={()=>doGroupAction(`/api/groups/${activeSlug}/messages/${message.id}/reactions`,"POST",{emoji:item.emoji})}>{item.emoji} {item.count}</button>)}</div>}
-                      </article>)}
+                        {!message.deleted&&message.reactions.some(item=>isGroupReaction(item.emoji))&&<div className="mt-2 flex flex-wrap gap-1">{message.reactions.filter(item=>isGroupReaction(item.emoji)).map(item=><button key={item.emoji} disabled={act.isPending} aria-pressed={item.reacted} aria-label={`Réagir ${item.emoji} · ${item.count}`} className={`min-h-8 rounded-full border px-2.5 py-1 text-xs disabled:opacity-50 ${item.reacted?"border-teal-300 bg-teal-50":"border-slate-200"}`} onClick={()=>doGroupAction(`/api/groups/${activeSlug}/messages/${message.id}/reactions`,"POST",{emoji:item.emoji})}>{item.emoji} {item.count}</button>)}</div>}
+                        {!message.deleted&&<GroupMessageActions canReply={canReply} pending={act.isPending} onReply={()=>beginReply(message)}
+                          onReact={emoji=>doGroupAction(`/api/groups/${activeSlug}/messages/${message.id}/reactions`,"POST",{emoji})}/>}
+                      </SwipeToReply>)}
                     <div ref={bottomRef}/>
                   </div>
                   <form onSubmit={send} className="shrink-0 border-t border-slate-100 bg-white p-3 sm:p-4">
@@ -424,7 +430,7 @@ function GroupsWorkspace() {
                     {(detail.group.membersCanPost===false||detail.membership.postingBlocked)&&!canManage
                       ? <p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{detail.membership.postingBlocked?"Un administrateur a bloqué votre envoi de messages dans ce groupe. Vous pouvez toujours lire les discussions.":"L’envoi des messages est réservé aux administrateurs. Vous pouvez toujours lire les discussions."}</p>
                       : <div className="flex items-end gap-2">
-                          <Textarea aria-label="Votre message" disabled={sendMessage.isPending} value={messageText}
+                          <Textarea ref={composerRef} aria-label="Votre message" disabled={sendMessage.isPending} value={messageText}
                             onChange={event=>{if(failedDraft){draftNonce.current=crypto.randomUUID();setFailedDraft(false)}setMessageText(event.target.value)}}
                             onKeyDown={event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();send(event)}}}
                             maxLength={4000} rows={1} placeholder="Écrire un message…"
