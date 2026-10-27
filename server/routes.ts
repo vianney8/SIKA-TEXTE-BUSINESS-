@@ -7537,7 +7537,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (value === undefined || value === null) {
         return res.status(400).json({ message: 'Valeur requise' });
       }
-      if (key === "whatsapp_group" && (typeof value !== "string" || (value.trim() && !whatsappCommunityUrl(value)))) {
+      if (["whatsapp_group","whatsapp_home_group"].includes(key) && (typeof value !== "string" || (value.trim() && !whatsappCommunityUrl(value)))) {
         return res.status(400).json({ message: "Lien HTTPS de groupe ou de chaîne WhatsApp invalide." });
       }
       if (key === 'payment_checkout_model' && !CHECKOUT_MODELS.includes(value)) {
@@ -7550,7 +7550,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (['activation_amount', 'ci_update_amount'].includes(key) && !serviceAmount(value)) {
         return res.status(400).json({ message: 'Le tarif doit être un montant positif avec au plus deux décimales.' });
       }
-      await storage.updateAppSetting(key, key === "whatsapp_group" ? (whatsappCommunityUrl(value) || "") : value);
+      await storage.updateAppSetting(key, ["whatsapp_group","whatsapp_home_group"].includes(key) ? (whatsappCommunityUrl(value) || "") : value);
       res.json({ message: 'Paramètre mis à jour avec succès' });
     } catch (error) {
       console.error('Erreur lors de la mise à jour du paramètre:', error);

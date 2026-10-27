@@ -4,7 +4,6 @@ import { useAuth } from "@/hooks/useAuth";
 import MobileHeader from "@/components/MobileHeader";
 import HamburgerMenu from "@/components/HamburgerMenu";
 import BottomNavigation from "@/components/BottomNavigation";
-import MiddleNotification from "@/components/MiddleNotification";
 import TestimonialsSlider from "@/components/TestimonialsSlider";
 import { useToast } from "@/hooks/use-toast";
 import { useAppSetting } from "@/hooks/useAppSettings";
@@ -29,7 +28,8 @@ export default function Dashboard() {
   const demoVideoSource = resolveDemoVideoSource(demoVideoUrl);
   const { data: telegramSupervisor } = useAppSetting('telegram_supervisor');
   const { data: telegramGroup } = useAppSetting('telegram_group');
-  const { data: whatsappGroup, isFetching: whatsappLinkLoading } = useAppSetting('whatsapp_group');
+  const { data: whatsappGroup } = useAppSetting('whatsapp_group');
+  const { data: whatsappHomeGroup, isFetching: whatsappLinkLoading, isFetchedAfterMount: whatsappInvitationReady } = useAppSetting('whatsapp_home_group');
   const whatsappLink = whatsappCommunityUrl(whatsappGroup);
 
   const { data: platformNotifs = [] } = useQuery<any[]>({
@@ -154,8 +154,8 @@ export default function Dashboard() {
   return (
     <div className="min-h-[100dvh] bg-background">
 
-      <WhatsAppGroupInvitation open={showWhatsAppNotif} onOpenChange={setShowWhatsAppNotif}
-        inviteUrl={whatsappGroup} loading={whatsappLinkLoading} />
+      <WhatsAppGroupInvitation open={showWhatsAppNotif && whatsappInvitationReady} onOpenChange={setShowWhatsAppNotif}
+        inviteUrl={whatsappHomeGroup} loading={whatsappLinkLoading} />
 
       <MobileHeader
         user={user}
@@ -283,8 +283,8 @@ export default function Dashboard() {
                 <FaWhatsapp size={20} className="text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-gray-800 font-semibold text-sm">Groupe officiel WhatsApp</p>
-                <p className="text-gray-400 text-xs">Les dernières nouvelles de SIKA TEXTE</p>
+                <p className="text-gray-800 font-semibold text-sm">Chaîne WhatsApp</p>
+                <p className="text-gray-400 text-xs">Rejoignez notre chaîne d’info</p>
               </div>
               <div className="w-7 h-7 rounded-xl bg-gray-50 flex items-center justify-center flex-shrink-0">
                 <ChevronRight size={14} className="text-gray-400" />
@@ -444,7 +444,6 @@ export default function Dashboard() {
       </main>
 
       <BottomNavigation currentPage="home" />
-      <MiddleNotification />
 
       {/* Bouton flottant Telegram support */}
       <a

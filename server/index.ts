@@ -122,6 +122,14 @@ app.use((req, res, next) => {
         ON CONFLICT (key) DO NOTHING
       `);
     }
+    // Preserve today's invitation once, then allow the home group and channel to diverge.
+    // ON CONFLICT also preserves an intentionally cleared home invitation.
+    await db.execute(sql`
+      INSERT INTO app_settings (key,value,label)
+      SELECT 'whatsapp_home_group',value,'Groupe WhatsApp — notification d’accueil'
+      FROM app_settings WHERE key='whatsapp_group'
+      ON CONFLICT (key) DO NOTHING
+    `);
     // Migrate only the known imported video and the bundled default.
     // Do not replace other videos selected by the administrator.
     await db.execute(sql`

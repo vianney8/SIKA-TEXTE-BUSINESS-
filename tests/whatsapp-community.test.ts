@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
 import { whatsappCommunityUrl } from "../shared/whatsapp-community";
 
 test("WhatsApp invitations accept official group and existing channel links", () => {
@@ -20,4 +21,13 @@ test("WhatsApp invitations reject missing, generic or unsafe destinations", () =
     "https://name:secret@chat.whatsapp.com/Abc123",
     "https://chat.whatsapp.com:8080/Abc123",
   ]) assert.equal(whatsappCommunityUrl(link), null);
+});
+
+test("The home page retains one WhatsApp invitation and no legacy notification", () => {
+  const dashboard = readFileSync(new URL("../client/src/pages/Dashboard.tsx", import.meta.url), "utf8");
+  assert.equal((dashboard.match(/<WhatsAppGroupInvitation\b/g) || []).length, 1);
+  assert.doesNotMatch(dashboard, /\bWhatsAppNotification\b|\bMiddleNotification\b|wa_notif_dismissed/);
+  for (const name of ["WhatsAppNotification.tsx", "MiddleNotification.tsx"]) {
+    assert.equal(existsSync(new URL(`../client/src/components/${name}`, import.meta.url)), false);
+  }
 });
