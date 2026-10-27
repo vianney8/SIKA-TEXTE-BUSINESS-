@@ -32,3 +32,9 @@ An individual message restriction must survive leaving and rejoining a group unt
 **Why:** otherwise a member restricted for spam can immediately regain posting access by rejoining, while a read-only restriction should remain distinct from expulsion.
 
 **How to apply:** enforce writing restrictions on the server for both new messages and edits; keep read permissions separate, and make group-wide reopening preserve individual restrictions.
+
+Ordinary users see the number of group members, not the full participant list. Only authorized administrators of that group may access its roster.
+
+**Why:** the user explicitly reserved the full membership list for administrators, superseding the earlier broad participant-list specification.
+
+**How to apply:** enforce this on the server as well as in the interface. Do not send a full roster to ordinary members merely because they have joined; retain aggregate counts and normal message-author attribution.

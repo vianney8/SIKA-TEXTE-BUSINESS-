@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, BadgeCheck, BellOff, CircleAlert, Copy, Crown, Flag,
   Globe2, LockKeyhole, LogOut, MessagesSquare, MoreHorizontal,
-  Pin, Plus, Search, Send, Settings2, Shield, Users, UserPlus, X,
+  Pin, Plus, Search, Send, Settings2, Shield, Users, UserPlus, X, MessageSquareOff,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -19,11 +19,12 @@ import officialLogo from "@assets/1764438802465_1773510898637.jpg";
 import GroupFormDialog, { type GroupFormValue } from "@/components/groups/GroupFormDialog";
 import GroupMessageActions from "@/components/groups/GroupMessageActions";
 import SwipeToReply from "@/components/groups/SwipeToReply";
+import GroupModerationTools from "@/components/groups/GroupModerationTools";
 import { isGroupReaction } from "@shared/group-reactions";
 
 type Group = {
   id: string; slug: string; name: string; photoUrl?: string | null; description: string;
-  category: string; rules?: string; visibility: "public" | "private" | "invite"; approvalRequired: boolean; membersCanPost?: boolean;
+  category: string; rules?: string; visibility: "public" | "private" | "invite"; approvalRequired: boolean; membersCanPost?: boolean; smartModerationEnabled?:boolean;
   createdAt: string; memberCount: number; onlineCount: number; membershipStatus: string;
   muted: boolean; unreadCount: number;
 };
@@ -106,7 +107,8 @@ function GroupsWorkspace() {
   const detail = detailQuery.data;
   const isMember = detail?.membership.status === "active";
   const canManage = !!detail?.isManager;
-  const oldestLoadedId = loadedOlder.length ? Math.min(...loadedOlder.flatMap(message=>[Number(message.id), ...(message.replyTo?[Number(message.replyTo.id)]:[])])) : undefined;
+  const syncMessageIds = [...loadedOlder.flatMap(message=>[Number(message.id), ...(message.replyTo?[Number(message.replyTo.id)]:[])]), ...(reply?[Number(reply.id)]:[])];
+  const oldestLoadedId = syncMessageIds.length ? Math.min(...syncMessageIds) : undefined;
   const messagesQuery = useQuery<{ messages: Message[]; hasMore: boolean; deletions?: {id:string;hidden:boolean;complete:boolean}[] }>({
     queryKey: [`/api/groups/${activeSlug}/messages`, viewerId, search],
     queryFn: () => {
@@ -118,6 +120,9 @@ function GroupsWorkspace() {
     enabled: !!activeSlug && isMember, refetchInterval: 4000, staleTime: 0,
   });
   const deletions=new Map((messagesQuery.data?.deletions||[]).map(item=>[item.id,item]));
+  useEffect(()=>{
+    if(reply&&messagesQuery.data?.deletions?.some(item=>item.id===reply.id))setReply(null);
+  },[reply?.id,messagesQuery.data]);
   const messages = Array.from(new Map([...(search?[]:loadedOlder), ...(messagesQuery.data?.messages || [])].map(message=>[message.id,message])).values())
     .filter(message=>!deletions.get(message.id)?.hidden&&!(canManage&&message.deleted))
     .map(message=>{
@@ -146,6 +151,7 @@ function GroupsWorkspace() {
     void queryClient.invalidateQueries({ queryKey: [`/api/groups/${activeSlug}`] });
     void queryClient.invalidateQueries({ queryKey: [`/api/groups/${activeSlug}/messages`] });
     void queryClient.invalidateQueries({ queryKey: [`/api/groups/${activeSlug}/admin/queue`] });
+    void queryClient.invalidateQueries({ queryKey: [`/api/groups/${activeSlug}/admin/members`] });
     void queryClient.invalidateQueries({ queryKey: [`/api/groups/${activeSlug}/invites`] });
     void queryClient.invalidateQueries({ queryKey: ["/api/groups/stats"] });
   };
@@ -163,6 +169,8 @@ function GroupsWorkspace() {
         setLoadedOlder(update);
         queryClient.setQueriesData<{messages:Message[]}>({queryKey:[variables.path.replace(/\/messages\/\d+$/,"/messages"),viewerId]},previous=>previous?{...previous,messages:update(previous.messages)}:previous);
         setReply(previous=>previous?.id===match[1]?null:previous);
+        toast({title:complete?"Message supprimé pour tous":canManage?"Message supprimé simplement":"Message supprimé",
+          description:complete?"Le message est retiré du groupe, sans mention « Message supprimé ».":"Les utilisateurs verront la mention « Message supprimé »."});
       }
       if(match&&variables.method!=="DELETE") setLoadedOlder(previous=>previous.map(message=>{
         if(message.id!==match[1]) return message;
@@ -201,7 +209,7 @@ function GroupsWorkspace() {
   const sendMessage = useMutation({
     mutationFn: () => sendJson(`/api/groups/${encodeURIComponent(activeSlug)}/messages`, "POST", { content: messageText, clientNonce:draftNonce.current, ...(reply ? { replyToId: Number(reply.id) } : {}) }),
     onSuccess: () => { draftNonce.current=crypto.randomUUID(); setMessageText(""); setReply(null); setFailedDraft(false); refreshGroupData(); },
-    onError: (error: Error) => { setFailedDraft(true); refreshGroupData(); toast({title:"Message non envoyé",description:error.message,variant:"destructive"}); },
+    onError: (error: Error) => { setFailedDraft(true); refreshGroupData(); toast({title:"Envoi impossible",description:error.message,variant:"destructive"}); },
   });
 
   useEffect(() => {
@@ -345,7 +353,8 @@ function GroupsWorkspace() {
                   {detail.group.slug===OFFICIAL_SLUG&&<p className="mt-2 text-xs text-slate-600">Administrateur principal : <strong className="text-teal-800">Yvan SPQ SIKA</strong></p>}
                   <div className="my-4 rounded-xl bg-amber-50 p-3 text-sm"><strong>Règles de discussion</strong><p className="mt-1 whitespace-pre-wrap text-slate-700">{detail.group.rules||"Respectez les autres membres et évitez le spam."}</p></div>
                   <div className="mb-2 flex items-center justify-between"><strong className="text-sm">Participants ({detail.counts.memberCount})</strong></div>
-                  <div className="grid gap-2 sm:grid-cols-2">{detail.members.map(member=><div key={member.id} className="flex min-w-0 items-center gap-2 rounded-lg bg-slate-50 p-2"><Avatar className="h-8 w-8"><AvatarImage src={member.photoUrl}/><AvatarFallback>{initials(member.fullName||"Membre Sika")}</AvatarFallback></Avatar><span className="min-w-0 flex-1 truncate text-xs font-medium">{member.fullName}</span>{member.role!=="member"&&<Crown className="h-3.5 w-3.5 text-amber-600"/>}<span className={`h-2 w-2 rounded-full ${member.online?"bg-emerald-500":"bg-slate-300"}`}/>{detail.isPrincipalAdmin&&member.id!==(user as any)?.id&&<button className="text-[10px] text-teal-700" onClick={()=>doGroupAction(`/api/groups/${activeSlug}/admin/members/${member.id}`,"POST",{action:member.role==="admin"?"demote":"promote"})}>{member.role==="admin"?"Retirer admin":"Nommer admin"}</button>}{canManage&&member.id!==(user as any)?.id&&member.role==="member"&&<button className="text-[10px] text-red-700" onClick={()=>{if(window.confirm(`Retirer ${member.fullName} du groupe ?`))doGroupAction(`/api/groups/${activeSlug}/admin/members/${member.id}`,"POST",{action:"remove"})}}>Retirer</button>}</div>)}</div>
+                  {canManage?<div className="grid gap-2 sm:grid-cols-2">{detail.members.map(member=><div key={member.id} className="flex min-w-0 items-center gap-2 rounded-lg bg-slate-50 p-2"><Avatar className="h-8 w-8"><AvatarImage src={member.photoUrl}/><AvatarFallback>{initials(member.fullName||"Membre Sika")}</AvatarFallback></Avatar><span className="min-w-0 flex-1 truncate text-xs font-medium">{member.fullName}</span>{member.role!=="member"&&<Crown className="h-3.5 w-3.5 text-amber-600"/>}<span className={`h-2 w-2 rounded-full ${member.online?"bg-emerald-500":"bg-slate-300"}`}/>{detail.isPrincipalAdmin&&member.id!==(user as any)?.id&&<button className="text-[10px] text-teal-700" onClick={()=>doGroupAction(`/api/groups/${activeSlug}/admin/members/${member.id}`,"POST",{action:member.role==="admin"?"demote":"promote"})}>{member.role==="admin"?"Retirer admin":"Nommer admin"}</button>}{member.id!==(user as any)?.id&&member.role==="member"&&<button className="text-[10px] text-red-700" onClick={()=>{if(window.confirm(`Retirer ${member.fullName} du groupe ?`))doGroupAction(`/api/groups/${activeSlug}/admin/members/${member.id}`,"POST",{action:"remove"})}}>Retirer</button>}</div>)}</div>
+                    :<p className="text-xs text-slate-500">La liste des membres est réservée aux administrateurs du groupe.</p>}
                 </div>}
                 {showAdmin&&canManage&&<div role="dialog" aria-label="Administration du groupe" className="absolute inset-x-2 top-16 z-30 max-h-[min(76dvh,42rem)] overflow-y-auto rounded-2xl border border-teal-200 bg-teal-50 p-3 shadow-2xl sm:inset-x-auto sm:right-3 sm:w-[32rem] sm:max-w-[calc(100%-1.5rem)]">
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -369,13 +378,11 @@ function GroupsWorkspace() {
                     <div><p className="text-sm font-semibold">Envoi des messages</p><p className="text-xs text-slate-500">{detail.group.membersCanPost===false?"Seuls les administrateurs peuvent écrire.":"Les membres non restreints peuvent écrire."}</p></div>
                     <Button size="sm" variant="outline" disabled={act.isPending} onClick={()=>{const allowed=detail.group.membersCanPost===false;if(window.confirm(allowed?"Autoriser à nouveau les membres à écrire ? Les restrictions individuelles seront conservées.":"Bloquer l’envoi des messages pour tous les membres ? Les administrateurs pourront toujours publier."))doGroupAction(`/api/groups/${activeSlug}/admin/posting`,"POST",{membersCanPost:allowed})}}>{detail.group.membersCanPost===false?"Autoriser les messages":"Bloquer les messages"}</Button>
                   </div>
+                  <GroupModerationTools key={activeSlug} slug={activeSlug} viewerId={viewerId} smartModerationEnabled={!!detail.group.smartModerationEnabled}
+                    pending={act.isPending} onAction={(memberId,action)=>doGroupAction(`/api/groups/${activeSlug}/admin/members/${memberId}`,"POST",{action})}
+                    onToggleSmart={enabled=>doGroupAction(`/api/groups/${activeSlug}/admin/moderation`,"PATCH",{enabled})}/>
                   {adminQueueQuery.data?.pending.map(member=><div key={member.id} className="flex items-center gap-2 py-1.5 text-sm"><span className="flex-1">{member.fullName}</span><Button size="sm" onClick={()=>doGroupAction(`/api/groups/${activeSlug}/approvals/${member.id}`,"POST",{approve:true})}>Accepter</Button><Button size="sm" variant="outline" onClick={()=>doGroupAction(`/api/groups/${activeSlug}/approvals/${member.id}`,"POST",{approve:false})}>Refuser</Button></div>)}
                   {adminQueueQuery.data?.reports.map(report=><div key={report.id} className="border-t border-teal-100 py-2 text-xs"><p><strong>Signalement :</strong> {report.reason} · « {report.content} »</p><div className="mt-1 flex gap-2"><Button size="sm" variant="outline" onClick={()=>doGroupAction(`/api/groups/${activeSlug}/admin/reports/${report.id}`,"POST",{status:"resolved"})}>Résolu</Button><Button size="sm" variant="outline" onClick={()=>doGroupAction(`/api/groups/${activeSlug}/admin/reports/${report.id}`,"POST",{status:"dismissed"})}>Ignorer</Button></div></div>)}
-                  {adminQueueQuery.data?.members.filter(member=>member.role==="member"&&member.id!==(user as any)?.id).map(member=><div key={member.id} className="flex flex-wrap items-center gap-2 border-t border-teal-100 py-2 text-xs">
-                    <span className="min-w-0 flex-1">{member.fullName}{member.postingBlocked&&<span className="block text-amber-700">Envoi bloqué · lecture autorisée</span>}</span>
-                    <Button size="sm" variant="outline" disabled={act.isPending} onClick={()=>{if(window.confirm(member.postingBlocked?`Autoriser ${member.fullName} à écrire à nouveau ?`:`Bloquer uniquement l’envoi des messages de ${member.fullName} ? La lecture restera autorisée.`))doGroupAction(`/api/groups/${activeSlug}/admin/members/${member.id}`,"POST",{action:member.postingBlocked?"allow_posting":"restrict_posting"})}}>{member.postingBlocked?"Autoriser l’envoi":"Bloquer l’envoi"}</Button>
-                    <Button size="sm" variant="outline" disabled={act.isPending} onClick={()=>{if(window.confirm(`Bloquer complètement l’accès de ${member.fullName} à ce groupe ?`))doGroupAction(`/api/groups/${activeSlug}/admin/members/${member.id}`,"POST",{action:"block"})}}>Exclure et bloquer</Button>
-                  </div>)}
                   {invitesQuery.data?.invites.map(invite=><div key={invite.id} className="flex items-center gap-2 border-t border-teal-100 py-2 text-xs"><span className="flex-1">Invitation · {invite.usesCount}/{invite.maxUses} utilisations · expire le {new Intl.DateTimeFormat("fr-FR",{dateStyle:"short"}).format(new Date(invite.expiresAt))}</span><Button size="sm" variant="outline" onClick={()=>doGroupAction(`/api/groups/${activeSlug}/invites/${invite.id}`,"DELETE")}>Révoquer</Button></div>)}
                   {adminQueueQuery.data?.logs.map((log:any,index:number)=><p key={`${log.action}-${index}`} className="border-t border-teal-100 py-1 text-[10px] text-slate-500">{fullDate(log.createdAt)} · {log.actorName||"Administrateur"} · {log.action}</p>)}
                   {!adminQueueQuery.data?.pending.length&&!adminQueueQuery.data?.reports.length&&<p className="text-xs text-slate-500">Aucune demande ni aucun signalement en attente.</p>}
@@ -411,9 +418,17 @@ function GroupsWorkspace() {
                               <DropdownMenuItem onSelect={async()=>{try{const text=`${detail.group.name} — ${message.senderName} : ${message.content}`;if(navigator.share)await navigator.share({text});else{await navigator.clipboard.writeText(text);toast({title:"Message copié pour le partager"})}}catch(error){if((error as Error).name!=="AbortError")toast({title:"Partage impossible",variant:"destructive"})}}}>Partager</DropdownMenuItem>
                               <DropdownMenuItem onSelect={()=>{const reason=window.prompt("Pourquoi signalez-vous ce message ?");if(reason)doGroupAction(`/api/groups/${activeSlug}/messages/${message.id}/report`,"POST",{reason})}}><Flag className="mr-2 h-4 w-4"/>Signaler</DropdownMenuItem>
                               {canManage&&<DropdownMenuItem onSelect={()=>doGroupAction(`/api/groups/${activeSlug}/admin/messages/${message.id}/pin`,"POST",{pinned:!message.pinned})}><Pin className="mr-2 h-4 w-4"/>{message.pinned?"Désépingler":"Épingler"}</DropdownMenuItem>}
+                              {canManage&&!message.senderIsAdmin&&message.senderId!==(user as any)?.id&&(()=>{
+                                const member=detail.members.find(member=>member.id===message.senderId&&member.role==="member");
+                                if(!member)return null;
+                                return <DropdownMenuItem disabled={act.isPending} className={`items-start whitespace-normal ${member.postingBlocked?"text-teal-700":"text-amber-800"}`} onSelect={()=>{
+                                  if(window.confirm(member.postingBlocked?`Autoriser ${member.fullName} à envoyer de nouveau des messages dans ce groupe ?`:`Bloquer l’envoi de messages de ${member.fullName} dans ce groupe ? Cette personne pourra toujours lire les discussions.`))
+                                    doGroupAction(`/api/groups/${activeSlug}/admin/members/${member.id}`,"POST",{action:member.postingBlocked?"allow_posting":"restrict_posting"});
+                                }}><MessageSquareOff className="mr-2 mt-0.5 h-4 w-4 shrink-0"/>{member.postingBlocked?"Autoriser l’envoi de messages":"Bloquer l’envoi de messages"}</DropdownMenuItem>;
+                              })()}
                               {message.senderId===(user as any)?.id&&(canManage||detail.group.membersCanPost!==false&&!detail.membership.postingBlocked)&&<DropdownMenuItem onSelect={()=>{const content=window.prompt("Modifier le message",message.content);if(content?.trim())doGroupAction(`/api/groups/${activeSlug}/messages/${message.id}`,"PATCH",{content})}}><Settings2 className="mr-2 h-4 w-4"/>Modifier</DropdownMenuItem>}
-                              {(message.senderId===(user as any)?.id||canManage)&&<><DropdownMenuSeparator/><DropdownMenuItem disabled={act.isPending} className="text-red-700" onSelect={()=>{if(window.confirm(canManage?"Supprimer ce message ? Il disparaîtra pour les administrateurs et les utilisateurs verront « Message supprimé ».":"Supprimer ce message pour tous les membres ?"))doGroupAction(`/api/groups/${activeSlug}/messages/${message.id}`,"DELETE")}}><X className="mr-2 h-4 w-4"/>Supprimer</DropdownMenuItem></>}
-                              {canManage&&<DropdownMenuItem disabled={act.isPending} className="text-red-700" onSelect={()=>{if(window.confirm("Retirer complètement ce message pour tout le monde, sans mention « Message supprimé » ? Son contenu et ses réactions seront effacés. Cette action est irréversible."))doGroupAction(`/api/groups/${activeSlug}/messages/${message.id}`,"DELETE",{mode:"complete"})}}><X className="mr-2 h-4 w-4"/>Retirer complètement</DropdownMenuItem>}
+                              {(message.senderId===(user as any)?.id||canManage)&&<><DropdownMenuSeparator/><DropdownMenuItem disabled={act.isPending} className="text-red-700" onSelect={()=>{if(window.confirm(canManage?"Supprimer simplement ce message ? Il disparaîtra pour les administrateurs, mais les utilisateurs verront « Message supprimé ».":"Supprimer votre message ? Les autres utilisateurs verront « Message supprimé »."))doGroupAction(`/api/groups/${activeSlug}/messages/${message.id}`,"DELETE",{mode:"standard"})}}><X className="mr-2 h-4 w-4 shrink-0"/><span>{canManage?"Supprimer simplement":"Supprimer"}{canManage&&<span className="mt-0.5 block text-[10px] font-normal">Laisse « Message supprimé »</span>}</span></DropdownMenuItem></>}
+                              {canManage&&<DropdownMenuItem disabled={act.isPending} className="text-red-700" onSelect={()=>{if(window.confirm("Supprimer pour tous ce message ? Qu’il ait été envoyé par un administrateur ou un utilisateur, il disparaîtra chez tous les membres, sans mention « Message supprimé ». Cette action est irréversible."))doGroupAction(`/api/groups/${activeSlug}/messages/${message.id}`,"DELETE",{mode:"complete"})}}><X className="mr-2 h-4 w-4 shrink-0"/><span>Supprimer pour tous<span className="mt-0.5 block text-[10px] font-normal">Sans mention « Message supprimé »</span></span></DropdownMenuItem>}
                             </DropdownMenuContent>
                           </DropdownMenu>}
                         </div>
@@ -437,7 +452,7 @@ function GroupsWorkspace() {
                             className="min-h-[48px] max-h-32 resize-none rounded-2xl bg-slate-50"/>
                           <Button aria-label="Envoyer le message" type="submit" disabled={!messageText.trim()||sendMessage.isPending} className="h-12 w-12 shrink-0 rounded-2xl bg-teal-700 p-0"><Send className="h-4 w-4"/></Button>
                         </div>}
-                    {failedDraft&&<p className="mt-1 text-xs text-red-600">Envoi impossible. Votre texte est conservé ; réessayez.</p>}
+                    {failedDraft&&<p role="alert" className="mt-1 text-xs text-red-600">{sendMessage.error?.message||"Envoi impossible."} Votre texte est conservé ; vous pouvez le modifier ou réessayer.</p>}
                   </form>
                 </div>}
               </>}

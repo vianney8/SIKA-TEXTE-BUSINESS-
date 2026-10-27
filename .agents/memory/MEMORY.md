@@ -21,5 +21,6 @@
 - [Group data isolation](group-data-isolation.md) — private discussions need membership-scoped delivery and durable catch-up; do not expose unscoped legacy messages.
 - [Group message deletion](group-message-deletion.md) — administrators see no deleted-message placeholder; members keep it unless an administrator removes the message completely.
 - [Group interaction rules](group-interaction-rules.md) — exact seven-emoji palette and right-swipe replies are explicit product requirements, not library defaults.
+- [Group moderation policy](group-moderation-policy.md) — searchable restriction categories, explicit reinstatement, and opt-in filtering of specified accusations and withdrawal-failure wording.
 - [Home WhatsApp invitation](home-whatsapp-invitation.md) — reappear on each home visit; dismissal is temporary and its link is separate from the WhatsApp channel.
 - [Preview cookie policy](preview-cookie-policy.md) — the development proxy rewrites SameSite; compare origin/proxy attributes and retain explicit CSRF checks.

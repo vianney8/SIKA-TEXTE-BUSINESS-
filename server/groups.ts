@@ -6,6 +6,8 @@ import { db } from "./db";
 import { storage } from "./storage";
 import { groupRequestSecurity, isSafeGroupPhoto } from "./group-security";
 import { isGroupReaction } from "@shared/group-reactions";
+import { isDisallowedGroupContent } from "./group-content-moderation";
+import { listModerationMembers, liftMembershipRestriction } from "./group-moderation";
 
 const PRINCIPAL_EMAIL = "sikatexte@gmail.com";
 const SYSTEM_GROUP_SLUG = "sika-texte-groupe-officiel";
@@ -135,6 +137,8 @@ export async function ensureGroupsSchema() {
   `);
 
   await db.execute(sql`ALTER TABLE discussion_groups ADD COLUMN IF NOT EXISTS members_can_post boolean NOT NULL DEFAULT true`);
+  await db.execute(sql`ALTER TABLE discussion_groups ADD COLUMN IF NOT EXISTS smart_moderation_enabled boolean NOT NULL DEFAULT false`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS discussion_audit_member_actions ON discussion_group_audit(group_id,target_user_id,created_at DESC,id DESC)`);
   await db.execute(sql`ALTER TABLE discussion_group_members ADD COLUMN IF NOT EXISTS posting_blocked boolean NOT NULL DEFAULT false`);
   await db.execute(sql`ALTER TABLE discussion_group_messages ADD COLUMN IF NOT EXISTS client_nonce varchar`);
   await db.execute(sql`ALTER TABLE discussion_group_messages ADD COLUMN IF NOT EXISTS removed_at timestamptz`);
@@ -175,6 +179,7 @@ async function getGroup(slug: string) {
   const rows = resultRows(await db.execute(sql`
     SELECT id,slug,name,photo_url AS "photoUrl",description,category,visibility,rules,
       approval_required AS "approvalRequired",members_can_post AS "membersCanPost",
+      smart_moderation_enabled AS "smartModerationEnabled",
       created_at AS "createdAt",archived_at AS "archivedAt"
     FROM discussion_groups WHERE slug=${slug} AND archived_at IS NULL LIMIT 1
   `));
@@ -210,6 +215,11 @@ async function requirePostingAccess(userId: string, group: any) {
   if (await canManageGroup(userId, group.id)) return;
   if (membership.postingBlocked) throw httpError(403, "Un administrateur a bloqué votre envoi de messages dans ce groupe. Vous pouvez toujours lire les discussions.");
   if (!group.membersCanPost) throw httpError(403, "L’envoi de messages est réservé aux administrateurs dans ce groupe.");
+}
+
+async function requireAllowedGroupContent(userId:string,group:any,content:string) {
+  if(group.smartModerationEnabled&&isDisallowedGroupContent(content)&&!await canManageGroup(userId,group.id))
+    throw httpError(422,"Envoi impossible. Ce message contient des mots ou expressions non autorisés dans ce groupe.");
 }
 
 async function audit(groupId: string, actorId: string, action: string, targetUserId?: string, messageId?: string, details: any = {}) {
@@ -296,12 +306,13 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     `))[0];
     const principal = await isPrincipalAdmin(userId);
     if (group.visibility === "invite" && !["active","pending"].includes(member?.status) && !principal) throw httpError(404, "Groupe introuvable.");
+    const manager = principal || await canManageGroup(userId, group.id);
     const counts = resultRows(await db.execute(sql`
       SELECT count(*) FILTER (WHERE status='active')::int AS "memberCount",
         count(*) FILTER (WHERE status='active' AND u.last_seen > now() - interval '5 minutes')::int AS "onlineCount"
       FROM discussion_group_members m LEFT JOIN users u ON u.id=m.user_id WHERE m.group_id=${group.id}
     `))[0];
-    const members = resultRows(await db.execute(sql`
+    const members = manager ? resultRows(await db.execute(sql`
       SELECT u.id,CASE WHEN u.id=(SELECT principal_user_id FROM discussion_group_security) THEN 'Yvan SPQ SIKA'
         ELSE coalesce(nullif(u.full_name,''),concat_ws(' ',u.first_name,u.last_name),'Membre Sika') END AS "fullName",
         u.profile_image_url AS "photoUrl",m.role,m.posting_blocked AS "postingBlocked",m.joined_at AS "joinedAt",
@@ -309,12 +320,12 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
       FROM discussion_group_members m JOIN users u ON u.id=m.user_id
       WHERE m.group_id=${group.id} AND m.status='active'
       ORDER BY (m.role IN ('owner','admin')) DESC,m.joined_at DESC
-    `));
-    const pendingCount = await canManageGroup(userId, group.id)
+    `)) : [];
+    const pendingCount = manager
       ? resultRows(await db.execute(sql`SELECT count(*)::int AS count FROM discussion_group_members WHERE group_id=${group.id} AND status='pending'`))[0]?.count || 0
       : 0;
     res.setHeader("Cache-Control", "no-store");
-    res.json({ group, counts, members: member?.status==="active"||principal ? members : [], membership: member || { status: "none" }, isManager: principal || await canManageGroup(userId, group.id), isPrincipalAdmin: principal, pendingCount });
+    res.json({ group, counts, members, membership: member || { status: "none" }, isManager: manager, isPrincipalAdmin: principal, pendingCount });
   }));
 
   app.post("/api/groups/:slug/join", requireAuth, wrap(async (req, res) => {
@@ -468,6 +479,7 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     const group = await getGroup(String(req.params.slug));
     if (!group) throw httpError(404, "Groupe introuvable.");
     await requirePostingAccess(userId, group);
+    await requireAllowedGroupContent(userId,group,parsed.data.content);
     const recent=resultRows(await db.execute(sql`SELECT count(*)::int AS count FROM discussion_group_messages
       WHERE user_id=${userId} AND created_at>now()-interval '1 minute' AND message_type='text'`))[0]?.count||0;
     if(recent>=30) throw httpError(429,"Vous envoyez trop de messages. Patientez une minute.");
@@ -494,6 +506,7 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     const group = await getGroup(String(req.params.slug));
     if (!group) throw httpError(404, "Groupe introuvable.");
     await requirePostingAccess(userId, group);
+    await requireAllowedGroupContent(userId,group,content.data);
     const result = await db.execute(sql`
       UPDATE discussion_group_messages SET content=${content.data},edited_at=now()
       WHERE id=${req.params.id} AND group_id=${group.id} AND user_id=${userId} AND message_type='text' AND deleted_at IS NULL
@@ -652,6 +665,30 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     res.json({ pending: resultRows(pending), members: resultRows(members), reports: resultRows(reports), logs: resultRows(logs) });
   }));
 
+  app.get("/api/groups/:slug/admin/members",requireAuth,wrap(async(req,res)=>{
+    const actor=currentUserId(req)!;
+    const group=await getGroup(String(req.params.slug));
+    if(!group)throw httpError(404,"Groupe introuvable.");
+    if(!await canManageGroup(actor,group.id))throw httpError(403,"Accès réservé aux administrateurs du groupe.");
+    res.setHeader("Cache-Control","no-store");
+    res.json(await listModerationMembers(group.id,actor,req.query));
+  }));
+
+  app.patch("/api/groups/:slug/admin/moderation",requireAuth,wrap(async(req,res)=>{
+    const actor=currentUserId(req)!;
+    const group=await getGroup(String(req.params.slug));
+    if(!group)throw httpError(404,"Groupe introuvable.");
+    if(!await canManageGroup(actor,group.id))throw httpError(403,"Action réservée aux administrateurs du groupe.");
+    const input=z.object({enabled:z.boolean()}).strict().safeParse(req.body);
+    if(!input.success)throw httpError(400,"Réglage du filtre invalide.");
+    await db.transaction(async tx=>{
+      await tx.execute(sql`UPDATE discussion_groups SET smart_moderation_enabled=${input.data.enabled} WHERE id=${group.id}`);
+      await tx.execute(sql`INSERT INTO discussion_group_audit (group_id,actor_id,action,details)
+        VALUES (${group.id},${actor},'moderation.updated',${JSON.stringify(input.data)}::jsonb)`);
+    });
+    res.json({success:true,enabled:input.data.enabled});
+  }));
+
   app.post("/api/groups/:slug/admin/posting", requireAuth, wrap(async (req, res) => {
     const userId = currentUserId(req)!;
     const group = await getGroup(String(req.params.slug));
@@ -706,19 +743,23 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     const group=await getGroup(String(req.params.slug));
     if(!group) throw httpError(404,"Groupe introuvable.");
     if(!await canManageGroup(actor,group.id)) throw httpError(403,"Action réservée aux administrateurs.");
-    const action=z.enum(["remove","block","promote","demote","restrict_posting","allow_posting"]).safeParse(req.body?.action);
+    const action=z.enum(["remove","block","promote","demote","restrict_posting","allow_posting","restore","unblock"]).safeParse(req.body?.action);
     if(!action.success) throw httpError(400,"Action de modération invalide.");
     const target=String(req.params.memberId);
     if(target===actor || await isPrincipalAdmin(target)) throw httpError(403,"Cette action ne peut pas viser l’administrateur principal ou votre propre compte.");
     const old= resultRows(await db.execute(sql`SELECT role,status FROM discussion_group_members WHERE group_id=${group.id} AND user_id=${target}`))[0];
     if(!old || old.role==="owner") throw httpError(404,"Membre introuvable.");
     if(old.role==="admin"&&!await isPrincipalAdmin(actor)) throw httpError(403,"Seul l’administrateur principal peut retirer un administrateur.");
+    if(action.data==="restore"||action.data==="unblock")
+      return res.json(await liftMembershipRestriction(group.id,actor,target,action.data));
     if (action.data === "restrict_posting" || action.data === "allow_posting") {
-      if (old.role !== "member" || old.status !== "active") throw httpError(400, "Cette restriction concerne uniquement les membres actifs non administrateurs.");
+      if (old.role !== "member" || !(action.data==="allow_posting"?["active","left"]:["active"]).includes(old.status))
+        throw httpError(400, "Cette restriction concerne uniquement les membres non administrateurs autorisés.");
       await db.transaction(async tx => {
         const changed = resultRows(await tx.execute(sql`UPDATE discussion_group_members
           SET posting_blocked=${action.data === "restrict_posting"}
-          WHERE group_id=${group.id} AND user_id=${target} AND role='member' AND status='active' RETURNING user_id`))[0];
+           WHERE group_id=${group.id} AND user_id=${target} AND role='member'
+             AND (status='active' OR (${action.data==="allow_posting"} AND status='left')) RETURNING user_id`))[0];
         if (!changed) throw httpError(409, "Les droits de ce membre ont changé. Actualisez la liste.");
         await tx.execute(sql`INSERT INTO discussion_group_audit (group_id,actor_id,action,target_user_id)
           VALUES (${group.id},${actor},${`member.${action.data}`},${target})`);
@@ -729,22 +770,21 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
       if(!await isPrincipalAdmin(actor)) throw httpError(403,"Seul l’administrateur principal peut gérer les administrateurs secondaires.");
       if(old.status!=="active") throw httpError(400,"Seul un membre actif peut recevoir des droits administratifs.");
       await db.execute(sql`UPDATE discussion_group_members SET role=${action.data==="promote"?"admin":"member"} WHERE group_id=${group.id} AND user_id=${target}`);
-    } else if(action.data==="block") {
-      const changed=resultRows(await db.execute(sql`UPDATE discussion_group_members SET status='banned',role='member'
-        WHERE group_id=${group.id} AND user_id=${target} RETURNING user_id`))[0];
-      if(!changed) throw httpError(404,"Membre introuvable.");
     } else {
-      const changed=resultRows(await db.execute(sql`UPDATE discussion_group_members SET status='left',role='member'
-        WHERE group_id=${group.id} AND user_id=${target} RETURNING user_id`))[0];
-      if(!changed) throw httpError(404,"Membre introuvable.");
-    }
-    if(action.data==="remove"||action.data==="block") {
       const targetUser=await storage.getUser(target);
       const targetName=targetUser?.fullName||[targetUser?.firstName,targetUser?.lastName].filter(Boolean).join(" ")||"Un membre Sika";
       const event=action.data==="block"?"a été bloqué du groupe.":"a été retiré du groupe.";
       const eventContent = `${targetName} ${event}`;
-      await db.execute(sql`INSERT INTO discussion_group_messages (group_id,sender_label,content,message_type)
-        VALUES (${group.id},${targetName},${eventContent},'system')`);
+      await db.transaction(async tx=>{
+        const changed=resultRows(await tx.execute(sql`UPDATE discussion_group_members SET status=${action.data==="block"?"banned":"left"},role='member'
+          WHERE group_id=${group.id} AND user_id=${target} AND role=${old.role} AND status=${old.status} RETURNING user_id`))[0];
+        if(!changed)throw httpError(409,"Les droits de ce membre ont changé. Actualisez la liste.");
+        await tx.execute(sql`INSERT INTO discussion_group_messages (group_id,sender_label,content,message_type)
+          VALUES (${group.id},${targetName},${eventContent},'system')`);
+        await tx.execute(sql`INSERT INTO discussion_group_audit (group_id,actor_id,action,target_user_id)
+          VALUES (${group.id},${actor},${`member.${action.data}`},${target})`);
+      });
+      return res.json({success:true});
     }
     await audit(group.id,actor,`member.${action.data}`,target);
     res.json({success:true});
