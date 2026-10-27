@@ -27,7 +27,7 @@ type Group = {
 };
 type Member = { id: string; fullName: string; photoUrl?: string; role: string; joinedAt?: string; online?: boolean; status?: string; postingBlocked?: boolean };
 type Message = {
-  id: string; content: string; type: "text" | "system"; senderId?: string; senderName: string;
+  id: string; content: string; type: "text" | "system"; senderId?: string; senderName: string; senderIsAdmin: boolean;
   photoUrl?: string | null; createdAt: string; editedAt?: string | null; deleted: boolean; pinned: boolean;
   replyTo?: { id: string; content: string; senderName: string } | null;
   reactions: { emoji: string; count: number; reacted: boolean }[];
@@ -386,7 +386,13 @@ function GroupsWorkspace() {
                         {message.pinned&&<p className="mb-1 flex items-center gap-1 text-[10px] font-semibold text-amber-700"><Pin className="h-3 w-3"/>Message épinglé</p>}
                         <div className="flex items-center gap-2">
                           <Avatar className="h-7 w-7 shrink-0"><AvatarImage referrerPolicy="no-referrer" src={message.photoUrl||undefined}/><AvatarFallback className="text-[10px]">{initials(message.senderName)}</AvatarFallback></Avatar>
-                          <span className="min-w-0 flex-1"><span className="block truncate text-xs font-bold text-teal-800">{message.senderName}</span><time dateTime={message.createdAt} className="block text-[10px] text-slate-400">{fullDate(message.createdAt)}{message.editedAt?" · modifié":""}</time></span>
+                          <span className="min-w-0 flex-1">
+                            <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                              <span className="min-w-0 truncate text-xs font-bold text-teal-800">{message.senderName}</span>
+                              {message.senderIsAdmin&&<span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-teal-200 bg-teal-100 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-teal-800"><Shield aria-hidden="true" className="h-3 w-3"/>Administrateur</span>}
+                            </span>
+                            <time dateTime={message.createdAt} className="block text-[10px] text-slate-400">{fullDate(message.createdAt)}{message.editedAt?" · modifié":""}</time>
+                          </span>
                           {!message.deleted&&<DropdownMenu>
                             <DropdownMenuTrigger asChild><button className="ml-auto shrink-0 rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" aria-label={`Options du message de ${message.senderName}`}><MoreHorizontal className="h-4 w-4"/></button></DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-52">

@@ -61,7 +61,7 @@ test("Sika group endpoints enforce membership and persist identity-scoped messag
     assert.equal(joined.status, 200);
     assert.equal((await request(userA, `/api/groups/${publicSlug}/join`, "POST", {})).body.alreadyMember, true);
     const clientNonce=randomUUID();
-    const sent = await request(userA, `/api/groups/${publicSlug}/messages`, "POST", { content: "Message persistant", userId: userB, clientNonce });
+    const sent = await request(userA, `/api/groups/${publicSlug}/messages`, "POST", { content: "Message persistant", userId: userB, senderIsAdmin:true, clientNonce });
     assert.equal(sent.status, 201);
     assert.equal((await request(userA, `/api/groups/${publicSlug}/messages`, "POST", {content:"Message persistant",clientNonce})).body.id,sent.body.id);
     const ownMessages = await request(userA, `/api/groups/${publicSlug}/messages`);
@@ -69,6 +69,7 @@ test("Sika group endpoints enforce membership and persist identity-scoped messag
     assert.equal(ownMessages.body.messages[0].content, "Membre Test A a rejoint le groupe.");
     assert.equal(ownMessages.body.messages[1].senderId, userA);
     assert.equal(ownMessages.body.messages[1].senderName, "Membre Test A");
+    assert.equal(ownMessages.body.messages[1].senderIsAdmin, false);
 
     assert.equal((await request(userB, `/api/groups/${publicSlug}/messages`, "POST", { content: "Pas encore membre" })).status, 403);
     assert.equal((await request(userB, `/api/groups/${publicSlug}/join`, "POST", {role:"owner",userId:userA})).status, 200);
@@ -177,6 +178,7 @@ test("Sika group endpoints enforce membership and persist identity-scoped messag
       assert.equal((await request(userC,`/api/groups/${slug}/messages`)).body.messages.some((m:any)=>m.id===toModerate.body.id),false);
       const adminOwn=await request(userC,`/api/groups/${slug}/messages`,"POST",{content:"Message administrateur à supprimer"});
       assert.equal(adminOwn.status,201);
+      assert.equal((await request(userA,`/api/groups/${slug}/messages`)).body.messages.find((m:any)=>m.id===adminOwn.body.id).senderIsAdmin,true);
       assert.equal((await request(userC,`/api/groups/${slug}/messages/${adminOwn.body.id}`,"DELETE")).status,200);
       assert.equal((await request(userC,`/api/groups/${slug}/messages`)).body.messages.some((m:any)=>m.id===adminOwn.body.id),false);
       assert.equal((await request(userA,`/api/groups/${slug}/messages`)).body.messages.find((m:any)=>m.id===adminOwn.body.id).content,"Message supprimé");
@@ -208,6 +210,9 @@ test("Sika group endpoints enforce membership and persist identity-scoped messag
       assert.equal((await request(userC,`/api/groups/${slug}/leave`,"POST",{})).status,200);
       assert.equal((await request(userC,`/api/groups/${slug}/join`,"POST",{role:"admin"})).status,200);
       assert.equal((await request(userC,`/api/groups/${slug}`)).body.membership.role,"member");
+      const demotedMessages=(await request(userC,`/api/groups/${slug}/messages`)).body.messages.filter((m:any)=>m.senderId===userC);
+      assert.ok(demotedMessages.length>0);
+      assert.equal(demotedMessages.every((m:any)=>m.senderIsAdmin===false),true);
       assert.equal((await request(userC,`/api/groups/${slug}/admin/queue`)).status,403);
       assert.equal((await request(userA,`/api/groups/${slug}/messages`)).body.messages.some((m:any)=>m.id===sent.body.id),false);
       assert.equal((await request(principal.id,`/api/groups/${slug}/admin/members/${userB}`,"POST",{action:"block"})).status,200);

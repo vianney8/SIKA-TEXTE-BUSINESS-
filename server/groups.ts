@@ -222,6 +222,7 @@ function publicMessage(row: any) {
   return {
     id: String(row.id), groupId: row.group_id, content: row.deleted_at ? "Message supprimé" : row.content,
     type: row.message_type, senderId: row.user_id, senderName: row.sender_label || row.full_name || "Membre Sika",
+    senderIsAdmin: !!row.sender_is_admin,
     photoUrl: row.profile_image_url || null, createdAt: row.created_at, editedAt: row.edited_at,
     deleted: !!row.deleted_at, pinned: !!row.pinned_at,
     replyTo: !row.deleted_at && row.visible_reply_id ? { id: String(row.visible_reply_id), content: row.reply_content, senderName: row.reply_sender || "Membre" } : null,
@@ -426,6 +427,13 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     const rows = resultRows(await db.execute(sql`
       SELECT m.id,m.group_id,m.user_id,m.sender_label,m.content,m.message_type,m.reply_to_id,m.created_at,m.edited_at,m.deleted_at,m.pinned_at,
         u.full_name,u.profile_image_url,
+        (u.is_blocked IS NOT TRUE AND (
+          EXISTS (SELECT 1 FROM discussion_group_members sender_membership
+            WHERE sender_membership.group_id=m.group_id AND sender_membership.user_id=m.user_id
+              AND sender_membership.status='active' AND sender_membership.role IN ('owner','admin'))
+          OR (u.role='admin' AND EXISTS (SELECT 1 FROM discussion_group_security security
+            WHERE security.principal_user_id=m.user_id))
+        )) AS sender_is_admin,
         reply.id AS visible_reply_id,
         CASE WHEN reply.deleted_at IS NOT NULL THEN 'Message supprimé' ELSE reply.content END AS reply_content,
         reply_user.full_name AS reply_sender,
