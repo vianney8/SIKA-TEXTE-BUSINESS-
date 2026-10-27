@@ -21,7 +21,7 @@ type Group = {
   createdAt: string; memberCount: number; onlineCount: number; membershipStatus: string;
   muted: boolean; unreadCount: number;
 };
-type Member = { id: string; fullName: string; photoUrl?: string; role: string; joinedAt?: string; online?: boolean; status?: string };
+type Member = { id: string; fullName: string; photoUrl?: string; role: string; joinedAt?: string; online?: boolean; status?: string; postingBlocked?: boolean };
 type Message = {
   id: string; content: string; type: "text" | "system"; senderId?: string; senderName: string;
   photoUrl?: string | null; createdAt: string; editedAt?: string | null; deleted: boolean; pinned: boolean;
@@ -30,7 +30,7 @@ type Message = {
 };
 type GroupDetail = {
   group: Group; counts: { memberCount: number; onlineCount: number };
-  members: Member[]; membership: { status: string; role?: string; muted?: boolean };
+  members: Member[]; membership: { status: string; role?: string; muted?: boolean; postingBlocked?: boolean };
   isManager: boolean; isPrincipalAdmin: boolean; pendingCount: number;
 };
 type AdminQueue = { pending: Member[]; members: Member[]; reports: any[]; logs: any[] };
@@ -170,7 +170,7 @@ function GroupsWorkspace() {
   const sendMessage = useMutation({
     mutationFn: () => sendJson(`/api/groups/${encodeURIComponent(activeSlug)}/messages`, "POST", { content: messageText, clientNonce:draftNonce.current, ...(reply ? { replyToId: Number(reply.id) } : {}) }),
     onSuccess: () => { draftNonce.current=crypto.randomUUID(); setMessageText(""); setReply(null); setFailedDraft(false); refreshGroupData(); },
-    onError: () => setFailedDraft(true),
+    onError: (error: Error) => { setFailedDraft(true); refreshGroupData(); toast({title:"Message non envoyé",description:error.message,variant:"destructive"}); },
   });
 
   useEffect(() => {
@@ -312,9 +312,17 @@ function GroupsWorkspace() {
                       {detail.isPrincipalAdmin&&activeSlug!==OFFICIAL_SLUG&&<Button size="sm" variant="destructive" onClick={()=>{if(window.confirm("Archiver ce groupe ? Il disparaîtra de la liste, mais ses messages resteront conservés."))doGroupAction(`/api/groups/${activeSlug}/admin/archive`,"POST",{confirm:true})}}>Archiver</Button>}
                     </div>
                   </div>
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-teal-100 bg-white p-3">
+                    <div><p className="text-sm font-semibold">Envoi des messages</p><p className="text-xs text-slate-500">{detail.group.membersCanPost===false?"Seuls les administrateurs peuvent écrire.":"Les membres non restreints peuvent écrire."}</p></div>
+                    <Button size="sm" variant="outline" disabled={act.isPending} onClick={()=>{const allowed=detail.group.membersCanPost===false;if(window.confirm(allowed?"Autoriser à nouveau les membres à écrire ? Les restrictions individuelles seront conservées.":"Bloquer l’envoi des messages pour tous les membres ? Les administrateurs pourront toujours publier."))doGroupAction(`/api/groups/${activeSlug}/admin/posting`,"POST",{membersCanPost:allowed})}}>{detail.group.membersCanPost===false?"Autoriser les messages":"Bloquer les messages"}</Button>
+                  </div>
                   {adminQueueQuery.data?.pending.map(member=><div key={member.id} className="flex items-center gap-2 py-1.5 text-sm"><span className="flex-1">{member.fullName}</span><Button size="sm" onClick={()=>doGroupAction(`/api/groups/${activeSlug}/approvals/${member.id}`,"POST",{approve:true})}>Accepter</Button><Button size="sm" variant="outline" onClick={()=>doGroupAction(`/api/groups/${activeSlug}/approvals/${member.id}`,"POST",{approve:false})}>Refuser</Button></div>)}
                   {adminQueueQuery.data?.reports.map(report=><div key={report.id} className="border-t border-teal-100 py-2 text-xs"><p><strong>Signalement :</strong> {report.reason} · « {report.content} »</p><div className="mt-1 flex gap-2"><Button size="sm" variant="outline" onClick={()=>doGroupAction(`/api/groups/${activeSlug}/admin/reports/${report.id}`,"POST",{status:"resolved"})}>Résolu</Button><Button size="sm" variant="outline" onClick={()=>doGroupAction(`/api/groups/${activeSlug}/admin/reports/${report.id}`,"POST",{status:"dismissed"})}>Ignorer</Button></div></div>)}
-                  {adminQueueQuery.data?.members.filter(member=>member.role==="member"&&member.id!==(user as any)?.id).map(member=><div key={member.id} className="flex items-center gap-2 border-t border-teal-100 py-1 text-xs"><span className="flex-1">{member.fullName}</span><Button size="sm" variant="outline" onClick={()=>{if(window.confirm(`Bloquer ${member.fullName} dans ce groupe ?`))doGroupAction(`/api/groups/${activeSlug}/admin/members/${member.id}`,"POST",{action:"block"})}}>Bloquer</Button></div>)}
+                  {adminQueueQuery.data?.members.filter(member=>member.role==="member"&&member.id!==(user as any)?.id).map(member=><div key={member.id} className="flex flex-wrap items-center gap-2 border-t border-teal-100 py-2 text-xs">
+                    <span className="min-w-0 flex-1">{member.fullName}{member.postingBlocked&&<span className="block text-amber-700">Envoi bloqué · lecture autorisée</span>}</span>
+                    <Button size="sm" variant="outline" disabled={act.isPending} onClick={()=>{if(window.confirm(member.postingBlocked?`Autoriser ${member.fullName} à écrire à nouveau ?`:`Bloquer uniquement l’envoi des messages de ${member.fullName} ? La lecture restera autorisée.`))doGroupAction(`/api/groups/${activeSlug}/admin/members/${member.id}`,"POST",{action:member.postingBlocked?"allow_posting":"restrict_posting"})}}>{member.postingBlocked?"Autoriser l’envoi":"Bloquer l’envoi"}</Button>
+                    <Button size="sm" variant="outline" disabled={act.isPending} onClick={()=>{if(window.confirm(`Bloquer complètement l’accès de ${member.fullName} à ce groupe ?`))doGroupAction(`/api/groups/${activeSlug}/admin/members/${member.id}`,"POST",{action:"block"})}}>Exclure et bloquer</Button>
+                  </div>)}
                   {invitesQuery.data?.invites.map(invite=><div key={invite.id} className="flex items-center gap-2 border-t border-teal-100 py-2 text-xs"><span className="flex-1">Invitation · {invite.usesCount}/{invite.maxUses} utilisations · expire le {new Intl.DateTimeFormat("fr-FR",{dateStyle:"short"}).format(new Date(invite.expiresAt))}</span><Button size="sm" variant="outline" onClick={()=>doGroupAction(`/api/groups/${activeSlug}/invites/${invite.id}`,"DELETE")}>Révoquer</Button></div>)}
                   {adminQueueQuery.data?.logs.map((log:any,index:number)=><p key={`${log.action}-${index}`} className="border-t border-teal-100 py-1 text-[10px] text-slate-500">{fullDate(log.createdAt)} · {log.actorName||"Administrateur"} · {log.action}</p>)}
                   {!adminQueueQuery.data?.pending.length&&!adminQueueQuery.data?.reports.length&&<p className="text-xs text-slate-500">Aucune demande ni aucun signalement en attente.</p>}
@@ -350,8 +358,8 @@ function GroupsWorkspace() {
                   </div>
                   <form onSubmit={send} className="border-t border-slate-100 bg-white p-3 sm:p-4">
                     {reply&&<div className="mb-2 flex items-center gap-2 rounded-lg bg-teal-50 px-3 py-2 text-xs"><span className="min-w-0 flex-1 truncate">Réponse à <strong>{reply.senderName}</strong> : {reply.content}</span><button type="button" aria-label="Annuler la réponse" onClick={()=>setReply(null)}><X className="h-4 w-4"/></button></div>}
-                    {detail.group.membersCanPost===false&&!canManage
-                      ? <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-500">Seuls les administrateurs peuvent écrire dans ce groupe.</p>
+                    {(detail.group.membersCanPost===false||detail.membership.postingBlocked)&&!canManage
+                      ? <p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{detail.membership.postingBlocked?"Un administrateur a bloqué votre envoi de messages dans ce groupe. Vous pouvez toujours lire les discussions.":"L’envoi des messages est réservé aux administrateurs. Vous pouvez toujours lire les discussions."}</p>
                       : <div className="flex items-end gap-2">
                           <Textarea aria-label="Votre message" disabled={sendMessage.isPending} value={messageText}
                             onChange={event=>{if(failedDraft){draftNonce.current=crypto.randomUUID();setFailedDraft(false)}setMessageText(event.target.value)}}

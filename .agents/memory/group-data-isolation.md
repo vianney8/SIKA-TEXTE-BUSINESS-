@@ -26,3 +26,9 @@ Leaving or being removed from a group ends secondary administrative rights; retu
 **Why:** preserving old roles on readmission would bypass a removal and restore privileges without fresh approval.
 
 **How to apply:** keep the same rule for direct joins and invitation redemption, and test readmission after both voluntary departure and administrative removal.
+
+An individual message restriction must survive leaving and rejoining a group until an authorized moderator explicitly lifts it. Blocking writing should not silently remove the member's right to read.
+
+**Why:** otherwise a member restricted for spam can immediately regain posting access by rejoining, while a read-only restriction should remain distinct from expulsion.
+
+**How to apply:** enforce writing restrictions on the server for both new messages and edits; keep read permissions separate, and make group-wide reopening preserve individual restrictions.

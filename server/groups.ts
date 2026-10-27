@@ -134,6 +134,7 @@ export async function ensureGroupsSchema() {
   `);
 
   await db.execute(sql`ALTER TABLE discussion_groups ADD COLUMN IF NOT EXISTS members_can_post boolean NOT NULL DEFAULT true`);
+  await db.execute(sql`ALTER TABLE discussion_group_members ADD COLUMN IF NOT EXISTS posting_blocked boolean NOT NULL DEFAULT false`);
   await db.execute(sql`ALTER TABLE discussion_group_messages ADD COLUMN IF NOT EXISTS client_nonce varchar`);
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS discussion_message_nonce_unique
     ON discussion_group_messages (user_id,client_nonce) WHERE client_nonce IS NOT NULL`);
@@ -195,11 +196,18 @@ async function canManageGroup(userId: string, groupId: string) {
 
 async function requireMembership(userId: string, groupId: string) {
   const rows = resultRows(await db.execute(sql`
-    SELECT status,role FROM discussion_group_members WHERE group_id=${groupId} AND user_id=${userId} LIMIT 1
+    SELECT status,role,posting_blocked AS "postingBlocked" FROM discussion_group_members WHERE group_id=${groupId} AND user_id=${userId} LIMIT 1
   `));
   if (rows[0]?.status === "banned") throw httpError(403, "Votre accès à ce groupe est bloqué.");
   if (rows[0]?.status !== "active") throw httpError(403, "Rejoignez le groupe pour participer à la discussion.");
   return rows[0];
+}
+
+async function requirePostingAccess(userId: string, group: any) {
+  const membership = await requireMembership(userId, group.id);
+  if (await canManageGroup(userId, group.id)) return;
+  if (membership.postingBlocked) throw httpError(403, "Un administrateur a bloqué votre envoi de messages dans ce groupe. Vous pouvez toujours lire les discussions.");
+  if (!group.membersCanPost) throw httpError(403, "L’envoi de messages est réservé aux administrateurs dans ce groupe.");
 }
 
 async function audit(groupId: string, actorId: string, action: string, targetUserId?: string, messageId?: string, details: any = {}) {
@@ -281,7 +289,7 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     const group = await getGroup(String(req.params.slug));
     if (!group) throw httpError(404, "Groupe introuvable.");
     const member = resultRows(await db.execute(sql`
-      SELECT status,role,muted,last_read_at AS "lastReadAt" FROM discussion_group_members WHERE group_id=${group.id} AND user_id=${userId}
+      SELECT status,role,muted,posting_blocked AS "postingBlocked",last_read_at AS "lastReadAt" FROM discussion_group_members WHERE group_id=${group.id} AND user_id=${userId}
     `))[0];
     const principal = await isPrincipalAdmin(userId);
     if (group.visibility === "invite" && !["active","pending"].includes(member?.status) && !principal) throw httpError(404, "Groupe introuvable.");
@@ -293,7 +301,7 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     const members = resultRows(await db.execute(sql`
       SELECT u.id,CASE WHEN u.id=(SELECT principal_user_id FROM discussion_group_security) THEN 'Yvan SPQ SIKA'
         ELSE coalesce(nullif(u.full_name,''),concat_ws(' ',u.first_name,u.last_name),'Membre Sika') END AS "fullName",
-        u.profile_image_url AS "photoUrl",m.role,m.joined_at AS "joinedAt",
+        u.profile_image_url AS "photoUrl",m.role,m.posting_blocked AS "postingBlocked",m.joined_at AS "joinedAt",
         (u.last_seen > now() - interval '5 minutes') AS online
       FROM discussion_group_members m JOIN users u ON u.id=m.user_id
       WHERE m.group_id=${group.id} AND m.status='active'
@@ -437,8 +445,7 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     if (!parsed.success) throw httpError(400, parsed.error.issues[0]?.message || "Message invalide.");
     const group = await getGroup(String(req.params.slug));
     if (!group) throw httpError(404, "Groupe introuvable.");
-    await requireMembership(userId, group.id);
-    if(!group.membersCanPost&&!await canManageGroup(userId,group.id)) throw httpError(403,"Seuls les administrateurs peuvent écrire dans ce groupe.");
+    await requirePostingAccess(userId, group);
     const recent=resultRows(await db.execute(sql`SELECT count(*)::int AS count FROM discussion_group_messages
       WHERE user_id=${userId} AND created_at>now()-interval '1 minute' AND message_type='text'`))[0]?.count||0;
     if(recent>=30) throw httpError(429,"Vous envoyez trop de messages. Patientez une minute.");
@@ -464,7 +471,7 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     if (!content.success) throw httpError(400, "Le texte du message doit contenir entre 1 et 4 000 caractères.");
     const group = await getGroup(String(req.params.slug));
     if (!group) throw httpError(404, "Groupe introuvable.");
-    await requireMembership(userId, group.id);
+    await requirePostingAccess(userId, group);
     const result = await db.execute(sql`
       UPDATE discussion_group_messages SET content=${content.data},edited_at=now()
       WHERE id=${req.params.id} AND group_id=${group.id} AND user_id=${userId} AND message_type='text' AND deleted_at IS NULL
@@ -600,7 +607,7 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
         u.profile_image_url AS "photoUrl",m.joined_at AS "requestedAt"
         FROM discussion_group_members m JOIN users u ON u.id=m.user_id WHERE m.group_id=${group.id} AND m.status='pending' ORDER BY m.joined_at`),
       db.execute(sql`SELECT m.user_id AS id,CASE WHEN u.id=(SELECT principal_user_id FROM discussion_group_security) THEN 'Yvan SPQ SIKA'
-        ELSE coalesce(nullif(u.full_name,''),concat_ws(' ',u.first_name,u.last_name),'Membre Sika') END AS "fullName",m.role,m.status FROM discussion_group_members m JOIN users u ON u.id=m.user_id
+        ELSE coalesce(nullif(u.full_name,''),concat_ws(' ',u.first_name,u.last_name),'Membre Sika') END AS "fullName",m.role,m.status,m.posting_blocked AS "postingBlocked" FROM discussion_group_members m JOIN users u ON u.id=m.user_id
         WHERE m.group_id=${group.id} AND m.status='active' ORDER BY m.joined_at DESC LIMIT 200`),
       db.execute(sql`SELECT r.id,r.message_id AS "messageId",r.reason,r.created_at AS "createdAt",u.full_name AS "reporterName",m.content
         FROM discussion_group_reports r JOIN users u ON u.id=r.reporter_id JOIN discussion_group_messages m ON m.id=r.message_id
@@ -610,6 +617,22 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
         WHERE a.group_id=${group.id} ORDER BY a.created_at DESC LIMIT 100`),
     ]);
     res.json({ pending: resultRows(pending), members: resultRows(members), reports: resultRows(reports), logs: resultRows(logs) });
+  }));
+
+  app.post("/api/groups/:slug/admin/posting", requireAuth, wrap(async (req, res) => {
+    const userId = currentUserId(req)!;
+    const group = await getGroup(String(req.params.slug));
+    if (!group) throw httpError(404, "Groupe introuvable.");
+    if (!await canManageGroup(userId, group.id)) throw httpError(403, "Seuls les administrateurs du groupe peuvent gérer l’envoi des messages.");
+    const allowed = z.boolean().safeParse(req.body?.membersCanPost);
+    if (!allowed.success) throw httpError(400, "Autorisation d’envoi invalide.");
+    await db.transaction(async tx => {
+      await tx.execute(sql`UPDATE discussion_groups SET members_can_post=${allowed.data} WHERE id=${group.id}`);
+      await tx.execute(sql`INSERT INTO discussion_group_audit (group_id,actor_id,action,details)
+        VALUES (${group.id},${userId},${allowed.data ? "posting.opened" : "posting.closed"},
+          ${JSON.stringify({ membersCanPost: allowed.data })}::jsonb)`);
+    });
+    res.json({ success: true });
   }));
 
   app.patch("/api/groups/:slug/admin/groups", requireAuth, wrap(async (req, res) => {
@@ -650,13 +673,25 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     const group=await getGroup(String(req.params.slug));
     if(!group) throw httpError(404,"Groupe introuvable.");
     if(!await canManageGroup(actor,group.id)) throw httpError(403,"Action réservée aux administrateurs.");
-    const action=z.enum(["remove","block","promote","demote"]).safeParse(req.body?.action);
+    const action=z.enum(["remove","block","promote","demote","restrict_posting","allow_posting"]).safeParse(req.body?.action);
     if(!action.success) throw httpError(400,"Action de modération invalide.");
     const target=String(req.params.memberId);
     if(target===actor || await isPrincipalAdmin(target)) throw httpError(403,"Cette action ne peut pas viser l’administrateur principal ou votre propre compte.");
     const old= resultRows(await db.execute(sql`SELECT role,status FROM discussion_group_members WHERE group_id=${group.id} AND user_id=${target}`))[0];
     if(!old || old.role==="owner") throw httpError(404,"Membre introuvable.");
     if(old.role==="admin"&&!await isPrincipalAdmin(actor)) throw httpError(403,"Seul l’administrateur principal peut retirer un administrateur.");
+    if (action.data === "restrict_posting" || action.data === "allow_posting") {
+      if (old.role !== "member" || old.status !== "active") throw httpError(400, "Cette restriction concerne uniquement les membres actifs non administrateurs.");
+      await db.transaction(async tx => {
+        const changed = resultRows(await tx.execute(sql`UPDATE discussion_group_members
+          SET posting_blocked=${action.data === "restrict_posting"}
+          WHERE group_id=${group.id} AND user_id=${target} AND role='member' AND status='active' RETURNING user_id`))[0];
+        if (!changed) throw httpError(409, "Les droits de ce membre ont changé. Actualisez la liste.");
+        await tx.execute(sql`INSERT INTO discussion_group_audit (group_id,actor_id,action,target_user_id)
+          VALUES (${group.id},${actor},${`member.${action.data}`},${target})`);
+      });
+      return res.json({ success: true });
+    }
     if(action.data==="promote" || action.data==="demote") {
       if(!await isPrincipalAdmin(actor)) throw httpError(403,"Seul l’administrateur principal peut gérer les administrateurs secondaires.");
       if(old.status!=="active") throw httpError(400,"Seul un membre actif peut recevoir des droits administratifs.");
