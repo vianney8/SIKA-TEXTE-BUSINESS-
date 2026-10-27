@@ -20,4 +20,5 @@
 - [Cameroon payment currency](cameroon-payment-currency.md) — settle CFA payments in XAF; recover old pending labels without weakening other currency checks.
 - [Group data isolation](group-data-isolation.md) — private discussions need membership-scoped delivery and durable catch-up; do not expose unscoped legacy messages.
 - [Group message deletion](group-message-deletion.md) — administrators see no deleted-message placeholder; members keep it unless an administrator removes the message completely.
+- [Home WhatsApp invitation](home-whatsapp-invitation.md) — reappear on every new home visit; closing applies only to the current visit, using the administrator’s official community link.
 - [Preview cookie policy](preview-cookie-policy.md) — the development proxy rewrites SameSite; compare origin/proxy attributes and retain explicit CSRF checks.
