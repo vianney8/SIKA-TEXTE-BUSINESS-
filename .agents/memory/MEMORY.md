@@ -19,4 +19,5 @@
 - [Manual payment photos](manual-payment-photos.md) — photos only; returning from the gallery and background refreshes must not reset the payment form.
 - [Cameroon payment currency](cameroon-payment-currency.md) — settle CFA payments in XAF; recover old pending labels without weakening other currency checks.
 - [Group data isolation](group-data-isolation.md) — private discussions need membership-scoped delivery and durable catch-up; do not expose unscoped legacy messages.
+- [Group message deletion](group-message-deletion.md) — administrators see no deleted-message placeholder; members keep it unless an administrator removes the message completely.
 - [Preview cookie policy](preview-cookie-policy.md) — the development proxy rewrites SameSite; compare origin/proxy attributes and retain explicit CSRF checks.

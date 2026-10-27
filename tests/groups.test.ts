@@ -174,6 +174,37 @@ test("Sika group endpoints enforce membership and persist identity-scoped messag
       assert.equal((await request(userC,`/api/groups/${slug}/admin/reports/${moderationQueue.body.reports[0].id}`,"POST",{status:"resolved"})).status,200);
       assert.equal((await request(userC,`/api/groups/${slug}/messages/${toModerate.body.id}`,"DELETE")).status,200);
       assert.equal((await request(userA,`/api/groups/${slug}/messages`)).body.messages.find((m:any)=>m.id===toModerate.body.id).deleted,true);
+      assert.equal((await request(userC,`/api/groups/${slug}/messages`)).body.messages.some((m:any)=>m.id===toModerate.body.id),false);
+      const adminOwn=await request(userC,`/api/groups/${slug}/messages`,"POST",{content:"Message administrateur à supprimer"});
+      assert.equal(adminOwn.status,201);
+      assert.equal((await request(userC,`/api/groups/${slug}/messages/${adminOwn.body.id}`,"DELETE")).status,200);
+      assert.equal((await request(userC,`/api/groups/${slug}/messages`)).body.messages.some((m:any)=>m.id===adminOwn.body.id),false);
+      assert.equal((await request(userA,`/api/groups/${slug}/messages`)).body.messages.find((m:any)=>m.id===adminOwn.body.id).content,"Message supprimé");
+      const toRemove=await request(userB,`/api/groups/${slug}/messages`,"POST",{content:"Contenu synthétique à retirer complètement"});
+      assert.equal(toRemove.status,201);
+      const responseToRemove=await request(userA,`/api/groups/${slug}/messages`,"POST",{content:"Réponse conservée",replyToId:Number(toRemove.body.id)});
+      assert.equal(responseToRemove.status,201);
+      assert.equal((await request(userA,`/api/groups/${slug}/messages`)).body.messages.find((m:any)=>m.id===responseToRemove.body.id).replyTo.content,"Contenu synthétique à retirer complètement");
+      assert.equal((await request(userA,`/api/groups/${slug}/messages/${toRemove.body.id}/reactions`,"POST",{emoji:"👍"})).status,200);
+      assert.equal((await request(userB,`/api/groups/${slug}/messages/${toRemove.body.id}`,"DELETE",{mode:"complete"})).status,403);
+      assert.equal((await request(userA,`/api/groups/${slug}/messages/${toRemove.body.id}`,"DELETE",{mode:"complete",role:"admin"})).status,400);
+      assert.equal((await request(userC,`/api/groups/${slug}/messages/${sent.body.id}`,"DELETE",{mode:"complete"})).status,404);
+      assert.equal((await request(userC,`/api/groups/${slug}/messages/${toRemove.body.id}`,"DELETE",{mode:"complete"})).status,200);
+      for(const viewer of [userA,userB,userC]){
+        const timeline=await request(viewer,`/api/groups/${slug}/messages?oldest=${toModerate.body.id}`);
+        assert.equal(timeline.body.messages.some((m:any)=>m.id===toRemove.body.id),false);
+        assert.equal(timeline.body.messages.find((m:any)=>m.id===responseToRemove.body.id).replyTo,null);
+        assert.deepEqual(timeline.body.deletions.find((m:any)=>m.id===toRemove.body.id),{id:toRemove.body.id,hidden:true,complete:true});
+        assert.equal(timeline.body.deletions.find((m:any)=>m.id===toModerate.body.id).hidden,viewer===userC);
+        assert.equal(timeline.body.deletions.some((m:any)=>m.id===sent.body.id),false);
+      }
+      const removedRows=await db.execute(sql`SELECT content,pinned_at FROM discussion_group_messages WHERE id=${toRemove.body.id}`);
+      assert.equal(removedRows.rows[0].content,"");
+      assert.equal(removedRows.rows[0].pinned_at,null);
+      assert.equal((await db.execute(sql`SELECT 1 FROM discussion_group_reactions WHERE message_id=${toRemove.body.id}`)).rows.length,0);
+      assert.equal((await request(userC,`/api/groups/${slug}/messages/${toModerate.body.id}`,"DELETE",{mode:"complete"})).status,200);
+      assert.equal((await request(userA,`/api/groups/${slug}/messages`)).body.messages.some((m:any)=>m.id===toModerate.body.id),false);
+      assert.equal((await request(userC,`/api/groups/${slug}/messages?oldest=invalid`)).status,400);
       assert.equal((await request(userC,`/api/groups/${slug}/leave`,"POST",{})).status,200);
       assert.equal((await request(userC,`/api/groups/${slug}/join`,"POST",{role:"admin"})).status,200);
       assert.equal((await request(userC,`/api/groups/${slug}`)).body.membership.role,"member");

@@ -136,6 +136,7 @@ export async function ensureGroupsSchema() {
   await db.execute(sql`ALTER TABLE discussion_groups ADD COLUMN IF NOT EXISTS members_can_post boolean NOT NULL DEFAULT true`);
   await db.execute(sql`ALTER TABLE discussion_group_members ADD COLUMN IF NOT EXISTS posting_blocked boolean NOT NULL DEFAULT false`);
   await db.execute(sql`ALTER TABLE discussion_group_messages ADD COLUMN IF NOT EXISTS client_nonce varchar`);
+  await db.execute(sql`ALTER TABLE discussion_group_messages ADD COLUMN IF NOT EXISTS removed_at timestamptz`);
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS discussion_message_nonce_unique
     ON discussion_group_messages (user_id,client_nonce) WHERE client_nonce IS NOT NULL`);
   // Resolve the approved account once. Later profile/name/email changes cannot grant ownership.
@@ -223,7 +224,7 @@ function publicMessage(row: any) {
     type: row.message_type, senderId: row.user_id, senderName: row.sender_label || row.full_name || "Membre Sika",
     photoUrl: row.profile_image_url || null, createdAt: row.created_at, editedAt: row.edited_at,
     deleted: !!row.deleted_at, pinned: !!row.pinned_at,
-    replyTo: row.reply_to_id ? { id: String(row.reply_to_id), content: row.reply_content, senderName: row.reply_sender || "Membre" } : null,
+    replyTo: !row.deleted_at && row.visible_reply_id ? { id: String(row.visible_reply_id), content: row.reply_content, senderName: row.reply_sender || "Membre" } : null,
     reactions: row.reactions || [],
   };
 }
@@ -415,28 +416,40 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     const group = await getGroup(String(req.params.slug));
     if (!group) throw httpError(404, "Groupe introuvable.");
     await requireMembership(userId, group.id);
+    const manager = await canManageGroup(userId, group.id);
     const before = z.coerce.number().int().positive().optional().safeParse(req.query.before);
     if (!before.success) throw httpError(400, "Curseur de pagination invalide.");
     const search = z.string().trim().max(120).optional().safeParse(req.query.q);
     if (!search.success) throw httpError(400, "Recherche trop longue.");
+    const oldest = z.coerce.number().int().positive().optional().safeParse(req.query.oldest);
+    if (!oldest.success) throw httpError(400, "Curseur de synchronisation invalide.");
     const rows = resultRows(await db.execute(sql`
       SELECT m.id,m.group_id,m.user_id,m.sender_label,m.content,m.message_type,m.reply_to_id,m.created_at,m.edited_at,m.deleted_at,m.pinned_at,
         u.full_name,u.profile_image_url,
-        reply.content AS reply_content,reply_user.full_name AS reply_sender,
+        reply.id AS visible_reply_id,
+        CASE WHEN reply.deleted_at IS NOT NULL THEN 'Message supprimé' ELSE reply.content END AS reply_content,
+        reply_user.full_name AS reply_sender,
         coalesce((SELECT jsonb_agg(jsonb_build_object('emoji',r.emoji,'count',r.total,'reacted',r.reacted))
           FROM (SELECT emoji,count(*)::int AS total,bool_or(user_id=${userId}) AS reacted
                 FROM discussion_group_reactions WHERE message_id=m.id GROUP BY emoji) r),'[]'::jsonb) AS reactions
       FROM discussion_group_messages m
       LEFT JOIN users u ON u.id=m.user_id
-      LEFT JOIN discussion_group_messages reply ON reply.id=m.reply_to_id AND reply.group_id=m.group_id
+      LEFT JOIN discussion_group_messages reply ON reply.id=m.reply_to_id AND reply.group_id=m.group_id AND reply.removed_at IS NULL
       LEFT JOIN users reply_user ON reply_user.id=reply.user_id
       WHERE m.group_id=${group.id} AND (${before.data || null}::bigint IS NULL OR m.id < ${before.data || null}::bigint)
+        AND m.removed_at IS NULL AND (m.deleted_at IS NULL OR NOT ${manager})
         AND (${search.data || null}::text IS NULL OR m.content ILIKE ('%' || ${search.data || null}::text || '%'))
       ORDER BY m.id DESC LIMIT 50
     `));
+    const deletions = oldest.data ? resultRows(await db.execute(sql`
+      SELECT id::text AS id, (${manager} OR removed_at IS NOT NULL) AS hidden,
+        (removed_at IS NOT NULL) AS complete
+      FROM discussion_group_messages
+      WHERE group_id=${group.id} AND id>=${oldest.data} AND deleted_at IS NOT NULL
+    `)) : [];
     await db.execute(sql`UPDATE discussion_group_members SET last_read_at=now() WHERE group_id=${group.id} AND user_id=${userId}`);
     res.setHeader("Cache-Control", "no-store");
-    res.json({ messages: rows.reverse().map(publicMessage), hasMore: rows.length === 50 });
+    res.json({ messages: rows.reverse().map(publicMessage), hasMore: rows.length === 50, deletions });
   }));
 
   app.post("/api/groups/:slug/messages", requireAuth, wrap(async (req, res) => {
@@ -487,14 +500,26 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     if (!group) throw httpError(404, "Groupe introuvable.");
     await requireMembership(userId, group.id);
     const manager = await canManageGroup(userId, group.id);
-    const result = await db.execute(sql`
-      UPDATE discussion_group_messages SET deleted_at=now(),content=''
-      WHERE id=${req.params.id} AND group_id=${group.id} AND deleted_at IS NULL
-        AND (user_id=${userId} OR ${manager}) RETURNING id
-    `);
-    if (!resultRows(result).length) throw httpError(404, "Message introuvable ou suppression non autorisée.");
-    if (manager) await audit(group.id, userId, "message.deleted", undefined, String(req.params.id));
-    res.json({ success: true });
+    const parsed = z.object({ mode: z.enum(["standard", "complete"]).default("standard") }).strict().safeParse(req.body || {});
+    if (!parsed.success) throw httpError(400, "Mode de suppression invalide.");
+    const complete = parsed.data.mode === "complete";
+    if (complete && !manager) throw httpError(403, "La suppression complète est réservée aux administrateurs du groupe.");
+    await db.transaction(async tx => {
+      const result = await tx.execute(sql`
+        UPDATE discussion_group_messages SET deleted_at=coalesce(deleted_at,now()),content='',pinned_at=NULL,
+          removed_at=CASE WHEN ${complete} THEN now() ELSE removed_at END
+        WHERE id=${req.params.id} AND group_id=${group.id} AND removed_at IS NULL
+          AND (deleted_at IS NULL OR ${complete})
+          AND (user_id=${userId} OR ${manager}) RETURNING id
+      `);
+      if (!resultRows(result).length) throw httpError(404, "Message introuvable ou suppression non autorisée.");
+      await tx.execute(sql`DELETE FROM discussion_group_reactions WHERE message_id=${req.params.id}`);
+      if (manager) await tx.execute(sql`
+        INSERT INTO discussion_group_audit (group_id,actor_id,action,message_id,details)
+        VALUES (${group.id},${userId},${complete ? "message.removed" : "message.deleted"},${req.params.id},'{}'::jsonb)
+      `);
+    });
+    res.json({ success: true, mode: parsed.data.mode });
   }));
 
   app.post("/api/groups/:slug/messages/:id/reactions", requireAuth, wrap(async (req, res) => {
