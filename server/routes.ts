@@ -1,6 +1,7 @@
 import express, { type Express } from "express";
 import OpenAI from "openai";
 import { buildSystemPrompt } from "./ai-knowledge";
+import { whatsappCommunityUrl } from "@shared/whatsapp-community";
 import { createServer, type Server } from "http";
 import multer from "multer";
 import { detectPaymentPhotoMime, paymentPhotoError, PAYMENT_PHOTO_MAX_BYTES } from "@shared/payment-photo";
@@ -7536,6 +7537,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (value === undefined || value === null) {
         return res.status(400).json({ message: 'Valeur requise' });
       }
+      if (key === "whatsapp_group" && (typeof value !== "string" || (value.trim() && !whatsappCommunityUrl(value)))) {
+        return res.status(400).json({ message: "Lien HTTPS de groupe ou de chaîne WhatsApp invalide." });
+      }
       if (key === 'payment_checkout_model' && !CHECKOUT_MODELS.includes(value)) {
         return res.status(400).json({ message: 'Modèle de paiement invalide' });
       }
@@ -7546,7 +7550,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (['activation_amount', 'ci_update_amount'].includes(key) && !serviceAmount(value)) {
         return res.status(400).json({ message: 'Le tarif doit être un montant positif avec au plus deux décimales.' });
       }
-      await storage.updateAppSetting(key, value);
+      await storage.updateAppSetting(key, key === "whatsapp_group" ? (whatsappCommunityUrl(value) || "") : value);
       res.json({ message: 'Paramètre mis à jour avec succès' });
     } catch (error) {
       console.error('Erreur lors de la mise à jour du paramètre:', error);

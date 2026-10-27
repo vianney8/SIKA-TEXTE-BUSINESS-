@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import AdminServicePrices from "@/components/AdminServicePrices";
+import { whatsappCommunityUrl } from "@shared/whatsapp-community";
 import AdminDnsVersion from "@/components/AdminDnsVersion";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -59,6 +60,9 @@ export default function AdminSettings() {
 
   const saveSettingsMutation = useMutation({
     mutationFn: async (settingsData: {[key: string]: string}) => {
+      if(settingsData.whatsapp_group?.trim()&&!whatsappCommunityUrl(settingsData.whatsapp_group)){
+        throw new Error("Saisissez un lien HTTPS valide d’invitation à un groupe ou à une chaîne WhatsApp.");
+      }
       const promises = Object.keys(settingsData).map(key =>
         apiRequest("PUT", `/api/admin/settings/${key}`, { value: settingsData[key] })
       );
@@ -373,16 +377,17 @@ export default function AdminSettings() {
           <CardContent className="space-y-6">
 
             <div>
-              <Label htmlFor="whatsapp_group">Groupe WhatsApp</Label>
+              <Label htmlFor="whatsapp_group">Lien du groupe officiel WhatsApp</Label>
               <Input
                 id="whatsapp_group"
+                type="url"
                 value={settings.whatsapp_group || ''}
                 onChange={(e) => handleInputChange('whatsapp_group', e.target.value)}
                 placeholder="https://chat.whatsapp.com/..."
                 data-testid="input-whatsapp-group"
               />
               <p className="text-sm text-muted-foreground mt-1">
-                Lien d'invitation au groupe WhatsApp
+                Lien du bouton « Rejoindre le groupe » dans l’invitation affichée à chaque visite de l’accueil et dans la rubrique communauté. Enregistrez vos modifications pour l’appliquer.
               </p>
             </div>
 
