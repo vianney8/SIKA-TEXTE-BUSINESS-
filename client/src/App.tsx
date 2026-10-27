@@ -45,6 +45,21 @@ import Contact from "@/pages/Contact";
 import AdminConnectedUsers from "@/pages/AdminConnectedUsers";
 import AdminAIChat from "@/pages/AdminAIChat";
 import AdminCall from "@/pages/AdminCall";
+import Groups from "@/pages/Groups";
+
+function safeInternalNextPath() {
+  const next = new URLSearchParams(window.location.search).get("next");
+  return next && next.startsWith("/") && !next.startsWith("//") ? next : "";
+}
+
+function GroupLoginRedirect() {
+  const [, setLocation] = useLocation();
+  useEffect(() => {
+    const next = `${window.location.pathname}${window.location.search}`;
+    setLocation(`/simple-login?next=${encodeURIComponent(next)}`);
+  }, [setLocation]);
+  return null;
+}
 
 // Wrapper component to handle authenticated user redirects for register page
 function RegisterWithRedirect() {
@@ -54,6 +69,11 @@ function RegisterWithRedirect() {
 
   useEffect(() => {
     if (isAuthenticated) {
+      const next = safeInternalNextPath();
+      if (next) {
+        setLocation(next);
+        return;
+      }
       const urlParams = new URLSearchParams(window.location.search);
       const referralCodeParam = urlParams.get('ref');
       
@@ -87,6 +107,11 @@ function SimpleLoginWithRedirect() {
 
   useEffect(() => {
     if (isAuthenticated) {
+      const next = safeInternalNextPath();
+      if (next) {
+        setLocation(next);
+        return;
+      }
       if ((user as any)?.role === 'admin') {
         setLocation('/admin');
       } else {
@@ -175,6 +200,7 @@ function Router() {
 
       {!isAuthenticated ? (
         <>
+          <Route path="/groupeOfcl" component={GroupLoginRedirect} />
           <Route path="/" component={Landing} />
           <Route path="/register" component={RegisterWithRedirect} />
           <Route path="/simple-login" component={SimpleLoginWithRedirect} />
@@ -207,6 +233,7 @@ function Router() {
           <Route path="/summary" component={Summary} />
           <Route path="/spay-network" component={SpayNetwork} />
           <Route path="/contact" component={Contact} />
+          <Route path="/groupeOfcl" component={Groups} />
           <Route path="/admin/connected-users" component={AdminConnectedUsers} />
           <Route path="/admin/ai-chat" component={AdminAIChat} />
           {/* Allow authenticated users to access login page (redirects to dashboard) */}

@@ -49,6 +49,7 @@ import { randomBytes, createHmac, timingSafeEqual } from "crypto";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { registerCheckoutRoutes, solvexEnabled } from "./checkout";
 import { ensureDnsVersionSchema, getDnsUpdateStatus, currentDnsRelease, registerDnsVersionRoutes } from "./dns-versions";
+import { ensureGroupsSchema, registerGroupRoutes } from "./groups";
 import { linkManualPaymentAllowed, paymentCustomerEmail } from "@shared/payment-customer";
 import { PCS_INACTIVE_WITHDRAWAL_GRACE_MS } from "@shared/withdrawal-policy";
 import { CHECKOUT_MODELS } from "@shared/checkout-settings";
@@ -439,6 +440,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup sessions
   setupSessions(app);
   installLiveUpdates(app);
+  await ensureGroupsSchema();
+  registerGroupRoutes(app, requireAuth);
   registerDnsVersionRoutes(app, requireAdmin);
   registerCheckoutRoutes(app);
 

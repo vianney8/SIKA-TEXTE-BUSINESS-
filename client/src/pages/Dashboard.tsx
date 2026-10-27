@@ -11,7 +11,7 @@ import { useAppSetting } from "@/hooks/useAppSettings";
 import { resolveDemoVideoSource } from "@shared/demo-video";
 import { FaTelegram, FaWhatsapp } from "react-icons/fa";
 import { Link } from "wouter";
-import { Zap, ChevronRight, Sparkles, Download, Smartphone, Server, HeadphonesIcon } from "lucide-react";
+import { Zap, ChevronRight, Sparkles, Download, Smartphone, Server, HeadphonesIcon, MessagesSquare } from "lucide-react";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -325,6 +325,17 @@ export default function Dashboard() {
                 <ChevronRight size={14} className="text-gray-400" />
               </div>
             </a>
+
+            <Link href="/groupeOfcl" data-testid="button-discussion-groups" className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-teal-50/60">
+              <div className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-2xl shadow-sm" style={{ background: "linear-gradient(135deg, #0f766e, #0891b2)" }}>
+                <MessagesSquare size={19} className="text-white" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-gray-800">Groupes de discussion</p>
+                <p className="text-xs text-gray-400">Discutez avec les membres Sika Texte</p>
+              </div>
+              <div className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-xl bg-gray-50"><ChevronRight size={14} className="text-gray-400" /></div>
+            </Link>
 
             {/* Service Client */}
             <Link href="/assistance" className="flex items-center gap-3 px-4 py-3.5 active:bg-gray-50 transition-colors">

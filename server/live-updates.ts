@@ -33,7 +33,7 @@ export function installLiveUpdates(app: Express) {
     if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) {
       const path = req.path;
       const configuration = /^\/admin\/(settings|payment-links|operator-maintenance|dns-version)(\/|$)/.test(path);
-      const data = /payment|withdraw|activation|pcs|transfer|recharge|checkout|solvexpay|westpay|webhook|admin\/users/.test(path);
+      const data = /payment|withdraw|activation|pcs|transfer|recharge|checkout|solvexpay|westpay|webhook|admin\/users|groups/.test(path);
       if (configuration || data) res.on("finish", () => {
         if (res.statusCode >= 200 && res.statusCode < 300) publish(configuration ? "configuration" : "data");
       });

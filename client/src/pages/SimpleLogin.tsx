@@ -53,7 +53,9 @@ export default function SimpleLogin() {
       const data = await response.json();
       if (response.ok) {
         toast({ title: "Connexion réussie !", description: "Bienvenue sur SIKA TEXTE" });
-        setTimeout(() => window.location.replace("/"), 800);
+        const next = new URLSearchParams(window.location.search).get("next");
+        const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+        setTimeout(() => window.location.replace(safeNext), 800);
       } else if (response.status === 403 && data.blocked) {
         setBlockedReason(data.blockedReason || null);
         setIsBlocked(true);

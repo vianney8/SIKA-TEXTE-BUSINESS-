@@ -1,6 +1,6 @@
 import {
   LogOut, Info, HelpCircle, Wallet, Home,
-  X, ChevronRight, Shield, Settings, Smartphone
+  X, ChevronRight, Shield, Settings, Smartphone, MessagesSquare
 } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -30,6 +30,14 @@ const MENU_ITEMS = [
     href: "/withdrawal",
     from: "#059669",
     to: "#34d399",
+  },
+  {
+    icon: MessagesSquare,
+    label: "Groupes de discussion",
+    desc: "Échanger avec la communauté Sika",
+    href: "/groupeOfcl",
+    from: "#0f766e",
+    to: "#0891b2",
   },
   {
     icon: Info,
