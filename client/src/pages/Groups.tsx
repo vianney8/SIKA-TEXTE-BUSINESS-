@@ -118,6 +118,7 @@ function GroupsWorkspace() {
   const [failedDraft, setFailedDraft] = useState(false);
   const [loadedOlder, setLoadedOlder] = useState<Message[]>([]);
   const [hasOlder,setHasOlder]=useState(true);
+  const typingSentRef = useRef<{ slug: string; at: number }>({ slug: "", at: 0 });
   const bottomRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const groupImageInputRef = useRef<HTMLInputElement>(null);
@@ -141,12 +142,13 @@ function GroupsWorkspace() {
   const canManage = !!detail?.isManager;
   const syncMessageIds = [...loadedOlder.flatMap(message=>[Number(message.id), ...(message.replyTo?[Number(message.replyTo.id)]:[])]), ...(reply?[Number(reply.id)]:[])];
   const oldestLoadedId = syncMessageIds.length ? Math.min(...syncMessageIds) : undefined;
-  const messagesQuery = useQuery<{ messages: Message[]; hasMore: boolean; deletions?: {id:string;hidden:boolean;complete:boolean}[] }>({
+  const messagesQuery = useQuery<{ messages: Message[]; hasMore: boolean; deletions?: {id:string;hidden:boolean;complete:boolean}[]; typingUsers?: string[] }>({
     queryKey: [`/api/groups/${activeSlug}/messages`, viewerId, search],
     queryFn: () => {
       const params=new URLSearchParams();
       if(search.trim())params.set("q",search.trim());
       if(oldestLoadedId)params.set("oldest",String(oldestLoadedId));
+      if(document.visibilityState==="visible")params.set("markRead","1");
       return getJson(`/api/groups/${encodeURIComponent(activeSlug)}/messages?${params}`);
     },
     enabled: !!activeSlug && isMember, refetchInterval: 4000, staleTime: 0,
@@ -310,6 +312,14 @@ function GroupsWorkspace() {
     setFailedDraft(false);
     sendMessage.mutate();
   };
+  const markTyping = () => {
+    if (!activeSlug) return;
+    const now=Date.now();
+    if(typingSentRef.current.slug!==activeSlug)typingSentRef.current={slug:activeSlug,at:0};
+    if(now-typingSentRef.current.at<1500)return;
+    typingSentRef.current.at=now;
+    void sendJson(`/api/groups/${encodeURIComponent(activeSlug)}/typing`,"POST",{}).catch(()=>{});
+  };
   const selectGroup = (group: Group) => {
     if(sendMessage.isPending) return;
     setActiveSlug(group.slug);
@@ -362,7 +372,7 @@ function GroupsWorkspace() {
                 <button key={group.id} aria-label={`Ouvrir ${group.name}`} onClick={() => selectGroup(group)} className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left transition ${activeSlug===group.slug?"bg-teal-50 ring-1 ring-teal-200":"hover:bg-slate-50"}`}>
                   <Avatar className="h-11 w-11 rounded-2xl"><AvatarImage referrerPolicy="no-referrer" src={group.photoUrl || (group.slug===OFFICIAL_SLUG?officialLogo:undefined)} /><AvatarFallback className="rounded-2xl bg-teal-100 text-teal-800">{initials(group.name)}</AvatarFallback></Avatar>
                   <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{group.name}</span><span className="mt-1 block truncate text-xs text-slate-500">{group.memberCount} membres · {group.membershipStatus==="active"?`${group.onlineCount} en ligne`:group.membershipStatus==="pending"?"Demande en attente":group.visibility==="public"?"Groupe public":"Sur invitation"}</span><span className="mt-1 block text-[11px] font-semibold text-teal-700">Ouvrir la discussion</span></span>
-                  {group.unreadCount>0&&<span className="grid h-5 min-w-5 place-items-center rounded-full bg-teal-700 px-1 text-[10px] font-bold text-white">{group.unreadCount>99?"99+":group.unreadCount}</span>}
+                  {group.unreadCount>0&&<span aria-label={`${group.unreadCount} messages non lus`} className="grid h-5 min-w-5 place-items-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">{group.unreadCount>99?"99+":group.unreadCount}</span>}
                 </button>
               ))}
               {!visibleGroups.length&&<p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">{groupSearch?"Aucun groupe ne correspond à cette recherche.":"Aucun groupe n’est actuellement disponible."}</p>}
@@ -500,6 +510,12 @@ function GroupsWorkspace() {
                         {!message.deleted&&<GroupMessageActions canReply={canReply} pending={act.isPending} onReply={()=>beginReply(message)}
                           onReact={emoji=>doGroupAction(`/api/groups/${activeSlug}/messages/${message.id}/reactions`,"POST",{emoji})}/>}
                       </SwipeToReply>)}
+                    {messagesQuery.data?.typingUsers?.length ? <div role="status" aria-live="polite" className="flex items-center gap-2 px-1 text-xs text-slate-500">
+                      <span className="inline-flex gap-0.5" aria-hidden="true"><span className="animate-bounce">•</span><span className="animate-bounce [animation-delay:120ms]">•</span><span className="animate-bounce [animation-delay:240ms]">•</span></span>
+                      <span>{messagesQuery.data.typingUsers.length===1
+                        ? `${messagesQuery.data.typingUsers[0]} est en train d’écrire…`
+                        : `${messagesQuery.data.typingUsers.slice(0,2).join(" et ")} écrivent…`}</span>
+                    </div> : null}
                     <div ref={bottomRef}/>
                   </div>
                   <form onSubmit={send} className="shrink-0 border-t border-slate-100 bg-white p-3 sm:p-4">
@@ -516,7 +532,7 @@ function GroupsWorkspace() {
                             </Button>
                           </>}
                           <Textarea ref={composerRef} aria-label="Votre message" disabled={sendMessage.isPending} value={messageText}
-                            onChange={event=>{if(failedDraft){draftNonce.current=crypto.randomUUID();setFailedDraft(false)}setMessageText(event.target.value)}}
+                            onChange={event=>{if(failedDraft){draftNonce.current=crypto.randomUUID();setFailedDraft(false)}setMessageText(event.target.value);if(event.target.value.trim())markTyping()}}
                             maxLength={4000} rows={2} placeholder="Écrire un message… (Entrée pour aller à la ligne)"
                             className="min-h-[48px] max-h-36 resize-y rounded-2xl bg-slate-50"/>
                           <Button aria-label="Envoyer le message" type="submit" disabled={!messageText.trim()||sendMessage.isPending} className="h-12 w-12 shrink-0 rounded-2xl bg-teal-700 p-0"><Send className="h-4 w-4"/></Button>

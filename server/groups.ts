@@ -154,6 +154,9 @@ export async function ensureGroupsSchema() {
   await db.execute(sql`ALTER TABLE discussion_groups ADD COLUMN IF NOT EXISTS smart_moderation_enabled boolean NOT NULL DEFAULT false`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS discussion_audit_member_actions ON discussion_group_audit(group_id,target_user_id,created_at DESC,id DESC)`);
   await db.execute(sql`ALTER TABLE discussion_group_members ADD COLUMN IF NOT EXISTS posting_blocked boolean NOT NULL DEFAULT false`);
+  await db.execute(sql`ALTER TABLE discussion_group_members ADD COLUMN IF NOT EXISTS typing_at timestamptz`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS discussion_group_typing_recent
+    ON discussion_group_members (group_id,typing_at DESC) WHERE typing_at IS NOT NULL`);
   await db.execute(sql`ALTER TABLE discussion_group_messages ADD COLUMN IF NOT EXISTS client_nonce varchar`);
   await db.execute(sql`ALTER TABLE discussion_group_messages ADD COLUMN IF NOT EXISTS removed_at timestamptz`);
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS discussion_message_nonce_unique
@@ -490,15 +493,39 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
         AND (${search.data || null}::text IS NULL OR m.content ILIKE ('%' || ${search.data || null}::text || '%'))
       ORDER BY m.id DESC LIMIT 50
     `));
+    const typingUsers = resultRows(await db.execute(sql`
+      SELECT coalesce(u.full_name,'Membre Sika') AS "fullName"
+      FROM discussion_group_members typing
+      JOIN users u ON u.id=typing.user_id
+      WHERE typing.group_id=${group.id} AND typing.status='active' AND typing.user_id<>${userId}
+        AND typing.posting_blocked IS NOT TRUE AND typing.typing_at>now()-interval '5 seconds'
+      ORDER BY typing.typing_at DESC LIMIT 3
+    `)).map(row=>row.fullName);
     const deletions = oldest.data ? resultRows(await db.execute(sql`
       SELECT id::text AS id, (${manager} OR removed_at IS NOT NULL) AS hidden,
         (removed_at IS NOT NULL) AS complete
       FROM discussion_group_messages
       WHERE group_id=${group.id} AND id>=${oldest.data} AND deleted_at IS NOT NULL
     `)) : [];
-    await db.execute(sql`UPDATE discussion_group_members SET last_read_at=now() WHERE group_id=${group.id} AND user_id=${userId}`);
+    if (req.query.markRead === "1") {
+      await db.execute(sql`UPDATE discussion_group_members SET last_read_at=now() WHERE group_id=${group.id} AND user_id=${userId}`);
+    }
     res.setHeader("Cache-Control", "no-store");
-    res.json({ messages: rows.reverse().map(publicMessage), hasMore: rows.length === 50, deletions });
+    res.json({ messages: rows.reverse().map(publicMessage), hasMore: rows.length === 50, deletions, typingUsers });
+  }));
+
+  app.post("/api/groups/:slug/typing", requireAuth, wrap(async (req, res) => {
+    const userId = currentUserId(req)!;
+    if (!z.object({}).strict().safeParse(req.body || {}).success) throw httpError(400, "Requête de présence invalide.");
+    const group = await getGroup(String(req.params.slug));
+    if (!group) throw httpError(404, "Groupe introuvable.");
+    await requirePostingAccess(userId, group);
+    await db.execute(sql`
+      UPDATE discussion_group_members SET typing_at=now()
+      WHERE group_id=${group.id} AND user_id=${userId} AND status='active'
+        AND (typing_at IS NULL OR typing_at<now()-interval '1 second')
+    `);
+    res.json({ success: true });
   }));
 
   app.post("/api/groups/:slug/images", requireAuth, wrap(async (req, res) => {
@@ -577,6 +604,7 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     const saved=inserted||resultRows(await db.execute(sql`SELECT id FROM discussion_group_messages
       WHERE group_id=${group.id} AND user_id=${userId} AND client_nonce=${parsed.data.clientNonce||null}`))[0];
     if(!saved) throw httpError(409,"Ce message ne peut pas être renvoyé dans un autre groupe.");
+    await db.execute(sql`UPDATE discussion_group_members SET typing_at=NULL WHERE group_id=${group.id} AND user_id=${userId}`);
     res.status(201).json({ id: String(saved.id) });
   }));
 
