@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, BellOff, CircleAlert, Copy, Crown, Flag,
+  ArrowLeft, BadgeCheck, BellOff, CircleAlert, Copy, Crown, Flag,
   Globe2, LockKeyhole, LogOut, MessageCircle, MessagesSquare, MoreHorizontal,
   Pin, Plus, Search, Send, Settings2, Shield, Smile, Users, UserPlus, X,
 } from "lucide-react";
@@ -389,7 +389,7 @@ function GroupsWorkspace() {
                           <span className="min-w-0 flex-1">
                             <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
                               <span className="min-w-0 truncate text-xs font-bold text-teal-800">{message.senderName}</span>
-                              {message.senderIsAdmin&&<span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-teal-200 bg-teal-100 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-teal-800"><Shield aria-hidden="true" className="h-3 w-3"/>Administrateur</span>}
+                              {message.senderIsAdmin&&<span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-teal-200 bg-teal-100 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-teal-800"><BadgeCheck aria-hidden="true" className="h-3.5 w-3.5 fill-teal-700 text-white"/>Administrateur</span>}
                             </span>
                             <time dateTime={message.createdAt} className="block text-[10px] text-slate-400">{fullDate(message.createdAt)}{message.editedAt?" · modifié":""}</time>
                           </span>
