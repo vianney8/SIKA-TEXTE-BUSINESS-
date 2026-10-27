@@ -142,7 +142,7 @@ test("Sika group endpoints enforce membership and persist identity-scoped messag
     assert.equal(afterRejoin.body.messages.filter((m: any) => m.type === "system" && m.content === "Membre Test A a rejoint le groupe.").length, 2);
     assert.equal((await request(userA, `/api/groups/${privateSlug}/messages`)).status, 403);
     const memberDetail=await request(userA,`/api/groups/${publicSlug}`);
-    const publicMembers=(await db.execute(sql`SELECT user_id,status FROM discussion_group_members WHERE group_id=${publicId}`)).rows;
+    const publicMembers=(await db.execute(sql`SELECT m.user_id,m.status,u.role FROM discussion_group_members m JOIN users u ON u.id=m.user_id WHERE m.group_id=${publicId}`)).rows;
     assert.equal(memberDetail.body.counts.memberCount,2,JSON.stringify({publicMembers,userA,userB,userC}));
     assert.equal(memberDetail.body.isManager,false);
     assert.deepEqual(memberDetail.body.members,[]);
