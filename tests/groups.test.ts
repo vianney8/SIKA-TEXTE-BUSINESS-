@@ -33,7 +33,7 @@ test("Sika group endpoints enforce membership and persist identity-scoped messag
   }));
   const request = async (userId: string, path: string, method = "GET", body?: unknown) => {
     const response = await fetch(base + path, {
-      method, headers: { "x-test-user": userId, ...(body ? { "content-type": "application/json" } : {}) },
+      method, headers: { "x-test-user": userId, "X-Sika-Groups": "1", ...(body ? { "content-type": "application/json" } : {}) },
       body: body ? JSON.stringify(body) : undefined,
     });
     return { status: response.status, body: await response.json() as any };
@@ -42,7 +42,7 @@ test("Sika group endpoints enforce membership and persist identity-scoped messag
     await db.insert(users).values([
       { id: userA, email: `${userA}@example.test`, fullName: "Membre Test A" },
       { id: userB, email: `${userB}@example.test`, fullName: "Membre Test B" },
-      { id: userC, email: `${userC}@example.test`, fullName: "Yvan SPQ SIKA" },
+      { id: userC, email: `${userC}@example.test`, fullName: "Yvan SPQ SIKA", role: "admin" },
     ]);
     await db.execute(sql`INSERT INTO discussion_groups (id,slug,name,description,visibility,created_by)
       VALUES (${publicId},${publicSlug},'Groupe de test','Description', 'public',${userA})`);
@@ -53,6 +53,7 @@ test("Sika group endpoints enforce membership and persist identity-scoped messag
     assert.equal(unauthenticated.status, 401);
     const hidden = await request(userB, `/api/groups/${privateSlug}`);
     assert.equal(hidden.status, 404);
+    assert.equal((await request(userB, `/api/groups/${privateSlug}/messages`)).status, 403);
     assert.equal((await request(userB, "/api/groups")).body.groups.some((g: any) => g.slug === privateSlug), false);
     assert.equal((await request(userC,"/api/groups","POST",{name:"Groupe usurpé",description:"Non autorisé",visibility:"public"})).status,403);
 
@@ -70,7 +71,12 @@ test("Sika group endpoints enforce membership and persist identity-scoped messag
     assert.equal(ownMessages.body.messages[1].senderName, "Membre Test A");
 
     assert.equal((await request(userB, `/api/groups/${publicSlug}/messages`, "POST", { content: "Pas encore membre" })).status, 403);
-    assert.equal((await request(userB, `/api/groups/${publicSlug}/join`, "POST", {})).status, 200);
+    assert.equal((await request(userB, `/api/groups/${publicSlug}/join`, "POST", {role:"owner",userId:userA})).status, 200);
+    assert.equal((await request(userB, `/api/groups/${publicSlug}`)).body.membership.role, "member");
+    assert.equal((await request(userB, `/api/groups/${publicSlug}`)).body.counts.memberCount, 2);
+    assert.equal((await request(userB, `/api/groups/${publicSlug}/admin/queue`)).status, 403);
+    assert.equal((await request(userB, `/api/groups/${publicSlug}/admin/members/${userB}`, "POST", {action:"promote"})).status, 403);
+    assert.equal((await request(userB, `/api/groups/${publicSlug}/messages/${sent.body.id}`, "DELETE")).status, 404);
     const crossGroup = await request(userB, `/api/groups/${publicSlug}/messages`);
     assert.equal(crossGroup.body.messages.some((m: any) => m.content === "Message persistant"), true);
     const deniedEdit = await request(userB, `/api/groups/${publicSlug}/messages/${sent.body.id}`, "PATCH", { content: "usurpation" });
@@ -93,6 +99,15 @@ test("Sika group endpoints enforce membership and persist identity-scoped messag
     assert.equal(pending.body.status, "pending");
     const pendingDetail = await request(userC, `/api/groups/${privateSlug}`);
     assert.equal(pendingDetail.body.membership.status, "pending");
+    assert.equal((await request(userC, `/api/groups/${privateSlug}/messages`)).status, 403);
+    const simultaneous = await Promise.all([
+      request(userA, `/api/groups/${publicSlug}/messages`, "POST", {content:"Message simultané A",clientNonce:randomUUID()}),
+      request(userB, `/api/groups/${publicSlug}/messages`, "POST", {content:"Message simultané B",clientNonce:randomUUID()}),
+    ]);
+    assert.ok(simultaneous.every(result => result.status === 201));
+    const concurrentHistory=(await request(userA,`/api/groups/${publicSlug}/messages`)).body.messages;
+    assert.ok(concurrentHistory.some((m:any)=>m.content==="Message simultané A"&&m.senderId===userA));
+    assert.ok(concurrentHistory.some((m:any)=>m.content==="Message simultané B"&&m.senderId===userB));
 
     await request(userA, `/api/groups/${publicSlug}/leave`, "POST", {});
     await request(userA, `/api/groups/${publicSlug}/join`, "POST", {});
@@ -102,9 +117,14 @@ test("Sika group endpoints enforce membership and persist identity-scoped messag
 
     // Reuse only the trusted administrator identity in this isolated HTTP harness.
     // Every administrative write below targets a newly-created synthetic group.
-    const principal=(await db.execute(sql`SELECT id FROM users WHERE lower(email)='sikatexte@gmail.com'
-      AND role='admin' AND is_blocked IS NOT TRUE LIMIT 1`)).rows[0] as {id:string}|undefined;
+    const principal=(await db.execute(sql`SELECT u.id FROM users u JOIN discussion_group_security s ON s.principal_user_id=u.id
+      WHERE u.role='admin' AND u.is_blocked IS NOT TRUE LIMIT 1`)).rows[0] as {id:string}|undefined;
     if(principal){
+      assert.equal((await request(principal.id,`/api/groups/${privateSlug}/approvals/${userC}`,"POST",{approve:true})).status,200);
+      assert.equal((await request(principal.id,`/api/groups/${privateSlug}/approvals/${userC}`,"POST",{approve:true})).status,404);
+      const approvedHistory=await request(userC,`/api/groups/${privateSlug}/messages`);
+      assert.equal(approvedHistory.status,200);
+      assert.equal(approvedHistory.body.messages.filter((m:any)=>m.type==="system").length,1);
       const created=await request(principal.id,"/api/groups","POST",{name:`Test administration ${randomUUID().slice(0,8)}`,description:"Groupe synthétique temporaire",visibility:"public"});
       assert.equal(created.status,201);
       adminGroupId=created.body.group.id;
@@ -120,6 +140,31 @@ test("Sika group endpoints enforce membership and persist identity-scoped messag
       assert.equal((await request(userA,`/api/groups/${slug}/messages`,"POST",{content:"Interdit par les permissions"})).status,403);
       const announcement=await request(userC,`/api/groups/${slug}/admin/announcements`,"POST",{content:"Annonce synthétique"});
       assert.equal(announcement.status,201);
+      assert.equal((await request(principal.id,`/api/groups/${slug}/admin/groups`,"PATCH",{membersCanPost:true})).status,200);
+      assert.equal((await request(userA,`/api/groups/${slug}/messages`,"POST",{content:"Réponse croisée interdite",replyToId:Number(sent.body.id)})).status,400);
+      assert.equal((await request(userB,`/api/groups/${slug}/join`,"POST",{})).status,200);
+      const toModerate=await request(userB,`/api/groups/${slug}/messages`,"POST",{content:"Message de modération synthétique"});
+      assert.equal(toModerate.status,201);
+      assert.equal((await request(userA,`/api/groups/${slug}/messages/${toModerate.body.id}/report`,"POST",{reason:"Signalement de test"})).status,201);
+      assert.equal((await request(userC,`/api/groups/${slug}/admin/messages/${toModerate.body.id}/pin`,"POST",{pinned:true})).status,200);
+      const moderationQueue=await request(userC,`/api/groups/${slug}/admin/queue`);
+      assert.equal(moderationQueue.body.reports.length,1);
+      assert.equal((await request(userC,`/api/groups/${slug}/admin/reports/${moderationQueue.body.reports[0].id}`,"POST",{status:"resolved"})).status,200);
+      assert.equal((await request(userC,`/api/groups/${slug}/messages/${toModerate.body.id}`,"DELETE")).status,200);
+      assert.equal((await request(userA,`/api/groups/${slug}/messages`)).body.messages.find((m:any)=>m.id===toModerate.body.id).deleted,true);
+      assert.equal((await request(userC,`/api/groups/${slug}/leave`,"POST",{})).status,200);
+      assert.equal((await request(userC,`/api/groups/${slug}/join`,"POST",{role:"admin"})).status,200);
+      assert.equal((await request(userC,`/api/groups/${slug}`)).body.membership.role,"member");
+      assert.equal((await request(userC,`/api/groups/${slug}/admin/queue`)).status,403);
+      assert.equal((await request(userA,`/api/groups/${slug}/messages`)).body.messages.some((m:any)=>m.id===sent.body.id),false);
+      assert.equal((await request(principal.id,`/api/groups/${slug}/admin/members/${userB}`,"POST",{action:"block"})).status,200);
+      assert.equal((await request(userB,`/api/groups/${slug}/messages`)).status,403);
+      assert.equal((await request(userB,`/api/groups/${slug}/messages`,"POST",{content:"Tentative après blocage"})).status,403);
+      assert.equal((await request(userB,`/api/groups/${slug}/join`,"POST",{})).status,403);
+      assert.equal((await request(principal.id,`/api/groups/${slug}/admin/members/${userC}`,"POST",{action:"promote"})).status,200);
+      assert.equal((await request(principal.id,`/api/groups/${slug}/admin/members/${userC}`,"POST",{action:"remove"})).status,200);
+      assert.equal((await request(userC,`/api/groups/${slug}/join`,"POST",{})).status,200);
+      assert.equal((await request(userC,`/api/groups/${slug}`)).body.membership.role,"member");
       const invitationList=await request(principal.id,`/api/groups/${slug}/invites`);
       assert.equal((await request(principal.id,`/api/groups/${slug}/invites/${invitationList.body.invites[0].id}`,"DELETE")).status,200);
       assert.equal((await request(userB,"/api/group-invites/redeem","POST",{token})).status,404);

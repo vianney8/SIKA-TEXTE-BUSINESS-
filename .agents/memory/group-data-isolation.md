@@ -14,3 +14,15 @@ Do not automatically expose legacy messages that have no trustworthy group ident
 **Why:** assigning them to a group without reliable provenance could expose one conversation to unrelated members.
 
 **How to apply:** preserve such data separately until its ownership can be established before any migration.
+
+The principal discussion administrator must remain tied to the authorized account's stable identity. An email is suitable for initial discovery, not for continually granting authority.
+
+**Why:** profile emails and display names are mutable. Reusing an old email or copying a name must never transfer ownership.
+
+**How to apply:** preserve the pinned principal identity across restarts and account edits. A replacement owner needs an explicitly authorized transfer, not an automatic email lookup.
+
+Leaving or being removed from a group ends secondary administrative rights; returning is an ordinary membership unless the principal explicitly grants those rights again.
+
+**Why:** preserving old roles on readmission would bypass a removal and restore privileges without fresh approval.
+
+**How to apply:** keep the same rule for direct joins and invitation redemption, and test readmission after both voluntary departure and administrative removal.

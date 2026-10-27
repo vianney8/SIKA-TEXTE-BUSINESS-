@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
 import { storage } from "./storage";
+import { groupRequestSecurity, isSafeGroupPhoto } from "./group-security";
 
 const PRINCIPAL_EMAIL = "sikatexte@gmail.com";
 const SYSTEM_GROUP_SLUG = "sika-texte-groupe-officiel";
@@ -136,8 +137,17 @@ export async function ensureGroupsSchema() {
   await db.execute(sql`ALTER TABLE discussion_group_messages ADD COLUMN IF NOT EXISTS client_nonce varchar`);
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS discussion_message_nonce_unique
     ON discussion_group_messages (user_id,client_nonce) WHERE client_nonce IS NOT NULL`);
+  // Resolve the approved account once. Later profile/name/email changes cannot grant ownership.
+  await db.execute(sql`CREATE TABLE IF NOT EXISTS discussion_group_security (
+    singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+    principal_user_id varchar REFERENCES users(id) ON DELETE SET NULL
+  )`);
+  await db.execute(sql`INSERT INTO discussion_group_security (singleton,principal_user_id)
+    SELECT true,id FROM users WHERE lower(email)=${PRINCIPAL_EMAIL} AND role='admin'
+      AND is_blocked IS NOT TRUE LIMIT 1 ON CONFLICT (singleton) DO NOTHING`);
   const adminResult = await db.execute(sql`
-    SELECT id FROM users WHERE lower(email) = ${PRINCIPAL_EMAIL} AND role = 'admin' AND is_blocked IS NOT TRUE LIMIT 1
+    SELECT u.id FROM users u JOIN discussion_group_security s ON s.principal_user_id=u.id
+    WHERE u.role='admin' AND u.is_blocked IS NOT TRUE LIMIT 1
   `);
   const adminId = resultRows(adminResult)[0]?.id || null;
   await db.execute(sql`
@@ -170,8 +180,8 @@ async function getGroup(slug: string) {
 
 async function isPrincipalAdmin(userId: string) {
   return resultRows(await db.execute(sql`
-    SELECT id FROM users WHERE id=${userId} AND lower(email)=${PRINCIPAL_EMAIL}
-      AND role='admin' AND is_blocked IS NOT TRUE LIMIT 1
+    SELECT u.id FROM users u JOIN discussion_group_security s ON s.principal_user_id=u.id
+    WHERE u.id=${userId} AND u.role='admin' AND u.is_blocked IS NOT TRUE LIMIT 1
   `)).length > 0;
 }
 
@@ -211,6 +221,7 @@ function publicMessage(row: any) {
 }
 
 export function registerGroupRoutes(app: Express, requireAuth: any) {
+  app.use(["/api/groups", "/api/group-invites"], groupRequestSecurity);
   app.get("/api/groups", requireAuth, wrap(async (req, res) => {
     const userId = currentUserId(req)!;
     const principal = await isPrincipalAdmin(userId);
@@ -252,7 +263,7 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     const parsed = groupSchema.safeParse(req.body);
     if (!parsed.success) throw httpError(400, parsed.error.issues[0]?.message || "Informations du groupe invalides.");
     const input = parsed.data;
-    if (input.photoUrl && !/^https:\/\/[^\s]+$/i.test(input.photoUrl)) throw httpError(400, "La photo doit être indiquée par une URL HTTPS.");
+    if (input.photoUrl && !isSafeGroupPhoto(input.photoUrl)) throw httpError(400, "La photo doit utiliser une adresse HTTPS publique, sans identifiants.");
     const slug = `${input.name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 55)}-${randomBytes(3).toString("hex")}`;
     const inserted = resultRows(await db.execute(sql`
       INSERT INTO discussion_groups (slug,name,photo_url,description,category,visibility,rules,approval_required,members_can_post,created_by)
@@ -280,7 +291,7 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
       FROM discussion_group_members m LEFT JOIN users u ON u.id=m.user_id WHERE m.group_id=${group.id}
     `))[0];
     const members = resultRows(await db.execute(sql`
-      SELECT u.id,CASE WHEN lower(u.email)=${PRINCIPAL_EMAIL} THEN 'Yvan SPQ SIKA'
+      SELECT u.id,CASE WHEN u.id=(SELECT principal_user_id FROM discussion_group_security) THEN 'Yvan SPQ SIKA'
         ELSE coalesce(nullif(u.full_name,''),concat_ws(' ',u.first_name,u.last_name),'Membre Sika') END AS "fullName",
         u.profile_image_url AS "photoUrl",m.role,m.joined_at AS "joinedAt",
         (u.last_seen > now() - interval '5 minutes') AS online
@@ -322,7 +333,7 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
       const saved = resultRows(await tx.execute(sql`
         INSERT INTO discussion_group_members (group_id,user_id,role,status,joined_at,last_read_at)
         VALUES (${group.id},${userId},'member',${memberStatus},now(),now())
-        ON CONFLICT (group_id,user_id) DO UPDATE SET status=${memberStatus},joined_at=now(),last_read_at=now()
+        ON CONFLICT (group_id,user_id) DO UPDATE SET status=${memberStatus},role='member',joined_at=now(),last_read_at=now()
         WHERE discussion_group_members.status IN ('left','pending')
         RETURNING status
       `))[0];
@@ -360,7 +371,7 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     await db.transaction(async tx=>{
       const saved=resultRows(await tx.execute(sql`INSERT INTO discussion_group_members (group_id,user_id,role,status,joined_at,last_read_at)
         VALUES (${invite.group_id},${userId},'member','active',now(),now())
-        ON CONFLICT (group_id,user_id) DO UPDATE SET status='active',joined_at=now(),last_read_at=now()
+        ON CONFLICT (group_id,user_id) DO UPDATE SET status='active',role='member',joined_at=now(),last_read_at=now()
         WHERE discussion_group_members.status IN ('left','pending') RETURNING user_id`))[0];
       if(!saved) throw httpError(409,"Votre demande d’adhésion est déjà en cours.");
       const used=resultRows(await tx.execute(sql`UPDATE discussion_group_invites SET uses_count=uses_count+1
@@ -382,7 +393,9 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     const user = await storage.getUser(userId);
     const name = user?.fullName || [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Un membre Sika";
     await db.transaction(async tx => {
-      await tx.execute(sql`UPDATE discussion_group_members SET status='left' WHERE group_id=${group.id} AND user_id=${userId}`);
+      const changed = resultRows(await tx.execute(sql`UPDATE discussion_group_members SET status='left',role='member'
+        WHERE group_id=${group.id} AND user_id=${userId} AND status='active' RETURNING user_id`))[0];
+      if (!changed) throw httpError(409, "Vous avez déjà quitté ce groupe.");
       const eventContent = `${name} a quitté le groupe.`;
       await tx.execute(sql`INSERT INTO discussion_group_messages (group_id,sender_label,content,message_type) VALUES (${group.id},${name},${eventContent},'system')`);
     });
@@ -407,7 +420,7 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
                 FROM discussion_group_reactions WHERE message_id=m.id GROUP BY emoji) r),'[]'::jsonb) AS reactions
       FROM discussion_group_messages m
       LEFT JOIN users u ON u.id=m.user_id
-      LEFT JOIN discussion_group_messages reply ON reply.id=m.reply_to_id
+      LEFT JOIN discussion_group_messages reply ON reply.id=m.reply_to_id AND reply.group_id=m.group_id
       LEFT JOIN users reply_user ON reply_user.id=reply.user_id
       WHERE m.group_id=${group.id} AND (${before.data || null}::bigint IS NULL OR m.id < ${before.data || null}::bigint)
         AND (${search.data || null}::text IS NULL OR m.content ILIKE ('%' || ${search.data || null}::text || '%'))
@@ -562,15 +575,17 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     const approve = z.boolean().safeParse(req.body?.approve);
     if (!approve.success) throw httpError(400, "Décision d’approbation invalide.");
     const status = approve.data ? "active" : "left";
-    const changed = resultRows(await db.execute(sql`UPDATE discussion_group_members SET status=${status},joined_at=now()
-      WHERE group_id=${group.id} AND user_id=${req.params.userId} AND status='pending' RETURNING user_id`))[0];
-    if (!changed) throw httpError(404, "Demande d’adhésion introuvable.");
-    if (approve.data) {
-      const target = await storage.getUser(String(req.params.userId));
-      const name = target?.fullName || [target?.firstName,target?.lastName].filter(Boolean).join(" ") || "Un membre Sika";
-      const eventContent = `${name} a rejoint le groupe.`;
-      await db.execute(sql`INSERT INTO discussion_group_messages (group_id,sender_label,content,message_type) VALUES (${group.id},${name},${eventContent},'system')`);
-    }
+    await db.transaction(async tx => {
+      const changed = resultRows(await tx.execute(sql`UPDATE discussion_group_members SET status=${status},joined_at=now()
+        WHERE group_id=${group.id} AND user_id=${req.params.userId} AND status='pending' RETURNING user_id`))[0];
+      if (!changed) throw httpError(404, "Demande d’adhésion introuvable.");
+      if (approve.data) {
+        const target = await storage.getUser(String(req.params.userId));
+        const name = target?.fullName || [target?.firstName,target?.lastName].filter(Boolean).join(" ") || "Un membre Sika";
+        const eventContent = `${name} a rejoint le groupe.`;
+        await tx.execute(sql`INSERT INTO discussion_group_messages (group_id,sender_label,content,message_type) VALUES (${group.id},${name},${eventContent},'system')`);
+      }
+    });
     await audit(group.id,userId,approve.data?"member.approved":"member.rejected",String(req.params.userId));
     res.json({ success: true });
   }));
@@ -584,7 +599,7 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
       db.execute(sql`SELECT m.user_id AS id,coalesce(nullif(u.full_name,''),concat_ws(' ',u.first_name,u.last_name),'Membre Sika') AS "fullName",
         u.profile_image_url AS "photoUrl",m.joined_at AS "requestedAt"
         FROM discussion_group_members m JOIN users u ON u.id=m.user_id WHERE m.group_id=${group.id} AND m.status='pending' ORDER BY m.joined_at`),
-      db.execute(sql`SELECT m.user_id AS id,CASE WHEN lower(u.email)=${PRINCIPAL_EMAIL} THEN 'Yvan SPQ SIKA'
+      db.execute(sql`SELECT m.user_id AS id,CASE WHEN u.id=(SELECT principal_user_id FROM discussion_group_security) THEN 'Yvan SPQ SIKA'
         ELSE coalesce(nullif(u.full_name,''),concat_ws(' ',u.first_name,u.last_name),'Membre Sika') END AS "fullName",m.role,m.status FROM discussion_group_members m JOIN users u ON u.id=m.user_id
         WHERE m.group_id=${group.id} AND m.status='active' ORDER BY m.joined_at DESC LIMIT 200`),
       db.execute(sql`SELECT r.id,r.message_id AS "messageId",r.reason,r.created_at AS "createdAt",u.full_name AS "reporterName",m.content
@@ -605,7 +620,7 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     const parsed=groupSchema.partial().safeParse(req.body);
     if (!parsed.success) throw httpError(400,parsed.error.issues[0]?.message||"Paramètres invalides.");
     const data=parsed.data;
-    if (data.photoUrl && !/^https:\/\/[^\s]+$/i.test(data.photoUrl)) throw httpError(400,"La photo doit être indiquée par une URL HTTPS.");
+    if (data.photoUrl && !isSafeGroupPhoto(data.photoUrl)) throw httpError(400,"La photo doit utiliser une adresse HTTPS publique, sans identifiants.");
     await db.execute(sql`UPDATE discussion_groups SET
       name=coalesce(${data.name??null},name),description=coalesce(${data.description??null},description),
       photo_url=${data.photoUrl === "" ? null : data.photoUrl ?? group.photoUrl},
@@ -641,15 +656,17 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     if(target===actor || await isPrincipalAdmin(target)) throw httpError(403,"Cette action ne peut pas viser l’administrateur principal ou votre propre compte.");
     const old= resultRows(await db.execute(sql`SELECT role,status FROM discussion_group_members WHERE group_id=${group.id} AND user_id=${target}`))[0];
     if(!old || old.role==="owner") throw httpError(404,"Membre introuvable.");
+    if(old.role==="admin"&&!await isPrincipalAdmin(actor)) throw httpError(403,"Seul l’administrateur principal peut retirer un administrateur.");
     if(action.data==="promote" || action.data==="demote") {
       if(!await isPrincipalAdmin(actor)) throw httpError(403,"Seul l’administrateur principal peut gérer les administrateurs secondaires.");
+      if(old.status!=="active") throw httpError(400,"Seul un membre actif peut recevoir des droits administratifs.");
       await db.execute(sql`UPDATE discussion_group_members SET role=${action.data==="promote"?"admin":"member"} WHERE group_id=${group.id} AND user_id=${target}`);
     } else if(action.data==="block") {
-      const changed=resultRows(await db.execute(sql`UPDATE discussion_group_members SET status='banned'
+      const changed=resultRows(await db.execute(sql`UPDATE discussion_group_members SET status='banned',role='member'
         WHERE group_id=${group.id} AND user_id=${target} RETURNING user_id`))[0];
       if(!changed) throw httpError(404,"Membre introuvable.");
     } else {
-      const changed=resultRows(await db.execute(sql`UPDATE discussion_group_members SET status='left'
+      const changed=resultRows(await db.execute(sql`UPDATE discussion_group_members SET status='left',role='member'
         WHERE group_id=${group.id} AND user_id=${target} RETURNING user_id`))[0];
       if(!changed) throw httpError(404,"Membre introuvable.");
     }

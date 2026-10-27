@@ -44,7 +44,7 @@ const getJson = async <T,>(url: string): Promise<T> => {
 };
 const sendJson = async <T,>(url: string, method: string, body?: unknown): Promise<T> => {
   const response = await fetch(url, {
-    method, credentials: "include", headers: body ? { "Content-Type": "application/json" } : {},
+    method, credentials: "include", headers: { "X-Sika-Groups": "1", ...(body ? { "Content-Type": "application/json" } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   });
   const result = await response.json().catch(() => ({}));
@@ -55,15 +55,22 @@ const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2)
 const fullDate = (value: string) => new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
 export default function Groups() {
+  const { user } = useAuth();
+  return <GroupsWorkspace key={(user as any)?.id || "signed-out"} />;
+}
+
+function GroupsWorkspace() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
+  const viewerId = (user as any)?.id || "anonymous";
   const [, navigate] = useLocation();
   const [activeSlug, setActiveSlug] = useState(() => new URLSearchParams(window.location.search).get("group") || "");
   const [inviteToken, setInviteToken] = useState(() => new URLSearchParams(window.location.search).get("invite") || "");
   const [messageText, setMessageText] = useState("");
   const [reply, setReply] = useState<Message | null>(null);
   const [search, setSearch] = useState("");
+  const [groupSearch, setGroupSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
@@ -80,35 +87,36 @@ export default function Groups() {
   const [notificationsAllowed,setNotificationsAllowed]=useState(()=>"Notification" in window&&Notification.permission==="granted");
 
   const groupsQuery = useQuery<{ groups: Group[]; isPrincipalAdmin: boolean }>({
-    queryKey: ["/api/groups"], queryFn: () => getJson("/api/groups"), refetchInterval: 10000, refetchIntervalInBackground:true,
+    queryKey: ["/api/groups", viewerId], queryFn: () => getJson("/api/groups"), refetchInterval: 10000, refetchIntervalInBackground:true,
   });
   const groups = groupsQuery.data?.groups || [];
+  const visibleGroups = groups.filter(group => `${group.name} ${group.category}`.toLocaleLowerCase("fr").includes(groupSearch.trim().toLocaleLowerCase("fr")));
   const selected = groups.find(group => group.slug === activeSlug) || null;
   const detailQuery = useQuery<GroupDetail>({
-    queryKey: [`/api/groups/${activeSlug}`], queryFn: () => getJson(`/api/groups/${encodeURIComponent(activeSlug)}`),
+    queryKey: [`/api/groups/${activeSlug}`, viewerId], queryFn: () => getJson(`/api/groups/${encodeURIComponent(activeSlug)}`),
     enabled: !!activeSlug, refetchInterval: 12000,
   });
   const detail = detailQuery.data;
   const isMember = detail?.membership.status === "active";
   const canManage = !!detail?.isManager;
   const messagesQuery = useQuery<{ messages: Message[]; hasMore: boolean }>({
-    queryKey: [`/api/groups/${activeSlug}/messages`, search],
+    queryKey: [`/api/groups/${activeSlug}/messages`, viewerId, search],
     queryFn: () => getJson(`/api/groups/${encodeURIComponent(activeSlug)}/messages${search.trim() ? `?q=${encodeURIComponent(search.trim())}` : ""}`),
     enabled: !!activeSlug && isMember, refetchInterval: search ? false : 4000, staleTime: 0,
   });
   const messages = Array.from(new Map([...(search?[]:loadedOlder), ...(messagesQuery.data?.messages || [])].map(message=>[message.id,message])).values()).sort((a,b)=>Number(a.id)-Number(b.id));
   const adminQueueQuery = useQuery<AdminQueue>({
-    queryKey: [`/api/groups/${activeSlug}/admin/queue`],
+    queryKey: [`/api/groups/${activeSlug}/admin/queue`, viewerId],
     queryFn: () => getJson(`/api/groups/${encodeURIComponent(activeSlug)}/admin/queue`),
     enabled: showAdmin && canManage,
   });
   const invitesQuery = useQuery<{invites:any[]}>({
-    queryKey: [`/api/groups/${activeSlug}/invites`],
+    queryKey: [`/api/groups/${activeSlug}/invites`, viewerId],
     queryFn: () => getJson(`/api/groups/${encodeURIComponent(activeSlug)}/invites`),
     enabled: showAdmin && canManage,
   });
   const adminStatsQuery = useQuery<any>({
-    queryKey: ["/api/groups/stats"], queryFn: () => getJson("/api/groups/stats"),
+    queryKey: ["/api/groups/stats", viewerId], queryFn: () => getJson("/api/groups/stats"),
     enabled: !!groupsQuery.data?.isPrincipalAdmin,
   });
 
@@ -250,16 +258,16 @@ export default function Groups() {
         )}
         <div className="grid min-h-[calc(100dvh-150px)] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[320px_minmax(0,1fr)]">
           <aside className={`${activeSlug && detail ? "hidden lg:flex" : "flex"} flex-col border-r border-slate-100`}>
-            <div className="border-b border-slate-100 p-4"><h2 className="font-bold">Vos groupes</h2><p className="mt-1 text-xs text-slate-500">Groupes officiels et communautés ouvertes</p></div>
+            <div className="border-b border-slate-100 p-4"><h2 className="font-bold">Vos groupes</h2><p className="mt-1 text-xs text-slate-500">Groupes officiels et communautés ouvertes</p><Input aria-label="Rechercher un groupe" placeholder="Rechercher un groupe…" value={groupSearch} onChange={event=>setGroupSearch(event.target.value)} className="mt-3 bg-slate-50"/></div>
             <div className="flex-1 space-y-2 overflow-y-auto p-3">
-              {groups.map(group => (
-                <button key={group.id} onClick={() => selectGroup(group)} className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left transition ${activeSlug===group.slug?"bg-teal-50 ring-1 ring-teal-200":"hover:bg-slate-50"}`}>
-                  <Avatar className="h-11 w-11 rounded-2xl"><AvatarImage src={group.photoUrl || (group.slug===OFFICIAL_SLUG?officialLogo:undefined)} /><AvatarFallback className="rounded-2xl bg-teal-100 text-teal-800">{initials(group.name)}</AvatarFallback></Avatar>
-                  <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{group.name}</span><span className="mt-1 block truncate text-xs text-slate-500">{group.membershipStatus==="active"?`${group.memberCount} membres · ${group.onlineCount} en ligne`:group.membershipStatus==="pending"?"Demande en attente":group.visibility==="public"?"Groupe public":"Sur invitation"}</span></span>
+              {visibleGroups.map(group => (
+                <button key={group.id} aria-label={`Ouvrir ${group.name}`} onClick={() => selectGroup(group)} className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left transition ${activeSlug===group.slug?"bg-teal-50 ring-1 ring-teal-200":"hover:bg-slate-50"}`}>
+                  <Avatar className="h-11 w-11 rounded-2xl"><AvatarImage referrerPolicy="no-referrer" src={group.photoUrl || (group.slug===OFFICIAL_SLUG?officialLogo:undefined)} /><AvatarFallback className="rounded-2xl bg-teal-100 text-teal-800">{initials(group.name)}</AvatarFallback></Avatar>
+                  <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{group.name}</span><span className="mt-1 block truncate text-xs text-slate-500">{group.memberCount} membres · {group.membershipStatus==="active"?`${group.onlineCount} en ligne`:group.membershipStatus==="pending"?"Demande en attente":group.visibility==="public"?"Groupe public":"Sur invitation"}</span><span className="mt-1 block text-[11px] font-semibold text-teal-700">Ouvrir la discussion</span></span>
                   {group.unreadCount>0&&<span className="grid h-5 min-w-5 place-items-center rounded-full bg-teal-700 px-1 text-[10px] font-bold text-white">{group.unreadCount>99?"99+":group.unreadCount}</span>}
                 </button>
               ))}
-              {!groups.length&&<p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Aucun groupe n’est actuellement disponible.</p>}
+              {!visibleGroups.length&&<p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">{groupSearch?"Aucun groupe ne correspond à cette recherche.":"Aucun groupe n’est actuellement disponible."}</p>}
             </div>
             <div className="border-t border-slate-100 p-3 text-xs text-slate-400">Compte Sika connecté · échanges enregistrés</div>
           </aside>
@@ -345,12 +353,12 @@ export default function Groups() {
                     {detail.group.membersCanPost===false&&!canManage
                       ? <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-500">Seuls les administrateurs peuvent écrire dans ce groupe.</p>
                       : <div className="flex items-end gap-2">
-                          <Textarea disabled={sendMessage.isPending} value={messageText}
+                          <Textarea aria-label="Votre message" disabled={sendMessage.isPending} value={messageText}
                             onChange={event=>{if(failedDraft){draftNonce.current=crypto.randomUUID();setFailedDraft(false)}setMessageText(event.target.value)}}
                             onKeyDown={event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();send(event)}}}
                             maxLength={4000} rows={2} placeholder="Écrire un message… (Entrée pour envoyer)"
                             className="min-h-[48px] resize-y rounded-2xl bg-slate-50"/>
-                          <Button type="submit" disabled={!messageText.trim()||sendMessage.isPending} className="h-12 w-12 shrink-0 rounded-2xl bg-teal-700 p-0"><Send className="h-4 w-4"/></Button>
+                          <Button aria-label="Envoyer le message" type="submit" disabled={!messageText.trim()||sendMessage.isPending} className="h-12 w-12 shrink-0 rounded-2xl bg-teal-700 p-0"><Send className="h-4 w-4"/></Button>
                         </div>}
                     {failedDraft&&<p className="mt-1 text-xs text-red-600">Envoi impossible. Votre texte est conservé ; réessayez.</p>}
                   </form>

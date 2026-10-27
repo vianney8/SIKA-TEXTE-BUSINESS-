@@ -50,6 +50,7 @@ import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { registerCheckoutRoutes, solvexEnabled } from "./checkout";
 import { ensureDnsVersionSchema, getDnsUpdateStatus, currentDnsRelease, registerDnsVersionRoutes } from "./dns-versions";
 import { ensureGroupsSchema, registerGroupRoutes } from "./groups";
+import { establishUserSession } from "./session-security";
 import { linkManualPaymentAllowed, paymentCustomerEmail } from "@shared/payment-customer";
 import { PCS_INACTIVE_WITHDRAWAL_GRACE_MS } from "@shared/withdrawal-policy";
 import { CHECKOUT_MODELS } from "@shared/checkout-settings";
@@ -160,12 +161,13 @@ function westPayUrl(checkoutUrl: string, merchantSlug: string, amount: string | 
 
 // Session setup
 function setupSessions(app: Express) {
+  app.set("trust proxy", 1);
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,
     createTableIfMissing: false,
-    ttl: sessionTtl,
+    ttl: Math.ceil(sessionTtl / 1000),
     tableName: "sessions",
   });
   
@@ -176,7 +178,8 @@ function setupSessions(app: Express) {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: false, // false pour development
+      secure: "auto",
+      sameSite: "lax",
       maxAge: sessionTtl,
     },
   }));
@@ -533,7 +536,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const statusResult = await db.select().from(accountStatus).where(eq(accountStatus.userId, userId));
       const isActivated = statusResult.length > 0 && statusResult[0].isActive === true;
 
-      res.json({ ...user, isActivated });
+      const {
+        password, passwordResetToken, passwordResetExpiry,
+        emailVerificationCode, emailVerificationExpiry, ...sessionUser
+      } = user;
+      res.setHeader("Cache-Control", "private, no-store");
+      res.json({ ...sessionUser, isActivated });
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
@@ -610,7 +618,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateUserBalance(user.id, 600);
 
       // Set session
-      (req as any).session.userId = user.id;
+      await establishUserSession(req, user.id);
 
       res.status(201).json({ 
         message: "Compte créé avec succès", 
@@ -770,10 +778,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq((users as any).id, user.id));
 
       // Auto-login: créer la session
-      (req as any).session.userId = user.id;
-      await new Promise<void>((resolve, reject) =>
-        (req as any).session.save((err: any) => (err ? reject(err) : resolve()))
-      );
+      await establishUserSession(req, user.id);
 
       res.json({ message: "Mot de passe mis à jour avec succès", loggedIn: true });
     } catch (err) {
@@ -817,7 +822,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Set session
-      (req as any).session.userId = user.id;
+      await establishUserSession(req, user.id);
       
       console.log(`[LOGIN SUCCESS] User ${phoneNumber} logged in successfully`);
 
