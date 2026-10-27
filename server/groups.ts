@@ -11,6 +11,7 @@ const SYSTEM_GROUP_SLUG = "sika-texte-groupe-officiel";
 const messageSchema = z.object({
   content: z.string().trim().min(1).max(4000),
   replyToId: z.number().int().positive().optional(),
+  clientNonce: z.string().uuid().optional(),
 });
 const groupSchema = z.object({
   name: z.string().trim().min(3).max(100),
@@ -20,6 +21,7 @@ const groupSchema = z.object({
   visibility: z.enum(["public", "private", "invite"]),
   rules: z.string().trim().max(4000).optional(),
   approvalRequired: z.boolean().default(false),
+  membersCanPost: z.boolean().default(true),
 });
 
 const httpError = (status: number, message: string) => Object.assign(new Error(message), { status });
@@ -130,6 +132,10 @@ export async function ensureGroupsSchema() {
     )
   `);
 
+  await db.execute(sql`ALTER TABLE discussion_groups ADD COLUMN IF NOT EXISTS members_can_post boolean NOT NULL DEFAULT true`);
+  await db.execute(sql`ALTER TABLE discussion_group_messages ADD COLUMN IF NOT EXISTS client_nonce varchar`);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS discussion_message_nonce_unique
+    ON discussion_group_messages (user_id,client_nonce) WHERE client_nonce IS NOT NULL`);
   const adminResult = await db.execute(sql`
     SELECT id FROM users WHERE lower(email) = ${PRINCIPAL_EMAIL} AND role = 'admin' AND is_blocked IS NOT TRUE LIMIT 1
   `);
@@ -155,7 +161,8 @@ export async function ensureGroupsSchema() {
 async function getGroup(slug: string) {
   const rows = resultRows(await db.execute(sql`
     SELECT id,slug,name,photo_url AS "photoUrl",description,category,visibility,rules,
-      approval_required AS "approvalRequired",created_at AS "createdAt",archived_at AS "archivedAt"
+      approval_required AS "approvalRequired",members_can_post AS "membersCanPost",
+      created_at AS "createdAt",archived_at AS "archivedAt"
     FROM discussion_groups WHERE slug=${slug} AND archived_at IS NULL LIMIT 1
   `));
   return rows[0];
@@ -213,14 +220,14 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
         count(DISTINCT m.user_id)::int AS "memberCount",
         count(DISTINCT m.user_id) FILTER (WHERE u.last_seen > now() - interval '5 minutes')::int AS "onlineCount",
         coalesce(own.status,'none') AS "membershipStatus",coalesce(own.muted,false) AS muted,
-        (SELECT count(*)::int FROM discussion_group_messages unread
+        CASE WHEN own.status='active' THEN (SELECT count(*)::int FROM discussion_group_messages unread
           WHERE unread.group_id=g.id AND unread.message_type='text' AND unread.deleted_at IS NULL
-            AND unread.user_id <> ${userId} AND unread.created_at > coalesce(own.last_read_at, 'epoch'::timestamptz)) AS "unreadCount"
+            AND unread.user_id <> ${userId} AND unread.created_at > coalesce(own.last_read_at, 'epoch'::timestamptz)) ELSE 0 END AS "unreadCount"
       FROM discussion_groups g
       LEFT JOIN discussion_group_members m ON m.group_id=g.id AND m.status='active'
       LEFT JOIN users u ON u.id=m.user_id
       LEFT JOIN discussion_group_members own ON own.group_id=g.id AND own.user_id=${userId}
-      WHERE g.archived_at IS NULL AND (g.visibility='public' OR own.status IN ('active','pending') OR ${principal})
+      WHERE g.archived_at IS NULL AND (g.visibility IN ('public','private') OR own.status IN ('active','pending') OR ${principal})
       GROUP BY g.id,own.status,own.muted,own.last_read_at ORDER BY g.created_at ASC
     `));
     res.setHeader("Cache-Control", "no-store");
@@ -231,10 +238,10 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     if(!await isPrincipalAdmin(currentUserId(req)!)) throw httpError(403,"Accès réservé à l’administrateur principal.");
     const stats=resultRows(await db.execute(sql`SELECT
       (SELECT count(*)::int FROM discussion_groups WHERE archived_at IS NULL) AS "groupCount",
-      (SELECT count(*)::int FROM discussion_group_members WHERE status='active') AS "memberCount",
+      (SELECT count(DISTINCT user_id)::int FROM discussion_group_members WHERE status='active') AS "memberCount",
       (SELECT count(*)::int FROM discussion_group_messages WHERE message_type='text' AND deleted_at IS NULL) AS "messageCount",
-      (SELECT count(*)::int FROM discussion_group_members WHERE status='active' AND joined_at > now()-interval '7 days') AS "newMembers7d",
-      (SELECT count(*)::int FROM discussion_group_members WHERE status='active' AND user_id IN
+      (SELECT count(DISTINCT user_id)::int FROM discussion_group_members WHERE status='active' AND joined_at > now()-interval '7 days') AS "newMembers7d",
+      (SELECT count(DISTINCT user_id)::int FROM discussion_group_members WHERE status='active' AND user_id IN
         (SELECT id FROM users WHERE last_seen > now()-interval '5 minutes')) AS "onlineCount"`))[0];
     res.json(stats);
   }));
@@ -248,9 +255,9 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     if (input.photoUrl && !/^https:\/\/[^\s]+$/i.test(input.photoUrl)) throw httpError(400, "La photo doit être indiquée par une URL HTTPS.");
     const slug = `${input.name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 55)}-${randomBytes(3).toString("hex")}`;
     const inserted = resultRows(await db.execute(sql`
-      INSERT INTO discussion_groups (slug,name,photo_url,description,category,visibility,rules,approval_required,created_by)
+      INSERT INTO discussion_groups (slug,name,photo_url,description,category,visibility,rules,approval_required,members_can_post,created_by)
       VALUES (${slug},${input.name},${input.photoUrl || null},${input.description},${input.category || "Général"},
-        ${input.visibility},${input.rules || ""},${input.approvalRequired || input.visibility !== "public"},${userId})
+        ${input.visibility},${input.rules || ""},${input.approvalRequired || input.visibility !== "public"},${input.membersCanPost},${userId})
       RETURNING id,slug,name,photo_url AS "photoUrl",description,category,visibility,created_at AS "createdAt"
     `))[0];
     await db.execute(sql`INSERT INTO discussion_group_members (group_id,user_id,role) VALUES (${inserted.id},${userId},'owner')`);
@@ -266,7 +273,7 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
       SELECT status,role,muted,last_read_at AS "lastReadAt" FROM discussion_group_members WHERE group_id=${group.id} AND user_id=${userId}
     `))[0];
     const principal = await isPrincipalAdmin(userId);
-    if (group.visibility !== "public" && !["active","pending"].includes(member?.status) && !principal) throw httpError(404, "Groupe introuvable.");
+    if (group.visibility === "invite" && !["active","pending"].includes(member?.status) && !principal) throw httpError(404, "Groupe introuvable.");
     const counts = resultRows(await db.execute(sql`
       SELECT count(*) FILTER (WHERE status='active')::int AS "memberCount",
         count(*) FILTER (WHERE status='active' AND u.last_seen > now() - interval '5 minutes')::int AS "onlineCount"
@@ -279,13 +286,13 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
         (u.last_seen > now() - interval '5 minutes') AS online
       FROM discussion_group_members m JOIN users u ON u.id=m.user_id
       WHERE m.group_id=${group.id} AND m.status='active'
-      ORDER BY (m.role IN ('owner','admin')) DESC,m.joined_at DESC LIMIT 200
+      ORDER BY (m.role IN ('owner','admin')) DESC,m.joined_at DESC
     `));
     const pendingCount = await canManageGroup(userId, group.id)
       ? resultRows(await db.execute(sql`SELECT count(*)::int AS count FROM discussion_group_members WHERE group_id=${group.id} AND status='pending'`))[0]?.count || 0
       : 0;
     res.setHeader("Cache-Control", "no-store");
-    res.json({ group, counts, members, membership: member || { status: "none" }, isManager: principal || await canManageGroup(userId, group.id), isPrincipalAdmin: principal, pendingCount });
+    res.json({ group, counts, members: member?.status==="active"||principal ? members : [], membership: member || { status: "none" }, isManager: principal || await canManageGroup(userId, group.id), isPrincipalAdmin: principal, pendingCount });
   }));
 
   app.post("/api/groups/:slug/join", requireAuth, wrap(async (req, res) => {
@@ -300,13 +307,14 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
           AND revoked_at IS NULL AND expires_at > now() AND uses_count < max_uses LIMIT 1
       `))[0];
       if (!invite) throw httpError(400, "Ce lien d’invitation est invalide ou expiré.");
-    } else if (group.visibility !== "public" && !await isPrincipalAdmin(userId)) {
+    } else if (group.visibility === "invite" && !await isPrincipalAdmin(userId)) {
       throw httpError(403, "Ce groupe nécessite une invitation.");
     }
     const before = resultRows(await db.execute(sql`SELECT status FROM discussion_group_members WHERE group_id=${group.id} AND user_id=${userId}`))[0]?.status;
     if (before === "active") return res.json({ status: "active", alreadyMember: true });
     if (before === "banned") throw httpError(403, "Votre accès à ce groupe est bloqué.");
-    const pending = group.approvalRequired && !invite && !await isPrincipalAdmin(userId);
+    if (before === "pending" && !invite) return res.status(202).json({status:"pending",alreadyRequested:true});
+    const pending = (group.approvalRequired || group.visibility==="private") && !invite && !await isPrincipalAdmin(userId);
     const memberStatus = pending ? "pending" : "active";
     const user = await storage.getUser(userId);
     const memberName = [user?.fullName, [user?.firstName, user?.lastName].filter(Boolean).join(" ")].find(Boolean) || "Un membre Sika";
@@ -319,7 +327,11 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
         RETURNING status
       `))[0];
       if (!saved) throw httpError(409, "Votre demande d’adhésion est déjà en attente.");
-      if (invite) await tx.execute(sql`UPDATE discussion_group_invites SET uses_count=uses_count+1 WHERE id=${invite.id}`);
+      if (invite) {
+        const accepted=resultRows(await tx.execute(sql`UPDATE discussion_group_invites SET uses_count=uses_count+1
+          WHERE id=${invite.id} AND revoked_at IS NULL AND expires_at>now() AND uses_count<max_uses RETURNING id`))[0];
+        if(!accepted) throw httpError(400,"Ce lien d’invitation est expiré ou épuisé.");
+      }
       if (!pending) {
         const eventContent = `${memberName} a rejoint le groupe.`;
         await tx.execute(sql`
@@ -413,16 +425,24 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     const group = await getGroup(String(req.params.slug));
     if (!group) throw httpError(404, "Groupe introuvable.");
     await requireMembership(userId, group.id);
+    if(!group.membersCanPost&&!await canManageGroup(userId,group.id)) throw httpError(403,"Seuls les administrateurs peuvent écrire dans ce groupe.");
+    const recent=resultRows(await db.execute(sql`SELECT count(*)::int AS count FROM discussion_group_messages
+      WHERE user_id=${userId} AND created_at>now()-interval '1 minute' AND message_type='text'`))[0]?.count||0;
+    if(recent>=30) throw httpError(429,"Vous envoyez trop de messages. Patientez une minute.");
     if (parsed.data.replyToId) {
       const parent = resultRows(await db.execute(sql`SELECT id FROM discussion_group_messages WHERE id=${parsed.data.replyToId} AND group_id=${group.id} AND deleted_at IS NULL`))[0];
       if (!parent) throw httpError(400, "Le message auquel vous répondez n’existe plus.");
     }
     const inserted = resultRows(await db.execute(sql`
-      INSERT INTO discussion_group_messages (group_id,user_id,content,reply_to_id)
-      VALUES (${group.id},${userId},${parsed.data.content},${parsed.data.replyToId || null})
+      INSERT INTO discussion_group_messages (group_id,user_id,content,reply_to_id,client_nonce)
+      VALUES (${group.id},${userId},${parsed.data.content},${parsed.data.replyToId || null},${parsed.data.clientNonce||null})
+      ON CONFLICT (user_id,client_nonce) WHERE client_nonce IS NOT NULL DO NOTHING
       RETURNING id
     `))[0];
-    res.status(201).json({ id: String(inserted.id) });
+    const saved=inserted||resultRows(await db.execute(sql`SELECT id FROM discussion_group_messages
+      WHERE group_id=${group.id} AND user_id=${userId} AND client_nonce=${parsed.data.clientNonce||null}`))[0];
+    if(!saved) throw httpError(409,"Ce message ne peut pas être renvoyé dans un autre groupe.");
+    res.status(201).json({ id: String(saved.id) });
   }));
 
   app.patch("/api/groups/:slug/messages/:id", requireAuth, wrap(async (req, res) => {
@@ -504,6 +524,9 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
     const group = await getGroup(String(req.params.slug));
     if (!group) throw httpError(404, "Groupe introuvable.");
     if (!await canManageGroup(userId, group.id)) throw httpError(403, "Seuls les administrateurs du groupe peuvent inviter.");
+    const activeInvites=resultRows(await db.execute(sql`SELECT count(*)::int AS count FROM discussion_group_invites
+      WHERE group_id=${group.id} AND revoked_at IS NULL AND expires_at>now()`))[0]?.count||0;
+    if(activeInvites>=20) throw httpError(429,"Révoquez un ancien lien avant de créer une nouvelle invitation.");
     const token = randomBytes(32).toString("base64url");
     await db.execute(sql`INSERT INTO discussion_group_invites (group_id,token_hash,created_by,expires_at) VALUES (${group.id},${sha256(token)},${userId},now()+interval '7 days')`);
     res.status(201).json({ url: `${process.env.APP_BASE_URL || "https://sikatexte.site"}/groupeOfcl?group=${encodeURIComponent(group.slug)}&invite=${encodeURIComponent(token)}` });
@@ -587,7 +610,8 @@ export function registerGroupRoutes(app: Express, requireAuth: any) {
       name=coalesce(${data.name??null},name),description=coalesce(${data.description??null},description),
       photo_url=${data.photoUrl === "" ? null : data.photoUrl ?? group.photoUrl},
       category=coalesce(${data.category??null},category),visibility=coalesce(${data.visibility??null},visibility),
-      rules=coalesce(${data.rules??null},rules),approval_required=coalesce(${data.approvalRequired??null},approval_required)
+      rules=coalesce(${data.rules??null},rules),approval_required=coalesce(${data.approvalRequired??null},approval_required),
+      members_can_post=coalesce(${data.membersCanPost??null},members_can_post)
       WHERE id=${group.id}`);
     await audit(group.id,userId,"group.updated");
     res.json({success:true});

@@ -1458,6 +1458,12 @@ export default function AdminDashboard() {
               )}
             </a>
 
+            <a href="/groupeOfcl" data-testid="button-admin-groups"
+              className="flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-xl bg-teal-700/90 hover:bg-teal-700 text-white transition-colors text-center">
+              <Users className="h-4 w-4" />
+              <span className="text-xs font-semibold leading-none">Groupes de discussion</span>
+            </a>
+
             {/* Cartes ID */}
             <button onClick={() => setIdentityModal(true)}
               className="flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-xl bg-green-600/80 hover:bg-green-600 text-white transition-colors w-full">
