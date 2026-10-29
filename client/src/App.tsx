@@ -8,6 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
 import { useEffect } from "react";
+import { safeReturnPath } from "@shared/safe-redirect";
 import { useToast } from "@/hooks/use-toast";
 import useLiveUpdates from "@/hooks/useLiveUpdates";
 import NotFound from "@/pages/not-found";
@@ -49,7 +50,8 @@ import Groups from "@/pages/Groups";
 
 function safeInternalNextPath() {
   const next = new URLSearchParams(window.location.search).get("next");
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : "";
+  const safe = safeReturnPath(next);
+  return safe === "/" ? "" : safe;
 }
 
 function GroupLoginRedirect() {
@@ -128,6 +130,20 @@ function SimpleLoginWithRedirect() {
   return <SimpleLogin />;
 }
 
+function AuthenticatedAdminCall() {
+  const { isAuthenticated, isLoading, user } = useAuth();
+  const [, setLocation] = useLocation();
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      const next = window.location.pathname + window.location.search;
+      setLocation(`/simple-login?next=${encodeURIComponent(next)}`);
+    }
+  }, [isLoading, isAuthenticated, setLocation]);
+  if (isLoading || !isAuthenticated) return <div className="p-6">Vérification de la connexion…</div>;
+  if ((user as any)?.role !== "admin") return <div className="p-6">Accès réservé à l’administrateur.</div>;
+  return <AdminCall />;
+}
+
 function MaintenanceGuard({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const isAdmin = (user as any)?.role === 'admin';
@@ -196,7 +212,7 @@ function Router() {
       {/* Public payment page — accessible without authentication */}
       <Route path="/pay/:linkId" component={PaymentLinkPage} />
       {/* Admin call page — accessible without authentication (token in URL acts as key) */}
-      <Route path="/admin-call/:channelName/:token" component={AdminCall} />
+      <Route path="/admin-call/:channelName/:token" component={AuthenticatedAdminCall} />
 
       {!isAuthenticated ? (
         <>

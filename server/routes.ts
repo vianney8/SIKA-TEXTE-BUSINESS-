@@ -48,12 +48,16 @@ import session from "express-session";
 import { db } from "./db";
 import { eq, sql, and, desc, or, ilike, count, isNull, ne, inArray } from "drizzle-orm";
 import connectPg from "connect-pg-simple";
-import { randomBytes, createHmac, timingSafeEqual } from "crypto";
+import { randomBytes, randomInt, createHmac, timingSafeEqual } from "crypto";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { registerCheckoutRoutes, refreshDnsCheckout, initiateDnsCheckout, solvexEnabled } from "./checkout";
 import { ensureDnsVersionSchema, getDnsUpdateStatus, currentDnsRelease, registerDnsVersionRoutes } from "./dns-versions";
 import { ensureGroupsSchema, registerGroupRoutes } from "./groups";
-import { establishUserSession } from "./session-security";
+import { establishUserSession, newPasswordError } from "./session-security";
+import { createAdminGuard } from "./admin-access";
+import { sameOriginMutation } from "./http-security";
+import { ensureSecurityRateLimits, protectAuthentication } from "./security-rate-limit";
+import { telegramWebhookSecret, verifyTelegramWebhook } from "./telegram-security";
 import { linkManualPaymentAllowed, paymentCustomerEmail } from "@shared/payment-customer";
 import { PCS_INACTIVE_WITHDRAWAL_GRACE_MS } from "@shared/withdrawal-policy";
 import { CHECKOUT_MODELS } from "@shared/checkout-settings";
@@ -156,7 +160,7 @@ function setupSessions(app: Express) {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: "auto",
+      secure: process.env.NODE_ENV === "production" ? true : "auto",
       sameSite: "lax",
       maxAge: sessionTtl,
     },
@@ -183,21 +187,8 @@ async function requireAuth(req: any, res: any, next: any) {
 }
 
 // Admin auth middleware
-async function requireAdmin(req: any, res: any, next: any) {
-  if (!req.session || !req.session.userId) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
-  
-  try {
-    const user = await storage.getUser(req.session.userId);
-    if (!user || user.role !== 'admin') {
-      return res.status(403).json({ message: "Admin access required" });
-    }
-    next();
-  } catch (error) {
-    return res.status(500).json({ message: "Error checking admin status" });
-  }
-}
+const requireAdmin: (req: any, res: any, next: any) => any = createAdminGuard(id => storage.getUser(id));
+const absentUserHash = bcrypt.hashSync(randomBytes(32).toString("hex"), 10);
 
 // Helper: détecte le code pays ISO à partir d'un numéro contenant l'indicatif (+225..., 225..., 00225...)
 const PHONE_PREFIX_TO_COUNTRY: Record<string, string> = {
@@ -315,6 +306,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Setup sessions
   setupSessions(app);
+  await ensureSecurityRateLimits();
+  app.use("/api", sameOriginMutation);
+  app.use(protectAuthentication);
+  app.use(["/api/admin", "/api/admin-call"], requireAdmin);
   installLiveUpdates(app);
   await ensureGroupsSchema();
   registerGroupRoutes(app, requireAuth);
@@ -433,9 +428,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Nom complet, email, téléphone et mot de passe requis" });
       }
       
-      if (password.length < 4) {
-        return res.status(400).json({ message: "Le mot de passe doit contenir au moins 4 caractères" });
-      }
+      const passwordIssue = newPasswordError(password);
+      if (passwordIssue) return res.status(400).json({ message: passwordIssue });
       
       // Check if user already exists by phone
       const existingUserByPhone = await storage.getUserByPhone(phone);
@@ -520,7 +514,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   function getClientIp(req: any): string {
     return (
-      req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
+      req.ip ||
       req.socket?.remoteAddress ||
       "unknown"
     );
@@ -540,7 +534,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUserByEmail(email);
       if (!user) return res.status(404).json({ message: "Aucun compte associé à cet email" });
 
-      const code = generateCode();
+      const code = randomInt(100000, 1000000).toString();
       const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
       await db.update(users as any)
@@ -597,10 +591,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const user = await storage.getUserByEmail(email);
       if (!user) {
-        return res.status(404).json({ message: "Aucun compte n'est associé à cette adresse email. Vérifiez l'adresse saisie ou créez un compte." });
+        return res.json({ message: "Si un compte correspond à cette adresse, un code de récupération vous sera envoyé." });
       }
 
-      const code = generateCode();
+      const code = randomInt(100000, 1000000).toString();
       const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
       await db.update(users as any)
@@ -610,7 +604,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const sent = await sendPasswordResetEmail(email, user.fullName || user.email, code);
       if (!sent) return res.status(500).json({ message: "Impossible d'envoyer l'email. Réessayez." });
 
-      res.json({ message: "Code envoyé" });
+      res.json({ message: "Si un compte correspond à cette adresse, un code de récupération vous sera envoyé." });
     } catch (err) {
       console.error("[FORGOT PASSWORD] Error:", err);
       res.status(500).json({ message: "Erreur serveur" });
@@ -624,12 +618,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!email || !code || !newPassword) {
         return res.status(400).json({ message: "Email, code et nouveau mot de passe requis" });
       }
-      if (newPassword.length < 4) {
-        return res.status(400).json({ message: "Le mot de passe doit contenir au moins 4 caractères" });
-      }
+      const passwordIssue = newPasswordError(newPassword);
+      if (passwordIssue) return res.status(400).json({ message: passwordIssue });
 
       const user = await storage.getUserByEmail(email);
-      if (!user) return res.status(404).json({ message: "Utilisateur introuvable" });
+      if (!user) return res.status(400).json({ message: "Code incorrect ou expiré." });
 
       if (!user.passwordResetToken || user.passwordResetToken !== code) {
         return res.status(400).json({ message: "Code incorrect" });
@@ -639,16 +632,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const hashed = await bcrypt.hash(newPassword.trim(), 10);
-      await db.update(users as any)
-        .set({ password: hashed, passwordResetToken: null, passwordResetExpiry: null })
-        .where(eq((users as any).id, user.id));
+      const changed = await db.execute(sql`
+        WITH changed AS (
+          UPDATE users SET password = ${hashed}, password_reset_token = NULL, password_reset_expiry = NULL
+          WHERE id = ${user.id} AND password_reset_token = ${code}
+            AND password_reset_expiry > now()
+          RETURNING id
+        ), revoked AS (
+          DELETE FROM sessions WHERE sess::jsonb->>'userId' IN (SELECT id FROM changed) RETURNING sid
+        ) SELECT id FROM changed
+      `);
+      if (!changed.rows.length) return res.status(400).json({ message: "Code incorrect ou expiré." });
 
       // Auto-login: créer la session
       await establishUserSession(req, user.id);
 
       res.json({ message: "Mot de passe mis à jour avec succès", loggedIn: true });
     } catch (err) {
-      console.error("[RESET PASSWORD] Error:", err);
+      console.error("[RESET PASSWORD] Request failed");
       res.status(500).json({ message: "Erreur serveur" });
     }
   });
@@ -657,26 +658,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/auth/login', async (req, res) => {
     try {
       const { phoneNumber, password } = simpleLoginSchema.parse(req.body);
-      
-      
+
       const user = await storage.getUserByPhone(phoneNumber);
-      if (!user) {
+      const isValidPassword = await bcrypt.compare(password.trim(), user?.password || absentUserHash);
+
+      if (!user || !user.password || !isValidPassword) {
         return res.status(401).json({ message: "Numéro de téléphone ou mot de passe incorrect" });
       }
-
-      if (!user.password) {
-        return res.status(401).json({ message: "Numéro de téléphone ou mot de passe incorrect" });
-      }
-
-      // Check if account is blocked BEFORE checking password
       if (user.isBlocked) {
         return res.status(403).json({ message: "Votre compte est bloqué", blocked: true, blockedReason: user.blockedReason || null });
-      }
-
-      const isValidPassword = await bcrypt.compare(password.trim(), user.password);
-      
-      if (!isValidPassword) {
-        return res.status(401).json({ message: "Numéro de téléphone ou mot de passe incorrect" });
       }
 
       // Set session
@@ -866,33 +856,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Deposit (for demo)
-  app.post('/api/transactions/deposit', requireAuth, async (req: any, res) => {
-    try {
-      const userId = req.session.userId;
-      const { amount } = req.body;
-      
-      if (!amount || amount <= 0) {
-        return res.status(400).json({ message: "Montant invalide" });
-      }
-
-      // Create transaction
-      const transaction = await storage.createTransaction({
-        userId,
-        type: 'deposit',
-        amount: amount.toString(),
-        status: 'completed',
-        description: 'Dépôt Sika',
-      });
-
-      // Update balance
-      await storage.updateUserBalance(userId, amount);
-
-      res.json({ message: "Dépôt effectué avec succès", transaction });
-    } catch (error) {
-      console.error("Deposit error:", error);
-      res.status(500).json({ message: "Erreur lors du dépôt" });
-    }
+  // Never let a browser create money without a verified payment.
+  app.post('/api/transactions/deposit', requireAuth, (_req, res) => {
+    res.status(410).json({ message: "Le dépôt de démonstration est désactivé. Utilisez un paiement vérifié." });
   });
 
   // Pointage (random bonus system)
@@ -3086,7 +3052,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // TELEGRAM WEBHOOK - Receives callback queries from inline keyboard buttons
-  app.post('/api/telegram/ci-webhook', async (req: any, res) => {
+  app.post('/api/telegram/ci-webhook', verifyTelegramWebhook, async (req: any, res) => {
     try {
       const update = req.body;
       const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -7202,10 +7168,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/setWebhook`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, allowed_updates: ['message', 'callback_query'] })
+        body: JSON.stringify({ url, secret_token: telegramWebhookSecret(), allowed_updates: ['message', 'callback_query'] })
       });
       const data = await result.json() as any;
-      console.log('[TELEGRAM] Webhook setup result:', data);
+      console.log('[TELEGRAM] Webhook setup completed:', data.ok === true);
       res.json(data);
     } catch (error) {
       console.error('[TELEGRAM] Setup webhook error:', error);

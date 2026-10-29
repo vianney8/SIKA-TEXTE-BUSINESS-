@@ -24,3 +24,4 @@
 - [Group moderation policy](group-moderation-policy.md) — searchable restriction categories, explicit reinstatement, and opt-in filtering of specified accusations and withdrawal-failure wording.
 - [Home WhatsApp invitation](home-whatsapp-invitation.md) — reappear on each home visit; dismissal is temporary and its link is separate from the WhatsApp channel.
 - [Preview cookie policy](preview-cookie-policy.md) — the development proxy rewrites SameSite; compare origin/proxy attributes and retain explicit CSRF checks.
+- [Security boundaries](security-boundaries.md) — Telegram call links still require an administrator session; only production registers the shared bot webhook.

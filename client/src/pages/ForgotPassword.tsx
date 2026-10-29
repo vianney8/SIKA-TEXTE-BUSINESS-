@@ -75,8 +75,8 @@ export default function ForgotPassword() {
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPassword.length < 4) {
-      toast({ title: "Erreur", description: "Au moins 4 caractères requis", variant: "destructive" });
+    if (newPassword.trim().length < 8) {
+      toast({ title: "Erreur", description: "Au moins 8 caractères requis", variant: "destructive" });
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -299,7 +299,7 @@ export default function ForgotPassword() {
                   <input
                     type={showPassword ? "text" : "password"}
                     autoComplete="new-password"
-                    placeholder="Minimum 4 caractères"
+                    placeholder="Minimum 8 caractères"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     required

@@ -101,7 +101,7 @@ const extendedRegisterSchema = z.object({
   email:           z.string().email("Adresse email invalide"),
   countryCode:     z.string().min(1, "Le code pays est requis"),
   phoneNumber:     z.string().min(8, "Au moins 8 chiffres requis"),
-  password:        z.string().min(4, "Au moins 4 caractères"),
+  password:        z.string().trim().min(8, "Au moins 8 caractères"),
   confirmPassword: z.string(),
   referralCode:    z.string().optional(),
 }).refine((d) => d.password === d.confirmPassword, {

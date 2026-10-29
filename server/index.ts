@@ -7,8 +7,12 @@ import { sql } from "drizzle-orm";
 import { storage } from "./storage";
 import { BUNDLED_DEMO_VIDEO_URL, LEGACY_DEMO_VIDEO_URL } from "@shared/demo-video";
 import { retireRobotPaySettings } from "./retired-gateway";
+import { installHttpSecurity } from "./http-security";
+import { telegramWebhookSecret } from "./telegram-security";
 
 const app = express();
+installHttpSecurity(app);
+app.use("/api/auth", express.json({ limit: "16kb", inflate: false }));
 app.use(express.json({
   limit: "10mb", // captures d'écran envoyées en base64 depuis le chat d'appel
   inflate: false,
@@ -427,13 +431,13 @@ app.use((req, res, next) => {
   }
 
   // Auto-register Telegram webhook in production
-  if (process.env.TELEGRAM_BOT_TOKEN) {
+  if (process.env.NODE_ENV === "production" && process.env.TELEGRAM_BOT_TOKEN) {
     const webhookUrl = 'https://sikatexte.site/api/telegram/ci-webhook';
     const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
     fetch(`https://api.telegram.org/bot${TOKEN}/setWebhook`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: webhookUrl, allowed_updates: ['message', 'callback_query'] })
+      body: JSON.stringify({ url: webhookUrl, secret_token: telegramWebhookSecret(), allowed_updates: ['message', 'callback_query'] })
     }).then((r: any) => r.json()).then((data: any) => {
       log(`Telegram webhook registered: ${data.ok ? 'OK' : data.description}`);
     }).catch((err: any) => {
