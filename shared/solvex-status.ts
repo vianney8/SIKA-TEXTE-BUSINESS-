@@ -1,7 +1,7 @@
 export type SolvexCheckoutStatus = "completed" | "failed" | "pending";
 
 const COMPLETED_STATUSES = new Set([
-  "completed", "complete", "success", "successful", "succeeded", "paid", "approved",
+  "completed", "complete", "success", "successful", "succeeded", "paid", "approved", "confirmed",
 ]);
 const FAILED_STATUSES = new Set([
   "failed", "failure", "rejected", "declined", "cancelled", "canceled", "expired", "error", "denied",

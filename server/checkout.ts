@@ -4,7 +4,7 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { matchesServiceQuote } from "@shared/service-pricing";
 import { normalizeSolvexStatus } from "@shared/solvex-status";
-import { countryPaymentMode, PAYMENT_COUNTRIES } from "@shared/checkout-settings";
+import { countryPaymentMode, PAYMENT_COUNTRIES, usesSolvexPaymentMode } from "@shared/checkout-settings";
 import { db } from "./db";
 import { storage } from "./storage";
 import { accountStatus, linkManualRequests, paymentLinks, paymentLinkTransactions, pcsCodes, referrals, users } from "@shared/schema";
@@ -117,7 +117,8 @@ async function fulfill(payment: Checkout) {
 
 function verifiedProviderData(payment: Checkout, payload: any) {
   const data = payload?.transaction || payload?.data || payload;
-  if (!data || String(data.id) !== payment.solvexpayTxnId) throw error(409, "Référence du paiement non concordante.");
+  const providerId = data?.id ?? data?.transaction_id ?? data?.transactionId ?? data?.tx_id;
+  if (!data || String(providerId) !== payment.solvexpayTxnId) throw error(409, "Référence du paiement non concordante.");
   if (data.amount == null || Number(data.amount) !== Number(payment.amount)) throw error(409, "Montant du paiement non concordant.");
   if (data.currency && !matchesPaymentCurrency(payment.country, payment.currency, String(data.currency))) throw error(409, "Devise du paiement non concordante.");
   if (data.country && String(data.country).toUpperCase() !== payment.country) throw error(409, "Pays du paiement non concordant.");
@@ -169,7 +170,10 @@ async function initiate(req: Request) {
   if (!parsed.success) throw error(400, parsed.error.issues[0]?.message || "Données de paiement invalides.");
   const input = parsed.data;
   const settings = await storage.getAppSettings();
-  if (!solvexEnabled(settings, input.country)) throw error(409, "Ce pays utilise un autre mode de paiement. Vérifiez les réglages et réessayez.");
+  const settingsMap = Object.fromEntries(settings.map(item => [item.key, item.value]));
+  const countryMode = countryPaymentMode(settingsMap, input.country);
+  const solvexForService = usesSolvexPaymentMode(input.service, countryMode);
+  if (!solvexForService) throw error(409, "Ce pays utilise le dépôt manuel pour la mise à jour DNS.");
   const apiKey = process.env.SOLVEXPAY_API_KEY;
   if (!apiKey) throw error(503, "SolvexPay n'est pas encore configuré. Contactez l'administrateur.");
   const userId = authId(req);
@@ -241,8 +245,14 @@ async function initiate(req: Request) {
         await tx.update(paymentLinkTransactions).set({ status: "failed" }).where(eq(paymentLinkTransactions.id, created.id));
         return { ...created, status: "failed", failureMessage: payload?.message || payload?.error?.message || "Le prestataire a refusé le paiement." };
       }
-      if (!data?.id) return created;
-      const [updated] = await tx.update(paymentLinkTransactions).set({ solvexpayTxnId: String(data.id) }).where(eq(paymentLinkTransactions.id, created.id)).returning();
+      const providerStatus = normalizeSolvexStatus(data?.status, data?.event || payload?.event);
+      if (providerStatus === "failed" || payload?.success === false || data?.success === false) {
+        await tx.update(paymentLinkTransactions).set({ status: "failed", updatedAt: new Date() }).where(eq(paymentLinkTransactions.id, created.id));
+        return { ...created, status: "failed", failureMessage: payload?.message || data?.message || payload?.error?.message || "SolvexPay a refusé le paiement." };
+      }
+      const providerId = data?.id ?? data?.transaction_id ?? data?.transactionId ?? data?.tx_id;
+      if (!providerId) return created;
+      const [updated] = await tx.update(paymentLinkTransactions).set({ solvexpayTxnId: String(providerId) }).where(eq(paymentLinkTransactions.id, created.id)).returning();
       const paymentUrl = typeof data.payment_url === "string" && data.payment_url.startsWith("https://") ? data.payment_url : undefined;
       return { ...updated, paymentUrl };
     } catch {
@@ -290,8 +300,12 @@ export function registerCheckoutRoutes(app: Express) {
     const info = await resolveService(service, typeof req.query.linkId === "string" ? req.query.linkId : undefined, settings, userId);
     const user = userId ? await storage.getUser(userId) : undefined;
     const maintenance = JSON.parse(setting(settings, "operator_maintenance", "{}"));
+    const settingsMap = Object.fromEntries(settings.map(item => [item.key, item.value]));
+    const serviceEnabled = service === "dns"
+      ? PAYMENT_COUNTRIES.some(code => usesSolvexPaymentMode("dns", countryPaymentMode(settingsMap, code)))
+      : solvexEnabled(settings);
     res.setHeader("Cache-Control", "no-store");
-    res.json({ ...info, enabled: solvexEnabled(settings), model: checkoutModel(setting(settings, "payment_checkout_model")),
+    res.json({ ...info, enabled: serviceEnabled, model: checkoutModel(setting(settings, "payment_checkout_model")),
       customerId: user?.id || null, customerEmail: user?.email || "", customerName: user?.fullName || "", phone: user?.phone || "",
       requiresEmail: info.requiresEmail || (info.id === "eedbc622" && !userId),
       initialCountry: CATALOG.find(c => (user?.phone || "").replace(/\D/g, "").startsWith(c.prefix))?.code || "BJ",

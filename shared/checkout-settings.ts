@@ -5,6 +5,10 @@ export function countryPaymentMode(settings: Record<string, string>, country: st
   return ["solvexpay", "robotpay", "manual", "redirect"].includes(value) ? value as CountryPaymentMode : "manual";
 }
 
+export function usesSolvexPaymentMode(service: string, mode?: string | null): boolean {
+  return service === "dns" ? mode !== "manual" : !mode || mode === "solvexpay";
+}
+
 export const CHECKOUT_MODELS = ["legacy", "simple", "pro"] as const;
 export type CheckoutModel = typeof CHECKOUT_MODELS[number];
 

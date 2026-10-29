@@ -42,6 +42,8 @@ import { requiresPaymentOtp, paymentOtpInstructions, paymentOtpError } from "@sh
 import { installLiveUpdates } from "./live-updates";
 import { serviceAmount, linkedPriceIds } from "@shared/service-pricing";
 import { countryPaymentMode } from "@shared/checkout-settings";
+import { paymentCurrency } from "@shared/payment-currency";
+import { normalizeSolvexStatus } from "@shared/solvex-status";
 import session from "express-session";
 import { db } from "./db";
 import { eq, sql, and, desc, or, ilike, count, isNull, ne, inArray } from "drizzle-orm";
@@ -1466,7 +1468,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         linkId: 'eedbc622',
         linkLabel: dnsLink?.label || 'MISE A JOUR DNS PRIVÉ',
         amount: String(amount),
-        currency: dnsLink?.currency || (country === 'CM' ? 'XAF' : 'XOF'),
+        currency: paymentCurrency(country, dnsLink?.currency || 'XOF'),
         phone: fullPhone,
         operator: String(bodyOperator).toLowerCase(),
         country,
@@ -1586,7 +1588,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         linkId: 'eedbc622',
         linkLabel: 'MISE A JOUR DNS PRIVÉ',
         amount: String(amount),
-        currency: 'XOF',
+        currency: paymentCurrency(String(country).toUpperCase(), dnsLink?.currency || 'XOF'),
         phone: fullPhone,
         operator: String(operator).toLowerCase(),
         country: String(country).toUpperCase(),
@@ -8225,7 +8227,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const root = req.body || {};
       const payload = root?.data?.transaction || root?.data || root?.transaction || root;
       const event = String(req.headers['x-robotpay-event'] || payload?.event || root?.event || '').trim().toLowerCase();
-      if (event !== 'payment.confirmed') return res.json({ received: true });
+      const eventStatus = normalizeSolvexStatus(undefined, event);
+      const payloadStatus = normalizeSolvexStatus(payload?.status || payload?.state, payload?.event);
+      const providerStatus = eventStatus !== 'pending' ? eventStatus : payloadStatus;
+      if (providerStatus === 'pending') return res.json({ received: true });
 
       const txId = String(payload?.txId || payload?.transactionId || payload?.transaction_id || payload?.id || '');
       const amountValue = payload?.amount ?? payload?.paidAmount ?? payload?.paid_amount;
@@ -8277,7 +8282,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.warn('[ROBOTPAY-WEBHOOK] Paiement activation non concordant', { txId });
           return res.status(400).json({ error: 'Paiement non concordant' });
         }
-        if (payment.status === 'pending') {
+        if (payment.status === 'pending' && providerStatus === 'failed') {
+          await db.update(bkapayPayments).set({ status: 'failed', providerTxId: txId })
+            .where(and(eq(bkapayPayments.id, payment.id), eq(bkapayPayments.status, 'pending')));
+        } else if (payment.status === 'pending' && providerStatus === 'completed') {
           await storage.activateAccount(payment.userId);
           await db.update(bkapayPayments).set({ status: 'completed', completedAt: new Date(), providerTxId: txId })
             .where(and(eq(bkapayPayments.id, payment.id), eq(bkapayPayments.status, 'pending')));
@@ -8288,7 +8296,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.warn('[ROBOTPAY-WEBHOOK] Paiement lien non concordant', { txId });
           return res.status(400).json({ error: 'Paiement non concordant' });
         }
-        if (linkTransaction.status === 'pending') {
+        if (linkTransaction.status === 'pending' && providerStatus === 'failed') {
+          await db.update(paymentLinkTransactions).set({ status: 'failed', updatedAt: new Date(), providerTxId: txId })
+            .where(and(eq(paymentLinkTransactions.id, linkTransaction.id), eq(paymentLinkTransactions.status, 'pending')));
+        } else if (linkTransaction.status === 'pending' && providerStatus === 'completed') {
           const fulfillment = await db.transaction(async (tx) => {
             const [claimed] = await tx.update(paymentLinkTransactions)
               .set({ status: 'processing', updatedAt: new Date(), providerTxId: txId })

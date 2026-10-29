@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import SimpleCheckout from "./SimpleCheckout";
 import { type CheckoutModel, usesUnifiedCheckout } from "@shared/checkout-settings";
+import { usesSolvexPaymentMode } from "@shared/checkout-settings";
 import { CheckoutHandoff, type CheckoutDetails } from "./CheckoutHandoff";
 
 export function useCheckoutMode() {
@@ -39,8 +40,12 @@ export default function PaymentCheckout({
     const saved = JSON.parse(sessionStorage.getItem(`sika-checkout:${mode.data.customerId ?? "guest"}:${service}:${linkId ?? ""}`) || "null");
     resuming = typeof saved?.transactionId === "string";
   } catch { /* No recoverable payment in this browser session. */ }
-  const useAlternative = alternative && mode.data.countryModes?.[alternative.country] !== "solvexpay";
-  const content = !resuming && (useAlternative || !mode.data.enabled || !usesUnifiedCheckout(mode.data.model, directGateway))
+  const countryModes = mode.data.countryModes ?? {};
+  const dnsAutomaticEnabled = Object.values(countryModes).some((countryMode) => usesSolvexPaymentMode("dns", countryMode));
+  const serviceEnabled = service === "dns" ? dnsAutomaticEnabled : mode.data.enabled;
+  const alternativeMode = alternative ? countryModes[alternative.country] : undefined;
+  const useAlternative = alternative && (service === "dns" ? alternativeMode === "manual" : alternativeMode !== "solvexpay");
+  const content = !resuming && (useAlternative || !serviceEnabled || !usesUnifiedCheckout(mode.data.model, directGateway))
     ? <CheckoutHandoff.Provider value={useAlternative ? alternative : null}>{children}</CheckoutHandoff.Provider>
     : <SimpleCheckout service={service} linkId={linkId} onSuccess={onSuccess} onCancel={onCancel} onAlternativePayment={setAlternative} />;
   return <div className="contents" data-checkout-model={mode.data.model}>{content}</div>;

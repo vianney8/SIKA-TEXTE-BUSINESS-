@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { localPaymentPhone } from "@shared/payment-phone";
 import { paymentCurrency } from "@shared/payment-currency";
+import { usesSolvexPaymentMode } from "@shared/checkout-settings";
 import { requiresPaymentOtp, paymentOtpInstructions } from "@shared/payment-otp";
 import { type CheckoutModel } from "@shared/checkout-settings";
 import OperatorLogo from "./OperatorLogo";
@@ -145,7 +146,9 @@ export default function SimpleCheckout({
   const countries = config?.countries ?? [];
   const country = countries.find((item) => item.code === countryCode);
   const selectedOperator = country?.operators.find((item) => item.code === operatorCode);
-  const automaticCountry = !country?.mode || country.mode === "solvexpay";
+  // DNS automatic payments must use SolvexPay; the legacy RobotPay country
+  // setting is not a reason to route DNS into the manual/old checkout.
+  const automaticCountry = usesSolvexPaymentMode(service, country?.mode);
   const checkoutCurrency = automaticCountry
     ? paymentCurrency(countryCode, config?.currency || "XOF")
     : config?.currency || "XOF";
@@ -588,7 +591,7 @@ export default function SimpleCheckout({
 
               {country?.mode && <p className="checkout-muted mt-2 text-xs" role="status">
                 {country.mode === "manual" ? "Dépôt manuel : les coordonnées de dépôt et le justificatif seront demandés à l’étape suivante."
-                  : country.mode === "solvexpay" ? "Paiement automatique pour ce pays."
+                  : (country.mode === "solvexpay" || service === "dns") ? "Paiement automatique par SolvexPay."
                   : country.mode === "redirect" ? "Paiement par lien externe pour ce pays."
                   : "Paiement via le prestataire configuré pour ce pays."}
               </p>}
@@ -687,7 +690,7 @@ export default function SimpleCheckout({
                 </div>
               )}
 
-              {country?.mode === "solvexpay" && <SolvexFeeNotice />}
+              {automaticCountry && <SolvexFeeNotice />}
               <button type="submit" className="checkout-button mt-5 w-full" disabled={!canPay}>
                 {initMutation.isPending ? <LoaderCircle size={18} className="animate-spin" /> : null}
                 {initMutation.isPending ? "Connexion…" : <>{automaticCountry ? "Payer" : "Continuer ·"} {formatAmount(config.amount, checkoutCurrency)} <ArrowRight size={18} /></>}
