@@ -1049,7 +1049,7 @@ export default function Withdrawal() {
               <>
                 {(() => {
                   const automaticDns = dnsUpdateStatus?.paymentMode === "solvexpay" || dnsUpdateStatus?.paymentMode === "robotpay";
-                  return (
+                  return (<>
                 <div className="rounded-3xl p-6 relative overflow-hidden text-center bg-violet-50 border border-violet-200 shadow-sm">
                   <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full pointer-events-none"
                     style={{ background: "radial-gradient(circle, rgba(109,77,174,0.12), transparent)" }} />
@@ -1066,7 +1066,7 @@ export default function Withdrawal() {
                     </div>
                       <p className="text-slate-600 text-sm leading-relaxed">
                        {automaticDns
-                         ? "Le paiement est en attente de confirmation par SolvexPay. Nous actualisons son statut automatiquement."
+                         ? "Le paiement est en attente de confirmation par le prestataire. Nous actualisons son statut automatiquement."
                          : "Votre demande a bien été transmise et est en cours de vérification par notre équipe. La mise à jour DNS sera activée après confirmation."}
                      </p>
                   </div>
@@ -1095,11 +1095,16 @@ export default function Withdrawal() {
                   ))}
                 </div>
 
+                {dnsStatusQuery.isError && (
+                  <p role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                    La vérification du paiement est temporairement indisponible. Nous réessayons automatiquement ; ne payez pas une seconde fois.
+                  </p>
+                )}
                 <button onClick={() => refetchDnsStatus()}
                   className="w-full py-3 rounded-2xl font-bold text-sm text-amber-800 border border-amber-200 bg-amber-50 active:scale-[0.97] transition-all flex items-center justify-center gap-2">
                   <Wifi size={15} /> Actualiser le statut
                 </button>
-                  );
+                  </>);
                 })()}
               </>
             )}

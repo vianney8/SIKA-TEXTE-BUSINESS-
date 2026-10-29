@@ -1,5 +1,5 @@
 import type { Express, Request, Response, NextFunction } from "express";
-import { and, eq, or, sql } from "drizzle-orm";
+import { and, desc, eq, or, sql } from "drizzle-orm";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { matchesServiceQuote } from "@shared/service-pricing";
@@ -119,7 +119,11 @@ function verifiedProviderData(payment: Checkout, payload: any) {
   const data = payload?.transaction || payload?.data || payload;
   const providerId = data?.id ?? data?.transaction_id ?? data?.transactionId ?? data?.tx_id;
   if (!data || String(providerId) !== payment.solvexpayTxnId) throw error(409, "Référence du paiement non concordante.");
-  if (data.amount == null || Number(data.amount) !== Number(payment.amount)) throw error(409, "Montant du paiement non concordant.");
+  const terminalStatus = normalizeSolvexStatus(data.status, payload?.event);
+  if ((terminalStatus === "completed" && data.amount == null)
+    || (data.amount != null && Number(data.amount) !== Number(payment.amount))) {
+    throw error(409, "Montant du paiement non concordant.");
+  }
   if (data.currency && !matchesPaymentCurrency(payment.country, payment.currency, String(data.currency))) throw error(409, "Devise du paiement non concordante.");
   if (data.country && String(data.country).toUpperCase() !== payment.country) throw error(409, "Pays du paiement non concordant.");
   if (data.operator && String(data.operator).toLowerCase() !== payment.operator) throw error(409, "Opérateur du paiement non concordant.");
@@ -165,6 +169,18 @@ async function getStatus(id: string, userId?: string) {
     message: updated.solvexpayTxnId ? undefined : "Demande transmise. Confirmation du prestataire en attente. Ne payez pas une seconde fois." };
 }
 
+// The DNS overview must reconcile with the provider too: the dedicated
+// checkout component may already have been closed or the browser reloaded.
+export async function refreshDnsCheckout(userId: string) {
+  const [latest] = await db.select().from(paymentLinkTransactions).where(and(
+    eq(paymentLinkTransactions.linkId, "eedbc622"),
+    eq(paymentLinkTransactions.userId, userId),
+  )).orderBy(desc(paymentLinkTransactions.createdAt), desc(paymentLinkTransactions.id)).limit(1);
+  if (latest?.status === "pending" && latest.reference?.startsWith("UCHK-") && latest.solvexpayTxnId) {
+    await getStatus(latest.id, userId);
+  }
+}
+
 async function initiate(req: Request) {
   const parsed = initSchema.safeParse(req.body);
   if (!parsed.success) throw error(400, parsed.error.issues[0]?.message || "Données de paiement invalides.");
@@ -173,7 +189,9 @@ async function initiate(req: Request) {
   const settingsMap = Object.fromEntries(settings.map(item => [item.key, item.value]));
   const countryMode = countryPaymentMode(settingsMap, input.country);
   const solvexForService = usesSolvexPaymentMode(input.service, countryMode);
-  if (!solvexForService) throw error(409, "Ce pays utilise le dépôt manuel pour la mise à jour DNS.");
+  if (!solvexForService) throw error(409, input.service === "dns"
+    ? "Ce pays utilise le dépôt manuel pour la mise à jour DNS."
+    : "Ce pays utilise un autre mode de paiement. Vérifiez les réglages et réessayez.");
   const apiKey = process.env.SOLVEXPAY_API_KEY;
   if (!apiKey) throw error(503, "SolvexPay n'est pas encore configuré. Contactez l'administrateur.");
   const userId = authId(req);
@@ -265,6 +283,11 @@ async function initiate(req: Request) {
     createdAt: payment.createdAt, providerAccepted: !!payment.solvexpayTxnId,
     paymentUrl: "paymentUrl" in payment ? payment.paymentUrl : undefined,
     message: payment.solvexpayTxnId ? "Validez la demande sur votre téléphone." : "Demande transmise. Confirmation du prestataire en attente. Ne payez pas une seconde fois." };
+}
+
+export async function initiateDnsCheckout(req: Request) {
+  req.body = { ...req.body, service: "dns" };
+  return initiate(req);
 }
 
 export function registerCheckoutRoutes(app: Express) {

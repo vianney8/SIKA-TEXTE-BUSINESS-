@@ -9,7 +9,13 @@ Payment pages must use the pale lavender surrounding the checkout card as a cont
 
 **How to apply:** Apply the same canvas to embedded DNS checkout, payment steps and status screens without changing payment routing or administrator model choices.
 
-The administrator selects the gateway independently for each country using its four choices: SolvexPay, RobotPay, manual deposit, or redirection. A country's choice applies to all its services: account activation, PCS purchases and activation, DNS, updates, and other payment links.
+The administrator selects the gateway independently for each country using its four choices: SolvexPay, RobotPay, manual deposit, or redirection. A country's choice normally applies across its services, subject to the explicit automatic-DNS exception below.
+
+Automatic private-DNS payments must use SolvexPay, not RobotPay/WestPay. Preserve the separately configured manual-deposit flow.
+
+**Why:** The user explicitly repeated “Ça doit utiliser SolvexPay” after reporting DNS payments that were never launched and rejections that remained pending.
+
+**How to apply:** Treat automatic DNS as an exception to the general per-country gateway policy; do not restore WestPay for DNS when maintaining older checkout paths.
 
 Keep the historical checkout available. The administrator must be able to choose between the simplified common checkout and the old presentation without deleting either.
 
