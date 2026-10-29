@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db } from "./db";
 import { INITIAL_DNS_VERSION, type DnsRelease } from "@shared/dns-version";
 import type { DnsPaymentStatus } from "@shared/dns-payment-state";
+import { normalizeSolvexStatus } from "@shared/solvex-status";
 
 const DNS_LINK = "eedbc622";
 type ReleaseRow = { id: string; version: string; message: string; published_at: Date | string };
@@ -65,12 +66,13 @@ export async function getDnsUpdateStatus(userId: string, database: Pick<typeof d
   const result = await database.execute(sql`
     SELECT r.*,
       latest.id AS transaction_id, latest.status AS payment_status, latest.reference AS payment_reference,
+      latest.solvexpay_txn_id AS provider_id,
       latest.dns_retry_requested,
       installed.dns_version AS installed_version,
       current_receipt.id AS current_receipt_id
     FROM (SELECT * FROM dns_releases ORDER BY published_at DESC, id DESC LIMIT 1) r
     LEFT JOIN LATERAL (
-      SELECT id, status, reference, dns_retry_requested FROM payment_link_transactions
+      SELECT id, status, reference, solvexpay_txn_id, dns_retry_requested FROM payment_link_transactions
       WHERE link_id = ${DNS_LINK} AND user_id = ${userId}
       ORDER BY created_at DESC, id DESC LIMIT 1
     ) latest ON true
@@ -86,7 +88,7 @@ export async function getDnsUpdateStatus(userId: string, database: Pick<typeof d
     ) current_receipt ON true
   `);
   const row = result.rows[0] as ReleaseRow & {
-    transaction_id: string | null; payment_status: string | null; payment_reference: string | null;
+    transaction_id: string | null; payment_status: string | null; payment_reference: string | null; provider_id: string | null;
     dns_retry_requested: boolean | null; installed_version: string | null; current_receipt_id: string | null;
   };
   if (!row) throw new Error("Aucune version DNS configurée.");
@@ -94,7 +96,8 @@ export async function getDnsUpdateStatus(userId: string, database: Pick<typeof d
   let status: DnsPaymentStatus["status"] = "none";
   if (row.current_receipt_id) status = "completed";
   else if (row.payment_status === "completed") status = "outdated";
-  else if (row.payment_status === "failed") status = "failed";
+  else if (normalizeSolvexStatus(row.payment_status) === "failed") status = "failed";
+  else if (row.payment_status === "pending" && row.payment_reference?.startsWith("UCHK-") && !row.provider_id) status = "unconfirmed";
   else if (row.payment_status) status = "pending";
   return {
     status,

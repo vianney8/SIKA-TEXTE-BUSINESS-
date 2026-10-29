@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { localPaymentPhone } from "@shared/payment-phone";
 import { paymentCurrency } from "@shared/payment-currency";
+import { shouldResumeDnsAttempt, type DnsPaymentStatus } from "@shared/dns-payment-state";
 import { usesSolvexPaymentMode } from "@shared/checkout-settings";
 import { requiresPaymentOtp, paymentOtpInstructions } from "@shared/payment-otp";
 import { type CheckoutModel } from "@shared/checkout-settings";
@@ -189,7 +190,11 @@ export default function SimpleCheckout({
     successNotified.current = false;
     try {
       const parsed = JSON.parse(sessionStorage.getItem(key) || "null");
-      if (typeof parsed?.transactionId === "string" && parsed.transactionId.length > 0) {
+      const dnsAttempt = service === "dns" || linkId === "eedbc622";
+      const resumeAllowed = !dnsAttempt || shouldResumeDnsAttempt(
+        parsed?.transactionId, queryClient.getQueryData<DnsPaymentStatus>(["/api/withdrawal/dns-update-status"]),
+      );
+      if (typeof parsed?.transactionId === "string" && parsed.transactionId.length > 0 && resumeAllowed) {
         setTransactionId(parsed.transactionId);
         setPaymentStatus("pending");
         setProviderAccepted(parsed.providerAccepted === true);
@@ -200,7 +205,7 @@ export default function SimpleCheckout({
       } else sessionStorage.removeItem(key);
     } catch { sessionStorage.removeItem(key); }
     setResumeChecked(true);
-  }, [paymentIdentity, key]);
+  }, [paymentIdentity, key, queryClient, service, linkId]);
 
   const finishSuccess = useCallback(
     (code?: string) => {
@@ -318,6 +323,11 @@ export default function SimpleCheckout({
         throw new Error("Réponse de paiement invalide. Veuillez réessayer.");
       }
       return result;
+    },
+    onSettled: () => {
+      if (service === "dns" || linkId === "eedbc622") {
+        void queryClient.invalidateQueries({ queryKey: ["/api/withdrawal/dns-update-status"] });
+      }
     },
     onSuccess: (result) => {
       const chargedAmount = { amount: result.amount ?? config!.amount, currency: result.currency || config!.currency };

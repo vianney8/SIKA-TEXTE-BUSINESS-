@@ -15,6 +15,8 @@ test("DNS launches SolvexPay and reconciles rejection without a manual status cl
   const originalSettings = storage.getAppSettings;
   let mode = "robotpay";
   let rejectAtInit = false;
+  let nestedResponse = false;
+  let ambiguousInit = false;
   let postCount = 0;
   let getCount = 0;
   await db.insert(users).values({ id: userId, email: `${userId}@example.test`, fullName: "DNS Test" });
@@ -31,15 +33,18 @@ test("DNS launches SolvexPay and reconciles rejection without a manual status cl
       assert.equal(body.country, "BJ");
       assert.equal(body.phone, "2290190000000");
       assert.ok(body.reference.startsWith("UCHK-"));
-      return Response.json({ transaction: {
+      if (ambiguousInit) throw new Error("Synthetic timeout; provider outcome unknown");
+      const envelope = { transaction: {
         transaction_id: `dns-test-${postCount}`,
         status: rejectAtInit ? "rejected" : "pending",
         message: rejectAtInit ? "Paiement refusé" : undefined,
-      } });
+      } };
+      return Response.json(nestedResponse ? { data: envelope } : envelope);
     }
     assert.ok(target.startsWith("https://solvexpay.com/api/v1/transactions/"));
     getCount++;
-    return Response.json({ transaction: { transaction_id: "dns-test-1", status: "rejected" } });
+    const envelope = { transaction: { transaction_id: decodeURIComponent(target.split("/").at(-1)!), status: "rejected" } };
+    return Response.json(nestedResponse ? { data: envelope } : envelope, { status: nestedResponse ? 400 : 200 });
   };
   const request = () => ({
     session: { userId },
@@ -62,6 +67,29 @@ test("DNS launches SolvexPay and reconciles rejection without a manual status cl
       await assert.rejects(() => initiateDnsCheckout(request()), /Paiement refusé/);
       const rows = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.userId, userId));
       assert.ok(rows.every(row => row.status === "failed"));
+    });
+    await t.test("nested provider replies and identified rejection with HTTP 400 reconcile correctly", async () => {
+      rejectAtInit = false;
+      nestedResponse = true;
+      const started = await initiateDnsCheckout(request());
+      assert.equal(started.providerAccepted, true);
+      await refreshDnsCheckout(userId);
+      assert.equal((await getDnsUpdateStatus(userId)).status, "failed");
+    });
+    await t.test("an ambiguous launch is not called pending and cannot launch a second debit after 15 minutes", async () => {
+      ambiguousInit = true;
+      await assert.rejects(() => initiateDnsCheckout(request()), /n’a pas confirmé/);
+      const state = await getDnsUpdateStatus(userId);
+      assert.equal(state.status, "unconfirmed");
+      const before = postCount;
+      await db.update(paymentLinkTransactions).set({ createdAt: new Date(Date.now() - 86400000) })
+        .where(eq(paymentLinkTransactions.id, state.transactionId!));
+      const changedPhone = request();
+      changedPhone.body.phone = "0190000001";
+      await assert.rejects(() => initiateDnsCheckout(changedPhone), /n’a pas confirmé/);
+      assert.equal(postCount, before);
+      const preserved = (await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.id, state.transactionId!)))[0];
+      assert.equal(preserved.status, "pending", "Do not misrepresent an ambiguous debit as rejected");
     });
     await t.test("explicit manual country mode never calls the automatic API", async () => {
       mode = "manual";

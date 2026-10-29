@@ -3,7 +3,7 @@ import { and, desc, eq, or, sql } from "drizzle-orm";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { matchesServiceQuote } from "@shared/service-pricing";
-import { normalizeSolvexStatus } from "@shared/solvex-status";
+import { normalizeSolvexStatus, solvexTransactionData } from "@shared/solvex-status";
 import { countryPaymentMode, PAYMENT_COUNTRIES, usesSolvexPaymentMode } from "@shared/checkout-settings";
 import { db } from "./db";
 import { storage } from "./storage";
@@ -119,7 +119,7 @@ async function fulfill(payment: Checkout) {
 }
 
 function verifiedProviderData(payment: Checkout, payload: any) {
-  const data = payload?.transaction || payload?.data || payload;
+  const data = solvexTransactionData(payload);
   const providerId = data?.id ?? data?.transaction_id ?? data?.transactionId ?? data?.tx_id;
   if (!data || String(providerId) !== payment.solvexpayTxnId) throw error(409, "Référence du paiement non concordante.");
   const terminalStatus = normalizeSolvexStatus(data.status, payload?.event);
@@ -163,7 +163,9 @@ async function getStatus(id: string, userId?: string) {
       headers: { Authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(15000),
     });
     const data = await response.json();
-    if (!response.ok) throw error(502, "La vérification SolvexPay est temporairement indisponible.");
+    if (!response.ok && normalizeSolvexStatus(solvexTransactionData(data)?.status, data?.event) !== "failed") {
+      throw error(502, "La vérification SolvexPay est temporairement indisponible.");
+    }
     await reconcileSolvexCheckout(payment, data);
   }
   const [updated] = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.id, payment.id));
@@ -235,8 +237,21 @@ async function initiate(req: Request) {
     if (!inactive) throw error(409, "Aucun code PCS inactif à activer.");
   }
   const payment = await db.transaction(async tx => {
-    const key = [targetId || email || "", service.id, service.amount, phone, input.country, input.operator].join(":");
+    const key = service.id === "eedbc622"
+      ? [targetId || email || "", service.id].join(":")
+      : [targetId || email || "", service.id, service.amount, phone, input.country, input.operator].join(":");
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${key}))`);
+    // A DNS attempt with an ambiguous outcome must not become a second debit
+    // simply because 15 minutes elapsed, or the payer changed their number.
+    if (service.id === "eedbc622" && targetId) {
+      const [unresolved] = await tx.select().from(paymentLinkTransactions).where(and(
+        eq(paymentLinkTransactions.linkId, service.id),
+        eq(paymentLinkTransactions.userId, targetId),
+        eq(paymentLinkTransactions.status, "pending"),
+        sql`${paymentLinkTransactions.reference} LIKE 'UCHK-%'`,
+      )).orderBy(desc(paymentLinkTransactions.createdAt), desc(paymentLinkTransactions.id)).limit(1);
+      if (unresolved) return unresolved;
+    }
     const [pending] = await tx.select().from(paymentLinkTransactions).where(and(
       eq(paymentLinkTransactions.linkId, service.id), eq(paymentLinkTransactions.phone, phone),
       eq(paymentLinkTransactions.amount, String(service.amount)), eq(paymentLinkTransactions.operator, input.operator),
@@ -260,7 +275,7 @@ async function initiate(req: Request) {
           customer_name: created.customerName || undefined, customer_email: email, ...(requiresPaymentOtp(input.country, input.operator) ? { otp: input.otp } : {}) }),
       });
       const payload = await response.json();
-      const data = payload?.transaction || payload?.data || payload;
+      const data = solvexTransactionData(payload);
       if (!response.ok) {
         if (response.status >= 500) return created; // An ambiguous outcome must not trigger a second charge.
         await tx.update(paymentLinkTransactions).set({ status: "failed" }).where(eq(paymentLinkTransactions.id, created.id));
@@ -282,6 +297,9 @@ async function initiate(req: Request) {
     }
   });
   if (payment.status === "failed") throw error(400, "failureMessage" in payment ? String(payment.failureMessage) : "Paiement refusé.");
+  if (service.id === "eedbc622" && !payment.solvexpayTxnId) {
+    throw error(502, "SolvexPay n’a pas confirmé le lancement du paiement. Ne payez pas une seconde fois avant vérification auprès de l’assistance.");
+  }
   return { success: true, transactionId: payment.id, reference: payment.reference, status: "pending", amount: Number(payment.amount), currency: paymentCurrency(payment.country, payment.currency), gateway: "solvexpay",
     createdAt: payment.createdAt, providerAccepted: !!payment.solvexpayTxnId,
     paymentUrl: "paymentUrl" in payment ? payment.paymentUrl : undefined,
@@ -371,8 +389,8 @@ export function registerCheckoutRoutes(app: Express) {
     if (!Buffer.isBuffer(raw) || !/^[a-f0-9]{64}$/i.test(signature)) throw error(401, "Signature invalide.");
     const expected = createHmac("sha256", secret).update(raw).digest();
     if (!timingSafeEqual(expected, Buffer.from(signature, "hex"))) throw error(401, "Signature invalide.");
-    const data = req.body?.transaction || req.body?.data || req.body;
-    const id = String(data?.id || "");
+    const data = solvexTransactionData(req.body);
+    const id = String(data?.id ?? data?.transaction_id ?? data?.transactionId ?? data?.tx_id ?? "");
     if (!id) throw error(400, "Référence fournisseur manquante.");
     const [known] = await db.select().from(paymentLinkTransactions).where(and(
       or(eq(paymentLinkTransactions.solvexpayTxnId, id), eq(paymentLinkTransactions.reference, String(data.reference || ""))),

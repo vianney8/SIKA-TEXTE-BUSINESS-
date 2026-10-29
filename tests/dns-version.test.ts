@@ -60,8 +60,21 @@ test("release changes preserve historical payments, target previous purchasers a
     `)).rows as { id: string; dns_version: string }[];
     assert.equal(renewal.dns_version, version);
     assert.equal((await getDnsUpdateStatus(userId, tx)).status, "pending");
-    await tx.execute(sql`UPDATE payment_link_transactions SET status = 'failed' WHERE id = ${renewal.id}`);
-    assert.equal((await getDnsUpdateStatus(userId, tx)).status, "failed");
+    await tx.execute(sql`UPDATE payment_link_transactions SET reference = ${`UCHK-${randomUUID()}`} WHERE id = ${renewal.id}`);
+    const unconfirmed = await getDnsUpdateStatus(userId, tx);
+    assert.equal(unconfirmed.status, "unconfirmed");
+    assert.equal(getDnsPaymentView(unconfirmed, true), "unconfirmed");
+    await tx.execute(sql`UPDATE payment_link_transactions SET solvexpay_txn_id = 'synthetic-provider-id' WHERE id = ${renewal.id}`);
+    assert.equal((await getDnsUpdateStatus(userId, tx)).status, "pending");
+    for (const terminal of ["failed", "rejected", "declined", "cancelled", "canceled", "expired", "error"]) {
+      await tx.execute(sql`UPDATE payment_link_transactions SET status = ${terminal} WHERE id = ${renewal.id}`);
+      const failed = await getDnsUpdateStatus(userId, tx);
+      assert.equal(failed.status, "failed", terminal);
+      assert.equal(getDnsPaymentView(failed, false), "failed");
+    }
+    await tx.execute(sql`UPDATE payment_link_transactions SET dns_retry_requested = true WHERE id = ${renewal.id}`);
+    assert.equal(getDnsPaymentView(await getDnsUpdateStatus(userId, tx), false), "form");
+    assert.equal(getDnsPaymentView(await getDnsUpdateStatus(userId, tx), false), "form");
     await tx.execute(sql`UPDATE payment_link_transactions SET status = 'completed' WHERE id = ${renewal.id}`);
     const current = await getDnsUpdateStatus(userId, tx);
     assert.equal(current.status, "completed");

@@ -1223,7 +1223,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await db.execute(sql`
         UPDATE payment_link_transactions SET dns_retry_requested = true
         WHERE id = ${transactionId} AND user_id = ${userId}
-          AND link_id = 'eedbc622' AND status = 'failed'
+          AND link_id = 'eedbc622'
+          AND lower(trim(status)) IN ('failed', 'failure', 'rejected', 'declined', 'cancelled', 'canceled', 'expired', 'error', 'denied')
           AND id = (
             SELECT id FROM payment_link_transactions
             WHERE user_id = ${userId} AND link_id = 'eedbc622'

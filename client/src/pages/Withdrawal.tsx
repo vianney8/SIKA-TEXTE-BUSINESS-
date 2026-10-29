@@ -15,7 +15,7 @@ import { useAppSetting } from "@/hooks/useAppSettings";
 import { FaTelegram } from "react-icons/fa";
 import { formatFCFA } from "@/lib/utils";
 import DnsPaymentForm from "@/components/DnsPaymentForm";
-import { getDnsPaymentView, type DnsPaymentStatus } from "@shared/dns-payment-state";
+import { discardAcknowledgedDnsAttempts, getDnsPaymentView, type DnsPaymentStatus } from "@shared/dns-payment-state";
 import DnsReleasePopup from "@/components/DnsReleasePopup";
 import { dnsVersionIsOutdated } from "@shared/dns-version";
 import {
@@ -78,18 +78,16 @@ export default function Withdrawal() {
   const [transferredAmount, setTransferredAmount] = useState(0);
   const [animStep, setAnimStep] = useState(0); // 0=initial 1=arrow 2=done
 
-  const [showDnsPage, setShowDnsPage] = useState(false);
+  const [showDnsPage, setShowDnsPage] = useState(() => new URLSearchParams(window.location.search).get("dnsReturn") === "1");
   const [showDnsForm, setShowDnsForm] = useState(false);
   const [dismissedDnsReleaseId, setDismissedDnsReleaseId] = useState<string | null>(null);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("dnsReturn") === "1") {
-      setShowDnsPage(true);
-      setShowDnsForm(false);
-      window.history.replaceState({}, "", "/withdrawal");
-    }
-  }, []);
+    const url = new URL(window.location.href);
+    if (showDnsPage) url.searchParams.set("dnsReturn", "1");
+    else url.searchParams.delete("dnsReturn");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [showDnsPage]);
 
   const { data: telegramSupervisor } = useAppSetting("telegram_supervisor");
 
@@ -99,14 +97,14 @@ export default function Withdrawal() {
 
   const dnsStatusQuery = useQuery<DnsPaymentStatus>({
     queryKey: ["/api/withdrawal/dns-update-status"],
-    refetchInterval: (q) => (q.state.data?.status === 'pending') ? 4000 : 15000,
+    refetchInterval: (q) => (q.state.data?.status === 'pending' || q.state.data?.status === 'unconfirmed') ? 4000 : 15000,
     refetchOnWindowFocus: true,
     staleTime: 0,
     refetchOnMount: "always",
   });
   const { data: dnsUpdateStatus, refetch: refetchDnsStatus } = dnsStatusQuery;
 
-  const dnsView = getDnsPaymentView(dnsUpdateStatus, showDnsForm);
+  const dnsView = getDnsPaymentView(dnsStatusQuery.isFetchedAfterMount ? dnsUpdateStatus : undefined, showDnsForm);
   const dnsCurrentVersion = dnsUpdateStatus?.currentVersion || dnsUpdateStatus?.installedVersion || "—";
   const freshDnsRelease = dnsStatusQuery.isSuccess && dnsStatusQuery.isFetchedAfterMount
     ? dnsUpdateStatus?.announcement ?? null
@@ -122,7 +120,7 @@ export default function Withdrawal() {
         onUpdate={() => {
           setDismissedDnsReleaseId(freshDnsRelease.id);
           setShowDnsPage(true);
-          setShowDnsForm(dnsUpdateStatus?.status !== "pending" && dnsUpdateStatus?.status !== "completed");
+          setShowDnsForm(!["pending", "unconfirmed", "completed"].includes(dnsUpdateStatus?.status || ""));
         }}
       />
     )
@@ -135,6 +133,7 @@ export default function Withdrawal() {
       return response.json() as Promise<DnsPaymentStatus>;
     },
     onSuccess: (status) => {
+      try { discardAcknowledgedDnsAttempts(window.sessionStorage, status); } catch { /* Storage can be unavailable in private browsing. */ }
       queryClient.setQueryData(["/api/withdrawal/dns-update-status"], status);
       void refetchDnsStatus();
     },
@@ -1045,6 +1044,29 @@ export default function Withdrawal() {
             )}
 
             {/* ── État : PENDING — En attente de validation ── */}
+            {dnsView === 'unconfirmed' && (
+              <section role="alert" className="space-y-4">
+                <div className="rounded-3xl border border-amber-300 bg-amber-50 p-6 text-center shadow-sm">
+                  <AlertTriangle size={30} className="mx-auto mb-4 text-amber-700" />
+                  <h2 className="text-xl font-black text-amber-950">Lancement du paiement non confirmé</h2>
+                  <p className="mt-3 text-sm leading-relaxed text-amber-900">
+                    SolvexPay n’a pas confirmé le lancement de cette tentative. Votre nouvelle version DNS n’est pas encore activée.
+                  </p>
+                  <p className="mt-3 text-sm font-bold text-amber-950">
+                    Si vous avez été débité, ne payez pas une seconde fois. Contactez l’assistance pour faire vérifier cette référence.
+                  </p>
+                  <p className="mt-4 break-all text-xs text-amber-800">Référence : {dnsUpdateStatus?.transactionId}</p>
+                </div>
+                <button onClick={() => refetchDnsStatus()} disabled={dnsStatusQuery.isFetching}
+                  className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-sm font-bold text-slate-800 disabled:opacity-60">
+                  {dnsStatusQuery.isFetching ? "Vérification…" : "Actualiser la vérification"}
+                </button>
+                <a href="/assistance" className="block w-full rounded-2xl bg-violet-700 p-4 text-center text-sm font-bold text-white">
+                  Contacter l’assistance
+                </a>
+              </section>
+            )}
+
             {dnsView === 'pending' && (
               <>
                 {(() => {
