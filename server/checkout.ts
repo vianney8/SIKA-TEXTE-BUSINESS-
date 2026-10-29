@@ -50,8 +50,11 @@ const error = (status: number, message: string) => Object.assign(new Error(messa
 const authId = (req: Request) => (req as any).session?.userId as string | undefined;
 const wrap = (fn: (req: Request, res: Response, next: NextFunction) => Promise<unknown>) =>
   (req: Request, res: Response, next: NextFunction) => { void fn(req, res, next).catch((err: any) => {
-    console.error("[CHECKOUT]", err.message);
-    if (!res.headersSent) res.status(err.status || 500).json({ message: err.status ? err.message : "Impossible de traiter le paiement. Veuillez réessayer." });
+    const invalidInput = err instanceof z.ZodError;
+    console.error("[CHECKOUT] Request failed", invalidInput ? 400 : (err.status || 500));
+    if (!res.headersSent) res.status(invalidInput ? 400 : (err.status || 500)).json({
+      message: invalidInput ? "Informations de paiement invalides." : (err.status ? err.message : "Impossible de traiter le paiement. Veuillez réessayer."),
+    });
   }); };
 
 async function resolveService(service: z.infer<typeof serviceSchema>, linkId: string | undefined, settings: Settings, userId?: string) {

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { safeReturnPath } from "@shared/safe-redirect";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -54,7 +55,7 @@ export default function SimpleLogin() {
       if (response.ok) {
         toast({ title: "Connexion réussie !", description: "Bienvenue sur SIKA TEXTE" });
         const next = new URLSearchParams(window.location.search).get("next");
-        const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+        const safeNext = safeReturnPath(next);
         setTimeout(() => window.location.replace(safeNext), 800);
       } else if (response.status === 403 && data.blocked) {
         setBlockedReason(data.blockedReason || null);

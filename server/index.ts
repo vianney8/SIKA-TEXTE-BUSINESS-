@@ -52,7 +52,6 @@ app.use((req, res, next) => {
   server.listen({
     port,
     host: "0.0.0.0",
-    reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
   });
@@ -465,11 +464,13 @@ app.use((req, res, next) => {
   }
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
+    if (res.headersSent) return _next(err);
+    const requestedStatus = Number(err.status || err.statusCode);
+    const status = Number.isInteger(requestedStatus) && requestedStatus >= 400 && requestedStatus <= 599
+      ? requestedStatus : 500;
+    const message = status >= 500 ? "Une erreur interne est survenue. Veuillez réessayer." : (err.message || "Requête invalide");
+    log(`Request error (${status})`);
     res.status(status).json({ message });
-    throw err;
   });
 
   // importantly only setup vite in development and after
