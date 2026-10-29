@@ -1047,6 +1047,9 @@ export default function Withdrawal() {
             {/* ── État : PENDING — En attente de validation ── */}
             {dnsView === 'pending' && (
               <>
+                {(() => {
+                  const automaticDns = dnsUpdateStatus?.paymentMode === "solvexpay" || dnsUpdateStatus?.paymentMode === "robotpay";
+                  return (
                 <div className="rounded-3xl p-6 relative overflow-hidden text-center bg-violet-50 border border-violet-200 shadow-sm">
                   <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full pointer-events-none"
                     style={{ background: "radial-gradient(circle, rgba(109,77,174,0.12), transparent)" }} />
@@ -1061,9 +1064,11 @@ export default function Withdrawal() {
                        <div className="w-1.5 h-1.5 rounded-full bg-violet-600 animate-pulse" />
                       Vérification en cours... mise à jour en cours
                     </div>
-                     <p className="text-slate-600 text-sm leading-relaxed">
-                      Votre demande a bien été transmise et est en cours de vérification par notre équipe. La mise à jour de votre serveur DNS sera activée automatiquement une fois la demande confirmée.
-                    </p>
+                      <p className="text-slate-600 text-sm leading-relaxed">
+                       {automaticDns
+                         ? "Le paiement est en attente de confirmation par SolvexPay. Nous actualisons son statut automatiquement."
+                         : "Votre demande a bien été transmise et est en cours de vérification par notre équipe. La mise à jour DNS sera activée après confirmation."}
+                     </p>
                   </div>
                 </div>
 
@@ -1094,6 +1099,8 @@ export default function Withdrawal() {
                   className="w-full py-3 rounded-2xl font-bold text-sm text-amber-800 border border-amber-200 bg-amber-50 active:scale-[0.97] transition-all flex items-center justify-center gap-2">
                   <Wifi size={15} /> Actualiser le statut
                 </button>
+                  );
+                })()}
               </>
             )}
 

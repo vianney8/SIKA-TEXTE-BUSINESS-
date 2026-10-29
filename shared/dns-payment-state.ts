@@ -3,6 +3,7 @@ import type { DnsRelease } from "./dns-version";
 export interface DnsPaymentStatus {
   status: "none" | "pending" | "completed" | "failed" | "outdated";
   transactionId?: string;
+  paymentMode?: "manual" | "solvexpay" | "robotpay";
   retryRequested?: boolean;
   currentVersion?: string;
   installedVersion?: string | null;

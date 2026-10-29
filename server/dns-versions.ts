@@ -64,13 +64,13 @@ export async function getDnsUpdateStatus(userId: string, database: Pick<typeof d
   // A single statement gives a consistent snapshot of the release and receipts.
   const result = await database.execute(sql`
     SELECT r.*,
-      latest.id AS transaction_id, latest.status AS payment_status,
+      latest.id AS transaction_id, latest.status AS payment_status, latest.reference AS payment_reference,
       latest.dns_retry_requested,
       installed.dns_version AS installed_version,
       current_receipt.id AS current_receipt_id
     FROM (SELECT * FROM dns_releases ORDER BY published_at DESC, id DESC LIMIT 1) r
     LEFT JOIN LATERAL (
-      SELECT id, status, dns_retry_requested FROM payment_link_transactions
+      SELECT id, status, reference, dns_retry_requested FROM payment_link_transactions
       WHERE link_id = ${DNS_LINK} AND user_id = ${userId}
       ORDER BY created_at DESC, id DESC LIMIT 1
     ) latest ON true
@@ -86,7 +86,7 @@ export async function getDnsUpdateStatus(userId: string, database: Pick<typeof d
     ) current_receipt ON true
   `);
   const row = result.rows[0] as ReleaseRow & {
-    transaction_id: string | null; payment_status: string | null;
+    transaction_id: string | null; payment_status: string | null; payment_reference: string | null;
     dns_retry_requested: boolean | null; installed_version: string | null; current_receipt_id: string | null;
   };
   if (!row) throw new Error("Aucune version DNS configurée.");
@@ -99,6 +99,10 @@ export async function getDnsUpdateStatus(userId: string, database: Pick<typeof d
   return {
     status,
     transactionId: row.current_receipt_id || row.transaction_id || undefined,
+    paymentMode: row.payment_status !== "pending" ? undefined
+      : row.payment_reference?.startsWith("UCHK-") ? "solvexpay"
+      : row.payment_reference?.startsWith("WST-DNS-") ? "robotpay"
+      : "manual",
     retryRequested: row.dns_retry_requested || false,
     currentVersion: row.version,
     installedVersion,
