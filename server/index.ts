@@ -6,16 +6,19 @@ import { appSettings } from "@shared/schema";
 import { sql } from "drizzle-orm";
 import { storage } from "./storage";
 import { BUNDLED_DEMO_VIDEO_URL, LEGACY_DEMO_VIDEO_URL } from "@shared/demo-video";
+import { retireRobotPaySettings } from "./retired-gateway";
 
 const app = express();
 app.use(express.json({
   limit: "10mb", // captures d'écran envoyées en base64 depuis le chat d'appel
+  inflate: false,
   verify: (req: any, _res, buf) => {
     req.rawBody = buf;
   }
 }));
 app.use(express.urlencoded({
   extended: false,
+  inflate: false,
   verify: (req: any, _res, buf) => {
     req.rawBody = buf;
   }
@@ -24,21 +27,10 @@ app.use(express.urlencoded({
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse && !/^\/api\/(?:groups|group-invites)(?:\/|$)/.test(path)) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
 
       if (logLine.length > 80) {
         logLine = logLine.slice(0, 79) + "…";
@@ -88,14 +80,6 @@ app.use((req, res, next) => {
     { key: 'ci_payment_link_url',        value: 'https://clp.ci/ETPXwo',                             label: 'URL de redirection CI (liens de paiement)' },
     { key: 'solvexpay_name',            value: 'SolvexPay — Mobile Money',                         label: 'Nom Passerelle SolvexPay' },
     { key: 'solvexpay_link',            value: '',                                                  label: 'Lien de paiement SolvexPay' },
-    { key: 'robotpay_enabled',          value: 'false',                                             label: 'Activer Passerelle RobotPay' },
-    { key: 'robotpay_name',             value: 'RobotPay — Mobile Money',                          label: 'Nom Passerelle RobotPay' },
-    { key: 'robotpay_merchant_slug',    value: '',                                                  label: 'Slug marchand WestPay' },
-    { key: 'robotpay_checkout_url',     value: 'https://checkout1.westpay.cfd/pay',                 label: 'URL checkout hébergé WestPay' },
-    { key: 'robotpay_activation_link',  value: '',                                                  label: 'Lien WestPay activation compte' },
-    { key: 'robotpay_pcs_purchase_link', value: '',                                                 label: 'Lien WestPay achat PCS' },
-    { key: 'robotpay_pcs_activation_link', value: '',                                               label: 'Lien WestPay activation PCS' },
-    { key: 'robotpay_dns_link',         value: '',                                                  label: 'Lien WestPay mise à jour DNS' },
     { key: 'whatsapp_admin_contact',    value: '',                                                  label: 'WhatsApp Administrateur (Contact Mise à jour)' },
     { key: 'demo_video_url',            value: BUNDLED_DEMO_VIDEO_URL,                             label: 'Vidéo démonstration accueil' },
     { key: 'international_deposit_note_bj_mtn',    value: '', label: 'Note dépôt Bénin MTN' },
@@ -138,7 +122,8 @@ app.use((req, res, next) => {
       WHERE key = 'demo_video_url'
         AND value IN (${LEGACY_DEMO_VIDEO_URL}, '/promo.mp4')
     `);
-    log('App settings seeded');
+    await retireRobotPaySettings();
+    log('App settings seeded; retired gateway configuration removed (history preserved)');
   } catch (err) {
     log('App settings seed skipped (DB temporarily unavailable): ' + (err as Error).message);
   }

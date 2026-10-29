@@ -21,15 +21,6 @@ const COUNTRIES = [
   { code: "CM",  name: "Cameroun",      flag: "🇨🇲", prefix: "237", phonePlaceholder: "6 12 34 56 78", operators: ["mtn","orange"] },
 ];
 
-const ROBOTPAY_OPERATORS: Record<string, string[]> = {
-  BJ: ["moov", "mtn"],
-  CI: ["moov", "mtn", "orange"],
-  SN: ["mixx", "orange", "wave"],
-  BF: ["moov", "orange", "wave"],
-  TG: ["moov", "tmoney"],
-  CM: ["mtn", "orange"],
-};
-
 const OPERATORS: Record<string, { name: string; full: string; bg: string; text: string; border: string; initials: string }> = {
   celtis: { name: "Celtis", full: "Celtis Cash", bg: "#006B52", text: "#fff", border: "#00513e", initials: "CC" },
   expresso: { name: "Expresso", full: "Expresso", bg: "#005E9E", text: "#fff", border: "#004a7d", initials: "EX" },
@@ -232,29 +223,17 @@ function LegacyPaymentLinkPage() {
   const selectedCountry = COUNTRIES.find(c => c.code === country);
   const selectedOp      = OPERATORS[operator];
 
-  type PayMode = "manual" | "redirect" | "solvexpay" | "robotpay";
+  type PayMode = "manual" | "redirect" | "solvexpay";
   const countryModes: Record<string, { mode: PayMode; redirectUrl: string }> = link?.countryModes ?? {};
   const ciMode: PayMode        = link?.ciMode ?? "redirect";
   const maintenanceMap: Record<string, boolean> = link?.maintenanceMap ?? {};
   const isOpMaintenance        = (c: string, op: string) => maintenanceMap[`${c}_${op}`] === true;
   const getMode                = (c: string): PayMode => { if (!c) return "manual"; if (c === "CI") return ciMode; return countryModes[c]?.mode ?? "manual"; };
   const getRedirectUrl         = (c: string): string  => { if (c === "CI") return link?.ciRedirectUrl || ""; return countryModes[c]?.redirectUrl || ""; };
-  const visibleOperators = selectedCountry
-    ? (getMode(selectedCountry.code) === "robotpay"
-      ? (selectedCountry.code === "CI"
-        ? Array.from(new Set([...(ROBOTPAY_OPERATORS.CI || []), "wave"]))
-        : ROBOTPAY_OPERATORS[selectedCountry.code] || [])
-      : selectedCountry.operators)
-    : [];
+  const visibleOperators = selectedCountry?.operators || [];
   const currentMode            = getMode(country);
   const useRedirect            = country !== "" && currentMode === "redirect";
-  const useCiWaveManual        = country === "CI" && operator === "wave" && currentMode === "robotpay";
-  // Le mode RobotPay choisi par l'administrateur pour le pays est prioritaire.
-  // Exception CI : Wave reste manuel car WestPay ne le prend pas en charge.
-  const useManual              = country !== "" && (
-    useCiWaveManual ||
-    currentMode === "manual"
-  );
+  const useManual              = country !== "" && currentMode === "manual";
 
   // ── Effects ──────────────────────────────────────────────────────────────
   useEffect(() => {

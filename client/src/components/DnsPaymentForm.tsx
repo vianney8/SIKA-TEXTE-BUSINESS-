@@ -83,7 +83,7 @@ function LegacyDnsPaymentForm({
   const continueAfterPhone = async () => {
     setAutomaticLoading(true);
     try {
-      const res = await fetch("/api/withdrawal/dns-robotpay-init", {
+      const res = await fetch("/api/withdrawal/dns-solvexpay-init", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

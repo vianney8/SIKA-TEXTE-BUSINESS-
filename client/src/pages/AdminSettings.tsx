@@ -87,8 +87,6 @@ export default function AdminSettings() {
       queryClient.invalidateQueries({ queryKey: ['/api/settings/telegram_group'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/ci_manual_activation'] });
       queryClient.invalidateQueries({ queryKey: ['/api/settings/ci_manual_activation_url'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/settings/robotpay_enabled'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/settings/robotpay_name'] });
       queryClient.invalidateQueries({ queryKey: ['/api/activation/payment-info'] });
       queryClient.invalidateQueries({ queryKey: ['/api/checkout/mode'] });
       queryClient.invalidateQueries({ queryKey: ['/api/checkout/config'] });
@@ -305,7 +303,7 @@ export default function AdminSettings() {
           </CardHeader>
           <CardContent>
             <p className="mb-4 text-sm text-muted-foreground">
-              Chaque pays conserve son propre mode : SolvexPay, RobotPay, dépôt manuel ou redirection, pour tous les services.
+              Chaque pays conserve son propre mode : SolvexPay, dépôt manuel ou redirection, pour tous les services.
               Choisissez la présentation utilisée par les clients. Aucun ancien formulaire n'est supprimé.
             </p>
             <div className="grid gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Modèle de paiement">
@@ -626,7 +624,6 @@ export default function AdminSettings() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
                   { value: 'solvexpay', label: 'SolvexPay', desc: 'API automatique' },
-                  { value: 'robotpay', label: 'RobotPay', desc: 'API automatique' },
                   { value: 'manual',   label: 'Dépôt manuel', desc: 'Numéros configurés' },
                   { value: 'redirect', label: 'Redirection', desc: 'Lien externe' },
                 ].map(opt => {
@@ -700,11 +697,6 @@ export default function AdminSettings() {
                   SolvexPay traite automatiquement les paiements CI via l'API. Aucune configuration manuelle requise.
                 </p>
               )}
-              {settings.ci_activation_mode === 'robotpay' && (
-                <p className="text-xs text-orange-700 bg-orange-100 rounded-lg px-3 py-2">
-                  RobotPay traite automatiquement les paiements CI via son API Mobile Money.
-                </p>
-              )}
             </div>
 
             {/* Configuration par pays */}
@@ -734,7 +726,6 @@ export default function AdminSettings() {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[
                   { value: 'solvexpay', label: 'SolvexPay', desc: 'API automatique' },
-                  { value: 'robotpay', label: 'RobotPay', desc: 'API automatique' },
                   { value: 'manual',   label: 'Dépôt manuel', desc: 'Numéros configurés' },
                   { value: 'redirect', label: 'Redirection', desc: 'Lien externe' },
                     ].map(opt => {
@@ -779,11 +770,6 @@ export default function AdminSettings() {
                       SolvexPay traite automatiquement les paiements {name} via l'API.
                     </p>
                   )}
-                  {currentMode === 'robotpay' && (
-                    <p className="text-xs text-blue-700 bg-blue-100 rounded-lg px-3 py-2">
-                      RobotPay traite automatiquement les paiements {name} via l'API Mobile Money.
-                    </p>
-                  )}
 
                   {/* Mode Dépôt manuel : numéros par opérateur */}
                   {currentMode === 'manual' && (
@@ -825,76 +811,6 @@ export default function AdminSettings() {
               );
             })}
 
-            {/* RobotPay */}
-            <div className="space-y-3 p-4 border rounded-lg border-emerald-300 bg-emerald-50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-emerald-500 to-teal-700 flex items-center justify-center text-white font-bold text-sm">
-                    R
-                  </div>
-                  <div>
-                    <p className="font-medium">RobotPay</p>
-                    <p className="text-sm text-muted-foreground">
-                      {settings.robotpay_enabled === 'true' ? '✓ Activé' : '✗ Désactivé'}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleInputChange('robotpay_enabled', settings.robotpay_enabled === 'true' ? 'false' : 'true')}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    settings.robotpay_enabled === 'true'
-                      ? 'bg-green-500 hover:bg-green-600 text-white'
-                      : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
-                  }`}
-                  data-testid="toggle-robotpay-enabled"
-                >
-                  {settings.robotpay_enabled === 'true' ? 'Activé' : 'Désactivé'}
-                </button>
-              </div>
-              <div>
-                <Label htmlFor="robotpay_name" className="text-sm">Nom personnalisé</Label>
-                <Input
-                  id="robotpay_name"
-                  value={settings.robotpay_name || 'RobotPay — Mobile Money'}
-                  onChange={(e) => handleInputChange('robotpay_name', e.target.value)}
-                  placeholder="RobotPay — Mobile Money"
-                  data-testid="input-robotpay-name"
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="robotpay_merchant_slug" className="text-sm">Slug marchand WestPay</Label>
-                <Input id="robotpay_merchant_slug" value={settings.robotpay_merchant_slug || ''} onChange={(e) => handleInputChange('robotpay_merchant_slug', e.target.value)} placeholder="Slug dynamique fourni par WestPay" className="mt-1" />
-              </div>
-              <div>
-                <Label htmlFor="robotpay_checkout_url" className="text-sm">URL checkout WestPay</Label>
-                <Input id="robotpay_checkout_url" value={settings.robotpay_checkout_url || 'https://checkout1.westpay.cfd/pay'} onChange={(e) => handleInputChange('robotpay_checkout_url', e.target.value)} placeholder="https://checkout1.westpay.cfd/pay" className="mt-1" />
-              </div>
-              {[
-                ['robotpay_activation_link', 'Activation du compte — 3 800 XOF'],
-                ['robotpay_pcs_purchase_link', 'Achat de code PCS'],
-                ['robotpay_pcs_activation_link', 'Activation PCS — 2 400 XOF'],
-                ['robotpay_dns_link', 'Mise à jour DNS'],
-              ].map(([key, label]) => (
-                <div key={key}>
-                  <Label htmlFor={key} className="text-sm">{label}</Label>
-                  <Input
-                    id={key}
-                    value={settings[key] || ''}
-                    onChange={(e) => handleInputChange(key, e.target.value)}
-                    placeholder="https://payment.bank2.westpay.cfd/?link=..."
-                    className="mt-1 font-mono text-xs"
-                  />
-                </div>
-              ))}
-              <p className="text-xs text-emerald-800 bg-emerald-100 rounded-lg px-3 py-2">
-                Les dépôts utilisent le checkout hébergé avec un slug dynamique. Les liens tokenisés <strong>link=…</strong> ont un montant fixe et ne conviennent pas à tous les services. Les clés API pays restent réservées aux retraits.
-              </p>
-              <p className="text-xs text-muted-foreground">
-                URL Webhook à configurer dans RobotPay : <span className="font-mono">https://sikatexte.site/api/webhook/robotpay</span>
-              </p>
-            </div>
 
 
             <Button 

@@ -112,7 +112,6 @@ const WESTPAY_COUNTRIES: Record<string, string> = {
 const WESTPAY_PREFIXES: Record<string, string> = {
   BJ: '229', CI: '225', SN: '221', TG: '228', CM: '237', BF: '226',
 };
-const WESTPAY_CHECKOUT_DEFAULT = 'https://checkout1.westpay.cfd/pay';
 function normalizedPhone(value: unknown) { return String(value || '').replace(/\D/g, ''); }
 function samePaymentPhone(left: unknown, right: unknown) {
   const a = normalizedPhone(left);
@@ -138,30 +137,6 @@ function normalizedCountry(value: unknown) {
     text === code.toLowerCase() || text === name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
   return matches?.[0] || String(value || '').toUpperCase();
 }
-function configuredWestPay(settings: any[]) {
-  const merchantSlug = settings.find(s => s.key === 'robotpay_merchant_slug')?.value?.trim();
-  const requestedUrl = settings.find(s => s.key === 'robotpay_checkout_url')?.value?.trim();
-  const checkoutUrl = requestedUrl === 'https://payment.bank2.westpay.cfd/' ? requestedUrl : WESTPAY_CHECKOUT_DEFAULT;
-  return { merchantSlug, checkoutUrl };
-}
-function configuredWestPayLink(settings: any[], service: 'activation' | 'pcs_purchase' | 'pcs_activation' | 'dns') {
-  return settings.find(s => s.key === `robotpay_${service}_link`)?.value?.trim() || '';
-}
-function westPayUrl(checkoutUrl: string, merchantSlug: string, amount: string | number, country: string, redirect: string) {
-  const url = new URL(checkoutUrl || WESTPAY_CHECKOUT_DEFAULT);
-  if (url.searchParams.has('link')) {
-    url.searchParams.set('country', WESTPAY_COUNTRIES[country] || country);
-    url.searchParams.set('redirect', redirect);
-    return url.toString();
-  }
-  if (url.hostname === 'checkout1.westpay.cfd' && url.pathname === '/') url.pathname = '/pay';
-  url.searchParams.set('merchant', merchantSlug);
-  url.searchParams.set('amount', String(amount));
-  url.searchParams.set('country', WESTPAY_COUNTRIES[country] || country);
-  url.searchParams.set('redirect', redirect);
-  return url.toString();
-}
-
 // Session setup
 function setupSessions(app: Express) {
   app.set("trust proxy", 1);
@@ -331,111 +306,6 @@ function escapeTelegramHtml(value: unknown) {
     .replace(/>/g, '&gt;');
 }
 
-async function sendWestPayTelegramNotification(
-  settings: any[],
-  text: string,
-  replyMarkup?: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> },
-) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token) {
-    console.error('[WESTPAY-TELEGRAM] TELEGRAM_BOT_TOKEN non configuré');
-    return false;
-  }
-  try {
-    const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: telegramAdminChatId(settings),
-        text,
-        parse_mode: 'HTML',
-        ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
-      }),
-    });
-    const result = await response.json() as any;
-    if (!response.ok || !result.ok) {
-      console.error('[WESTPAY-TELEGRAM] Échec notification:', result?.description || response.status);
-      return false;
-    }
-    return true;
-  } catch (error) {
-    console.error('[WESTPAY-TELEGRAM] Erreur notification:', error);
-    return false;
-  }
-}
-
-async function notifyWestPayActivationRequest(
-  settings: any[],
-  user: any,
-  details: { reference: string; phone: string; operator: string; country: string; amount: number },
-) {
-  const text =
-    `💳 <b>Demande WestPay — Activation de compte</b>\n\n` +
-    `👤 <b>Nom :</b> ${escapeTelegramHtml(user.fullName || 'Non renseigné')}\n` +
-    `🆔 <b>ID compte :</b> <code>${escapeTelegramHtml(user.id)}</code>\n` +
-    `📧 <b>Email :</b> <code>${escapeTelegramHtml(user.email || 'N/A')}</code>\n` +
-    `📱 <b>Numéro :</b> <code>${escapeTelegramHtml(formatPhoneIntl(details.phone, details.country))}</code>\n` +
-    `💳 <b>Opérateur :</b> ${escapeTelegramHtml(details.operator)}\n` +
-    `🌍 <b>Pays :</b> ${escapeTelegramHtml(details.country)}\n` +
-    `💰 <b>Montant :</b> ${details.amount.toLocaleString('fr-FR')} FCFA\n` +
-    `🔖 <b>Référence locale :</b> <code>${escapeTelegramHtml(details.reference)}</code>\n\n` +
-    `⚠️ <b>Demande lancée, paiement non encore confirmé par SIKA TEXTE.</b>\n` +
-    `Vérifiez la transaction réussie dans WestPay avant d'activer.`;
-  return sendWestPayTelegramNotification(settings, text, {
-    inline_keyboard: [[
-      { text: '✅ Activer le compte', callback_data: `act_approve_pre_${user.id}` },
-      { text: '❌ Décliner', callback_data: `act_decline_pre_${user.id}` },
-    ]],
-  });
-}
-
-async function notifyWestPayLinkRequest(
-  settings: any[],
-  link: any,
-  transaction: any,
-) {
-  const service = transaction.linkId === '88cb6331'
-    ? 'Activation de code PCS'
-    : (transaction.linkId === 'd3e5479d' || transaction.linkId === 'codepcs')
-      ? 'Achat de code PCS'
-      : transaction.linkId === 'eedbc622'
-        ? 'Mise à jour DNS privé'
-        : transaction.linkLabel || link.label || 'Paiement';
-  const text =
-    `💳 <b>Demande WestPay — ${escapeTelegramHtml(service)}</b>\n\n` +
-    `👤 <b>Nom :</b> ${escapeTelegramHtml(transaction.customerName || 'Non renseigné')}\n` +
-    `📧 <b>Email :</b> <code>${escapeTelegramHtml(transaction.customerEmail || 'Non renseigné')}</code>\n` +
-    `📱 <b>Numéro :</b> <code>${escapeTelegramHtml(formatPhoneIntl(transaction.phone, transaction.country))}</code>\n` +
-    `💳 <b>Opérateur :</b> ${escapeTelegramHtml(transaction.operator || 'Non renseigné')}\n` +
-    `🌍 <b>Pays :</b> ${escapeTelegramHtml(transaction.country || 'Non renseigné')}\n` +
-    `💰 <b>Montant :</b> ${Number(transaction.amount).toLocaleString('fr-FR')} FCFA\n` +
-    `🔖 <b>Référence locale :</b> <code>${escapeTelegramHtml(transaction.reference || transaction.id)}</code>\n\n` +
-    `⚠️ <b>Demande lancée, paiement non encore confirmé par SIKA TEXTE.</b>\n` +
-    `Vérifiez la transaction réussie dans WestPay avant toute validation.`;
-
-  let replyMarkup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> } | undefined;
-  if (transaction.linkId === 'eedbc622') {
-    replyMarkup = { inline_keyboard: [[
-      { text: '✅ Valider le DNS', callback_data: `dnsval_ok_${transaction.id}` },
-      { text: '❌ Refuser', callback_data: `dnsval_no_${transaction.id}` },
-    ]] };
-  } else if (transaction.linkId === 'd3e5479d' || transaction.linkId === 'codepcs') {
-    replyMarkup = { inline_keyboard: [[
-      { text: '🆕 Créer et envoyer le code PCS', callback_data: `pcsnew_pre_${transaction.id}` },
-    ]] };
-  }
-
-  const sent = await sendWestPayTelegramNotification(settings, text, replyMarkup);
-  if (sent && transaction.linkId === '88cb6331' && transaction.customerEmail && process.env.TELEGRAM_BOT_TOKEN) {
-    await sendUserPcsCodesListToTelegram(
-      telegramAdminChatId(settings),
-      transaction.customerEmail,
-      process.env.TELEGRAM_BOT_TOKEN,
-    );
-  }
-  return sent;
-}
-
 export async function registerRoutes(app: Express): Promise<Server> {
   await ensureDnsVersionSchema();
   // Serve uploaded files (videos, etc.)
@@ -557,8 +427,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Support new format with fullName, email, and phone
       const { fullName, email, phone, password, referralCode } = req.body;
       
-      console.log(`[REGISTER] Incoming data - Phone: ${phone}, Password length: ${password?.length}, Email: ${email}`);
-      console.log(`[REGISTER DEBUG] Full request body:`, JSON.stringify({ fullName, email, phone: phone, hasPassword: !!password, referralCode }));
       
       // Basic validation
       if (!fullName || !email || !phone || !password) {
@@ -572,24 +440,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if user already exists by phone
       const existingUserByPhone = await storage.getUserByPhone(phone);
       if (existingUserByPhone) {
-        console.log(`[REGISTER FAILED] User already exists with phone: ${phone}`);
         return res.status(400).json({ message: "Un utilisateur avec ce numéro de téléphone existe déjà" });
       }
 
       // Check if user already exists by email
       const existingUserByEmail = await storage.getUserByEmail(email);
       if (existingUserByEmail) {
-        console.log(`[REGISTER FAILED] User already exists with email: ${email}`);
         return res.status(400).json({ message: "Un utilisateur avec cette adresse email existe déjà" });
       }
 
       // Hash password (trim to avoid accidental spaces)
       const trimmedPassword = password.trim();
-      console.log(`[REGISTER] Password - Original length: ${password.length}, Trimmed length: ${trimmedPassword.length}`);
       const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
       console.log(`[REGISTER] Password hashed successfully, hash length: ${hashedPassword.length}`);
 
-      console.log(`[REGISTER] About to create user with phone: ${phone}`);
       
       const detectedCountry = detectCountryFromPhone(phone) || 'CI';
       const user = await storage.createUser({
@@ -601,11 +465,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         country: detectedCountry,
       } as any);
       
-      console.log(`[REGISTER SUCCESS] User created - ID: ${user.id}, Phone SENT: ${phone}, Phone STORED: ${user.phone}, Email: ${user.email}`);
       
       // Check if phone number changed
       if (user.phone !== phone) {
-        console.warn(`[REGISTER WARNING] Phone number mismatch! Sent: ${phone}, Stored: ${user.phone}`);
+        console.warn('[REGISTER] Stored phone does not match submitted phone');
       }
 
       // Create signup bonus transaction of 600 FCFA
@@ -795,39 +658,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { phoneNumber, password } = simpleLoginSchema.parse(req.body);
       
-      console.log(`[LOGIN ATTEMPT] Phone: ${phoneNumber}, Password length: ${password.length}`);
       
       const user = await storage.getUserByPhone(phoneNumber);
       if (!user) {
-        console.log(`[LOGIN FAILED] User not found for phone: ${phoneNumber}`);
         return res.status(401).json({ message: "Numéro de téléphone ou mot de passe incorrect" });
       }
 
       if (!user.password) {
-        console.log(`[LOGIN FAILED] No password set for phone: ${phoneNumber}`);
         return res.status(401).json({ message: "Numéro de téléphone ou mot de passe incorrect" });
       }
 
       // Check if account is blocked BEFORE checking password
       if (user.isBlocked) {
-        console.log(`[LOGIN FAILED] Account blocked for user: ${phoneNumber}`);
         return res.status(403).json({ message: "Votre compte est bloqué", blocked: true, blockedReason: user.blockedReason || null });
       }
 
       const isValidPassword = await bcrypt.compare(password.trim(), user.password);
-      console.log(`[LOGIN] Password validation result: ${isValidPassword} for phone: ${phoneNumber}`);
-      console.log(`[LOGIN DEBUG] Password from request (trimmed, length): ${password.trim().length}`);
-      console.log(`[LOGIN DEBUG] Stored hash (length): ${user.password.length}`);
       
       if (!isValidPassword) {
-        console.log(`[LOGIN FAILED] Invalid password for user: ${phoneNumber}`);
         return res.status(401).json({ message: "Numéro de téléphone ou mot de passe incorrect" });
       }
 
       // Set session
       await establishUserSession(req, user.id);
       
-      console.log(`[LOGIN SUCCESS] User ${phoneNumber} logged in successfully`);
 
       res.json({ message: "Connexion réussie", user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName } });
     } catch (error: any) {
@@ -1389,7 +1243,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Keep the legacy URL compatible, but automatic DNS always invokes SolvexPay.
   // Identity and price are resolved server-side by the same checkout engine.
-  app.post('/api/withdrawal/dns-robotpay-init', requireAuth, async (req: any, res) => {
+  app.post(['/api/withdrawal/dns-solvexpay-init', '/api/withdrawal/dns-robotpay-init'], requireAuth, async (req: any, res) => {
     try {
       const settings = await storage.getAppSettings();
       const configuredMode = countryPaymentMode(Object.fromEntries(settings.map(item => [item.key, item.value])), String(req.body?.country || ""));
@@ -1445,7 +1299,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { country, operator, phone, payerName, transactionId } = req.body;
       const countrySettings = await storage.getAppSettings();
       const selectedMode = countryPaymentMode(Object.fromEntries(countrySettings.map(s => [s.key, s.value])), String(country || ""));
-      if (selectedMode !== "manual" && !(String(country).toUpperCase() === "CI" && String(operator).toLowerCase() === "wave" && selectedMode === "robotpay")) {
+      if (selectedMode !== "manual") {
         return res.status(409).json({ message: "Le dépôt manuel n’est pas le mode actif pour ce pays." });
       }
       if (!country || !operator || !phone || !transactionId) {
@@ -2609,7 +2463,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ message: "Statut mis à jour mais échec de l'envoi email." });
       }
 
-      console.log(`[ADMIN PCS] Updated code ${pcsCodeRow.code} → ${status} and sent email to ${email}`);
       res.json({ success: true, code: pcsCodeRow.code, status, emailSent: true });
     } catch (error) {
       console.error('Error in update-and-send PCS:', error);
@@ -2692,11 +2545,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { userId } = req.params;
       const { newPassword } = adminUpdatePasswordSchema.parse(req.body);
       
-      console.log(`[ADMIN PASSWORD UPDATE] User ID: ${userId}, New password length: ${newPassword.length}, Trimmed length: ${newPassword.trim().length}`);
       
       // Get user before update for logging
       const userBefore = await storage.getUser(userId);
-      console.log(`[ADMIN PASSWORD UPDATE] User phone: ${userBefore?.phone}, Old hash length: ${userBefore?.password?.length || 0}`);
       
       const hashedPassword = await bcrypt.hash(newPassword.trim(), 10);
       console.log(`[ADMIN PASSWORD UPDATE] New hash generated, length: ${hashedPassword.length}`);
@@ -2705,8 +2556,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Verify the update worked
       const userAfter = await storage.getUser(userId);
-      console.log(`[ADMIN PASSWORD UPDATE] Update complete. New hash in DB, length: ${userAfter?.password?.length || 0}`);
-      console.log(`[ADMIN PASSWORD UPDATE] Hash changed: ${userBefore?.password !== userAfter?.password}`);
       
       // Destroy all sessions for this user so they must log in with new password
       await db.execute(sql`DELETE FROM sessions WHERE sess::jsonb->>'userId' = ${userId}`);
@@ -2730,7 +2579,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Get user info for logging
       const user = await storage.getUser(userId);
-      console.log(`[ADMIN BLOCK/UNBLOCK] User: ${user?.phone}, Action: ${blocked ? 'BLOCK' : 'UNBLOCK'}`);
       
       await storage.blockUser(userId, blocked, reason);
       
@@ -3070,7 +2918,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const countryLower = country.toLowerCase();
       const opLower = operator.toLowerCase();
       const configuredMode = settings.find((s: any) => s.key === `${countryLower}_activation_mode`)?.value || 'manual';
-      const isCiWaveManual = countryLower === 'ci' && opLower === 'wave' && configuredMode === 'robotpay';
+      const isCiWaveManual = false;
       const enabled = isCiWaveManual || settings.find((s: any) => s.key === `${countryLower}_manual_activation`)?.value !== 'false';
       const depositNumber = settings.find((s: any) => s.key === `${countryLower}_${opLower}_deposit_number`)?.value || '';
       const activationAmount = parseInt(settings.find((s: any) => s.key === 'activation_amount')?.value || '3600');
@@ -3099,7 +2947,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { country, operator, phone, transactionId, payerName } = req.body;
       const countrySettings = await storage.getAppSettings();
       const selectedMode = countryPaymentMode(Object.fromEntries(countrySettings.map(s => [s.key, s.value])), String(country || ""));
-      if (selectedMode !== "manual" && !(String(country).toUpperCase() === "CI" && String(operator).toLowerCase() === "wave" && selectedMode === "robotpay")) {
+      if (selectedMode !== "manual") {
         return res.status(409).json({ message: "Le dépôt manuel n’est pas le mode actif pour ce pays." });
       }
       if (!country || !operator || !phone || !transactionId) {
@@ -6037,7 +5885,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   body: JSON.stringify({ chat_id: chatId, text: summary, parse_mode: 'HTML' })
                 });
               }
-              console.log('[PCS-NEW] Created inactive code', newCode, 'for', txn.customerEmail);
             }
           } catch (err) {
             answerText = '❌ Erreur lors de la création';
@@ -6919,12 +6766,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   try {
                     await db.insert(pcsCodes).values({ userId: foundUser.id, code: pcsCode, status: 'inactif' });
                     pcsInsertedToAccount = true;
-                    console.log('[LNKMA-OK] Code PCS inséré dans pcs_codes:', pcsCode, 'pour userId:', foundUser.id);
                   } catch (insertErr) {
                     console.error('[LNKMA-OK] Échec insert pcs_codes:', insertErr);
                   }
                 } else {
-                  console.warn('[LNKMA-OK] Aucun compte Sika trouvé pour email:', r.customerEmail, '— code non rattaché');
+                  console.warn('[LNKMA-OK] No account found; code not assigned');
                 }
 
                 // Envoi email (avec await pour capturer les erreurs)
@@ -7445,6 +7291,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { key } = req.params;
       const { value } = req.body;
+      if (/^(robotpay|westpay)_/i.test(key)) {
+        return res.status(410).json({ message: 'Cette passerelle a été retirée.' });
+      }
       if (value === undefined || value === null) {
         return res.status(400).json({ message: 'Valeur requise' });
       }
@@ -7454,7 +7303,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (key === 'payment_checkout_model' && !CHECKOUT_MODELS.includes(value)) {
         return res.status(400).json({ message: 'Modèle de paiement invalide' });
       }
-      if (/^(bj|ci|sn|bf|tg|cm)_activation_mode$/.test(key) && !["manual", "solvexpay", "robotpay", "redirect"].includes(value)) {
+      if (/^(bj|ci|sn|bf|tg|cm)_activation_mode$/.test(key) && !["manual", "solvexpay", "redirect"].includes(value)) {
         return res.status(400).json({ message: 'Mode de paiement du pays invalide' });
       }
       if (key === "solvexpay_enabled") return res.json({ message: "Réglage global obsolète : utilisez le mode de chaque pays." });
@@ -7709,7 +7558,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let ciMode: 'redirect' | 'manual' | 'solvexpay' | 'robotpay';
       if (ciActivationModeSetting === 'manual') ciMode = 'manual';
       else if (ciActivationModeSetting === 'solvexpay') ciMode = 'solvexpay';
-      else if (ciActivationModeSetting === 'robotpay') ciMode = 'robotpay';
+      else if (ciActivationModeSetting === 'robotpay') ciMode = 'solvexpay';
       else if (ciActivationModeSetting === 'redirect') ciMode = 'redirect';
       else ciMode = countryPaymentMode(Object.fromEntries(settings.map(s => [s.key, s.value])), "CI");
       const ciRedirectUrl = settings.find((s: any) => s.key === 'ci_manual_activation_url')?.value || 'https://clp.ci/ETPXwo';
@@ -7722,8 +7571,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       for (const k of otherCountries) {
         const rawMode = settings.find((s: any) => s.key === `${k}_activation_mode`)?.value;
-        const mode: PayMode = (rawMode === 'redirect' || rawMode === 'solvexpay' || rawMode === 'robotpay' || rawMode === 'manual')
-          ? rawMode : 'manual';
+        const mode: PayMode = countryPaymentMode(Object.fromEntries(settings.map(s => [s.key, s.value])), k);
         const redirectUrl = settings.find((s: any) => s.key === `${k}_redirect_url`)?.value || '';
         countryModes[k.toUpperCase()] = { mode, redirectUrl };
       }
@@ -7854,7 +7702,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('[UPAY-INIT] User ID:', userId);
       console.log('[UPAY-INIT] Reference:', reference);
       console.log('[UPAY-INIT] Amount:', activationAmount);
-      console.log('[UPAY-INIT] Phone:', phone, '| Operator:', operator, '| Country:', country, '| OTP:', requiresOTP ? 'OUI' : 'NON');
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 20000);
@@ -7884,7 +7731,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const apiData = await apiResponse.json();
       console.log('[UPAY-INIT] Response status:', apiResponse.status);
-      console.log('[UPAY-INIT] Response data:', JSON.stringify(apiData));
 
       if (!apiResponse.ok) {
         const errCode = apiData?.error?.code || apiData?.code || 'UNKNOWN';
@@ -7981,113 +7827,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // ROBOTPAY/WESTPAY - Initier un paiement Mobile Money automatique
-  app.post('/api/activation/init-robotpay', requireAuth, async (req: any, res) => {
-    try {
-      const userId = req.session.userId;
-      const { phone: bodyPhone, operator: bodyOperator, country: bodyCountry } = req.body;
-      const user = await storage.getUser(userId);
-      if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
-
-      const statusResult = await db.select().from(accountStatus).where(eq(accountStatus.userId, userId));
-      if (statusResult[0]?.isActive) {
-        return res.status(400).json({ message: 'Votre compte est déjà activé' });
-      }
-
-      const settings = await storage.getAppSettings();
-      if (settings.find((s: any) => s.key === 'robotpay_enabled')?.value !== 'true') {
-        return res.status(503).json({ message: 'RobotPay est actuellement désactivé' });
-      }
-
-      const { merchantSlug } = configuredWestPay(settings);
-      const checkoutUrl = configuredWestPayLink(settings, 'activation');
-      if (!merchantSlug || !getRobotPayWebhookSecret()) {
-        return res.status(503).json({ message: 'WestPay requiert un slug marchand et un secret webhook configurés' });
-      }
-      if (!checkoutUrl) return res.status(503).json({ message: 'Lien WestPay d’activation non configuré' });
-      if (!bodyPhone || !bodyOperator || !bodyCountry) {
-        return res.status(400).json({ message: 'Téléphone, opérateur et pays requis' });
-      }
-
-      const country = String(bodyCountry).toUpperCase();
-      const operator = String(bodyOperator).toLowerCase();
-      if (country === 'CI' && operator === 'wave') {
-        return res.status(400).json({ message: 'Wave Côte d’Ivoire utilise la soumission manuelle avec preuve de paiement.' });
-      }
-      const prefix = WESTPAY_PREFIXES[country];
-      if (!prefix) return res.status(400).json({ message: 'Pays non pris en charge' });
-      const digitsOnly = String(bodyPhone).replace(/\D/g, '');
-      const phone = `+${digitsOnly.startsWith(prefix) ? digitsOnly : prefix + digitsOnly}`;
-      const activationSetting = settings.find((s: any) => s.key === 'activation_amount');
-      const activationAmount = parseInt(activationSetting?.value || '3600');
-      const forwardedProto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0];
-      const pendingRows = await db.select().from(bkapayPayments)
-        .where(and(eq(bkapayPayments.userId, userId), eq(bkapayPayments.status, 'pending')))
-        .orderBy(desc(bkapayPayments.createdAt))
-        .limit(1);
-      const existing = pendingRows[0];
-      const canReuseExisting = existing?.reference && existing.createdAt &&
-        Date.now() - existing.createdAt.getTime() < 24 * 60 * 60 * 1000 &&
-        Number(existing.amount) === activationAmount &&
-        normalizedPhone(existing.payerPhone) === normalizedPhone(phone) &&
-        existing.country === country &&
-        normalizedMerchantSlug(existing.merchantSlug) === normalizedMerchantSlug(merchantSlug);
-      if (canReuseExisting) {
-        const returnUrl = `${forwardedProto}://${req.get('host')}/activation-success?localRef=${encodeURIComponent(existing.reference!)}`;
-        await notifyWestPayActivationRequest(settings, user, {
-          reference: existing.reference!,
-          phone,
-          operator: String(bodyOperator),
-          country,
-          amount: activationAmount,
-        });
-        return res.json({
-          success: true,
-          transactionId: existing.reference,
-          amount: activationAmount,
-          status: 'pending',
-          paymentUrl: westPayUrl(checkoutUrl, merchantSlug, activationAmount, country, returnUrl),
-          message: 'Paiement en attente réutilisé. Redirection vers WestPay.',
-          gateway: 'robotpay',
-        });
-      }
-
-      const orderId = `WST-${userId.slice(0, 8)}-${Date.now()}`;
-      // localRef is ours; provider status/ref may be appended but is never trusted.
-      const returnUrl = `${forwardedProto}://${req.get('host')}/activation-success?localRef=${encodeURIComponent(orderId)}`;
-
-      await db.insert(bkapayPayments).values({
-        id: crypto.randomUUID(),
-        userId,
-        amount: activationAmount.toString(),
-        reference: orderId,
-        status: 'pending',
-        payerPhone: phone,
-        country,
-        merchantSlug,
-        createdAt: new Date(),
-      });
-      await notifyWestPayActivationRequest(settings, user, {
-        reference: orderId,
-        phone,
-        operator: String(bodyOperator),
-        country,
-        amount: activationAmount,
-      });
-
-      res.json({
-        success: true,
-        transactionId: orderId,
-        amount: activationAmount,
-        status: 'pending',
-        paymentUrl: westPayUrl(checkoutUrl, merchantSlug, activationAmount, country, returnUrl),
-        message: 'Redirection vers le paiement sécurisé WestPay.',
-        gateway: 'robotpay',
-      });
-    } catch (error: any) {
-      console.error('[ROBOTPAY-INIT] Error:', error);
-      res.status(500).json({ message: 'Erreur lors de l’initiation du paiement RobotPay' });
-    }
+  // Cached clients cannot initiate another payment with the retired provider.
+  app.post('/api/activation/init-robotpay', requireAuth, (_req, res) => {
+    res.status(410).json({ message: 'Ce mode de paiement a été retiré. Rechargez la page pour utiliser le paiement actuel.' });
   });
 
   // ROBOTPAY/WESTPAY - Vérifier le statut et activer le compte
@@ -8316,7 +8058,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log('[SOLVEXPAY-WEBHOOK] Event:', event);
       console.log('[SOLVEXPAY-WEBHOOK] Timestamp:', timestamp);
-      console.log('[SOLVEXPAY-WEBHOOK] Transaction:', JSON.stringify(transaction));
 
       if (!transaction || !transaction.id) {
         return res.status(400).json({ error: 'Payload invalide' });
@@ -8843,7 +8584,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let ciMode: 'redirect' | 'manual' | 'solvexpay' | 'robotpay';
       if (ciActivationModeSetting === 'manual') ciMode = 'manual';
       else if (ciActivationModeSetting === 'solvexpay') ciMode = 'solvexpay';
-      else if (ciActivationModeSetting === 'robotpay') ciMode = 'robotpay';
+      else if (ciActivationModeSetting === 'robotpay') ciMode = 'solvexpay';
       else if (ciActivationModeSetting === 'redirect') ciMode = 'redirect';
       else {
         // Compat: ancienne config
@@ -8870,8 +8611,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       for (const k of otherCountries2) {
         const rawMode = settings.find((s: any) => s.key === `${k}_activation_mode`)?.value;
-        const mode: PayMode2 = (rawMode === 'redirect' || rawMode === 'solvexpay' || rawMode === 'robotpay' || rawMode === 'manual')
-          ? rawMode : 'manual';
+        const mode: PayMode2 = countryPaymentMode(Object.fromEntries(settings.map(s => [s.key, s.value])), k);
         const rUrl = settings.find((s: any) => s.key === `${k}_redirect_url`)?.value || '';
         countryModes[k.toUpperCase()] = { mode, redirectUrl: rUrl };
       }
@@ -8916,7 +8656,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ciMode = settings.find((s: any) => s.key === 'ci_activation_mode')?.value || 'manual';
       const effectiveMode = countryLower === 'ci' ? ciMode : countryMode;
       const isManualMode = effectiveMode === 'manual';
-      const isCiWaveManual = countryLower === 'ci' && opLower === 'wave' && effectiveMode === 'robotpay';
+      const isCiWaveManual = false;
       const depositNumber = settings.find((s: any) => s.key === `${countryLower}_${opLower}_deposit_number`)?.value || '';
       const depositLabel = settings.find((s: any) => s.key === `${countryLower}_${opLower}_deposit_label`)?.value || '';
       const instruction = settings.find((s: any) => s.key === `${countryLower}_${opLower}_instruction`)?.value || '';
@@ -8991,53 +8731,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         s.key === (country === 'CI' ? 'ci_activation_mode' : `${countryKey}_activation_mode`)
       )?.value;
 
-      if (configuredMode === 'robotpay') {
-        if (String(country).toUpperCase() === 'CI' && String(operator).toLowerCase() === 'wave') {
-          return res.status(400).json({ message: 'Wave Côte d’Ivoire utilise la soumission manuelle avec preuve de paiement.' });
-        }
-        if (settings.find((s: any) => s.key === 'robotpay_enabled')?.value !== 'true') {
-          return res.status(503).json({ message: 'RobotPay est actuellement désactivé' });
-        }
-        const { merchantSlug } = configuredWestPay(settings);
-        const service = linkId === '88cb6331' ? 'pcs_activation'
-          : (linkId === 'd3e5479d' || linkId === 'codepcs') ? 'pcs_purchase'
-          : linkId === 'eedbc622' ? 'dns'
-          : null;
-        const checkoutUrl = service ? configuredWestPayLink(settings, service) : '';
-        if (!merchantSlug || !getRobotPayWebhookSecret()) return res.status(503).json({ message: 'WestPay requiert un slug marchand et un secret webhook configurés' });
-        if (!checkoutUrl) return res.status(503).json({ message: 'Aucun lien WestPay au montant exact n’est configuré pour ce service' });
-
-        const orderId = `WST-LINK-${linkId.slice(0, 8)}-${Date.now()}`;
-        const forwardedProto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0];
-        // Keep our reference distinct from WestPay's optional return ref.
-        const returnUrl = `${forwardedProto}://${req.get('host')}/pay/${encodeURIComponent(linkId)}?localRef=${encodeURIComponent(orderId)}`;
-        const [westPayTransaction] = await db.insert(paymentLinkTransactions).values({
-          linkId,
-          linkLabel: link.label,
-          amount: link.amount,
-          currency: link.currency || (country === 'CM' ? 'XAF' : 'XOF'),
-          phone: fullPhone,
-          operator: String(operator).toLowerCase(),
-          country,
-          customerName: customerName || null,
-          customerEmail: customerEmail || null,
-          reference: orderId,
-          merchantSlug,
-          status: 'pending',
-          userId: sikaUserId,
-        }).returning();
-        await notifyWestPayLinkRequest(settings, link, westPayTransaction);
-
-        return res.json({
-          success: true,
-          transactionId: orderId,
-          status: 'pending',
-          paymentUrl: westPayUrl(checkoutUrl, merchantSlug, link.amount, country, returnUrl),
-          message: 'Redirection vers le paiement sécurisé WestPay.',
-          gateway: 'robotpay',
-        });
-      }
-
       if (!solvexEnabled(settings, String(country))) return res.status(409).json({ message: 'Ce pays utilise un autre mode de paiement configuré par l’administrateur.' });
       const otpError = paymentOtpError(String(country), String(operator), otp);
       if (otpError) return res.status(400).json({ message: otpError });
@@ -9055,7 +8748,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       if (requiresPaymentOtp(String(country), String(operator))) payload.otp = otp.trim();
 
-      console.log('[PAYMENT-LINKS-PAY] Initiating SR for link:', linkId, 'amount:', link.amount, 'phone:', fullPhone, 'operator:', operator);
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 20000);
@@ -9071,7 +8763,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       clearTimeout(timeout);
 
       const spData = await spRes.json();
-      console.log('[PAYMENT-LINKS-PAY] SolvexPay response status:', spRes.status, JSON.stringify(spData));
+      console.log('[PAYMENT-LINKS-PAY] Provider response status:', spRes.status);
 
       if (!spRes.ok) {
         const errMsg = spData?.message || spData?.error?.message || 'Erreur SolvexPay';
@@ -9104,7 +8796,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             status: spData.status || 'pending',
           });
         } else {
-          console.log('[PAYMENT-LINKS-PAY] Doublon ignoré (pending récent) pour', fullPhone, linkId);
+          console.log('[PAYMENT-LINKS-PAY] Recent pending payment reused');
         }
 
         // Notification Telegram — tous les liens sans exception
@@ -9230,9 +8922,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: 'pending',
         }).returning();
         txn = t;
-        console.log('[CI-RECORD] Pending transaction created:', txn.id, customerEmail);
+        console.log('[CI-RECORD] Pending transaction created');
       } else {
-        console.log('[CI-RECORD] Doublon ignoré (pending récent) pour', phone, linkId);
+        console.log('[CI-RECORD] Recent pending transaction reused');
       }
 
       // Notification Telegram — tous les liens sans exception
@@ -9540,7 +9232,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               pcsCode,
               issuedAt: new Date(),
             }).catch(e => console.error('[PCS-EMAIL-CODEPCS] Send failed:', e));
-            console.log(`[PCS-CODEPCS] Nouveau code ${pcsCode} envoyé à ${existingTxn.customerEmail}`);
+            console.log('[PCS-CODEPCS] Code issued');
           }
         } else {
           db.update(paymentLinkTransactions)
@@ -9733,7 +9425,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             pcsCode,
             issuedAt: new Date(),
           }).catch(e => console.error('[PCS-EMAIL-MANUAL-CODEPCS] Send failed:', e));
-          console.log(`[PCS-CODEPCS-MANUAL] Code ${pcsCode} généré et envoyé à ${txn.customerEmail}`);
+          console.log('[PCS-CODEPCS-MANUAL] Code issued');
           return res.json(atomicUpdated[0]);
         }
         const [current] = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.id, id));
@@ -9890,7 +9582,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         console.log(`[ADMIN PCS] Saved ${pcsCodesWithStatus.length} code(s) to DB for user ${foundUser.id}`);
       } else {
-        console.log(`[ADMIN PCS] No user found for email ${email} — codes not saved to DB`);
+        console.log('[ADMIN PCS] No account found; codes not saved');
       }
 
       const pcsCodeValues = pcsCodesWithStatus.map(x => x.code);
@@ -9913,7 +9605,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ message: "Échec de l'envoi de l'email" });
       }
 
-      console.log(`[ADMIN PCS] Sent ${pcsCodeValues.length} PCS code(s) to ${email}`);
+      console.log(`[ADMIN PCS] Sent ${pcsCodeValues.length} PCS code(s)`);
       res.json({ success: true, sent: pcsCodeValues.length, codes: pcsCodeValues, linkedToAccount: !!foundUser });
     } catch (err) {
       console.error('[ADMIN PCS] Error:', err);

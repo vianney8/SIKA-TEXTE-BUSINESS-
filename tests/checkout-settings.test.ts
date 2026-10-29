@@ -65,7 +65,7 @@ test("mixed payment modes stay independent even with an old global value", () =>
     assert.equal(countryPaymentMode(settings, "BJ"), "solvexpay");
     assert.equal(countryPaymentMode(settings, "SN"), "manual");
     assert.equal(countryPaymentMode(settings, "CI"), "redirect");
-    assert.equal(countryPaymentMode(settings, "CM"), "robotpay");
+    assert.equal(countryPaymentMode(settings, "CM"), "solvexpay");
     assert.equal(countryPaymentMode(settings, "BF"), "manual");
   }
 });

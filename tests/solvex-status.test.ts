@@ -23,5 +23,5 @@ test("DNS automatic country modes use SolvexPay while manual remains manual", ()
   assert.equal(usesSolvexPaymentMode("dns", "robotpay"), true);
   assert.equal(usesSolvexPaymentMode("dns", "redirect"), true);
   assert.equal(usesSolvexPaymentMode("dns", "manual"), false);
-  assert.equal(usesSolvexPaymentMode("activation", "robotpay"), false);
+  assert.equal(usesSolvexPaymentMode("activation", "robotpay"), true);
 });

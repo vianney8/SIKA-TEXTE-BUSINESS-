@@ -28,15 +28,6 @@ export const COUNTRIES = [
   { code: "CM",  name: "Cameroun",      flag: "🇨🇲", prefix: "237", phonePlaceholder: "6 12 34 56 78", operators: ["mtn","orange"] },
 ];
 
-const ROBOTPAY_OPERATORS: Record<string, string[]> = {
-  BJ: ["moov", "mtn"],
-  CI: ["moov", "mtn", "orange"],
-  SN: ["mixx", "orange", "wave"],
-  BF: ["moov", "orange", "wave"],
-  TG: ["moov", "tmoney"],
-  CM: ["mtn", "orange"],
-};
-
 type MethodType = "ussd" | "redirect";
 
 export const OPERATORS: Record<string, {
@@ -204,23 +195,17 @@ function LegacyActivation() {
 
   const phonePlaceholder = selectedCountry?.phonePlaceholder || "Numéro Mobile Money";
 
-  const ciMode: "redirect" | "manual" | "solvexpay" | "robotpay" = paymentInfo?.ciMode ?? "redirect";
+  const ciMode: "redirect" | "manual" | "solvexpay" = paymentInfo?.ciMode ?? "redirect";
   const ciRedirectUrl = paymentInfo?.ciRedirectUrl || "https://clp.ci/ETPXwo";
 
-  type PayMode = "manual" | "redirect" | "solvexpay" | "robotpay";
+  type PayMode = "manual" | "redirect" | "solvexpay";
   const countryModes: Record<string, { mode: PayMode; redirectUrl: string }> = paymentInfo?.countryModes ?? {};
   const getCountryMode        = (c: string): PayMode  => { if (c === "CI") return ciMode; return countryModes[c]?.mode ?? "manual"; };
   const getCountryRedirectUrl = (c: string): string   => { if (c === "CI") return ciRedirectUrl; return countryModes[c]?.redirectUrl || ""; };
-  const visibleOperators = selectedCountry
-    ? (getCountryMode(selectedCountry.code) === "robotpay"
-      ? (selectedCountry.code === "CI"
-        ? Array.from(new Set([...(ROBOTPAY_OPERATORS.CI || []), "wave"]))
-        : ROBOTPAY_OPERATORS[selectedCountry.code] || [])
-      : selectedCountry.operators)
-    : [];
+  const visibleOperators = selectedCountry?.operators || [];
   const isManualCountry       = (c: string) => getCountryMode(c) === "manual";
   const isRedirectCountry     = (c: string) => getCountryMode(c) === "redirect";
-  const isCiWaveManual        = country === "CI" && operator === "wave" && getCountryMode(country) === "robotpay";
+  const isCiWaveManual        = false;
 
   // Effects
   const { depositInfo, depositLoading } = useManualDepositInfo(
@@ -398,7 +383,7 @@ function LegacyActivation() {
         }
         return;
       }
-      const gateway = getCountryMode(country) === "robotpay" ? "robotpay" : "solvexpay";
+      const gateway = "solvexpay";
       const res  = await fetch(`/api/activation/init-${gateway}`, {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },

@@ -1,12 +1,14 @@
 export const PAYMENT_COUNTRIES = ["BJ", "CI", "SN", "BF", "TG", "CM"] as const;
-export type CountryPaymentMode = "solvexpay" | "robotpay" | "manual" | "redirect";
+export type CountryPaymentMode = "solvexpay" | "manual" | "redirect";
 export function countryPaymentMode(settings: Record<string, string>, country: string): CountryPaymentMode {
   const value = settings[`${country.toLowerCase()}_activation_mode`];
-  return ["solvexpay", "robotpay", "manual", "redirect"].includes(value) ? value as CountryPaymentMode : "manual";
+  // Old country settings must never initiate another retired-provider payment.
+  if (value === "robotpay") return "solvexpay";
+  return ["solvexpay", "manual", "redirect"].includes(value) ? value as CountryPaymentMode : "manual";
 }
 
 export function usesSolvexPaymentMode(service: string, mode?: string | null): boolean {
-  return service === "dns" ? mode !== "manual" : !mode || mode === "solvexpay";
+  return service === "dns" ? mode !== "manual" : !mode || mode === "solvexpay" || mode === "robotpay";
 }
 
 export const CHECKOUT_MODELS = ["legacy", "simple", "pro"] as const;
