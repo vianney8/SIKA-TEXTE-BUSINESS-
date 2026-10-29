@@ -46,7 +46,7 @@ export const solvexEnabled = (settings: Settings, country?: string) => {
     : PAYMENT_COUNTRIES.some(code => countryPaymentMode(values, code) === "solvexpay");
 };
 const setting = (settings: Settings, key: string, fallback = "") => settings.find(s => s.key === key)?.value || fallback;
-const error = (status: number, message: string) => Object.assign(new Error(message), { status });
+const error = (status: number, message: string) => Object.assign(new Error(message.replace(/solvex\s*pay/gi, "le service de paiement")), { status });
 const authId = (req: Request) => (req as any).session?.userId as string | undefined;
 const wrap = (fn: (req: Request, res: Response, next: NextFunction) => Promise<unknown>) =>
   (req: Request, res: Response, next: NextFunction) => { void fn(req, res, next).catch((err: any) => {
@@ -158,13 +158,13 @@ async function getStatus(id: string, userId?: string) {
   if (["__activation", "__ci_update"].includes(payment.linkId || "") && userId !== payment.userId) throw error(403, "Paiement inaccessible.");
   if (payment.status === "pending" && payment.solvexpayTxnId) {
     const apiKey = process.env.SOLVEXPAY_API_KEY;
-    if (!apiKey) throw error(503, "SolvexPay n'est pas encore configuré.");
+    if (!apiKey) throw error(503, "Le paiement automatique n'est pas encore configuré.");
     const response = await fetch(`https://solvexpay.com/api/v1/transactions/${encodeURIComponent(payment.solvexpayTxnId)}`, {
       headers: { Authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(15000),
     });
     const data = await response.json();
     if (!response.ok && normalizeSolvexStatus(solvexTransactionData(data)?.status, data?.event) !== "failed") {
-      throw error(502, "La vérification SolvexPay est temporairement indisponible.");
+      throw error(502, "La vérification du paiement est temporairement indisponible.");
     }
     await reconcileSolvexCheckout(payment, data);
   }
@@ -198,7 +198,7 @@ async function initiate(req: Request) {
     ? "Ce pays utilise le dépôt manuel pour la mise à jour DNS."
     : "Ce pays utilise un autre mode de paiement. Vérifiez les réglages et réessayez.");
   const apiKey = process.env.SOLVEXPAY_API_KEY;
-  if (!apiKey) throw error(503, "SolvexPay n'est pas encore configuré. Contactez l'administrateur.");
+  if (!apiKey) throw error(503, "Le paiement automatique n'est pas encore configuré. Contactez l'administrateur.");
   const userId = authId(req);
   const service = await resolveService(input.service, input.linkId, settings, userId);
   service.currency = paymentCurrency(input.country, service.currency);
@@ -284,7 +284,7 @@ async function initiate(req: Request) {
       const providerStatus = normalizeSolvexStatus(data?.status, data?.event || payload?.event);
       if (providerStatus === "failed" || payload?.success === false || data?.success === false) {
         await tx.update(paymentLinkTransactions).set({ status: "failed", updatedAt: new Date() }).where(eq(paymentLinkTransactions.id, created.id));
-        return { ...created, status: "failed", failureMessage: payload?.message || data?.message || payload?.error?.message || "SolvexPay a refusé le paiement." };
+        return { ...created, status: "failed", failureMessage: payload?.message || data?.message || payload?.error?.message || "Le paiement a été refusé." };
       }
       const providerId = data?.id ?? data?.transaction_id ?? data?.transactionId ?? data?.tx_id;
       if (!providerId) return created;
@@ -298,7 +298,7 @@ async function initiate(req: Request) {
   });
   if (payment.status === "failed") throw error(400, "failureMessage" in payment ? String(payment.failureMessage) : "Paiement refusé.");
   if (service.id === "eedbc622" && !payment.solvexpayTxnId) {
-    throw error(502, "SolvexPay n’a pas confirmé le lancement du paiement. Ne payez pas une seconde fois avant vérification auprès de l’assistance.");
+    throw error(502, "Le service de paiement n’a pas confirmé le lancement du paiement. Ne payez pas une seconde fois avant vérification auprès de l’assistance.");
   }
   return { success: true, transactionId: payment.id, reference: payment.reference, status: "pending", amount: Number(payment.amount), currency: paymentCurrency(payment.country, payment.currency), gateway: "solvexpay",
     createdAt: payment.createdAt, providerAccepted: !!payment.solvexpayTxnId,

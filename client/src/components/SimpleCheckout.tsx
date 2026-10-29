@@ -601,7 +601,7 @@ export default function SimpleCheckout({
 
               {country?.mode && <p className="checkout-muted mt-2 text-xs" role="status">
                 {country.mode === "manual" ? "Dépôt manuel : les coordonnées de dépôt et le justificatif seront demandés à l’étape suivante."
-                  : (country.mode === "solvexpay" || service === "dns") ? "Paiement automatique par SolvexPay."
+                  : (country.mode === "solvexpay" || service === "dns") ? "Paiement automatique pour ce pays."
                   : country.mode === "redirect" ? "Paiement par lien externe pour ce pays."
                   : "Paiement via le prestataire configuré pour ce pays."}
               </p>}

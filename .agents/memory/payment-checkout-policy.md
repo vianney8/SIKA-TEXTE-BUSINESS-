@@ -71,6 +71,12 @@ Payment branding uses the official SIKA logo, the name SIKA TEXTE, a fully visib
 
 **How to apply:** Preserve administrator-controlled historical/simple/pro choices. Use the existing service prices consistently across checkout and payment links, but never replace an already-created payment's amount with a newly configured tariff. Fixed-amount external provider links require separate provider-side updates.
 
+Do not mention SolvexPay in customer-facing payment notices or error messages; use neutral payment wording.
+
+**Why:** The user explicitly said “Ne mentionnez pas SolvexPay” after seeing the DNS unconfirmed-payment notice.
+
+**How to apply:** Keep payment processing and administrator configuration unchanged; remove the provider name from visible customer copy, including provider-originated error messages.
+
 Do not display the inactive-account withdrawal page while activation data is missing, stale or still being checked.
 
 **Why:** The user repeatedly reports that an activated customer sees the inactive page until manually refreshing.

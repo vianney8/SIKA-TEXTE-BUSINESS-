@@ -1050,7 +1050,7 @@ export default function Withdrawal() {
                   <AlertTriangle size={30} className="mx-auto mb-4 text-amber-700" />
                   <h2 className="text-xl font-black text-amber-950">Lancement du paiement non confirmé</h2>
                   <p className="mt-3 text-sm leading-relaxed text-amber-900">
-                    SolvexPay n’a pas confirmé le lancement de cette tentative. Votre nouvelle version DNS n’est pas encore activée.
+                    Le lancement de cette tentative n’a pas été confirmé. Votre nouvelle version DNS n’est pas encore activée.
                   </p>
                   <p className="mt-3 text-sm font-bold text-amber-950">
                     Si vous avez été débité, ne payez pas une seconde fois. Contactez l’assistance pour faire vérifier cette référence.

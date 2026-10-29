@@ -37,7 +37,7 @@ test("DNS launches SolvexPay and reconciles rejection without a manual status cl
       const envelope = { transaction: {
         transaction_id: `dns-test-${postCount}`,
         status: rejectAtInit ? "rejected" : "pending",
-        message: rejectAtInit ? "Paiement refusé" : undefined,
+        message: rejectAtInit ? "SolvexPay : Paiement refusé" : undefined,
       } };
       return Response.json(nestedResponse ? { data: envelope } : envelope);
     }
@@ -64,7 +64,11 @@ test("DNS launches SolvexPay and reconciles rejection without a manual status cl
     });
     await t.test("HTTP 200 with rejected status never becomes a pending request", async () => {
       rejectAtInit = true;
-      await assert.rejects(() => initiateDnsCheckout(request()), /Paiement refusé/);
+      await assert.rejects(() => initiateDnsCheckout(request()), (error: Error) => {
+        assert.match(error.message, /Paiement refusé/);
+        assert.doesNotMatch(error.message, /solvex\s*pay/i);
+        return true;
+      });
       const rows = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.userId, userId));
       assert.ok(rows.every(row => row.status === "failed"));
     });
