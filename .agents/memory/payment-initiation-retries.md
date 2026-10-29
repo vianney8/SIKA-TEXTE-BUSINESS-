@@ -14,3 +14,9 @@ For DNS renewals, an unresolved automatic attempt must remain protected against 
 **Why:** The DNS interface showed indefinite “Demande en attente” for attempts without provider confirmation. Treating those attempts as failed just to unlock a new checkout could charge a customer twice.
 
 **How to apply:** Show the uncertain outcome explicitly, retain the financial reference, and reconcile verified provider responses or signed callbacks before allowing another charge. A genuine rejected/cancelled/expired attempt should show failure and support durable retry acknowledgement.
+
+The user does not want assistance or manual-verification buttons on the uncertain DNS result screen; checking should happen automatically, and the action presented is retry.
+
+**Why:** The user requested a simpler automatic-payment experience rather than an assistance-led resolution.
+
+**How to apply:** Keep automatic status reconciliation, including while the withdrawal page is in the background. Enable a fresh payment only after confirmed failure; an unknown outcome must not be relabelled as failure to make retry available.

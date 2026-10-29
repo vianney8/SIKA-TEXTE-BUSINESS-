@@ -16,6 +16,7 @@ import { FaTelegram } from "react-icons/fa";
 import { formatFCFA } from "@/lib/utils";
 import DnsPaymentForm from "@/components/DnsPaymentForm";
 import { discardAcknowledgedDnsAttempts, getDnsPaymentView, type DnsPaymentStatus } from "@shared/dns-payment-state";
+import DnsPaymentUnconfirmed from "@/components/DnsPaymentUnconfirmed";
 import DnsReleasePopup from "@/components/DnsReleasePopup";
 import { dnsVersionIsOutdated } from "@shared/dns-version";
 import {
@@ -98,6 +99,7 @@ export default function Withdrawal() {
   const dnsStatusQuery = useQuery<DnsPaymentStatus>({
     queryKey: ["/api/withdrawal/dns-update-status"],
     refetchInterval: (q) => (q.state.data?.status === 'pending' || q.state.data?.status === 'unconfirmed') ? 4000 : 15000,
+    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
     staleTime: 0,
     refetchOnMount: "always",
@@ -1045,26 +1047,7 @@ export default function Withdrawal() {
 
             {/* ── État : PENDING — En attente de validation ── */}
             {dnsView === 'unconfirmed' && (
-              <section role="alert" className="space-y-4">
-                <div className="rounded-3xl border border-amber-300 bg-amber-50 p-6 text-center shadow-sm">
-                  <AlertTriangle size={30} className="mx-auto mb-4 text-amber-700" />
-                  <h2 className="text-xl font-black text-amber-950">Lancement du paiement non confirmé</h2>
-                  <p className="mt-3 text-sm leading-relaxed text-amber-900">
-                    Le lancement de cette tentative n’a pas été confirmé. Votre nouvelle version DNS n’est pas encore activée.
-                  </p>
-                  <p className="mt-3 text-sm font-bold text-amber-950">
-                    Si vous avez été débité, ne payez pas une seconde fois. Contactez l’assistance pour faire vérifier cette référence.
-                  </p>
-                  <p className="mt-4 break-all text-xs text-amber-800">Référence : {dnsUpdateStatus?.transactionId}</p>
-                </div>
-                <button onClick={() => refetchDnsStatus()} disabled={dnsStatusQuery.isFetching}
-                  className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-sm font-bold text-slate-800 disabled:opacity-60">
-                  {dnsStatusQuery.isFetching ? "Vérification…" : "Actualiser la vérification"}
-                </button>
-                <a href="/assistance" className="block w-full rounded-2xl bg-violet-700 p-4 text-center text-sm font-bold text-white">
-                  Contacter l’assistance
-                </a>
-              </section>
+              <DnsPaymentUnconfirmed reference={dnsUpdateStatus?.transactionId} />
             )}
 
             {dnsView === 'pending' && (
