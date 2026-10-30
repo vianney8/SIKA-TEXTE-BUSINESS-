@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { localPaymentPhone } from "@shared/payment-phone";
 import { paymentCurrency } from "@shared/payment-currency";
-import { shouldResumeDnsAttempt, type DnsPaymentStatus } from "@shared/dns-payment-state";
+import { type DnsPaymentStatus } from "@shared/dns-payment-state";
+import { resolveCheckoutResume } from "@shared/checkout-resume";
 import { usesSolvexPaymentMode } from "@shared/checkout-settings";
 import { requiresPaymentOtp, paymentOtpInstructions } from "@shared/payment-otp";
 import { type CheckoutModel } from "@shared/checkout-settings";
@@ -79,6 +80,7 @@ type SimpleCheckoutProps = {
   linkId?: string;
   onSuccess?: () => void;
   onCancel?: () => void;
+  resumeTransactionId?: string;
 };
 
 const serviceNames: Record<Service, string> = {
@@ -106,6 +108,7 @@ export default function SimpleCheckout({
   onSuccess,
   onCancel,
   onAlternativePayment,
+  resumeTransactionId,
 }: SimpleCheckoutProps) {
   const queryClient = useQueryClient();
   const [countryCode, setCountryCode] = useState("");
@@ -114,8 +117,8 @@ export default function SimpleCheckout({
   const [otp, setOtp] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [payerName, setPayerName] = useState("");
-  const [transactionId, setTransactionId] = useState<string | null>(null);
-  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(null);
+  const [transactionId, setTransactionId] = useState<string | null>(resumeTransactionId || null);
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(resumeTransactionId ? "pending" : null);
   const [paymentAmount, setPaymentAmount] = useState<{ amount: number; currency: string } | null>(null);
   const [paymentMessage, setPaymentMessage] = useState("");
   const [providerAccepted, setProviderAccepted] = useState(false);
@@ -189,12 +192,13 @@ export default function SimpleCheckout({
     setStatusError("");
     successNotified.current = false;
     try {
-      const parsed = JSON.parse(sessionStorage.getItem(key) || "null");
+      let saved: unknown = null;
+      try { saved = JSON.parse(sessionStorage.getItem(key) || "null"); } catch { /* Server recovery does not require browser storage. */ }
       const dnsAttempt = service === "dns" || linkId === "eedbc622";
-      const resumeAllowed = !dnsAttempt || shouldResumeDnsAttempt(
-        parsed?.transactionId, queryClient.getQueryData<DnsPaymentStatus>(["/api/withdrawal/dns-update-status"]),
+      const parsed = resolveCheckoutResume(
+        resumeTransactionId, saved, queryClient.getQueryData<DnsPaymentStatus>(["/api/withdrawal/dns-update-status"]), dnsAttempt,
       );
-      if (typeof parsed?.transactionId === "string" && parsed.transactionId.length > 0 && resumeAllowed) {
+      if (parsed) {
         setTransactionId(parsed.transactionId);
         setPaymentStatus("pending");
         setProviderAccepted(parsed.providerAccepted === true);
@@ -205,7 +209,7 @@ export default function SimpleCheckout({
       } else sessionStorage.removeItem(key);
     } catch { sessionStorage.removeItem(key); }
     setResumeChecked(true);
-  }, [paymentIdentity, key, queryClient, service, linkId]);
+  }, [paymentIdentity, key, queryClient, service, linkId, resumeTransactionId]);
 
   const finishSuccess = useCallback(
     (code?: string) => {
@@ -510,10 +514,10 @@ export default function SimpleCheckout({
                   <p>{statusError}</p>
                 </div>
               )}
-              <button type="button" className="checkout-button mt-5 w-full" onClick={() => void checkStatus(true)} disabled={manualChecking}>
+              {service !== "dns" && linkId !== "eedbc622" && <button type="button" className="checkout-button mt-5 w-full" onClick={() => void checkStatus(true)} disabled={manualChecking}>
                 {manualChecking ? <LoaderCircle size={18} className="animate-spin" /> : <RefreshCw size={17} />}
                 {manualChecking ? "Vérification…" : "Vérifier le paiement"}
-              </button>
+              </button>}
               <button type="button" className="checkout-text-button mt-3 w-full" onClick={cancel}>
                 Quitter cette page sans interrompre le paiement
               </button>

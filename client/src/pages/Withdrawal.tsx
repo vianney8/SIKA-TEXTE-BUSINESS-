@@ -17,6 +17,7 @@ import { formatFCFA } from "@/lib/utils";
 import DnsPaymentForm from "@/components/DnsPaymentForm";
 import { discardAcknowledgedDnsAttempts, getDnsPaymentView, type DnsPaymentStatus } from "@shared/dns-payment-state";
 import DnsPaymentUnconfirmed from "@/components/DnsPaymentUnconfirmed";
+import SimpleCheckout from "@/components/SimpleCheckout";
 import DnsReleasePopup from "@/components/DnsReleasePopup";
 import { dnsVersionIsOutdated } from "@shared/dns-version";
 import {
@@ -1050,6 +1051,16 @@ export default function Withdrawal() {
             {dnsView === 'unconfirmed' && (
               <DnsPaymentUnconfirmed reference={dnsUpdateStatus?.transactionId}
                 onRetry={() => retryDnsMutation.mutate()} isRetrying={retryDnsMutation.isPending} />
+            )}
+
+            {dnsView === 'automatic-pending' && dnsUpdateStatus?.transactionId && (
+              <SimpleCheckout
+                key={dnsUpdateStatus.transactionId}
+                service="dns"
+                resumeTransactionId={dnsUpdateStatus.transactionId}
+                onSuccess={() => { void refetchDnsStatus(); }}
+                onCancel={() => setShowDnsPage(false)}
+              />
             )}
 
             {dnsView === 'pending' && (

@@ -65,6 +65,12 @@ Automatic DNS payments must collect country, operator and phone only once, with 
 
 **How to apply:** Route enabled automatic DNS directly into its payment form while retaining the configured model's presentation and the existing manual DNS flow when SolvexPay is disabled.
 
+An existing automatic DNS payment must reopen the actual phone-validation checkout, not the historical DNS/team-approval overview. Recovery must work without browser storage.
+
+**Why:** The user reported that the legacy “Demande en attente” screen looked like manual processing and never showed the API phone-validation page.
+
+**How to apply:** Use the authenticated server's payment identity to recover the existing attempt without another payment-initiation request. Keep automatic success/failure/pending transitions and background verification; retain the separate approval interface only for genuinely manual payments.
+
 Payment branding uses the official SIKA logo, the name SIKA TEXTE, a fully visible service title, and the footer “Paiement sécurisé par SIKApay”, not SolvexPay. The user also requests distinct customized operator logos, payment animations, and administrator-editable prices for PCS purchases, PCS activation, DNS and other services.
 
 **Why:** The user explicitly requested these changes together with navigation/return fixes and automatic propagation of price changes throughout the site.

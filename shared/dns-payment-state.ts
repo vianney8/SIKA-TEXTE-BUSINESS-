@@ -35,9 +35,10 @@ export function discardAcknowledgedDnsAttempts(
 export function getDnsPaymentView(
   payment: DnsPaymentStatus | undefined,
   formRequested: boolean,
-): "loading" | "intro" | "form" | "failed" | "pending" | "unconfirmed" | "completed" | "outdated" {
+): "loading" | "intro" | "form" | "failed" | "pending" | "automatic-pending" | "unconfirmed" | "completed" | "outdated" {
   if (!payment) return "loading";
-  if (payment.status === "completed" || payment.status === "pending") return payment.status;
+  if (payment.status === "pending") return payment.paymentMode === "solvexpay" ? "automatic-pending" : "pending";
+  if (payment.status === "completed") return "completed";
   if (payment.status === "unconfirmed") return payment.retryRequested ? "form" : "unconfirmed";
   if (formRequested || (payment.status === "failed" && payment.retryRequested)) return "form";
   if (payment.status === "outdated") return "outdated";
