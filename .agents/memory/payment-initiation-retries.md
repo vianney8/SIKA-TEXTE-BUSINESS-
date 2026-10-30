@@ -13,10 +13,16 @@ For DNS renewals, an unresolved automatic attempt must remain protected against 
 
 **Why:** The DNS interface showed indefinite “Demande en attente” for attempts without provider confirmation. Treating those attempts as failed just to unlock a new checkout could charge a customer twice.
 
-**How to apply:** Show the uncertain outcome explicitly, retain the financial reference, and reconcile verified provider responses or signed callbacks before allowing another charge. A genuine rejected/cancelled/expired attempt should show failure and support durable retry acknowledgement.
+**How to apply:** Show the uncertain outcome explicitly and retain the financial reference. Without an explicit retry, keep reconciling verified provider responses or signed callbacks rather than creating another charge automatically.
 
 The user does not want assistance or manual-verification buttons on the uncertain DNS result screen; checking should happen automatically, and the action presented is retry.
 
 **Why:** The user requested a simpler automatic-payment experience rather than an assistance-led resolution.
 
-**How to apply:** Keep automatic status reconciliation, including while the withdrawal page is in the background. Enable a fresh payment only after confirmed failure; an unknown outcome must not be relabelled as failure to make retry available.
+**How to apply:** Keep automatic status reconciliation, including while the withdrawal page is in the background.
+
+For an unconfirmed DNS launch, the user explicitly requested an active retry **without a warning**, after being told that a late first payment could cause two debits. Do not reinstate a permanently disabled retry button for this state.
+
+**Why:** The user replied “oui sans avertir” when asked whether to permit a new attempt after the uncertain-payment risk was explained.
+
+**How to apply:** Require an explicit, authenticated retry acknowledgement tied to the latest owned attempt before allowing a new checkout. Preserve the original pending financial record for later callbacks; do not relabel it as failed. Opening the retry form must not charge money, and concurrent submissions must reuse a single new attempt.

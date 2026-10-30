@@ -1,12 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db, pool } from "../server/db";
 import { storage } from "../server/storage";
 import { users, paymentLinkTransactions } from "../shared/schema";
 import { initiateDnsCheckout, refreshDnsCheckout } from "../server/checkout";
 import { getDnsUpdateStatus } from "../server/dns-versions";
+import { acknowledgeDnsRetry } from "../server/dns-retry";
 
 // Run with a synthetic API key. No request may reach a real payment provider.
 test("DNS launches SolvexPay and reconciles rejection without a manual status click", async t => {
@@ -94,6 +95,32 @@ test("DNS launches SolvexPay and reconciles rejection without a manual status cl
       assert.equal(postCount, before);
       const preserved = (await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.id, state.transactionId!)))[0];
       assert.equal(preserved.status, "pending", "Do not misrepresent an ambiguous debit as rejected");
+    });
+    await t.test("explicit retry opens the form and concurrent submissions send only one new request", async () => {
+      // Only remove this fixture's earlier rejected attempts to keep the aged
+      // unknown attempt the latest one, as it is for an affected customer.
+      await db.delete(paymentLinkTransactions).where(and(
+        eq(paymentLinkTransactions.userId, userId), eq(paymentLinkTransactions.status, "failed"),
+      ));
+      const state = await getDnsUpdateStatus(userId);
+      assert.equal(state.status, "unconfirmed");
+      assert.equal(await acknowledgeDnsRetry(userId, state.transactionId!, false), null);
+      assert.equal(await acknowledgeDnsRetry(randomUUID(), state.transactionId!, true), null);
+      const acknowledged = await acknowledgeDnsRetry(userId, state.transactionId!, true);
+      assert.equal(acknowledged?.status, "unconfirmed");
+      assert.equal(acknowledged?.retryRequested, true);
+      ambiguousInit = false;
+      const before = postCount;
+      const [first, second] = await Promise.all([initiateDnsCheckout(request()), initiateDnsCheckout(request())]);
+      assert.equal(first.transactionId, second.transactionId);
+      assert.notEqual(first.transactionId, state.transactionId);
+      assert.equal(postCount, before + 1);
+      const rows = await db.select().from(paymentLinkTransactions).where(eq(paymentLinkTransactions.userId, userId));
+      assert.equal(rows.length, 2);
+      assert.equal(rows.find(row => row.id === state.transactionId)?.status, "pending");
+      assert.equal(await acknowledgeDnsRetry(userId, state.transactionId!, true), null, "Cannot release an obsolete attempt again");
+      assert.equal(await acknowledgeDnsRetry(userId, first.transactionId, true), null, "A confirmed provider launch cannot be released");
+      assert.equal((await getDnsUpdateStatus(userId)).status, "pending");
     });
     await t.test("explicit manual country mode never calls the automatic API", async () => {
       mode = "manual";

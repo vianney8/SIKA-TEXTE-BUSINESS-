@@ -32,7 +32,7 @@ test("a stored rejected DNS attempt cannot reappear after retry acknowledgement"
   assert.equal(shouldResumeDnsAttempt("different-attempt", acknowledged), true);
   assert.equal(shouldResumeDnsAttempt("attempt-a", { ...acknowledged, retryRequested: false }), true);
   assert.equal(shouldResumeDnsAttempt("attempt-a", { ...acknowledged, status: "pending" }), true);
-  assert.equal(shouldResumeDnsAttempt("attempt-a", { ...acknowledged, status: "unconfirmed" }), true);
+  assert.equal(shouldResumeDnsAttempt("attempt-a", { ...acknowledged, status: "unconfirmed" }), false);
   assert.equal(shouldResumeDnsAttempt("attempt-a", undefined), true);
 });
 

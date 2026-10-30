@@ -131,6 +131,7 @@ export default function Withdrawal() {
     mutationFn: async () => {
       const response = await apiRequest("POST", "/api/withdrawal/dns-update-retry", {
         transactionId: dnsUpdateStatus?.transactionId,
+        retryUnconfirmed: dnsUpdateStatus?.status === "unconfirmed",
       });
       return response.json() as Promise<DnsPaymentStatus>;
     },
@@ -1047,7 +1048,8 @@ export default function Withdrawal() {
 
             {/* ── État : PENDING — En attente de validation ── */}
             {dnsView === 'unconfirmed' && (
-              <DnsPaymentUnconfirmed reference={dnsUpdateStatus?.transactionId} />
+              <DnsPaymentUnconfirmed reference={dnsUpdateStatus?.transactionId}
+                onRetry={() => retryDnsMutation.mutate()} isRetrying={retryDnsMutation.isPending} />
             )}
 
             {dnsView === 'pending' && (

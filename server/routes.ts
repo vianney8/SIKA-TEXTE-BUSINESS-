@@ -58,6 +58,7 @@ import { createAdminGuard } from "./admin-access";
 import { sameOriginMutation } from "./http-security";
 import { ensureSecurityRateLimits, protectAuthentication } from "./security-rate-limit";
 import { telegramWebhookSecret, verifyTelegramWebhook } from "./telegram-security";
+import { acknowledgeDnsRetry } from "./dns-retry";
 import { linkManualPaymentAllowed, paymentCustomerEmail } from "@shared/payment-customer";
 import { PCS_INACTIVE_WITHDRAWAL_GRACE_MS } from "@shared/withdrawal-policy";
 import { CHECKOUT_MODELS } from "@shared/checkout-settings";
@@ -1178,7 +1179,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ── DNS Privé — état et reprise de paiement ─────────────────────────
-  // Acknowledging an old failure does not create or restart a payment.
+  // Retry acknowledgement prepares the form; only submitting it starts payment.
   app.post('/api/withdrawal/dns-update-retry', requireAuth, async (req: any, res) => {
     try {
       const userId = req.session.userId;
@@ -1186,22 +1187,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (typeof transactionId !== 'string' || !transactionId) {
         return res.status(400).json({ message: 'Demande DNS requise.' });
       }
-      const result = await db.execute(sql`
-        UPDATE payment_link_transactions SET dns_retry_requested = true
-        WHERE id = ${transactionId} AND user_id = ${userId}
-          AND link_id = 'eedbc622'
-          AND lower(trim(status)) IN ('failed', 'failure', 'rejected', 'declined', 'cancelled', 'canceled', 'expired', 'error', 'denied')
-          AND id = (
-            SELECT id FROM payment_link_transactions
-            WHERE user_id = ${userId} AND link_id = 'eedbc622'
-            ORDER BY created_at DESC, id DESC LIMIT 1
-          )
-        RETURNING id
-      `);
-      if (!result.rows?.length) {
+      const status = await acknowledgeDnsRetry(userId, transactionId, req.body?.retryUnconfirmed === true);
+      if (!status) {
         return res.status(409).json({ message: 'Le statut de votre demande a changé. Veuillez réessayer.' });
       }
-      res.json({ status: 'failed', transactionId, retryRequested: true });
+      res.json(status);
     } catch (error) {
       console.error('[DNS-UPDATE-RETRY] Error:', error);
       res.status(500).json({ message: 'Impossible de préparer la nouvelle demande DNS.' });

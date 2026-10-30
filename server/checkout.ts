@@ -241,13 +241,14 @@ async function initiate(req: Request) {
       ? [targetId || email || "", service.id].join(":")
       : [targetId || email || "", service.id, service.amount, phone, input.country, input.operator].join(":");
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${key}))`);
-    // A DNS attempt with an ambiguous outcome must not become a second debit
-    // simply because 15 minutes elapsed, or the payer changed their number.
+    // Time elapsed or a changed phone never authorizes retry. Only an explicit
+    // account-scoped acknowledgement may release an attempt without a provider ID.
     if (service.id === "eedbc622" && targetId) {
       const [unresolved] = await tx.select().from(paymentLinkTransactions).where(and(
         eq(paymentLinkTransactions.linkId, service.id),
         eq(paymentLinkTransactions.userId, targetId),
         eq(paymentLinkTransactions.status, "pending"),
+        sql`(COALESCE(dns_retry_requested, false) = false OR ${paymentLinkTransactions.solvexpayTxnId} IS NOT NULL)`,
         sql`${paymentLinkTransactions.reference} LIKE 'UCHK-%'`,
       )).orderBy(desc(paymentLinkTransactions.createdAt), desc(paymentLinkTransactions.id)).limit(1);
       if (unresolved) return unresolved;
@@ -257,6 +258,9 @@ async function initiate(req: Request) {
       eq(paymentLinkTransactions.amount, String(service.amount)), eq(paymentLinkTransactions.operator, input.operator),
       sql`COALESCE(${paymentLinkTransactions.userId}, '') = ${targetId || ""}`,
       eq(paymentLinkTransactions.status, "pending"),
+      service.id === "eedbc622"
+        ? sql`(COALESCE(dns_retry_requested, false) = false OR ${paymentLinkTransactions.solvexpayTxnId} IS NOT NULL)`
+        : sql`true`,
       sql`${paymentLinkTransactions.reference} LIKE 'UCHK-%'`,
       sql`${paymentLinkTransactions.createdAt} > now() - interval '15 minutes'`,
     )).limit(1);

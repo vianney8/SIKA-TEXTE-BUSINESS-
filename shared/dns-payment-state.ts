@@ -10,16 +10,16 @@ export interface DnsPaymentStatus {
   announcement?: DnsRelease | null;
 }
 
-/** Keep uncertain/in-flight attempts, but never restore a failure already acknowledged for retry. */
+/** Do not restore an old attempt explicitly acknowledged for retry. */
 export function shouldResumeDnsAttempt(transactionId: string, payment: DnsPaymentStatus | undefined): boolean {
-  return !(payment?.status === "failed" && payment.retryRequested && payment.transactionId === transactionId);
+  return !((payment?.status === "failed" || payment?.status === "unconfirmed") && payment.retryRequested && payment.transactionId === transactionId);
 }
 
 export function discardAcknowledgedDnsAttempts(
   storage: Pick<Storage, "length" | "key" | "getItem" | "removeItem">,
   payment: DnsPaymentStatus,
 ): void {
-  if (payment.status !== "failed" || !payment.retryRequested || !payment.transactionId) return;
+  if (!["failed", "unconfirmed"].includes(payment.status) || !payment.retryRequested || !payment.transactionId) return;
   const keys = Array.from({ length: storage.length }, (_, index) => storage.key(index));
   for (const key of keys) {
     if (!key?.startsWith("sika-checkout:")) continue;
@@ -37,7 +37,8 @@ export function getDnsPaymentView(
   formRequested: boolean,
 ): "loading" | "intro" | "form" | "failed" | "pending" | "unconfirmed" | "completed" | "outdated" {
   if (!payment) return "loading";
-  if (payment.status === "completed" || payment.status === "pending" || payment.status === "unconfirmed") return payment.status;
+  if (payment.status === "completed" || payment.status === "pending") return payment.status;
+  if (payment.status === "unconfirmed") return payment.retryRequested ? "form" : "unconfirmed";
   if (formRequested || (payment.status === "failed" && payment.retryRequested)) return "form";
   if (payment.status === "outdated") return "outdated";
   return payment.status === "failed" ? "failed" : "intro";
